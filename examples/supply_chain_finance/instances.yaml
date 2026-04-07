@@ -1,0 +1,345 @@
+# ============================================================
+# KGML Instances - 供应链金融实例数据
+# 场景：供应商融资授信评估 MVP 案例
+# ============================================================
+
+instances:
+  # ============================================================
+  # 分析对象：供应商 "深圳智造科技有限公司"
+  # ============================================================
+  - concept: "Supplier"
+    data:
+      - supplier_id: "SUP_2024_001"
+        company_name: "深圳智造科技有限公司"
+        unified_credit_code: "91440300MA5G8KXXXX"
+        registered_capital:
+          value: 50000000
+          currency: "CNY"
+        establishment_date: "2018-03-15"
+        industry_type: "TECHNOLOGY"
+        company_size: "MEDIUM"
+        address:
+          province: "广东省"
+          city: "深圳市"
+          district: "南山区"
+          detail: "科技园南区XX大厦15楼"
+        status: "ACTIVE"
+        contact_phone: "0755-8888XXXX"
+        contact_email: "contact@szintech.com"
+        
+        # 分析维度激活标记
+        active_dimensions:
+          - "credit_assessment"
+        
+        # 关联实体引用
+        supplies_to:
+          - enterprise_id: "CORE_ENT_001"
+          - enterprise_id: "CORE_ENT_002"
+        has_invoice:
+          - invoice_no: "INV2024001001"
+          - invoice_no: "INV2024001002"
+          - invoice_no: "INV2024001003"
+          - invoice_no: "INV2024001004"
+          - invoice_no: "INV2024001005"
+        has_contract:
+          - contract_no: "CTR20240001"
+          - contract_no: "CTR20240002"
+        guaranteed_by:
+          - supplier_id: "SUP_2024_002"
+
+  # ============================================================
+  # 核心企业
+  # ============================================================
+  - concept: "CoreEnterprise"
+    data:
+      - enterprise_id: "CORE_ENT_001"
+        company_name: "华为技术有限公司"
+        credit_rating: "AAA"
+        annual_procurement_volume:
+          value: 50000000000
+          currency: "CNY"
+      
+      - enterprise_id: "CORE_ENT_002"
+        company_name: "比亚迪股份有限公司"
+        credit_rating: "AA+"
+        annual_procurement_volume:
+          value: 30000000000
+          currency: "CNY"
+
+  # ============================================================
+  # 发票数据（近90天）
+  # ============================================================
+  - concept: "Invoice"
+    data:
+      # 发票1：正常已付
+      - invoice_no: "INV2024001001"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 2800000
+          currency: "CNY"
+        issue_date: "2026-03-15"
+        due_date: "2026-06-15"
+        status: "PAID"
+        is_overdue: false
+        issued_by:
+          supplier_id: "SUP_2024_001"
+        issued_to:
+          enterprise_id: "CORE_ENT_001"
+      
+      # 发票2：正常已付
+      - invoice_no: "INV2024001002"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 3500000
+          currency: "CNY"
+        issue_date: "2026-02-28"
+        due_date: "2026-05-28"
+        status: "PAID"
+        is_overdue: false
+        issued_by:
+          supplier_id: "SUP_2024_001"
+        issued_to:
+          enterprise_id: "CORE_ENT_001"
+      
+      # 发票3：正常待付
+      - invoice_no: "INV2024001003"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 4200000
+          currency: "CNY"
+        issue_date: "2026-04-01"
+        due_date: "2026-07-01"
+        status: "PENDING"
+        is_overdue: false
+        issued_by:
+          supplier_id: "SUP_2024_001"
+        issued_to:
+          enterprise_id: "CORE_ENT_002"
+      
+      # 发票4：正常待付
+      - invoice_no: "INV2024001004"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 1800000
+          currency: "CNY"
+        issue_date: "2026-03-20"
+        due_date: "2026-06-20"
+        status: "PENDING"
+        is_overdue: false
+        issued_by:
+          supplier_id: "SUP_2024_001"
+        issued_to:
+          enterprise_id: "CORE_ENT_002"
+      
+      # 发票5：逾期（小额，用于演示风险指标）
+      - invoice_no: "INV2024001005"
+        invoice_type: "NORMAL"
+        amount:
+          value: 150000
+          currency: "CNY"
+        issue_date: "2026-01-15"
+        due_date: "2026-03-15"  # 已逾期
+        status: "OVERDUE"
+        is_overdue: true
+        issued_by:
+          supplier_id: "SUP_2024_001"
+        issued_to:
+          enterprise_id: "CORE_ENT_002"
+
+  # ============================================================
+  # 合同数据
+  # ============================================================
+  - concept: "Contract"
+    data:
+      - contract_no: "CTR20240001"
+        contract_amount:
+          value: 15000000
+          currency: "CNY"
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: "ACTIVE"
+        signed_by:
+          supplier_id: "SUP_2024_001"
+        signed_with:
+          enterprise_id: "CORE_ENT_001"
+      
+      - contract_no: "CTR20240002"
+        contract_amount:
+          value: 8000000
+          currency: "CNY"
+        start_date: "2026-02-01"
+        end_date: "2026-08-31"
+        status: "ACTIVE"
+        signed_by:
+          supplier_id: "SUP_2024_001"
+        signed_with:
+          enterprise_id: "CORE_ENT_002"
+
+  # ============================================================
+  # 担保关系
+  # ============================================================
+  - concept: "GuaranteeRelation"
+    data:
+      # 供应商002为供应商001提供担保
+      guarantor_id: "SUP_2024_002"
+      guaranteed_id: "SUP_2024_001"
+      guarantee_amount:
+        value: 10000000
+        currency: "CNY"
+      guarantee_type: "JOINT_LIABILITY"
+      start_date: "2026-01-01"
+      end_date: "2027-01-01"
+      status: "ACTIVE"
+
+  # ============================================================
+  # 对比案例：高风险供应商
+  # ============================================================
+  - concept: "Supplier"
+    data:
+      - supplier_id: "SUP_2024_003"
+        company_name: "某贸易有限公司"
+        unified_credit_code: "91440300MA5G8KYYYY"
+        registered_capital:
+          value: 1000000
+          currency: "CNY"
+        establishment_date: "2023-06-01"
+        industry_type: "TRADING"
+        company_size: "SMALL"
+        address:
+          province: "广东省"
+          city: "深圳市"
+          district: "福田区"
+          detail: "XX路XX号"
+        status: "ACTIVE"
+        
+        active_dimensions:
+          - "credit_assessment"
+        
+        # 该供应商存在严重风险：
+        # 1. 注册资本低（100万）
+        # 2. 成立时间短（不到1年）
+        # 3. 逾期发票多
+        # 4. 负面新闻多
+        # 预期结果：授信被拒绝或严格限制
+
+  - concept: "Invoice"
+    data:
+      # 该供应商有多张逾期发票
+      - invoice_no: "INV2024003001"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 500000
+          currency: "CNY"
+        issue_date: "2026-01-01"
+        due_date: "2026-03-01"
+        status: "OVERDUE"
+        is_overdue: true
+        issued_by:
+          supplier_id: "SUP_2024_003"
+      
+      - invoice_no: "INV2024003002"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 300000
+          currency: "CNY"
+        issue_date: "2026-01-15"
+        due_date: "2026-03-15"
+        status: "OVERDUE"
+        is_overdue: true
+        issued_by:
+          supplier_id: "SUP_2024_003"
+      
+      - invoice_no: "INV2024003003"
+        invoice_type: "SPECIAL"
+        amount:
+          value: 200000
+          currency: "CNY"
+        issue_date: "2026-02-01"
+        due_date: "2026-04-01"
+        status: "PENDING"
+        is_overdue: false
+        issued_by:
+          supplier_id: "SUP_2024_003"
+
+  # ============================================================
+  # 担保圈案例（复杂场景）
+  # ============================================================
+  - concept: "Supplier"
+    data:
+      # 供应商A
+      - supplier_id: "SUP_2024_A"
+        company_name: "供应商A"
+        unified_credit_code: "91440300MA5G8KAAAA"
+        registered_capital:
+          value: 10000000
+          currency: "CNY"
+        establishment_date: "2020-01-01"
+        industry_type: "MANUFACTURING"
+        status: "ACTIVE"
+        active_dimensions:
+          - "credit_assessment"
+        guaranteed_by:
+          - supplier_id: "SUP_2024_B"
+      
+      # 供应商B
+      - supplier_id: "SUP_2024_B"
+        company_name: "供应商B"
+        unified_credit_code: "91440300MA5G8KBBBB"
+        registered_capital:
+          value: 8000000
+          currency: "CNY"
+        establishment_date: "2020-02-01"
+        industry_type: "MANUFACTURING"
+        status: "ACTIVE"
+        active_dimensions:
+          - "credit_assessment"
+        guaranteed_by:
+          - supplier_id: "SUP_2024_C"
+      
+      # 供应商C
+      - supplier_id: "SUP_2024_C"
+        company_name: "供应商C"
+        unified_credit_code: "91440300MA5G8KCCCC"
+        registered_capital:
+          value: 12000000
+          currency: "CNY"
+        establishment_date: "2020-03-01"
+        industry_type: "MANUFACTURING"
+        status: "ACTIVE"
+        active_dimensions:
+          - "credit_assessment"
+        # C被A担保，形成A→B→C→A的循环担保圈
+        guaranteed_by:
+          - supplier_id: "SUP_2024_A"
+
+  - concept: "GuaranteeRelation"
+    data:
+      # B担保A
+      - guarantor_id: "SUP_2024_B"
+        guaranteed_id: "SUP_2024_A"
+        guarantee_amount:
+          value: 5000000
+          currency: "CNY"
+        guarantee_type: "JOINT_LIABILITY"
+        start_date: "2026-01-01"
+        status: "ACTIVE"
+      
+      # C担保B
+      - guarantor_id: "SUP_2024_C"
+        guaranteed_id: "SUP_2024_B"
+        guarantee_amount:
+          value: 4000000
+          currency: "CNY"
+        guarantee_type: "JOINT_LIABILITY"
+        start_date: "2026-01-01"
+        status: "ACTIVE"
+      
+      # A担保C（形成循环）
+      - guarantor_id: "SUP_2024_A"
+        guaranteed_id: "SUP_2024_C"
+        guarantee_amount:
+          value: 6000000
+          currency: "CNY"
+        guarantee_type: "JOINT_LIABILITY"
+        start_date: "2026-01-01"
+        status: "ACTIVE"
