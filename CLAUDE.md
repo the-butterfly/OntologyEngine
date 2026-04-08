@@ -65,3 +65,7 @@ pytest tests/unit/ -v --cov=ontology_engine --cov-report=term-missing
 | 是否跨层调用 | `grep -r "from.*storage.*import\|from.*engine.*import" ontology_engine/api/ --include="*.py"` |
 | 是否直接依赖外部存储 | `grep -r "neo4j\|redis\|psycopg" ontology_engine/ --include="*.py" \| grep -v "adapters/"` |
 | 测试是否存在 | `find tests/unit -name "test_*.py" \| wc -l` |
+
+## HOOK
+AT LAST: DO THINK DEEPLY. 
+AND BACKUP ALL KEY DESICIONS in session TO `discuss` foler.
