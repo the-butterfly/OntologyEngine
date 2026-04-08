@@ -39,6 +39,44 @@ metric:
     expression: "total_guarantee_out / net_asset"
 ```
 
+## 分析维度
+
+### Dimension (维度)
+分析维度定义不同视角，如 `credit_assessment`（融资授信）、`transaction_monitoring`（交易监控）。
+
+同一实体在不同维度下有相同的核心属性，但派生出不同的分析结果。
+
+**重要澄清：dimension_attributes 不是存储属性**
+
+`schema.yaml` 中的 `dimension_attributes` 是一个**误称**。实际上：
+
+- **Concept 的 attributes** = 实体的核心数据，**存储**在数据库中
+- **dimension_attributes** = 该维度下的**派生规则/指标**，**按需计算**
+
+```yaml
+# 错误理解（不要这样做）
+concepts:
+  - name: "Supplier"
+    dimension_attributes:
+      credit_assessment:
+        - name: "credit_limit"  # ❌ 这不是存储属性
+
+# 正确理解
+concepts:
+  - name: "Supplier"
+    attributes:  # ← 存储的属性
+      - name: "registered_capital"
+      - name: "status"
+
+rules:  # ← 派生属性在规则中定义
+  ruleset:
+    - id: "R004_credit_limit"
+      scope:
+        dimensions: ["credit_assessment"]
+      computation:
+        formula: "registered_capital * 0.5"
+```
+
 ## 计算层
 
 ### Rule (规则)

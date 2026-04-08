@@ -6,11 +6,12 @@
 
 | ID | Title | Status | Date |
 |----|-------|--------|------|
-| ADR-001 | SQLite + NetworkX Storage Strategy | Pending | 2026-04-07 |
+| ADR-001 | SQLite + NetworkX Storage Strategy | Deprecated | 2026-04-07 |
 | ADR-002 | FaissVectorStore Persistence | Pending | 2026-04-07 |
 | ADR-003 | Expression Engine Security | Pending | 2026-04-07 |
 | ADR-004 | KGML/LinkML Integration | Pending | 2026-04-07 |
 | ADR-005 | Agent Memory Design | Pending | 2026-04-07 |
+| ADR-006 | DuckDB + NetworkX Hybrid Storage | Accepted | 2026-04-08 |
 
 ## Creating New Decisions
 

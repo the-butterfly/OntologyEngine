@@ -1,36 +1,69 @@
 # Project Phase Clarification
 
-> **Last Updated:** 2026-04-07
+> **Last Updated:** 2026-04-08
 
 ## Current Phase: MVP Implementation
 
-This project is in **implementation phase**, not design phase. The documentation describes the **target architecture**, not the current state.
+This project is in **implementation phase**, not design phase. The key design decisions have been made and documented in `discuss/2026-04-08-key-design-decisions.md`.
 
-### What Exists
+## Key Decisions
+
+| # | Decision | Impact |
+|---|----------|--------|
+| 1 | KGML as Schema Format | Schema in YAML, separate from instances |
+| 2 | Dimension Attributes Are Computed | No stored dimension_attributes, computed at query time |
+| 3 | Real Rule Engine | Load rules from YAML, no hard-coded Python rules |
+| 4 | OntologyEngine Is Toolchain | Package has no embedded config, reads YAML files |
+| 5 | DuckDB for Storage | Not SQLite - better for analytical workloads |
+
+## What Exists
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Schema Models | ✅ Implemented | `ontology_engine/core/schema/` |
-| MVP Demo | ✅ Implemented | `mvp_demo.py` (hard-coded logic, NOT engine) |
-| Documentation | 🔄 In Progress | `docs/` |
+| Example Schema | ✅ | `examples/supply_chain_finance/schema.yaml` |
+| Example Instances | 🔄 | `examples/supply_chain_finance/instances.yaml` (to be extracted) |
+| KGML Docs | ✅ | `docs/` |
 
-### What Doesn't Exist Yet
+## What Doesn't Exist Yet (To Be Implemented)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| SQLiteGraphStore | ❌ Not Implemented | `storage/local/sqlite_graph.py` does not exist |
-| FaissVectorStore | ❌ Not Implemented | `storage/local/faiss_vector.py` does not exist |
-| RuleEngine | ❌ Not Implemented | mvp_demo.py has hard-coded if/else |
-| QueryExecutor | ❌ Not Implemented | `engine/query/` directories don't exist |
-| API Server | ❌ Not Implemented | `api/` routes not implemented |
+| ontology_engine package | ❌ | Package structure to be created |
+| KGML Schema Loader | ❌ | Parse schema.yaml |
+| DuckDB Storage | ❌ | Storage implementation |
+| Rule Engine | ❌ | Load and execute YAML rules |
+| Instance Loader | ❌ | Load instances.yaml |
+| MVP Demo Integration | ❌ | Refactor to use ontology_engine |
 
-### Principles
+## Architecture
 
-1. **Docs follow code, not code follows docs** - Document what exists, not what should exist
-2. **MVP first** - Implement minimal working system before architectural generalization
-3. **Incremental architecture** - Make it work, then make it right
+```
+ontology_engine/     # Toolchain - no config embedded
+├── core/schema/     # KGML models and loader
+├── storage/         # DuckDB storage layer
+├── engine/rule/     # Rule engine
+└── engine/query/    # Query engine
 
-### References
+examples/           # Example configurations
+└── supply_chain_finance/
+    ├── schema.yaml      # Schema definition (KGML)
+    └── instances.yaml  # Instance data
+```
 
-- [AGENTS.md](../../AGENTS.md) - Development constraints
-- [roadmap.md](../roadmap.md) - Implementation milestones
+## Principles
+
+1. **KGML is canonical** - Schema defined in YAML, not Python code
+2. **Instances separate from Schema** - `instances.yaml` distinct from `schema.yaml`
+3. **Rules are declarative** - Rules in YAML, loaded by engine, no hard-coded logic
+4. **Computed on demand** - dimension-specific derived attributes calculated at query time, not stored
+5. **DuckDB for storage** - Analytical queries, not transactional SQLite
+
+## Design Decisions
+
+See `discuss/2026-04-08-key-design-decisions.md` for full details.
+
+## References
+
+- [Key Design Decisions](../../discuss/2026-04-08-key-design-decisions.md)
+- [API Design](../development/api-design.md)
+- [AGENTS.md](../../AGENTS.md)
