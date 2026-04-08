@@ -211,10 +211,19 @@ instances:
           district: "福田区"
           detail: "XX路XX号"
         status: "ACTIVE"
-        
+
         active_dimensions:
           - "credit_assessment"
-        
+
+        has_invoice:
+          - invoice_no: "INV2024003001"
+          - invoice_no: "INV2024003002"
+          - invoice_no: "INV2024003003"
+
+        has_contract: []
+
+        guaranteed_by: []
+
         # 该供应商存在严重风险：
         # 1. 注册资本低（100万）
         # 2. 成立时间短（不到1年）

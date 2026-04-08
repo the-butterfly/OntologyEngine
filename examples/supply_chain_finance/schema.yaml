@@ -268,87 +268,6 @@ concepts:
         inverse: "guarantees_for"
         description: "被其他供应商担保"
 
-    # 维度特定属性集合（核心设计）
-    dimension_attributes:
-      # ===== 融资授信评估维度 =====
-      credit_assessment:
-        - name: "credit_limit_recommendation"
-          type: "Money"
-          description: "推荐授信额度"
-          derived: true
-          calculation:
-            type: "formula"
-            expression: |
-              base = registered_capital.value * 0.5
-              multiplier = CASE credit_grade
-                WHEN 'AAA' THEN 2.0
-                WHEN 'AA' THEN 1.8
-                WHEN 'A' THEN 1.5
-                WHEN 'BBB' THEN 1.2
-                WHEN 'BB' THEN 1.0
-                WHEN 'B' THEN 0.8
-                ELSE 0.5
-              END
-              return base * multiplier
-        
-        - name: "financing_eligibility"
-          type: "boolean"
-          description: "是否具备融资资格"
-          derived: true
-          calculation:
-            type: "formula"
-            expression: |
-              return status == 'ACTIVE' 
-                AND credit_score >= 60 
-                AND overdue_invoice_ratio < 0.1
-                AND negative_news_count_90d < 3
-        
-        - name: "interest_rate_suggestion"
-          type: "Percentage"
-          description: "建议利率"
-          derived: true
-          calculation:
-            type: "formula"
-            expression: |
-              base_rate = 0.05  # 5% 基准利率
-              risk_premium = (100 - credit_score) / 100 * 0.05
-              return (base_rate + risk_premium) * 100
-      
-      # ===== 交易监控维度 =====
-      transaction_monitoring:
-        - name: "transaction_volatility_30d"
-          type: "float"
-          description: "30天交易波动率"
-          derived: true
-          calculation:
-            type: "graph"
-            language: "cypher"
-            query: |
-              MATCH (s:Supplier {supplier_id: $supplier_id})-[:supplies_to]->(ce:CoreEnterprise)
-              OPTIONAL MATCH (s)-[:has_invoice]->(i:Invoice)
-              WHERE i.issue_date >= date_sub(today(), 30)
-              WITH s, collect(i.amount.value) as amounts
-              RETURN CASE WHEN size(amounts) > 1 
-                THEN stdev(amounts) / avg(amounts) 
-                ELSE 0 END AS volatility
-        
-        - name: "buyer_concentration_ratio"
-          type: "Percentage"
-          description: "买家集中度（最大单一买家占比）"
-          derived: true
-          calculation:
-            type: "graph"
-            language: "cypher"
-            query: |
-              MATCH (s:Supplier {supplier_id: $supplier_id})-[:supplies_to]->(ce:CoreEnterprise)
-              OPTIONAL MATCH (s)-[:has_invoice]->(i:Invoice)-[:issued_to]->(ce)
-              WHERE i.issue_date >= date_sub(today(), 90)
-              WITH s, ce, sum(i.amount.value) as buyer_amount
-              WITH s, max(buyer_amount) as max_amount, sum(buyer_amount) as total
-              RETURN CASE WHEN total > 0 
-                THEN max_amount / total * 100 
-                ELSE 0 END AS concentration
-
   # ========== 核心企业 ==========
   - name: "CoreEnterprise"
     description: "供应链中的核心企业/买方"
@@ -852,12 +771,10 @@ rules:
       scope:
         dimensions: ["credit_assessment", "risk_early_warning"]
         entity_types: ["Supplier"]
-      
+
       when:
-        graph_query: |
-          MATCH cycle = (s:Supplier {supplier_id: $supplier_id})-[:guarantees_for|guaranteed_by*3..10]-(s)
-          RETURN count(cycle) > 0 AS has_cycle
-      
+        expression: "has_guarantee_circle == true OR guarantee_chain_depth >= 3"
+
       then:
         action: "trigger_alert"
         output:
@@ -922,30 +839,10 @@ rules:
       
       then:
         action: "trigger_alert"
-        switch:
-          - condition: "overdue_invoice_ratio >= 15"
-            output:
-              alert_level: "critical"
-              alert_message: "逾期发票占比过高"
-              recommended_action: "暂停新增授信，催收逾期款项"
-          
-          - condition: "credit_score < 50"
-            output:
-              alert_level: "critical"
-              alert_message: "信用评分严重不足"
-              recommended_action: "拒绝授信或要求全额担保"
-          
-          - condition: "guarantee_chain_depth >= 5"
-            output:
-              alert_level: "high"
-              alert_message: "担保链过长"
-              recommended_action: "降低授信额度"
-          
-          - condition: "negative_news_count_90d >= 3"
-            output:
-              alert_level: "warning"
-              alert_message: "近期负面舆情较多"
-              recommended_action: "关注舆情动态，加强监控"
+        output:
+          alert_level: "warning"
+          alert_type: "risk_early_warning"
+          message: "检测到风险指标异常"
 
     # ---- 规则6: 利率定价 ----
     - id: "R006_interest_rate_pricing"

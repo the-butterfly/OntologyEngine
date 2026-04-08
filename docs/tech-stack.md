@@ -10,9 +10,9 @@
 
 | 数据类型 | 本地实现 | 预留接口 | 说明 |
 |----------|----------|----------|------|
-| 图数据 | SQLite + 自定义 | Neo4j | 节点/边存 SQLite，内存缓存 |
+| 主存储 | DuckDB | - | OLAP 存储，实体/关系/指标 |
+| 图算法 | NetworkX (按需加载) | - | 担保链检测、路径查询 |
 | 向量 | faiss-cpu / annoy | pgvector | 本地向量索引 |
-| 元数据/Schema | SQLite | PostgreSQL | 单文件数据库 |
 | 缓存 | 内存 dict + diskcache | Redis | LRU + 持久化 |
 | 配置/日志 | 本地文件 | - | YAML/JSON |
 
@@ -30,7 +30,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     
     # 本地存储
-    "sqlite3",                    # 内置，图+元数据
+    "duckdb>=0.9.0",              # 主存储 (OLAP)
     "diskcache>=5.6",             # 本地缓存
     
     # 向量检索 (本地)
@@ -76,72 +76,82 @@ dev = [
 │                    Storage Layer                        │
 ├─────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │ GraphStore  │  │ VectorStore │  │  MetaStore  │     │
-│  │  (抽象接口)  │  │  (抽象接口)  │  │  (抽象接口)  │     │
+│  │ DuckDBStore │  │ VectorStore │  │  MetaStore  │     │
+│  │  (主存储)    │  │  (抽象接口)  │  │  (抽象接口)  │     │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘     │
 └─────────┼────────────────┼────────────────┼────────────┘
           │                │                │
     ┌─────┴─────┐    ┌─────┴─────┐    ┌─────┴─────┐
-    │  SQLite   │    │  faiss    │    │  SQLite   │  ← 本地实现
-    │  + NetworkX│    │  /annoy   │    │           │
+    │   DuckDB  │    │  faiss    │    │   DuckDB  │  ← 本地实现
+    │           │    │  /annoy   │    │  (元数据)  │
     └─────┬─────┘    └───────────┘    └───────────┘
           │
     ┌─────┴─────┐
-    │   Neo4j   │  ← 预留接口（可选）
-    │  (远程)   │
+    │  NetworkX │  ← 按需加载（图算法）
+    │ (内存图)  │
     └───────────┘
 ```
 
 ## 存储实现细节
 
-### 1. 图存储 (SQLite + NetworkX)
+### 1. 主存储 (DuckDB)
 
 ```python
-# 本地实现
-class SQLiteGraphStore(GraphStore):
-    """SQLite + 内存缓存实现"""
-    
-    def __init__(self, db_path: str = "data/graph.db"):
-        self.conn = sqlite3.connect(db_path)
-        self.cache = {}  # 内存缓存热数据
-        self.nx_graph = nx.DiGraph()  # 内存图算法
-    
-    async def create_node(self, node: Node) -> NodeId:
-        # 1. 写入 SQLite
-        # 2. 更新内存缓存
-        # 3. 更新 NetworkX
-        pass
+class DuckDBStorage(StorageBackend):
+    """DuckDB 主存储实现"""
+
+    def __init__(self, db_path: str = ":memory:"):
+        self.db_path = db_path
+        self._conn = None
+
+    async def initialize(self) -> None:
+        self._conn = duckdb.connect(self.db_path)
+        # 创建实体表
+        await asyncio.to_thread(self._conn.execute, """
+            CREATE TABLE IF NOT EXISTS entities (
+                concept VARCHAR NOT NULL,
+                entity_id VARCHAR NOT NULL,
+                data JSON NOT NULL,
+                PRIMARY KEY (concept, entity_id)
+            )
+        """)
+        # 创建关系表
+        await asyncio.to_thread(self._conn.execute, """
+            CREATE TABLE IF NOT EXISTS relations (
+                relation_type VARCHAR NOT NULL,
+                from_entity_id VARCHAR NOT NULL,
+                to_entity_id VARCHAR NOT NULL,
+                data JSON,
+                PRIMARY KEY (relation_type, from_entity_id, to_entity_id)
+            )
+        """)
 ```
 
-**SQLite Schema**:
+**DuckDB Schema**:
 ```sql
--- 节点表
-CREATE TABLE nodes (
-    id TEXT PRIMARY KEY,
-    concept_type TEXT NOT NULL,
-    properties JSON,
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP
+-- 实体表 (概念 + JSON 数据)
+CREATE TABLE entities (
+    concept VARCHAR NOT NULL,
+    entity_id VARCHAR NOT NULL,
+    data JSON NOT NULL,
+    PRIMARY KEY (concept, entity_id)
 );
 
--- 边表
-CREATE TABLE edges (
-    id TEXT PRIMARY KEY,
-    source_id TEXT,
-    target_id TEXT,
-    relation_type TEXT,
-    properties JSON,
-    created_at TIMESTAMP,
-    FOREIGN KEY (source_id) REFERENCES nodes(id),
-    FOREIGN KEY (target_id) REFERENCES nodes(id)
+-- 关系表
+CREATE TABLE relations (
+    relation_type VARCHAR NOT NULL,
+    from_entity_id VARCHAR NOT NULL,
+    to_entity_id VARCHAR NOT NULL,
+    data JSON,
+    PRIMARY KEY (relation_type, from_entity_id, to_entity_id)
 );
 
 -- 索引
-CREATE INDEX idx_nodes_type ON nodes(concept_type);
-CREATE INDEX idx_edges_relation ON edges(relation_type);
-CREATE INDEX idx_edges_source ON edges(source_id);
-CREATE INDEX idx_edges_target ON edges(target_id);
+CREATE INDEX idx_entities_concept ON entities(concept);
+CREATE INDEX idx_relations_from ON relations(from_entity_id);
 ```
+
+**注意**: DuckDB 使用 `asyncio.to_thread()` 包装同步操作，避免阻塞事件循环。
 
 ### 2. 向量存储 (faiss-cpu)
 
@@ -169,14 +179,15 @@ class FaissVectorStore(VectorStore):
         faiss.write_index(self.index, f"{self.index_path}/index.faiss")
 ```
 
-### 3. 元数据存储 (SQLite)
+### 3. 元数据存储 (DuckDB)
 
 ```python
-class SQLiteMetaStore(MetaStore):
-    """Schema、配置、审计日志存储"""
-    
+class DuckDBMetaStore(MetaStore):
+    """Schema、配置、审计日志存储 (复用 DuckDB)"""
+
     def __init__(self, db_path: str = "data/meta.db"):
-        self.conn = sqlite3.connect(db_path)
+        self.db_path = db_path
+        self._conn = None
 ```
 
 ### 4. 缓存 (diskcache)
@@ -195,8 +206,7 @@ def expensive_compute(x):
 
 ```
 data/                          # 本地数据目录
-├── graph.db                   # SQLite 图数据库
-├── meta.db                    # SQLite 元数据库
+├── ontology.db                # DuckDB 主数据库 (实体、关系、指标)
 ├── vectors/                   # 向量索引
 │   ├── index.faiss           # Faiss 索引文件
 │   └── metadata.json         # 向量元数据
@@ -204,6 +214,8 @@ data/                          # 本地数据目录
 ├── logs/                      # 本地日志
 └── snapshots/                 # 数据快照/备份
 ```
+
+**注意**: 使用单个 DuckDB 数据库替代原有的 graph.db + meta.db 分离存储。
 
 ## 预留接口
 
@@ -265,16 +277,17 @@ class StorageConfig(BaseSettings):
 ## 迁移路径
 
 ```
-Phase 1: 本地 SQLite + faiss-cpu
+Phase 1: 本地 DuckDB + faiss-cpu
     ↓ 数据导出/导入
-Phase 2: Neo4j + pgvector (生产环境)
+Phase 2: DuckDB (持久化) + pgvector (生产环境)
 ```
 
 **数据迁移**:
 ```python
-# 从 SQLite 导出到 Neo4j
-async def migrate_to_neo4j(sqlite_store: SQLiteGraphStore, neo4j_store: Neo4jGraphStore):
-    nodes = await sqlite_store.get_all_nodes()
-    for node in nodes:
-        await neo4j_store.create_node(node)
+# DuckDB 支持直接导出为 Parquet
+async def export_to_parquet(duckdb_store: DuckDBStorage, output_dir: str):
+    await asyncio.to_thread(
+        duckdb_store._conn.execute,
+        f"COPY entities TO '{output_dir}/entities.parquet' (FORMAT PARQUET)"
+    )
 ```

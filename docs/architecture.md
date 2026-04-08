@@ -15,9 +15,9 @@
 │   └─ VectorEngine: Embedding/索引       │
 ├────────────────────────────────────────┤
 │  L0: 存储层 (本地优先)                   │
-│   ├─ SQLiteGraphStore: 图存储 (SQLite+NetworkX)
+│   ├─ DuckDBStorage: 主存储 (DuckDB)
 │   ├─ FaissVectorStore: 向量存储 (faiss-cpu)
-│   ├─ SQLiteMetaStore: 元数据 (SQLite)
+│   ├─ NetworkXGraph: 图算法 (按需加载)
 │   └─ DiskCache: 本地缓存 (diskcache)
 │
 │  预留接口: Neo4jGraphStore / PGVectorStore / RedisCache
@@ -28,9 +28,10 @@
 
 | 组件 | 本地实现 | 预留接口 | 说明 |
 |------|----------|----------|------|
-| GraphStore | SQLite + NetworkX | Neo4j | 节点/边/图算法 |
+| Storage | DuckDB | - | 主存储 (实体/关系/指标) |
+| GraphAlgo | NetworkX (按需) | - | 担保链/路径算法 |
 | VectorStore | faiss-cpu / annoy | pgvector | 向量索引/相似度 |
-| MetaStore | SQLite | PostgreSQL | Schema/配置 |
+| MetaStore | DuckDB | PostgreSQL | Schema/配置 |
 | Cache | diskcache | Redis | LRU + 持久化 |
 
 ## 本地存储架构
@@ -39,13 +40,13 @@
 ┌─────────────────────────────────────────────────────────┐
 │                      Storage Layer                      │
 ├─────────────────────────────────────────────────────────┤
-│  GraphStore ──▶ SQLite (graph.db)                       │
-│              └─▶ Memory (NetworkX 图算法)               │
+│  DuckDBStorage ──▶ DuckDB (data/ontology.db)           │
+│                 └─▶ Memory (NetworkX 按需加载)          │
 ├─────────────────────────────────────────────────────────┤
 │  VectorStore ──▶ Faiss (data/vectors/index.faiss)       │
 │               └─▶ Metadata (JSON)                       │
 ├─────────────────────────────────────────────────────────┤
-│  MetaStore ──▶ SQLite (meta.db)                         │
+│  MetaStore ──▶ DuckDB (复用主数据库)                    │
 ├─────────────────────────────────────────────────────────┤
 │  Cache ──▶ diskcache (data/cache/)                      │
 └─────────────────────────────────────────────────────────┘
@@ -55,8 +56,7 @@
 
 ```
 data/
-├── graph.db          # SQLite 图数据库
-├── meta.db           # SQLite 元数据库  
+├── ontology.db        # DuckDB 主数据库
 ├── vectors/
 │   ├── index.faiss   # Faiss 向量索引
 │   └── metadata.json # 向量元数据
@@ -66,14 +66,14 @@ data/
 ## 数据流转
 
 ```
-KGML/CSV/JSON ──▶ Ingestion ──▶ Schema校验 ──▶ SQLite ──▶ 事件触发
-                                              (graph.db)      │
+KGML/CSV/JSON ──▶ Ingestion ──▶ Schema校验 ──▶ DuckDB ──▶ 事件触发
+                                                (ontology.db)  │
                                                               ▼
                                     ┌──────────────────────────────────┐
                                     │ RuleEngine: DAG解析 ──▶ 算子执行  │
                                     └──────────────────────────────────┘
                                                               │
-Agent查询 ──▶ QueryEngine ──▶ NetworkX查询/Faiss检索 ──▶ 结果返回
+Agent查询 ──▶ QueryEngine ──▶ DuckDB查询/NetworkX算法 ──▶ 结果返回
 ```
 
 ## 非功能性需求
@@ -87,11 +87,11 @@ Agent查询 ──▶ QueryEngine ──▶ NetworkX查询/Faiss检索 ──▶
 
 ```python
 # 本地模式 (默认)
-GRAPH_STORE_TYPE=local
+STORAGE_TYPE=local
 VECTOR_STORE_TYPE=local
 
 # 生产模式 (未来切换)
-GRAPH_STORE_TYPE=neo4j
+STORAGE_TYPE=duckdb  # 持久化 DuckDB
 NEO4J_URI=bolt://localhost:7687
 VECTOR_STORE_TYPE=pgvector
 POSTGRES_DSN=postgresql://...

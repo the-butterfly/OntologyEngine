@@ -27,12 +27,9 @@ ontology_engine/                 # 主包
 │   ├── __init__.py
 │   ├── base.py                 # 存储抽象接口
 │   │
-│   ├── local/                  # 本地实现 (默认)
+│   ├── duckdb/                 # DuckDB 实现 (默认)
 │   │   ├── __init__.py
-│   │   ├── sqlite_graph.py     # SQLite 图存储
-│   │   ├── sqlite_meta.py      # SQLite 元数据
-│   │   ├── faiss_vector.py     # Faiss 向量存储
-│   │   └── disk_cache.py       # 本地缓存
+│   │   └── store.py            # DuckDB 主存储
 │   │
 │   └── adapters/               # 预留外部存储接口
 │       ├── __init__.py
@@ -99,8 +96,7 @@ ontology_engine/                 # 主包
 
 data/                            # 本地数据目录 (gitignore)
 ├── .gitkeep
-├── graph.db                     # SQLite 图数据库
-├── meta.db                      # SQLite 元数据库
+├── ontology.db                  # DuckDB 主数据库
 ├── vectors/                     # Faiss 索引
 └── cache/                       # diskcache
 
@@ -142,33 +138,39 @@ scripts/                         # 工具脚本
 # storage/base.py
 from abc import ABC, abstractmethod
 
-class GraphStore(ABC):
-    """图存储抽象接口"""
-    
+class StorageBackend(ABC):
+    """主存储抽象接口 (DuckDB 实现)"""
+
     @abstractmethod
-    async def create_node(self, node: Node) -> NodeId: ...
-    
+    async def save_entity(self, entity: EntityInstance) -> str: ...
+
     @abstractmethod
-    async def create_edge(self, edge: Edge) -> EdgeId: ...
-    
+    async def get_entity(self, concept: str, entity_id: str) -> EntityInstance | None: ...
+
     @abstractmethod
-    async def query(self, query: str, params: dict) -> QueryResult: ...
+    async def query_entities(self, concept: str, filters: dict | None) -> list[EntityInstance]: ...
+
+    @abstractmethod
+    async def save_relation(self, relation: RelationInstance) -> None: ...
+
+    @abstractmethod
+    async def get_relations(self, from_entity_id: str, relation_type: str | None) -> list[RelationInstance]: ...
 
 class VectorStore(ABC):
     """向量存储抽象接口"""
-    
+
     @abstractmethod
     async def insert(self, id: str, vector: list[float], metadata: dict): ...
-    
+
     @abstractmethod
     async def search(self, query: list[float], top_k: int) -> list[SearchResult]: ...
 
 class MetaStore(ABC):
     """元数据存储抽象接口"""
-    
+
     @abstractmethod
     async def save_schema(self, schema: Schema): ...
-    
+
     @abstractmethod
     async def load_schema(self, schema_id: str) -> Schema: ...
 ```
@@ -177,18 +179,17 @@ class MetaStore(ABC):
 
 ```python
 # storage/__init__.py
-from .local.sqlite_graph import SQLiteGraphStore
-from .local.faiss_vector import FaissVectorStore
-from .local.sqlite_meta import SQLiteMetaStore
+from .duckdb.store import DuckDBStorage
+from .adapters.faiss_vector import FaissVectorStore  # 预留向量适配器
 from .adapters.neo4j_store import Neo4jGraphStore  # 预留
 
-def create_graph_store(config: StorageConfig) -> GraphStore:
-    if config.graph_store_type == "local":
-        return SQLiteGraphStore(config.data_dir / "graph.db")
-    elif config.graph_store_type == "neo4j":
+def create_storage(config: StorageConfig) -> StorageBackend:
+    if config.storage_type == "duckdb":
+        return DuckDBStorage(config.data_dir / "ontology.db")
+    elif config.storage_type == "neo4j":
         return Neo4jGraphStore(config.neo4j_uri, config.neo4j_user, config.neo4j_password)
     else:
-        raise ValueError(f"Unknown graph store type: {config.graph_store_type}")
+        raise ValueError(f"Unknown storage type: {config.storage_type}")
 ```
 
 ## 模块依赖
@@ -198,12 +199,13 @@ api/
   └── services/
         └── engine/
               ├── storage/     ← 通过接口注入
-              │     ├── local/      (默认)
+              │     ├── duckdb/     (默认)
               │     └── adapters/   (预留)
               └── core/
 ```
 
 **原则**:
 - 上层依赖下层接口，不关心具体实现
-- 默认使用本地存储，零外部依赖
+- 默认使用本地 DuckDB 存储
 - 通过配置切换外部存储，无需改代码
+- 图算法 (NetworkX) 按需加载，不作为主存储
