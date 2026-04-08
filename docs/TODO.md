@@ -1,100 +1,76 @@
-# TODO - Based on Critical Review (2026-04-07)
+# TODO - 基于评审意见
 
-## 🔴 High Priority (Must Fix Before MVP)
+> **Last Updated**: 2026-04-08
+> **状态**: P0/P1 已完成，P2 待处理
 
-### TODO-001: Clarify SQLite + NetworkX Architecture
-- **Issue:** SQLite + NetworkX dual storage causes consistency problems
-- **Task:** Decide on ONE graph storage strategy:
-  - Option A: SQLite only (accept limitations)
-  - Option B: DuckDB + NetworkX with proper persistence
-  - Option C: SQLite as metadata, NetworkX as sole graph (no SQLite graph ops)
-- **Owner:** TBD
-- **Status:** Open
+## 🔴 High Priority (Must Fix Before MVP) — ✅ 已完成
 
-### TODO-002: Implement Real Rule Engine (Not Hard-coded)
-- **Issue:** mvp_demo.py RuleEngine is if/else, not declarative
-- **Task:**
-  1. Define YAML/JSON rule format
-  2. Implement RuleLoader
-  3. Implement DAG-based rule executor
-- **Owner:** TBD
-- **Status:** Open
-- **Blocked By:** TODO-003
+### ✅ TODO-001: DuckDB + NetworkX 存储策略
+- **Decision**: DuckDB + NetworkX(按需)
+- **Location**: [02-design/03-storage-design.md](./02-design/03-storage-design.md)
+- **Completed**: 2026-04-08
 
-### TODO-003: Add Operator Registration System
-- **Issue:** operator.md describes correct design but code doesn't implement it
-- **Task:** Implement `engine/rules/operators/base.py` OperatorRegistry
-- **Owner:** TBD
-- **Status:** Open
+### ✅ TODO-002: 实现真实规则引擎
+- **Decision**: KGML YAML + DAG 执行模型
+- **Location**: [02-design/04-rule-engine-design.md](./02-design/04-rule-engine-design.md)
+- **Completed**: 2026-04-08
 
-## 🟡 Medium Priority (Before Phase 2)
+### ✅ TODO-003: 算子注册系统
+- **Decision**: OperatorRegistry + 9 种算子
+- **Location**: [05-schema-v2/04-business-logic.md](./05-schema-v2/04-business-logic.md)
+- **Completed**: 2026-04-08
 
-### TODO-004: Faiss Dimension Handling
-- **Issue:** Hard-coded 1536 dimension, no migration strategy
-- **Task:**
-  1. Store dimension in vector metadata
+## 🟡 Medium Priority (Before Phase 2) — 🔄 部分完成
+
+### 🔄 TODO-004: Faiss 维度处理
+- **Task**:
+  1. Store dimension in vector metadata ✅ 已写入存储设计
   2. Validate dimension consistency on insert
   3. Document index rebuild process
-- **Owner:** TBD
-- **Status:** Open
+- **Status**: 部分完成
+- **Location**: [02-design/03-storage-design.md](./02-design/03-storage-design.md)
 
-### TODO-005: Define LLM Inference Boundary
-- **Issue:** LLM/符号推理协同 undefined
-- **Task:** Before Phase 4, define:
-  1. When to use LLM vs symbolic reasoning
-  2. Prompt templates for each use case
-  3. Cost control (caching, rate limiting)
-- **Owner:** TBD
-- **Status:** Open
+### 🔄 TODO-005: LLM 推理边界定义
+- **Task**:
+  1. LLM_INFERENCE 算子已设计 ✅
+  2. Prompt templates 待定义
+  3. Cost control 待实现
+- **Status**: 设计完成，实现待 Phase 2
+- **Location**: [05-schema-v2/04-business-logic.md](./05-schema-v2/04-business-logic.md)
 
-### TODO-006: Document Concurrent Write Model
-- **Issue:** SQLite WAL mode but no multi-writer strategy
-- **Task:** Define:
-  1. Single-writer requirement (at app level)
+### ⏳ TODO-006: 并发写入模型
+- **Task**:
+  1. Single-writer requirement
   2. Transaction boundaries
-  3. Optimistic/pessimistic locking if needed
-- **Owner:** TBD
-- **Status:** Open
+  3. Locking strategy
+- **Status**: Open
+- **Location**: 待补充
 
-### TODO-007: Resolve dimension_attributes Conflict
-- **Issue:** Schema dimension_attributes vs Concept attributes conceptual conflict
-- **Task:** Decide:
-  1. Attributes are global OR dimension-scoped (not both)
-  2. Update schema.yaml examples accordingly
-  3. Update concepts.md
-- **Owner:** TBD
-- **Status:** Open
+### ✅ TODO-007: dimension_attributes 冲突解决
+- **Decision**: L2 categorization 独立层 + L4 applies_to 声明
+- **Location**: [05-schema-v2/02-categorization.md](./05-schema-v2/02-categorization.md)
+- **Completed**: 2026-04-08
 
 ## 🟢 Lower Priority (Nice to Have)
 
-### TODO-008: Update consistency-check.md
-- **Issue:** Current check only verifies doc-doc consistency, not doc-code
-- **Task:** Add section verifying:
-  1. Each documented module has corresponding code
-  2. Interfaces match implementation
-- **Owner:** TBD
-- **Status:** Open
+### ⏳ TODO-008: 文档一致性检查更新
+- **Task**: 验证文档与代码一致性
+- **Status**: Open
 
-### TODO-009: AGENTS.md Constraint Validation
-- **Issue:** AGENTS.md references non-existent directories
-- **Task:** Update constraint checks to:
-  1. Reference existing paths only
-  2. Add check: `ls ontology_engine/*/` for existing modules
-- **Owner:** TBD
-- **Status:** Open
+### ⏳ TODO-009: AGENTS.md 约束验证
+- **Task**: 更新路径引用为现有模块
+- **Status**: Open
 
----
+## 📋 完成清单
 
-## Progress Tracking
-
-| TODO | Priority | Status | Owner | Completed |
-|------|----------|--------|-------|-----------|
-| TODO-001 | 🔴 | Open | - | - |
-| TODO-002 | 🔴 | Open | - | - |
-| TODO-003 | 🔴 | Open | - | - |
-| TODO-004 | 🟡 | Open | - | - |
-| TODO-005 | 🟡 | Open | - | - |
-| TODO-006 | 🟡 | Open | - | - |
-| TODO-007 | 🟡 | Open | - | - |
-| TODO-008 | 🟢 | Open | - | - |
-| TODO-009 | 🟢 | Open | - | - |
+| TODO | Priority | Status |
+|------|----------|--------|
+| TODO-001 Storage | 🔴 | ✅ Done |
+| TODO-002 RuleEngine | 🔴 | ✅ Done |
+| TODO-003 Operators | 🔴 | ✅ Done |
+| TODO-004 Faiss | 🟡 | 🔄 Partial |
+| TODO-005 LLM | 🟡 | 🔄 Partial |
+| TODO-006 Concurrent | 🟡 | ⏳ Open |
+| TODO-007 dimension | 🟡 | ✅ Done |
+| TODO-008 consistency | 🟢 | ⏳ Open |
+| TODO-009 AGENTS | 🟢 | ⏳ Open |
