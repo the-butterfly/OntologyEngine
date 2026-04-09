@@ -1,6 +1,5 @@
 """Rule executor for KGML rules."""
 from __future__ import annotations
-from typing import TYPE_CHECKING
 from ontology_engine.core.schema.models import KGMLSchema, RuleDefinition
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
@@ -9,6 +8,9 @@ from ontology_engine.engine.rule.models import (
     AnalysisResult,
 )
 from ontology_engine.engine.rule.evaluator import ExpressionEvaluator
+
+# Import operators to register them
+from ontology_engine.engine.rule.operators import OperatorRegistry
 
 
 # Action type constants
@@ -106,7 +108,7 @@ class RuleExecutor:
             if condition_met:
                 # Execute the then action
                 if rule.then:
-                    output = self._execute_then_action(rule, context)
+                    output = await self._execute_then_action(rule, context)
                     return RuleResult(
                         rule_id=rule.id,
                         rule_name=rule.name,
@@ -119,7 +121,7 @@ class RuleExecutor:
                     else_action = rule.else_.get("action")
                     else_output = rule.else_.get("output", {})
                     if else_action:
-                        output = self._execute_action(else_action, else_output, context, rule.id)
+                        output = await self._execute_action(else_action, else_output, context, rule.id)
                         return RuleResult(
                             rule_id=rule.id,
                             rule_name=rule.name,
@@ -149,22 +151,72 @@ class RuleExecutor:
                 error=str(e)
             )
 
-    def _execute_action(
+    async def _execute_action(
         self,
         action: str | None,
         output: dict,
         context: ExecutionContext,
         rule_id: str | None = None
     ) -> dict:
-        """Execute rule action and return output."""
-        eval_context = self._get_eval_context(context)
+        """Execute rule action using OperatorRegistry.
 
+        First tries to use OperatorRegistry for new-style operators.
+        Falls back to legacy action constants for backward compatibility.
+        """
         if output is None:
             output = {}
 
         # If action is None (computation-only rule), skip action handling
         if action is None:
             return output
+
+        # Try to use OperatorRegistry
+        try:
+            operator = OperatorRegistry.get(action)
+            # Build context dict for operator
+            eval_context = self._get_eval_context(context)
+            op_context = {
+                **eval_context,
+                "entity_id": context.entity_id,
+                "dimension": context.dimension,
+                "computed_metrics": context.computed_metrics,
+                "alerts": [{"level": a.level, "type": a.type, "message": a.message} for a in context.alerts],
+            }
+            result = await operator.execute(output.copy(), {}, op_context)
+
+            # Update context with computed metrics
+            for key, value in result.items():
+                if key not in ("error", "alert_triggered"):
+                    context.computed_metrics[key] = value
+
+            # Handle alert triggering
+            if result.get("alert_triggered"):
+                alert = Alert(
+                    level=result.get("level", "info"),
+                    type=result.get("type", "general"),
+                    message=result.get("message", ""),
+                    data=result.get("data", {})
+                )
+                context.alerts.append(alert)
+
+            return result
+
+        except KeyError:
+            # Fall back to legacy action handling for backward compatibility
+            return self._execute_legacy_action(action, output, context)
+
+    def _execute_legacy_action(
+        self,
+        action: str | None,
+        output: dict,
+        context: ExecutionContext,
+    ) -> dict:
+        """Handle legacy action constants for backward compatibility.
+
+        This method handles the original hardcoded action types
+        (ACTION_APPROVE_ELIGIBILITY, ACTION_REJECT_ELIGIBILITY, etc.)
+        """
+        eval_context = self._get_eval_context(context)
 
         # Handle special actions
         if action == ACTION_APPROVE_ELIGIBILITY:
@@ -225,7 +277,7 @@ class RuleExecutor:
 
         return output
 
-    def _execute_then_action(
+    async def _execute_then_action(
         self,
         rule: RuleDefinition,
         context: ExecutionContext
@@ -249,7 +301,7 @@ class RuleExecutor:
                     context.computed_metrics[f"{rule.id}_result"] = result
 
         # Delegate to _execute_action for the actual action handling
-        return self._execute_action(action, output, context, rule.id)
+        return await self._execute_action(action, output, context, rule.id)
 
     def _calculate_credit_score(self, context: ExecutionContext) -> int:
         """Calculate credit score based on available metrics."""
