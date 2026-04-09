@@ -29,10 +29,10 @@ CREATE INDEX idx_entities_type ON entities(concept_type);
 CREATE INDEX idx_entities_status ON entities(attributes->>'$.status');
 ```
 
-### 2.2 edges — 关系表
+### 2.2 relations — 关系表
 
 ```sql
-CREATE TABLE edges (
+CREATE TABLE relations (
     id VARCHAR PRIMARY KEY,
     from_id VARCHAR NOT NULL,
     to_id VARCHAR NOT NULL,
@@ -41,10 +41,10 @@ CREATE TABLE edges (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_edges_from ON edges(from_id);
-CREATE INDEX idx_edges_to ON edges(to_id);
-CREATE INDEX idx_edges_type ON edges(relation_type);
-CREATE INDEX idx_edges_from_type ON edges(from_id, relation_type);
+CREATE INDEX idx_relations_from ON relations(from_id);
+CREATE INDEX idx_relations_to ON relations(to_id);
+CREATE INDEX idx_relations_type ON relations(relation_type);
+CREATE INDEX idx_relations_from_type ON relations(from_id, relation_type);
 ```
 
 ### 2.3 computed_metrics — 指标缓存

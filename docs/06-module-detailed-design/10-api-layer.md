@@ -280,12 +280,12 @@ async def get_neighbors(
 ### 5.3 关系管理
 
 ```python
-# api/routes/edges.py
+# api/routes/relations.py
 
-router = APIRouter(prefix="/v1/edges", tags=["edges"])
+router = APIRouter(prefix="/v1/relations", tags=["relations"])
 
 @router.post("", response_model=APIResponse)
-async def create_edge(
+async def create_relation(
     request: RelationCreateRequest,
     service: EntityService = Depends(get_entity_service)
 ):
@@ -492,7 +492,7 @@ async def service_error_handler(request: Request, exc: ServiceError):
 | GET | `/v1/entities/{entity_id}` | 获取实体 |
 | POST | `/v1/entities/query` | 条件查询 |
 | GET | `/v1/entities/{entity_id}/neighbors` | 获取邻居 |
-| POST | `/v1/edges` | 创建关系 |
+| POST | `/v1/relations` | 创建关系 |
 | POST | `/v1/rules/execute` | 执行规则 |
 | GET | `/v1/rules` | 规则列表 |
 | POST | `/v1/query/graph` | 图遍历 |
@@ -513,7 +513,7 @@ ontology_engine/api/
 │   ├── __init__.py
 │   ├── schema.py          # Schema 管理路由
 │   ├── entities.py        # 实体管理路由
-│   ├── edges.py           # 关系管理路由
+│   ├── relations.py       # 关系管理路由
 │   ├── rules.py           # 规则执行路由
 │   ├── query.py           # 查询路由
 │   └── ingestion.py       # 数据导入路由

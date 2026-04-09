@@ -116,7 +116,7 @@ Content-Type: application/json
 
 #### 创建关系
 ```http
-POST /v1/edges
+POST /v1/relations
 Content-Type: application/json
 
 {
