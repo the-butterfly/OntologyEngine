@@ -18,6 +18,9 @@ from ontology_engine.services import (
 )
 from ontology_engine.storage.duckdb import DuckDBStorage
 from ontology_engine.core.schema import SchemaLoader
+from ontology_engine.engine.metric.engine import MetricEngine, MetricCache
+from ontology_engine.engine.categorization.engine import CategorizationEngine
+from ontology_engine.engine.rule.executor import RuleExecutor
 
 
 # Global storage and services (initialized on startup)
@@ -84,17 +87,25 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     except FileNotFoundError:
         pass  # Schema file optional at startup
 
-    # Initialize services
+    # Initialize engines
+    metric_cache = MetricCache() if schema else None
+    metric_engine = MetricEngine(schema=schema, storage=_storage, cache=metric_cache) if schema else None
+    rule_executor = RuleExecutor(schema=schema) if schema else None
+    categorization_engine = CategorizationEngine(
+        schema=schema, storage=_storage, rule_executor=rule_executor
+    ) if schema and rule_executor else None
+
+    # Initialize services with engines
     _services["schema"] = SchemaService(storage=_storage)
     _services["entity"] = EntityService(storage=_storage, schema=schema)
     _services["analysis"] = AnalysisService(
-        categorization_engine=None,  # Will be set when engine is ready
-        metric_engine=None,  # Will be set when engine is ready
-        rule_executor=None,  # Will be set when engine is ready
+        categorization_engine=categorization_engine,
+        metric_engine=metric_engine,
+        rule_executor=rule_executor,
         storage=_storage,
         schema=schema
     )
-    _services["query"] = QueryService(storage=_storage, rule_executor=None)
+    _services["query"] = QueryService(storage=_storage, rule_executor=rule_executor)
     _services["ingestion"] = IngestionService(
         storage=_storage,
         entity_service=_services["entity"]
