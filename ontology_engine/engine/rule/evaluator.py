@@ -237,7 +237,6 @@ class ExpressionEvaluator:
     def _eval_comparison(self, expr: str) -> Any:
         """Evaluate comparison expression."""
         expr = expr.strip()
-        original = expr  # Save for comparison
 
         # Handle OR first (lowest precedence)
         if " OR " in expr.upper():
