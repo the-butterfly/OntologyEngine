@@ -1,8 +1,8 @@
 # OntologyEngine 设计文档
 
-> **项目阶段**: MVP (Demo 已跑通)
-> **文档版本**: 2026-04-08
-> **最后整理**: 文档结构重组完成
+> **项目阶段**: MVP (Demo 已跑通) → Phase 1 准备
+> **文档版本**: 2026-04-09
+> **最后整理**: 架构评审决策落地（12项关键设计点）
 
 ## 文档导航
 
@@ -10,7 +10,7 @@
 
 | 文档 | 内容 |
 |------|------|
-| [01-vision.md](./01-overview/01-vision.md) | 项目愿景：面向 AI Agent 的下一代知识库 |
+| [01-vision.md](./01-overview/01-vision.md) | 项目愿景：面向 AI Agent 的结构化知识推理引擎 |
 | [02-motivation.md](./01-overview/02-motivation.md) | 动机：为什么需要 OntologyEngine |
 | [03-goals.md](./01-overview/03-goals.md) | 阶段目标与验收标准 |
 | [04-modules.md](./01-overview/04-modules.md) | 模块架构与边界约束 |
@@ -28,6 +28,13 @@
 | [04-rule-engine-design.md](./02-design/04-rule-engine-design.md) | 规则引擎 DAG 执行模型 |
 | [05-services-design.md](./02-design/05-services-design.md) | Services 层 (用例编排/事务/协调) |
 | [06-formula-spec.md](./02-design/06-formula-spec.md) | Formula 表达式规范 (语法/函数/安全) |
+
+### 07 - Agent 接口
+
+| 文档 | 内容 |
+|------|------|
+| [07-agent-interface.md](./07-agent-interface.md) | MCP/CLI 接口 + 云端/本地混合部署 |
+| [08-knowledge-retrieval.md](./08-knowledge-retrieval.md) | 知识检索服务 (Query/Trace/Execute) |
 
 ### 03 - RFC 过程文档
 
@@ -79,14 +86,15 @@ L1 事实对象 ─────────────────────�
     │                                      (客观数据)
     ▼
 L2 归类分析 ──────────────────────────▶ 行业/规模/风险标签
-    │                                      (分类维度)
+    │                                      (分类维度，复用 L4 引擎)
     ▼
-L3 分析要素 ──────────────────────────▶ 指标定义
+L3 分析要素 ──────────────────────────▶ 指标定义 + overridable 标记
     │                                      (WHAT: 计算什么)
-    ▼
+    │                          直接调用 ──▶│
+    ▼                                      │
 L4 业务逻辑 ──────────────────────────▶ Formula/算子/规则
                                            (HOW: 如何计算)
-                                           Formula 单行限制
+                                           两级执行: L0 simpleeval + L1 AST 沙箱
                                            SWITCH/BINNING/SCORECARD
                                            GRAPH/MODEL_INFERENCE/LLM
 ```
@@ -120,10 +128,14 @@ Core (SchemaLoader/OperatorRegistry/ExpressionEngine)
 | 复用 | 规则绑定 entity_type | 声明式 applies_to + GLOBAL |
 | 清晰度 | attributes 混杂 | 事实/分类/指标/逻辑分离 |
 | formula 位置 | 分散在各层 | 统一在 L4 |
-| 公式表达 | 多行文本 | 单行 + 结构化算子 |
+| 公式表达 | 多行文本 | 两级执行：L0 simpleeval + L1 AST 沙箱 |
 | 复杂规则 | if/else | SWITCH/BINNING/SCORECARD/GRAPH/MODEL/LLM |
-| 跨引擎协调 | 未定义 | ExecutionOrchestrator |
+| 跨引擎协调 | 未定义 | L3→L4 直接调用 |
 | 规则作用域 | 硬编码 | 声明式 applies_to (含 GLOBAL) |
+| 覆盖控制 | 无 | L3 overridable 标记 |
+| 图查询 | Cypher 空壳 | 简化版图遍历 DSL（1-2跳） |
+| 反馈闭环 | 无 | 自动影响分析 + 人工确认 |
+| 部署模式 | 仅本地 | 本地+平台双模式 |
 
 ### 质量门禁
 
@@ -146,10 +158,12 @@ pytest tests/unit/ -v --cov=ontology_engine --cov-report=term-missing
 | 优先级 | 任务 | 状态 |
 |--------|------|------|
 | P0 | 评审意见修复 | ✅ 完成 |
+| P0 | 架构评审 12 项决策落地 | ✅ 完成 (2026-04-09) |
 | P1 | Services 层设计 | ✅ 完成 |
-| P1 | Formula 规范 | ✅ 完成 |
-| P1 | 文档目录重组 | ✅ 完成 |
-| P2 | 图指标缓存策略 | ⏳ 待处理 |
+| P1 | Formula 两级执行模型 | ✅ 完成 (决策 #10) |
+| P1 | 文档目录重组 + 清理 | ✅ 完成 |
+| P1 | 图遍历 DSL 替代 Cypher | ✅ 完成 (决策 #9) |
+| P2 | 自适应权重检索 | ⏳ Phase 2 |
 | P2 | LLM 推理边界细化 | ⏳ 待处理 |
 | P2 | 并发写入模型 | ⏳ 待处理 |
 
