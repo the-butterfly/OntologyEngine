@@ -176,29 +176,54 @@ GET /v1/rules?dimension=credit_assessment
 
 ---
 
-### 查询接口
+### 图查询 (Graph Traversal DSL)
 
-#### 高级查询 (Filter-based)
+**简化版图遍历 DSL（决策 #9）**：替代 Cypher，自研轻量 DSL，支持 1-2 跳邻居查询 + 属性过滤。
+
 ```http
-POST /v1/entities/query
+POST /v1/query/graph
 Content-Type: application/json
 
 {
-  "concept_type": "Supplier",
-  "filter": {
-    "status": { "eq": "ACTIVE" },
-    "_relations": {
-      "guarantees": {
-        "to_concept": "Supplier",
-        "attributes": { "amount": { "gte": 1000000 } }
+  "start": {
+    "concept_type": "Supplier",
+    "filter": {"status": {"eq": "ACTIVE"}}
+  },
+  "traverse": [
+    {
+      "relation": "guarantees",
+      "direction": "both",
+      "depth": 2,
+      "target_filter": {
+        "concept_type": "Supplier",
+        "attributes": {"risk_level": {"eq": "HIGH"}}
       }
     }
+  ],
+  "return": {
+    "attributes": ["company_name", "registered_capital"],
+    "include_path": true,
+    "aggregate": [
+      {"type": "sum", "field": "guarantee_amount.value"},
+      {"type": "count", "field": "related_entities"}
+    ]
   },
-  "limit": 100
+  "limit": 50
 }
 ```
 
-**注意**: Cypher 查询推迟到 Neo4j 集成后实现 (Phase 3)
+**DSL 能力边界**：
+
+| 能力 | 支持 | 说明 |
+|------|------|------|
+| 节点查找 | ✅ | 按 concept_type + 属性过滤 |
+| 1-2 跳邻居扩展 | ✅ | 指定关系类型、方向、深度 |
+| 属性过滤 | ✅ | eq/gte/lte/in/contains |
+| 路径返回 | ✅ | include_path=true |
+| 聚合计算 | ✅ | sum/count/avg/max |
+| 3+ 跳遍历 | ❌ | Phase 2 考虑 |
+| 任意路径匹配 | ❌ | 不支持通配符路径 |
+| Cypher 语法 | ❌ | 不开放 Cypher |
 
 #### 向量检索
 ```http
@@ -224,6 +249,10 @@ Content-Type: application/json
 | RULE_NOT_FOUND | 404 | 规则不存在 |
 | EXPRESSION_ERROR | 400 | 表达式语法错误 |
 | SCHEMA_NOT_LOADED | 500 | Schema 未加载 |
+| GRAPH_TRAVERSAL_TOO_DEEP | 400 | 图遍历深度超过限制（最大2跳） |
+| OVERRIDABLE_VIOLATION | 400 | L3 指标 overridable=false 不允许覆盖 |
+| FORMULA_SANDBOX_VIOLATION | 400 | Formula 沙箱安全约束违反 |
+| FORMULA_EXECUTION_TIMEOUT | 408 | Formula 执行超时 |
 
 ---
 

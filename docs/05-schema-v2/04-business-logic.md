@@ -2,7 +2,7 @@
 
 > 定义作用的分析事实对象、适用的业务分类、输入要素、输出要素
 >
-> **核心原则**: Formula 统一在 L4 承载，结构化表达，单行限制
+> **核心原则**: Formula 统一在 L4 承载，两级安全执行模型
 
 ## 核心概念
 
@@ -84,8 +84,10 @@ business_logic:
 ```
 
 **关键设计**:
-- L3 仅定义「指标存在」和「数据来源」
+- L3 仅定义「指标存在」和「数据来源」，可声明 `overridable` 标记
 - L4 定义「指标如何计算」（通过 formula 或 operator）
+- 当 L3 指标 `overridable: true`（默认）时，L4 可提供覆盖计算逻辑
+- 当 L3 指标 `overridable: false` 时，L4 尝试覆盖将抛出 `SchemaValidationError`
 - 输出要素可在多规则中复用，BY 场景有不同的计算逻辑
 
 ---
@@ -114,9 +116,37 @@ business_logic:
 
 ## Formula 计算逻辑
 
-**约束**: Formula 必须为单行表达式，复杂逻辑使用结构化算子。
+**两级安全执行模型（决策 #10）**：Formula 按复杂度自动选择执行器。
 
-### 简单计算
+### 执行级别
+
+| 级别 | 触发条件 | 执行器 | 安全约束 |
+|------|----------|--------|----------|
+| L0-简单表达式 | 无控制流关键词（if/for/while/def） | simpleeval | 白名单函数，无副作用 |
+| L1-复杂逻辑 | 含 if/for/while 等控制流 | AST 白名单沙箱（基于 asteval） | 禁止 import/exec/eval/open，循环上限 1000 次，执行超时 5s |
+
+### 自动切换规则
+
+```python
+def select_executor(formula: str) -> FormulaExecutor:
+    """根据 formula 内容自动选择执行器"""
+    control_flow_keywords = {"if", "for", "while", "def", "class", "try", "with"}
+    tokens = set(tokenize_formula(formula))
+    
+    if tokens & control_flow_keywords:
+        return ASTSandboxExecutor(
+            whitelist=AST_WHITELIST,
+            max_loop_iterations=1000,
+            timeout_seconds=5
+        )
+    else:
+        return SimpleEvalExecutor(
+            names=context_variables,
+            functions=SAFE_FUNCTIONS
+        )
+```
+
+### L0: 简单计算
 
 ```yaml
         - id: CA003
@@ -124,11 +154,11 @@ business_logic:
           action:
             type: compute
             output: risk_adjusted_rate
-            # 单行 formula，仅支持基础运算和函数
+            # L0 级别：单行 formula，自动使用 simpleeval
             formula: "base_rate + (100 - credit_score) / 1000"
 ```
 
-**Formula 语法限制**:
+**L0 Formula 语法限制**:
 
 | 特性 | 支持 | 示例 |
 |------|------|------|
@@ -141,6 +171,57 @@ business_logic:
 | **多行语句** | ❌ | 用 SWITCH/决策表替代 |
 | **图查询** | ❌ | 用 GRAPH 算子替代 |
 | **外部调用** | ❌ | 用 MODEL_INFERENCE 算子替代 |
+
+### L1: 复杂逻辑
+
+```yaml
+        - id: CA004
+          name: "动态折扣计算"
+          action:
+            type: compute
+            output: discount_rate
+            # L1 级别：含控制流，自动切换 AST 沙箱
+            formula: |
+              if credit_score >= 90:
+                  rate = 0.15
+              elif credit_score >= 80:
+                  rate = 0.10
+              else:
+                  rate = 0.05
+              
+              if business_years >= 5:
+                  rate += 0.03
+              
+              rate
+```
+
+**L1 沙箱安全约束**:
+
+| 约束 | 限制 | 说明 |
+|------|------|------|
+| 禁止 import | ✅ | 无法导入任何模块 |
+| 禁止 exec/eval | ✅ | 无法动态执行代码 |
+| 禁止 open/文件操作 | ✅ | 无法读写文件系统 |
+| 禁止 __dunder__ | ✅ | 无法访问 Python 内部 |
+| 循环上限 | 1000 次 | 防止无限循环 |
+| 执行超时 | 5 秒 | 防止长时间阻塞 |
+| 内存上限 | 10MB | 防止内存攻击 |
+
+**L1 AST 白名单**:
+
+```python
+AST_WHITELIST = {
+    # 允许的节点类型
+    ast.Expression, ast.Module,
+    ast.If, ast.For, ast.While,  # 控制流
+    ast.Assign, ast.AugAssign,   # 赋值
+    ast.Compare, ast.BoolOp,     # 比较/逻辑
+    ast.BinOp, ast.UnaryOp,     # 算术
+    ast.Call, ast.Attribute,     # 函数调用
+    ast.Name, ast.Constant,      # 变量/常量
+    ast.Return, ast.Index,       # 返回/索引
+}
+```
 
 ---
 
@@ -470,38 +551,34 @@ business_logic:
 
 ## 运行时: 跨引擎协调
 
+**L3→L4 直接调用模式（决策 #11）**：MetricEngine 计算完成后，直接调用 RuleEngine 传入指标结果，无需中间写入。
+
 ```python
 class BusinessLogicEngine:
-    def __init__(self, metric_engine, storage, model_registry):
+    def __init__(self, metric_engine, rule_engine, storage, model_registry):
         self.metric_engine = metric_engine  # L3 指标引擎
+        self.rule_engine = rule_engine      # L4 规则引擎
         self.storage = storage
         self.model_registry = model_registry
-        self.orchestrator = ExecutionOrchestrator()
 
     def execute(self, rule_group: str, entity: Entity) -> LogicResult:
         # 1. 检查 applies_to
         if not self.matches_scope(rule_group, entity):
             raise NotApplicable()
 
-        # 2. 预计算 L3 指标 (跨引擎协调点)
-        inputs = self._compute_l3_inputs(rule_group.inputs, entity)
+        # 2. 预计算 L3 指标 (跨引擎协调点 - 直接调用)
+        metric_results = self.metric_engine.compute_batch(
+            rule_group.inputs, entity
+        )
 
-        # 3. 执行 L4 规则
-        context = ExecutionContext(inputs=inputs)
-        for rule in self.topological_sort(rule_group.rules):
-            result = self._execute_rule(rule, context)
-            context.update(rule.id, result)
+        # 3. 直接调用 RuleEngine 传入指标结果（无中间写入）
+        logic_result = self.rule_engine.execute(
+            rule_group=rule_group,
+            facts=entity.attributes,
+            metrics=metric_results  # 直接传递，不走存储层
+        )
 
-        return LogicResult(outputs=context.resolve_outputs(rule_group.outputs))
-
-    def _compute_l3_inputs(self, inputs: list, entity: Entity) -> dict:
-        """跨引擎协调: 按需计算 L3 指标"""
-        results = {}
-        for inp in inputs:
-            # 调用 MetricEngine 计算基础指标
-            metric_value = self.metric_engine.compute(inp.metric, entity)
-            results[inp.metric] = metric_value
-        return results
+        return logic_result
 
     def _execute_rule(self, rule: Rule, context: ExecutionContext) -> RuleResult:
         # 条件判断
@@ -525,7 +602,8 @@ class BusinessLogicEngine:
 | v1 | v2 |
 |-----|-----|
 | formula 分散在各处 | 统一在 L4，结构化表达 |
-| 多行 formula 文本 | 单行 formula + 算子 |
+| 单行 formula 限制 | 两级执行模型：L0 simpleeval + L1 AST 沙箱 |
 | 无复杂规则支持 | 评分卡/决策表/图/MLOps/LLM |
 | 规则硬编码 entity_types | 声明式 applies_to + GLOBAL 支持 |
-| 无跨引擎协调说明 | 显式 ExecutionOrchestrator |
+| 无跨引擎协调说明 | L3→L4 直接调用模式 |
+| 无覆盖控制 | L3 overridable 标记 + SchemaValidationError |

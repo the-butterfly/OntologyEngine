@@ -55,8 +55,11 @@ L3 仅定义：
 - 指标名称和类型
 - 数据来源（属性或外部 API）
 - 依赖的其他指标
+- `overridable` 标记（是否允许 L4 覆盖默认计算逻辑）
 
 计算逻辑在 L4 通过算子或 formula 实现，实现「指标定义」与「计算逻辑」分离。
+
+**覆盖机制（决策 #3）**：L3 的派生/复合指标可声明 `overridable: true`（默认），允许 L4 提供具体的计算 formula。若 `overridable: false`，L4 尝试覆盖时将抛出 `SchemaValidationError`。
 
 ```yaml
 # L3: 仅定义指标存在及其依赖
@@ -65,6 +68,7 @@ analytical_elements:
     - name: credit_score
       type: derived
       description: "信用评分"
+      overridable: true       # 允许 L4 覆盖计算逻辑（默认）
       dependencies:
         - financial_health_score
         - guarantee_exposure_score
@@ -76,6 +80,7 @@ analytical_elements:
     - name: asset_liability_ratio
       type: derived
       description: "资产负债率"
+      overridable: true
       dependencies:
         - total_assets
         - total_liabilities
@@ -85,6 +90,7 @@ analytical_elements:
     - name: current_ratio
       type: derived
       description: "流动比率"
+      overridable: true
       dependencies:
         - current_assets
         - current_liabilities
@@ -93,6 +99,7 @@ analytical_elements:
     - name: revenue_growth_rate
       type: derived
       description: "营收增长率"
+      overridable: false       # 不允许 L4 覆盖，强制使用标准计算
       dependencies:
         - current_revenue
         - previous_revenue

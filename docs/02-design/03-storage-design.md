@@ -91,6 +91,39 @@ CREATE TABLE instances (
 );
 ```
 
+#### audit_log - 审计日志（决策 #7）
+```sql
+CREATE TABLE audit_log (
+    id VARCHAR PRIMARY KEY,
+    operation_type VARCHAR NOT NULL,     -- create | update | delete | execute | schema_change
+    target_type VARCHAR NOT NULL,        -- entity | edge | schema | rule
+    target_id VARCHAR NOT NULL,
+    actor VARCHAR NOT NULL,              -- 执行者（用户/Agent ID）
+    before_state JSON,                   -- 变更前状态
+    after_state JSON,                    -- 变更后状态
+    deployment_mode VARCHAR DEFAULT 'local',  -- local | platform
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_target ON audit_log(target_type, target_id);
+CREATE INDEX idx_audit_actor ON audit_log(actor);
+CREATE INDEX idx_audit_time ON audit_log(created_at);
+```
+
+#### schema_versions - Schema 版本管理（决策 #8）
+```sql
+CREATE TABLE schema_versions (
+    id VARCHAR PRIMARY KEY,
+    version INTEGER NOT NULL,
+    schema_snapshot JSON NOT NULL,        -- 全量快照
+    change_description VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR NOT NULL
+);
+
+CREATE INDEX idx_schema_versions ON schema_versions(version);
+```
+
 ---
 
 ## Faiss 向量存储
@@ -262,8 +295,14 @@ class StorageConfig(BaseSettings):
 
 ### 配置切换
 
+**部署模式双模式（决策 #7）**：配置文件驱动切换，本地+平台双模式设计。
+
 ```yaml
 # config.yaml
+ontologyengine:
+  # 部署模式: local | platform
+  deployment_mode: local
+
 storage:
   graph:
     type: duckdb  # duckdb | neo4j
@@ -276,6 +315,11 @@ storage:
     type: faiss  # faiss | pgvector
     pgvector:
       dsn: postgresql://...
+
+# 本地模式审计配置
+audit:
+  mode: local               # local: 写本地 DuckDB | platform: 通过中间件转发
+  platform_endpoint: null   # 平台审计服务端点（仅 platform 模式）
 ```
 
 ### 工厂模式
@@ -306,3 +350,91 @@ async def export_to_parquet(duckdb_store: DuckDBStorage, output_dir: str):
 ```
 
 实现新的 Store 只需继承 `GraphStore` 或 `VectorStore` 接口。
+
+---
+
+## Schema 版本管理（决策 #8）
+
+**全量快照策略**：每次变更存储完整 Schema 副本。
+
+| 策略 | 优点 | 缺点 |
+|------|------|------|
+| **全量快照（选用）** | 实现简单、回滚直接、无 diff 算法依赖 | 存储开销（Schema 通常 < 100KB，可接受） |
+| Schema Diff + 增量 | 存储小 | 需 diff 算法，回滚需重放 |
+| Event Sourcing | 最灵活、可重放任意版本 | 复杂度高 |
+
+### 版本管理操作
+
+```python
+class SchemaVersionManager:
+    """Schema 版本管理"""
+    
+    def commit_version(
+        self,
+        schema: Schema,
+        change_description: str,
+        actor: str
+    ) -> SchemaVersion:
+        """提交新版本（全量快照）"""
+        version = self._next_version()
+        snapshot = SchemaVersion(
+            id=f"sv_{version}",
+            version=version,
+            schema_snapshot=schema.to_json(),  # 全量快照
+            change_description=change_description,
+            created_by=actor
+        )
+        self.storage.save(snapshot)
+        return snapshot
+    
+    def rollback(self, target_version: int) -> Schema:
+        """回滚到指定版本"""
+        snapshot = self.storage.get_version(target_version)
+        return Schema.from_json(snapshot.schema_snapshot)
+    
+    def diff(self, v1: int, v2: int) -> SchemaDiff:
+        """比较两个版本的差异"""
+        s1 = Schema.from_json(self.storage.get_version(v1).schema_snapshot)
+        s2 = Schema.from_json(self.storage.get_version(v2).schema_snapshot)
+        return self._compute_diff(s1, s2)
+    
+    def impact_analysis(self, target_version: int) -> ImpactReport:
+        """分析回滚影响"""
+        current = self.get_current()
+        target = Schema.from_json(
+            self.storage.get_version(target_version).schema_snapshot
+        )
+        diff = self._compute_diff(target, current)
+        return ImpactReport(
+            affected_rules=diff.changed_rules,
+            affected_entities=diff.changed_concepts,
+            risk_level=self._assess_risk(diff)
+        )
+```
+
+---
+
+## 审计中间件（决策 #7）
+
+平台双模式下的审计路由：
+
+```python
+class AuditMiddleware:
+    """审计中间件 - 根据部署模式路由审计日志"""
+    
+    def __init__(self, config: AuditConfig):
+        self.config = config
+        self.local_writer = DuckDBAuditWriter()
+        self.platform_client = PlatformAuditClient(config.platform_endpoint) if config.mode == "platform" else None
+    
+    async def record(self, entry: AuditEntry) -> None:
+        if self.config.mode == "local":
+            await self.local_writer.write(entry)
+        elif self.config.mode == "platform":
+            try:
+                await self.platform_client.send(entry)
+            except PlatformUnavailable:
+                # 降级到本地存储
+                await self.local_writer.write(entry)
+                logger.warning("Platform unavailable, audit written locally")
+```
