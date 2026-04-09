@@ -145,6 +145,18 @@ DEMO_CASES = [
         "description": "Small trading company with limited track record",
         "expected_dimensions": ["credit_assessment"],
     },
+    {
+        "id": "SUP_2024_MFG",
+        "name": "Manufacturing Supplier",
+        "description": "Large manufacturing enterprise with stable business",
+        "expected_dimensions": ["credit_assessment"],
+    },
+    {
+        "id": "SUP_2024_PARTIAL",
+        "name": "Partial Guarantee Supplier",
+        "description": "Supplier with partial guarantee from another supplier",
+        "expected_dimensions": ["credit_assessment"],
+    },
 ]
 
 
@@ -220,6 +232,20 @@ async def run_demo():
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
 
+    # Case 5: Manufacturing supplier
+    print("\n>>> Manufacturing Supplier Analysis (SUP_2024_MFG)")
+    r = results["SUP_2024_MFG"]
+    print_detailed_metrics(r.computed_metrics)
+    print_rule_trace(r.rule_results)
+    print_alerts(r.alerts)
+
+    # Case 6: Partial guarantee supplier
+    print("\n>>> Partial Guarantee Supplier Analysis (SUP_2024_PARTIAL)")
+    r = results["SUP_2024_PARTIAL"]
+    print_detailed_metrics(r.computed_metrics)
+    print_rule_trace(r.rule_results)
+    print_alerts(r.alerts)
+
     # Multi-dimension analysis
     print_banner("MULTI-DIMENSION ANALYSIS")
 
@@ -257,6 +283,26 @@ async def run_demo():
             print(f"  {name}: {len(result.alerts)} alert(s)")
             for alert in result.alerts:
                 print(f"    - [{alert.level.upper()}] {alert.type}")
+
+    # Transaction Monitoring Demonstration
+    print_banner("TRANSACTION MONITORING")
+
+    print("\n▶ Transaction Monitoring Analysis:")
+    monitoring_cases = ["SUP_2024_EXC", "SUP_2024_MULTI", "SUP_2024_MFG"]
+    for entity_id in monitoring_cases:
+        result = await engine.analyze(entity_id, "transaction_monitoring")
+        entity = await engine.get_entity("Supplier", entity_id)
+        name = entity.get("company_name", "Unknown") if entity else entity_id
+        total_amount = result.computed_metrics.get("total_invoice_amount_90d", {}).get("value", 0)
+
+        print(f"\n  {entity_id} - {name}:")
+        print(f"    90天交易额: ¥{total_amount:,.0f}")
+        if result.alerts:
+            print(f"    监控预警: {len(result.alerts)} alert(s)")
+            for alert in result.alerts:
+                print(f"      - [{alert.level.upper()}] {alert.type}: {alert.message}")
+        else:
+            print("    监控预警: 无")
 
     await engine.close()
     print_banner("DEMO COMPLETED")

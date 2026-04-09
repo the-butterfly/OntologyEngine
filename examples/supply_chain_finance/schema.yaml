@@ -912,6 +912,49 @@ rules:
           requires_additional_guarantee: "${requires_guarantee}"
           decision_reasoning: "${reasoning}"
 
+    # ---- 规则8: 大额交易监控 ----
+    - id: "R008_large_transaction_monitor"
+      name: "大额交易监控"
+      description: "检测大额交易并触发监控预警"
+      type: "alert"
+      priority: 85
+      enabled: true
+      scope:
+        dimensions: ["transaction_monitoring"]
+        entity_types: ["Supplier"]
+      
+      when:
+        expression: "total_invoice_amount_90d.value >= 10000000"  # 90天交易额>=1000万
+      
+      then:
+        action: "trigger_alert"
+        output:
+          alert_level: "info"
+          alert_type: "large_transaction_detected"
+          message: "检测到大额交易，建议加强监控"
+          recommended_action: "增加交易核查频率"
+
+    # ---- 规则9: 交易波动性检测 ----
+    - id: "R009_transaction_volatility"
+      name: "交易波动性检测"
+      description: "检测交易金额异常波动"
+      type: "alert"
+      priority: 75
+      enabled: true
+      scope:
+        dimensions: ["transaction_monitoring"]
+        entity_types: ["Supplier"]
+      
+      when:
+        expression: "invoice_count_90d >= 1 AND avg_invoice_amount.value >= 5000000"  # 平均发票金额>=500万
+      
+      then:
+        action: "trigger_alert"
+        output:
+          alert_level: "warning"
+          alert_type: "high_value_transaction"
+          message: "检测到高价值交易模式"
+
 # ============================================================
 # 模块7: data_sources - 数据源映射层
 # ============================================================
