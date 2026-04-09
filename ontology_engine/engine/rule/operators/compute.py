@@ -74,9 +74,14 @@ class ComputeFormulaOperator(Operator):
 
 @OperatorRegistry.register("calculate_credit_score")
 class CalculateCreditScoreOperator(Operator):
-    """Calculate credit score based on metrics.
+    """Calculate credit score based on Schema-defined composite formula.
 
-    This operator is kept for backward compatibility with legacy action names.
+    Components (from schema.yaml credit_score):
+    - business_stability_score: 30%
+    - tax_compliance_score: 25%
+    - network_centrality_score: 15%
+    - reputation_score: 15%
+    - guarantee_risk_adjustment: 15%
     """
 
     @property
@@ -89,34 +94,35 @@ class CalculateCreditScoreOperator(Operator):
         config: dict[str, Any],
         context: dict[str, Any],
     ) -> dict[str, Any]:
-        # Credit score calculation constants
-        CREDIT_SCORE_BASE = 50
-        CREDIT_SCORE_OVERDUE_RATIO_LOW = 5
-        CREDIT_SCORE_OVERDUE_RATIO_MED = 10
-        CREDIT_SCORE_BONUS_LOW = 15
-        CREDIT_SCORE_BONUS_MED = 5
-        CREDIT_SCORE_CRITICAL_PENALTY = 30
-        CREDIT_SCORE_MAX = 100
-        CREDIT_SCORE_MIN = 0
-
         # Build flat context
         eval_context = self._build_context(context)
 
-        score = CREDIT_SCORE_BASE
+        # Get component scores with defaults
+        business_stability = eval_context.get("business_stability_score", 50)
+        tax_compliance = eval_context.get("tax_compliance_score", 60)
+        network_centrality = eval_context.get("network_centrality_score", 50)
+        reputation = eval_context.get("reputation_score", 80)
+        guarantee_chain_depth = eval_context.get("guarantee_chain_depth", 0)
 
-        # Check for overdue invoices
-        overdue_ratio = eval_context.get("overdue_invoice_ratio", 0)
-        if overdue_ratio < CREDIT_SCORE_OVERDUE_RATIO_LOW:
-            score += CREDIT_SCORE_BONUS_LOW
-        elif overdue_ratio < CREDIT_SCORE_OVERDUE_RATIO_MED:
-            score += CREDIT_SCORE_BONUS_MED
+        # Calculate guarantee_risk_adjustment (0-100, higher is better)
+        # Formula from schema: max(0, 1 - guarantee_chain_depth / 10) * 100
+        guarantee_risk = max(0, 1 - guarantee_chain_depth / 10) * 100
 
-        # Check for critical alerts
+        # Apply Schema-defined weights
+        score = (
+            business_stability * 0.30 +
+            tax_compliance * 0.25 +
+            network_centrality * 0.15 +
+            reputation * 0.15 +
+            guarantee_risk * 0.15
+        )
+
+        # Critical alerts penalty
         alerts = context.get("alerts", [])
         if any(a.get("level") == "critical" for a in alerts):
-            score = max(CREDIT_SCORE_MIN, score - CREDIT_SCORE_CRITICAL_PENALTY)
+            score = max(20, score - 30)
 
-        score = min(CREDIT_SCORE_MAX, max(CREDIT_SCORE_MIN, score))
+        score = min(100, max(0, int(score)))
 
         # Determine grade
         grade = self._get_credit_grade(score)
