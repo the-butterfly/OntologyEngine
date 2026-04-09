@@ -304,23 +304,48 @@ class RuleExecutor:
         return await self._execute_action(action, output, context, rule.id)
 
     def _calculate_credit_score(self, context: ExecutionContext) -> int:
-        """Calculate credit score based on available metrics."""
-        score = CREDIT_SCORE_BASE
+        """Calculate credit score based on Schema-defined composite formula.
 
+        Components (from schema.yaml):
+        - business_stability_score: 30%
+        - tax_compliance_score: 25%
+        - network_centrality_score: 15%
+        - reputation_score: 15%
+        - guarantee_risk_adjustment: 15%
+        """
         eval_context = self._get_eval_context(context)
 
-        # Check for overdue invoices
-        overdue_ratio = eval_context.get("overdue_invoice_ratio", 0)
-        if overdue_ratio < CREDIT_SCORE_OVERDUE_RATIO_LOW:
-            score += CREDIT_SCORE_BONUS_LOW
-        elif overdue_ratio < CREDIT_SCORE_OVERDUE_RATIO_MED:
-            score += CREDIT_SCORE_BONUS_MED
+        # Get component scores with defaults
+        business_stability = eval_context.get("business_stability_score", 50)
+        tax_compliance = eval_context.get("tax_compliance_score", 60)
+        network_centrality = eval_context.get("network_centrality_score", 50)
+        reputation = eval_context.get("reputation_score", 80)
+        guarantee_chain_depth = eval_context.get("guarantee_chain_depth", 0)
 
-        # Check for alerts
+        # Calculate guarantee_risk_adjustment (0-100, higher is better)
+        if guarantee_chain_depth >= 5:
+            guarantee_risk = 20
+        elif guarantee_chain_depth >= 3:
+            guarantee_risk = 40
+        elif guarantee_chain_depth >= 1:
+            guarantee_risk = 70
+        else:
+            guarantee_risk = 100
+
+        # Apply Schema-defined weights
+        score = (
+            business_stability * 0.30 +
+            tax_compliance * 0.25 +
+            network_centrality * 0.15 +
+            reputation * 0.15 +
+            guarantee_risk * 0.15
+        )
+
+        # Critical alerts penalty
         if any(a.level == "critical" for a in context.alerts):
-            score = max(CREDIT_SCORE_CRITICAL_MIN, score - CREDIT_SCORE_CRITICAL_PENALTY)
+            score = max(20, score - 30)
 
-        return min(CREDIT_SCORE_MAX, max(CREDIT_SCORE_MIN, score))
+        return int(min(100, max(0, score)))
 
     def _get_credit_grade(self, score: int) -> str:
         """Get credit grade from score using threshold table."""

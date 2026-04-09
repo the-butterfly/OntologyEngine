@@ -236,6 +236,18 @@ class OntologyEngine:
                 total_contract += ctr_amount
             entity["total_contract_amount"] = {"value": total_contract, "currency": "CNY"}
 
+            # Compute contract_utilization_rate
+            if total_contract > 0:
+                entity["contract_utilization_rate"] = round((total_amount_90d / total_contract) * 100, 2)
+            else:
+                entity["contract_utilization_rate"] = 0
+
+            # Provide default values for metrics needed by credit score calculation
+            if "tax_compliance_score" not in entity:
+                entity["tax_compliance_score"] = 60  # Default medium score
+            if "negative_news_count_90d" not in entity:
+                entity["negative_news_count_90d"] = 0
+
             # Compute guarantee_chain_depth (traverse the chain to detect cycles)
             depth = 0
             visited: set[str] = set()
@@ -268,6 +280,45 @@ class OntologyEngine:
 
             entity["guarantee_chain_depth"] = depth
             entity["has_guarantee_circle"] = depth >= 3
+
+            # Compute core_enterprise_count (count of CoreEnterprise via supplies_to relation)
+            core_enterprise_refs = entity.get("supplies_to", [])
+            core_enterprise_count = len([ce for ce in core_enterprise_refs if isinstance(ce, dict)])
+            entity["core_enterprise_count"] = core_enterprise_count
+
+            # Compute business_stability_score (per Schema formula)
+            # score = 50 + contract_utilization_bonus + core_enterprise_bonus + overdue_bonus
+            business_stability = 50
+            contract_util = entity.get("contract_utilization_rate", 0)
+            if contract_util >= 80:
+                business_stability += 20
+            elif contract_util >= 50:
+                business_stability += 10
+
+            if core_enterprise_count >= 3:
+                business_stability += 15
+            elif core_enterprise_count >= 1:
+                business_stability += 5
+
+            overdue_ratio = entity.get("overdue_invoice_ratio", 0)
+            if overdue_ratio < 5:
+                business_stability += 15
+            elif overdue_ratio < 10:
+                business_stability += 5
+
+            entity["business_stability_score"] = min(100, business_stability)
+
+            # Compute reputation_score (per Schema formula)
+            # base_score = 100 - news_deduction - overdue_deduction
+            negative_news = entity.get("negative_news_count_90d", 0)
+            news_deduction = negative_news * 10
+            overdue_deduction = overdue_ratio * 2
+            entity["reputation_score"] = max(0, 100 - news_deduction - overdue_deduction)
+
+            # Compute network_centrality_score (simplified: based on connections)
+            # For MVP, use a simplified proxy based on core_enterprise_count and invoice count
+            network_score = min(100, (core_enterprise_count * 20) + (invoice_count_90d * 5))
+            entity["network_centrality_score"] = network_score
 
         return entity
 
