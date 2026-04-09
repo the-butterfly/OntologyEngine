@@ -208,8 +208,15 @@ logic:
 
 ## 运行时行为
 
+**L2 复用 L4 规则引擎（决策 #6）**：CategorizationEngine 将 L2 规则编译为 L4 格式后，调用 RuleExecutor 统一执行。
+
 ```python
 class CategorizationEngine:
+    """L2 归类引擎 - 复用 L4 规则引擎"""
+    
+    def __init__(self, rule_executor: RuleExecutor):
+        self.rule_executor = rule_executor
+    
     def categorize(self, entity: Entity) -> CategoryTags:
         """为实体打标"""
         tags = CategoryTags()
@@ -218,11 +225,60 @@ class CategorizationEngine:
             if dimension.type == "hierarchical":
                 value = self.match_hierarchical(entity, dimension)
             elif dimension.type == "derived":
-                value = self.execute_rules(entity, dimension.ruleset)
+                # 将 L2 规则编译为 L4 格式，复用 RuleExecutor
+                rules = self._compile_to_l4_rules(
+                    dimension.ruleset, dimension.name
+                )
+                result = self.rule_executor.execute(
+                    entity_id=entity.id,
+                    dimension=dimension.name,
+                    rules=rules
+                )
+                value = result.computed.get(dimension.name)
             elif dimension.type == "tags":
                 value = self.apply_tag_rules(entity, dimension)
 
             tags.set(dimension.name, value)
 
         return tags
+    
+    def _compile_to_l4_rules(
+        self, ruleset: CategorizationRuleset, dimension_name: str
+    ) -> list[Rule]:
+        """将 L2 categorization_rules 编译为 L4 Rule 格式
+        
+        L2: condition → result (简单映射)
+        L4: id + when + then (DAG 节点)
+        
+        编译规则：
+        - L2 condition.and[] → L4 when.expression (AND 连接)
+        - L2 result → L4 then.set_flag(dimension_name, result)
+        - L2 priority → L4 priority
+        """
+        rules = []
+        for i, cat_rule in enumerate(ruleset.rules):
+            rule = Rule(
+                id=f"L2_{dimension_name}_{i}",
+                when=Condition(expression=self._build_expression(cat_rule.condition)),
+                then=Action(
+                    type="set_flag",
+                    flag=dimension_name,
+                    value=cat_rule.result
+                ),
+                priority=cat_rule.priority
+            )
+            rules.append(rule)
+        return rules
+    
+    def _build_expression(self, condition: dict) -> str:
+        """将 L2 条件结构编译为表达式字符串"""
+        if not condition:
+            return "True"  # 默认规则
+        
+        parts = []
+        for cond in condition.get("and", []):
+            op_map = {"gte": ">=", "lte": "<=", "eq": "==", "gt": ">", "lt": "<"}
+            op = op_map.get(cond["op"], cond["op"])
+            parts.append(f"{cond['fact']} {op} {cond['value']}")
+        return " AND ".join(parts)
 ```

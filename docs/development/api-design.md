@@ -1,5 +1,9 @@
 # API 设计: OntologyEngine MVP
 
+> **⚠️ 注意**: 本文档为 MVP 阶段的开发者实现指南。API 设计规格请参考：
+> - [02-design/02-api-design.md](../02-design/02-api-design.md)
+> - Agent 接口：[07-agent-interface.md](../07-agent-interface.md)
+
 ## 背景
 
 MVP 实现以配置为核心，通过 YAML 配置文件定义 schema、instances 和 rules。OntologyEngine 本身是工具链，不包含内置配置。
