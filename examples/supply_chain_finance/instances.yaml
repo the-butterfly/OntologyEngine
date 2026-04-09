@@ -404,7 +404,7 @@ instances:
     data:
       - supplier_id: "SUP_2024_NEG"
         company_name: "舆情风险供应商有限公司"
-        unified_credit_code: "91440300MA5G8KNNNN"
+        unified_credit_code: "91440300MA5G8KNEGY"
         registered_capital:
           value: 8000000
           currency: "CNY"

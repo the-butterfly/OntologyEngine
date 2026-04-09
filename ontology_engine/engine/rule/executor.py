@@ -260,20 +260,63 @@ class RuleExecutor:
                 multiplier = multiplier * (1 - guarantee_chain_depth * GUARANTEE_CHAIN_PENALTY_RATE)
 
             credit_limit = base * multiplier
-            output["credit_limit"] = credit_limit
+            output["credit_limit"] = round(credit_limit, 2)
             output["level"] = credit_grade
-            context.computed_metrics["credit_limit"] = credit_limit
+            context.computed_metrics["credit_limit"] = round(credit_limit, 2)
 
         elif action == ACTION_DETERMINE_INTEREST_RATE:
             credit_score = context.computed_metrics.get("credit_score", 50)
             risk_premium = (100 - credit_score) / 100 * BASE_INTEREST_RATE
             rate = (BASE_INTEREST_RATE + risk_premium) * 100
-            output["interest_rate"] = rate
-            context.computed_metrics["interest_rate"] = rate
+            output["interest_rate"] = round(rate, 2)
+            context.computed_metrics["interest_rate"] = round(rate, 2)
 
         elif action == ACTION_GENERATE_DECISION:
-            # Decision is generated in execute_dimension, this is a no-op here
-            pass
+            # Implement R007 comprehensive credit decision logic
+            credit_score = context.computed_metrics.get("credit_score", 0)
+            guarantee_chain_depth = context.computed_metrics.get("guarantee_chain_depth", 0)
+            registered_capital = eval_context.get("registered_capital", {}).get("value", 0) if isinstance(eval_context.get("registered_capital"), dict) else 0
+            
+            # R007 rule chain logic
+            decision = None
+            limit_multiplier = 0.0
+            requires_guarantee = True
+            reasoning = ""
+            
+            if credit_score >= 80 and guarantee_chain_depth < 2:
+                decision = DECISION_APPROVE
+                limit_multiplier = 1.5
+                requires_guarantee = False
+                reasoning = "Credit score excellent, minimal guarantee chain risk"
+            elif credit_score >= 60 and guarantee_chain_depth < 3:
+                decision = DECISION_APPROVE_WITH_CONDITIONS
+                limit_multiplier = 1.0
+                requires_guarantee = True
+                reasoning = "Credit score acceptable but requires guarantee"
+            elif credit_score >= 40:
+                decision = DECISION_APPROVE_RESTRICTED
+                limit_multiplier = 0.5
+                requires_guarantee = True
+                reasoning = "Credit score below recommended threshold"
+            else:
+                decision = DECISION_REJECT
+                limit_multiplier = 0.0
+                requires_guarantee = True
+                reasoning = "Credit score too low for approval"
+            
+            # Calculate approved limit
+            base_limit = registered_capital * CREDIT_LIMIT_BASE_RATIO
+            approved_limit = base_limit * limit_multiplier
+            
+            output["final_decision"] = decision
+            output["approved_credit_limit"] = round(approved_limit, 2)
+            output["requires_additional_guarantee"] = requires_guarantee
+            output["decision_reasoning"] = reasoning
+            
+            # Update context
+            context.computed_metrics["final_decision"] = decision
+            context.computed_metrics["approved_credit_limit"] = approved_limit
+            context.computed_metrics["requires_additional_guarantee"] = requires_guarantee
 
         return output
 
