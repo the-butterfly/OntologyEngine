@@ -6,132 +6,261 @@ OntologyEngine Demo - 供应链金融授信评估
 使用 ontology_engine 包进行维度分析：
 - 加载 KGML Schema
 - 加载实例数据
-- 执行维度分析（credit_assessment）
+- 执行多维度分析（credit_assessment, risk_early_warning）
+- 展示详细的指标和规则执行轨迹
 
 运行方法：
-    python -m ontology_engine.examples.supply_chain_finance.demo
+    python -m examples.supply_chain_finance.demo
 """
 
 import asyncio
 from ontology_engine import OntologyEngine
 
 
-async def main():
-    """主函数"""
-    print("\n" + "=" * 60)
-    print("OntologyEngine Demo - 供应链金融授信评估")
-    print("=" * 60)
+def print_banner(title: str) -> None:
+    """Print section banner."""
+    print("\n" + "=" * 70)
+    print(f"  {title}")
+    print("=" * 70)
 
-    # 创建引擎
-    print("\n📦 创建引擎...")
-    engine = OntologyEngine.from_config(
-        "examples/supply_chain_finance/schema.yaml"
-    )
-    await engine.initialize()
-    print("✅ 引擎创建成功")
 
-    # 加载实例
-    print("\n📥 加载实例数据...")
-    await engine.load_instances(
-        "examples/supply_chain_finance/instances.yaml"
-    )
-    print("✅ 实例加载成功")
+def print_entity_header(entity_id: str, name: str) -> None:
+    """Print entity header."""
+    print(f"\n🏢 {entity_id}")
+    print(f"   {name}")
 
-    # ============================================================
-    # 案例 1: 优质供应商
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📌 案例 1: 优质供应商（预期：正常授信）")
-    print("=" * 60)
 
-    result1 = await engine.analyze(
-        entity_id="SUP_2024_001",
-        dimension="credit_assessment"
-    )
-
-    print(f"\n🏢 企业: {result1.entity_id}")
-    print(f"📊 维度: {result1.dimension}")
-    print(f"✅ 规则执行: {len(result1.rule_results)} 条")
-    print(f"⚠️ 预警: {len(result1.alerts)} 条")
-    print(f"📋 决策: {result1.decision}")
-
-    if result1.alerts:
-        print("\n预警详情:")
-        for alert in result1.alerts:
-            print(f"  [{alert.level.upper()}] {alert.message}")
-
-    # ============================================================
-    # 案例 2: 高风险供应商
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📌 案例 2: 高风险供应商（预期：拒绝或严格限制）")
-    print("=" * 60)
-
-    result2 = await engine.analyze(
-        entity_id="SUP_2024_003",
-        dimension="credit_assessment"
-    )
-
-    print(f"\n🏢 企业: {result2.entity_id}")
-    print(f"📊 维度: {result2.dimension}")
-    print(f"✅ 规则执行: {len(result2.rule_results)} 条")
-    print(f"⚠️ 预警: {len(result2.alerts)} 条")
-    print(f"📋 决策: {result2.decision}")
-
-    if result2.alerts:
-        print("\n预警详情:")
-        for alert in result2.alerts:
-            print(f"  [{alert.level.upper()}] {alert.message}")
-
-    # ============================================================
-    # 案例 3: 担保圈供应商
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📌 案例 3: 担保圈供应商（预期：担保圈预警）")
-    print("=" * 60)
-
-    result3 = await engine.analyze(
-        entity_id="SUP_2024_A",
-        dimension="credit_assessment"
-    )
-
-    print(f"\n🏢 企业: {result3.entity_id}")
-    print(f"📊 维度: {result3.dimension}")
-    print(f"✅ 规则执行: {len(result3.rule_results)} 条")
-    print(f"⚠️ 预警: {len(result3.alerts)} 条")
-    print(f"📋 决策: {result3.decision}")
-
-    if result3.alerts:
-        print("\n预警详情:")
-        for alert in result3.alerts:
-            print(f"  [{alert.level.upper()}] {alert.message}")
-
-    # ============================================================
-    # 总结
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📊 案例对比总结")
-    print("=" * 60)
-
-    print(f"\n{'案例':<15} {'供应商ID':<15} {'决策':<20}")
-    print("-" * 60)
-
-    cases = [
-        ("案例1", result1),
-        ("案例2", result2),
-        ("案例3", result3),
+def print_detailed_metrics(metrics: dict) -> None:
+    """Print detailed computed metrics with formatting."""
+    print("\n📊 Key Metrics:")
+    metric_display = [
+        ("credit_score", "Credit Score", "{:.0f}"),
+        ("credit_grade", "Credit Grade", "{}"),
+        ("business_stability_score", "Business Stability", "{:.0f}"),
+        ("reputation_score", "Reputation Score", "{:.1f}"),
+        ("contract_utilization_rate", "Contract Utilization", "{:.1f}%"),
+        ("overdue_invoice_ratio", "Overdue Ratio", "{:.2f}%"),
+        ("guarantee_chain_depth", "Guarantee Chain Depth", "{}"),
+        ("core_enterprise_count", "Core Enterprise Count", "{}"),
+        ("tax_compliance_score", "Tax Compliance Score", "{}"),
+        ("negative_news_count_90d", "Negative News (90d)", "{}"),
     ]
+    for key, label, fmt in metric_display:
+        if key in metrics and metrics[key] is not None:
+            try:
+                print(f"   {label:25s}: {fmt.format(metrics[key])}")
+            except (ValueError, TypeError):
+                print(f"   {label:25s}: {metrics[key]}")
 
-    for case_name, result in cases:
-        print(f"{case_name:<15} {result.entity_id:<15} {result.decision or 'N/A':<20}")
 
-    print("\n" + "=" * 60)
-    print("✅ Demo 完成")
-    print("=" * 60)
+def print_rule_trace(rule_results: list) -> None:
+    """Print rule execution trace."""
+    print("\n⚙️ Rule Execution:")
+    for rr in rule_results:
+        status = "✅" if rr.passed else "❌"
+        rule_name = getattr(rr, 'rule_name', rr.rule_id)
+        print(f"   {status} {rr.rule_id}: {rule_name}")
+        if rr.output and not rr.output.get("skipped"):
+            for k, v in rr.output.items():
+                if k not in ('eligible', 'rejection_reason', 'next_step'):
+                    print(f"      → {k}: {v}")
 
-    # 清理
+
+def print_alerts(alerts: list) -> None:
+    """Print alerts with formatting."""
+    if not alerts:
+        print("\n⚠️ Alerts: None")
+        return
+
+    print(f"\n⚠️ Alerts ({len(alerts)}):")
+    for alert in alerts:
+        level_icon = "🔴" if alert.level == "critical" else "🟡"
+        print(f"   {level_icon} [{alert.level.upper()}] {alert.type}")
+        if alert.message:
+            print(f"      {alert.message}")
+
+
+def print_decision_summary(decision: str, reasoning: str, alerts: list) -> None:
+    """Print decision summary."""
+    decision_colors = {
+        "APPROVE": "🟢",
+        "APPROVE_WITH_CONDITIONS": "🟡",
+        "APPROVE_RESTRICTED": "🟠",
+        "REJECT": "🔴",
+        "REVIEW": "🟡",
+    }
+    icon = decision_colors.get(decision, "⚪")
+    print(f"\n{icon} Decision: {decision}")
+    if reasoning:
+        print(f"   Reason: {reasoning}")
+
+
+# Demo case definitions
+DEMO_CASES = [
+    {
+        "id": "SUP_2024_001",
+        "name": "Quality Supplier (Benchmark)",
+        "description": "Established tech supplier with good payment history",
+        "expected_dimensions": ["credit_assessment"],
+    },
+    {
+        "id": "SUP_2024_003",
+        "name": "High Risk Supplier",
+        "description": "Trading company with multiple overdue invoices",
+        "expected_dimensions": ["credit_assessment", "risk_early_warning"],
+    },
+    {
+        "id": "SUP_2024_A",
+        "name": "Guarantee Circle Supplier",
+        "description": "Supplier in circular guarantee chain (A→B→C→A)",
+        "expected_dimensions": ["credit_assessment", "risk_early_warning"],
+    },
+    {
+        "id": "SUP_2024_NEW",
+        "name": "New Supplier",
+        "description": "Newly established supplier with limited history",
+        "expected_dimensions": ["credit_assessment"],
+    },
+    {
+        "id": "SUP_2024_NEG",
+        "name": "Negative News Supplier",
+        "description": "Supplier with multiple negative news articles",
+        "expected_dimensions": ["credit_assessment", "risk_early_warning"],
+    },
+    {
+        "id": "SUP_2024_EXC",
+        "name": "Excellent Supplier",
+        "description": "Supplier with perfect payment record and high utilization",
+        "expected_dimensions": ["credit_assessment"],
+    },
+    {
+        "id": "SUP_2024_MULTI",
+        "name": "Multi-Core Enterprise Supplier",
+        "description": "Supplier serving multiple top-tier core enterprises",
+        "expected_dimensions": ["credit_assessment"],
+    },
+    {
+        "id": "SUP_2024_TRADE",
+        "name": "Trading Company",
+        "description": "Small trading company with limited track record",
+        "expected_dimensions": ["credit_assessment"],
+    },
+]
+
+
+async def run_demo():
+    """Run comprehensive demo."""
+    print_banner("ONTOLOGYENGINE DEMO - Supply Chain Finance Credit Assessment")
+
+    # Initialize engine
+    print("\n📦 Initializing OntologyEngine...")
+    engine = OntologyEngine.from_config("examples/supply_chain_finance/schema.yaml")
+    await engine.initialize()
+    await engine.load_instances("examples/supply_chain_finance/instances.yaml")
+    print("   ✅ Engine initialized")
+
+    # Run credit assessment for all cases
+    print_banner("CREDIT ASSESSMENT ANALYSIS")
+    results = {}
+
+    for case in DEMO_CASES:
+        entity_id = case["id"]
+        result = await engine.analyze(entity_id, "credit_assessment")
+        results[entity_id] = result
+
+        entity = await engine.get_entity("Supplier", entity_id)
+        name = entity.get("company_name", "Unknown") if entity else "Unknown"
+
+        print_entity_header(entity_id, name)
+        print_decision_summary(
+            result.decision,
+            result.decision_reasoning,
+            result.alerts
+        )
+
+    # Summary table
+    print_banner("ANALYSIS SUMMARY")
+    print(f"\n{'ID':<18} {'Decision':<25} {'Score':<8} {'Grade':<6} {'Alerts'}")
+    print("-" * 75)
+    for case in DEMO_CASES:
+        r = results[case["id"]]
+        score = r.computed_metrics.get("credit_score", "N/A")
+        grade = r.computed_metrics.get("credit_grade", "N/A")
+        alert_count = len(r.alerts)
+        print(f"{case['id']:<18} {r.decision or 'N/A':<25} {score!s:<8} {grade!s:<6} {alert_count}")
+
+    # Detailed analysis for selected cases
+    print_banner("DETAILED ANALYSIS - KEY CASES")
+
+    # Case 1: Excellent supplier
+    print("\n>>> Excellent Supplier Analysis (SUP_2024_EXC)")
+    r = results["SUP_2024_EXC"]
+    print_detailed_metrics(r.computed_metrics)
+    print_rule_trace(r.rule_results)
+    print_alerts(r.alerts)
+
+    # Case 2: High risk supplier
+    print("\n>>> High Risk Supplier Analysis (SUP_2024_003)")
+    r = results["SUP_2024_003"]
+    print_detailed_metrics(r.computed_metrics)
+    print_rule_trace(r.rule_results)
+    print_alerts(r.alerts)
+
+    # Case 3: Guarantee circle
+    print("\n>>> Guarantee Circle Analysis (SUP_2024_A)")
+    r = results["SUP_2024_A"]
+    print_detailed_metrics(r.computed_metrics)
+    print_rule_trace(r.rule_results)
+    print_alerts(r.alerts)
+
+    # Case 4: New supplier
+    print("\n>>> New Supplier Analysis (SUP_2024_NEW)")
+    r = results["SUP_2024_NEW"]
+    print_detailed_metrics(r.computed_metrics)
+    print_rule_trace(r.rule_results)
+    print_alerts(r.alerts)
+
+    # Multi-dimension analysis
+    print_banner("MULTI-DIMENSION ANALYSIS")
+
+    multi_dim_cases = ["SUP_2024_003", "SUP_2024_A", "SUP_2024_NEG"]
+    for entity_id in multi_dim_cases:
+        print(f"\n▶ {entity_id} - Multiple Dimensions:")
+
+        entity = await engine.get_entity("Supplier", entity_id)
+        if entity:
+            print(f"  Company: {entity.get('company_name', 'Unknown')}")
+
+        for dimension in ["credit_assessment", "risk_early_warning"]:
+            result = await engine.analyze(entity_id, dimension)
+            icon = "✅" if result.decision == "APPROVE" else "⚠️" if result.decision == "APPROVE_WITH_CONDITIONS" else "❌"
+            print(f"  {icon} {dimension}: {result.decision or 'N/A'} ({len(result.alerts)} alerts)")
+
+    # Industry practices demonstration
+    print_banner("INDUSTRY PRACTICES")
+
+    print("\n▶ Multi-Tier Supply Chain Analysis:")
+    tier1 = results["SUP_2024_001"]
+    tier2_result = await engine.analyze("SUP_2024_B", "credit_assessment")
+    tier3_result = await engine.analyze("SUP_2024_C", "credit_assessment")
+
+    print(f"  Tier-1 (SUP_2024_001): {tier1.decision} - Score: {tier1.computed_metrics.get('credit_score', 'N/A')}")
+    print(f"  Tier-2 (SUP_2024_B):   {tier2_result.decision} - Score: {tier2_result.computed_metrics.get('credit_score', 'N/A')}")
+    print(f"  Tier-3 (SUP_2024_C):   {tier3_result.decision} - Score: {tier3_result.computed_metrics.get('credit_score', 'N/A')}")
+
+    print("\n▶ Risk Early Warning Demonstration:")
+    for entity_id in ["SUP_2024_A", "SUP_2024_NEG", "SUP_2024_003"]:
+        result = await engine.analyze(entity_id, "risk_early_warning")
+        if result.alerts:
+            entity = await engine.get_entity("Supplier", entity_id)
+            name = entity.get("company_name", "Unknown") if entity else entity_id
+            print(f"  {name}: {len(result.alerts)} alert(s)")
+            for alert in result.alerts:
+                print(f"    - [{alert.level.upper()}] {alert.type}")
+
     await engine.close()
+    print_banner("DEMO COMPLETED")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_demo())
