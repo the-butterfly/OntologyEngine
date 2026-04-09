@@ -64,9 +64,9 @@ CREATE TABLE entities (
 CREATE INDEX idx_entities_type ON entities(concept_type);
 ```
 
-#### edges - 关系表
+#### relations - 关系表
 ```sql
-CREATE TABLE edges (
+CREATE TABLE relations (
     id VARCHAR PRIMARY KEY,
     from_id VARCHAR NOT NULL REFERENCES entities(id),
     to_id VARCHAR NOT NULL REFERENCES entities(id),
@@ -75,9 +75,9 @@ CREATE TABLE edges (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_edges_from ON edges(from_id);
-CREATE INDEX idx_edges_to ON edges(to_id);
-CREATE INDEX idx_edges_type ON edges(relation_type);
+CREATE INDEX idx_relations_from ON relations(from_id);
+CREATE INDEX idx_relations_to ON relations(to_id);
+CREATE INDEX idx_relations_type ON relations(relation_type);
 ```
 
 #### instances - 实例数据 (JSON 存储)

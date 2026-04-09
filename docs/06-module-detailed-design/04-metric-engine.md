@@ -4,6 +4,8 @@
 > **依赖**: SchemaLoader, DuckDBStorage, NetworkXGraphStore, ExpressionEngine
 > **被依赖**: AnalysisService, RuleEngine
 
+> ⚠️ **L3/L4 公式归属说明**：L3 的 `formula` 是**默认计算公式**，代表指标的客观定义（如比率计算方式），任何规则组应保持一致。L4 action 中的 `computation.formula` 用于**业务决策逻辑**（如授信额度乘数），可覆盖 L3 默认值。这**不是重复定义**，而是**默认 + 可覆盖**机制——避免同一指标在不同规则组中出现不一致的计算结果。
+
 ## 1. 职责
 
 1. **四类指标计算** — atomic / derived / composite / graph

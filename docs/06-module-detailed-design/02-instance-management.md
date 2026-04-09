@@ -237,7 +237,7 @@ class DuckDBStorage:
             )
         """)
         self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS edges (
+            CREATE TABLE IF NOT EXISTS relations (
                 id VARCHAR PRIMARY KEY,
                 from_id VARCHAR NOT NULL,
                 to_id VARCHAR NOT NULL,
@@ -266,9 +266,9 @@ class DuckDBStorage:
         """)
         # 索引
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(concept_type)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_id)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_id)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(relation_type)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(from_id)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_relations_to ON relations(to_id)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_relations_type ON relations(relation_type)")
     
     # --- Entity CRUD ---
     
@@ -347,18 +347,18 @@ class DuckDBStorage:
     
     async def delete_entity(self, entity_id: str) -> bool:
         """删除实体及其关联边"""
-        self._conn.execute("DELETE FROM edges WHERE from_id = ? OR to_id = ?", [entity_id, entity_id])
+        self._conn.execute("DELETE FROM relations WHERE from_id = ? OR to_id = ?", [entity_id, entity_id])
         self._conn.execute("DELETE FROM computed_metrics WHERE entity_id = ?", [entity_id])
         self._conn.execute("DELETE FROM category_tags WHERE entity_id = ?", [entity_id])
         result = self._conn.execute("DELETE FROM entities WHERE id = ?", [entity_id])
         return result.fetchone() is not None
     
-    # --- Edge CRUD ---
+    # --- Relation CRUD ---
     
     async def save_relation(self, relation: Relation) -> str:
         """保存关系"""
         self._conn.execute("""
-            INSERT OR REPLACE INTO edges (id, from_id, to_id, relation_type, attributes)
+            INSERT OR REPLACE INTO relations (id, from_id, to_id, relation_type, attributes)
             VALUES (?, ?, ?, ?, ?)
         """, [relation.id, relation.from_id, relation.to_id,
               relation.relation_type, json.dumps(relation.attributes)])
@@ -392,19 +392,19 @@ class DuckDBStorage:
             where_dir += " AND relation_type = ?"
             params.append(relation_type)
         
-        edges = self._conn.execute(
-            f"SELECT id, from_id, to_id, relation_type, attributes FROM edges WHERE {where_dir} LIMIT ?",
+        relations = self._conn.execute(
+            f"SELECT id, from_id, to_id, relation_type, attributes FROM relations WHERE {where_dir} LIMIT ?",
             params + [limit]
         ).fetchall()
         
         results = []
-        for edge_row in edges:
+        for rel_row in relations:
             rel = Relation(
-                id=edge_row[0], from_id=edge_row[1], to_id=edge_row[2],
-                relation_type=edge_row[3], attributes=json.loads(edge_row[4])
+                id=rel_row[0], from_id=rel_row[1], to_id=rel_row[2],
+                relation_type=rel_row[3], attributes=json.loads(rel_row[4])
             )
             # 获取对端实体
-            neighbor_id = edge_row[2] if edge_row[1] == entity_id else edge_row[1]
+            neighbor_id = rel_row[2] if rel_row[1] == entity_id else rel_row[1]
             neighbor = await self.get_entity_by_id(neighbor_id)
             if neighbor:
                 results.append((neighbor, rel))
@@ -468,7 +468,7 @@ instances.yaml
                 │
                 ▼
         entities 表: 5 rows
-        edges 表: 8 rows
+        relations 表: 8 rows
 ```
 
 ## 6. 文件结构
