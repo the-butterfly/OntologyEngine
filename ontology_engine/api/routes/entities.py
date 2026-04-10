@@ -6,20 +6,30 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from ontology_engine.api.server import get_entity_service
+from ontology_engine.api.dependencies import get_entity_service
+from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.entity_service import EntityService
 from ontology_engine.services.dto import (
     EntityCreateRequest,
     ConceptNotDefinedError,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/v1/entities", tags=["Entities"])
 
 
 class EntityCreateRequestBody(BaseModel):
+    """Request body for entity creation."""
     concept_type: str
     entity_id: str
     attributes: dict[str, Any] | None = None
+
+
+class EntityQueryRequestBody(BaseModel):
+    """Request body for entity query."""
+    concept_type: str | None = None
+    filter: dict[str, Any] | None = None
+    limit: int = 100
+    offset: int = 0
 
 
 @router.post("")
@@ -41,11 +51,11 @@ async def create_entity(
             entity_id=body.entity_id,
             attributes=body.attributes
         )
-        return result
+        return success_response(data=result)
     except ConceptNotDefinedError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return error_response(code="CONCEPT_NOT_FOUND", message=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
 @router.post("/batch")
@@ -70,79 +80,60 @@ async def batch_create_entities(
         for b in bodies
     ]
     result = await service.batch_create(requests)
-    return result
+    return success_response(data=result)
 
 
-@router.get("/{concept}/{entity_id}")
+@router.get("/{entity_id}")
 async def get_entity(
-    concept: str,
     entity_id: str,
+    concept: str | None = None,
     service: EntityService = Depends(get_entity_service)
 ):
-    """Get entity by concept and ID.
+    """Get entity by ID.
 
     Args:
-        concept: Concept type
         entity_id: Entity ID
+        concept: Concept type (optional, helps narrow down)
 
     Returns:
         EntityResponse if found
     """
+    if concept is None:
+        return error_response(
+            code="CONCEPT_REQUIRED",
+            message="Query parameter 'concept' is required"
+        )
     result = await service.get_entity(concept, entity_id)
     if result is None:
-        raise HTTPException(status_code=404, detail=f"Entity {entity_id} not found")
-    return result
+        return error_response(
+            code="ENTITY_NOT_FOUND",
+            message=f"Entity {entity_id} not found",
+            details={"entity_id": entity_id}
+        )
+    return success_response(data=result)
 
 
-@router.get("")
+@router.post("/query")
 async def query_entities(
-    concept_type: str | None = None,
+    body: EntityQueryRequestBody,
     service: EntityService = Depends(get_entity_service)
 ):
     """Query entities with optional concept filter.
 
     Args:
-        concept_type: Optional concept type filter
+        body: Query request with concept_type and filters
 
     Returns:
         List of EntityResponse objects
     """
-    results = await service.query_entities(concept_type=concept_type)
-    return {"entities": results}
+    results = await service.query_entities(
+        concept_type=body.concept_type,
+        filters=body.filter
+    )
+    return success_response(data={"entities": results})
 
 
-@router.post("/relations")
-async def create_relation(
-    relation_type: str,
-    from_id: str,
-    to_id: str,
-    attributes: dict[str, Any] | None = None,
-    service: EntityService = Depends(get_entity_service)
-):
-    """Create a relation between entities.
-
-    Args:
-        relation_type: Type of relation
-        from_id: Source entity ID
-        to_id: Target entity ID
-        attributes: Optional relation attributes
-
-    Returns:
-        Created RelationResponse
-    """
-    try:
-        result = await service.create_relation(
-            relation_type=relation_type,
-            from_id=from_id,
-            to_id=to_id,
-            attributes=attributes
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/neighbors/{entity_id}")
+@router.get("/{entity_id}/neighbors")
 async def get_neighbors(
     entity_id: str,
     relation_type: str | None = None,
@@ -165,8 +156,8 @@ async def get_neighbors(
             relation_type=relation_type,
             depth=depth
         )
-        return {"neighbors": results}
+        return success_response(data={"neighbors": results})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INTERNAL_ERROR", message=str(e))

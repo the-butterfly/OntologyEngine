@@ -1,0 +1,164 @@
+
+04-08 22:07
+
+深度讨论docs下的设计文档，按照通用的大型项目管理整理文件分层，从 概要设计 -> 详细设计 -> 单元测试 -> 修复 ->
+评估报告, 从愿景、动机、目标、模块、API设计等来方面进行拆分，用语尽量简洁直击核心，过程文档作为 RFC 单列。当前阶段：MVP
+ demo跑通。下一步的设计：优化Schema设计的内容，整体Schema 框架设计按照 事实对象(实体对象类型及关系声明) ->
+归类分析(对事实对象的业务分类标签) -> 分析要素(基于事实对象提炼的分析要素，如指标等) ->
+业务逻辑声明(定义作用的分析事实对象、适用的业务分类、输入要素、输出要素); 在实例上定义的时候,
+接入具体的分析事实内容如具体公司、公司的行业分类、具体的业务逻辑表达(如分箱、决策表、加权求和计算等)
+
+kimi / claude:
+⏺ 文档重组完成。以下是总结：
+
+  完成内容
+
+  文档结构 (docs/)
+
+  docs/
+  ├── 01-overview/          # 概要设计层
+  │   ├── 01-vision.md      # 愿景
+  │   ├── 02-motivation.md  # 动机
+  │   ├── 03-goals.md       # 阶段目标
+  │   └── 04-modules.md     # 模块架构
+
+  ├── 02-design/            # 详细设计层
+  │   ├── 01-schema-spec.md # Schema v1 规范
+  │   ├── 02-api-design.md  # API 设计
+  │   ├── 03-storage-design.md    # 存储设计
+  │   └── 04-rule-engine-design.md # 规则引擎
+
+  ├── 03-rfc/               # 过程文档 (RFC)
+  │   ├── RFC-001-knowledge-graph-markup-language.md
+  │   ├── RFC-002-storage-strategy.md
+  │   └── RFC-003-rule-execution-model.md
+
+  ├── 04-testing/           # 测试与修复
+  │   └── 01-testing-guide.md
+
+  └── 05-schema-v2/         # 下一步核心设计
+      ├── 00-overview.md           # v2 概览
+      ├── 01-fact-objects.md       # L1 事实对象
+      ├── 02-categorization.md     # L2 归类分析
+      ├── 03-analytical-elements.md # L3 分析要素
+      ├── 04-business-logic.md     # L4 业务逻辑
+      └── 05-complete-example.md   # 完整示例
+
+  Schema v2 核心
+
+  四层分离架构：
+
+  ┌─────────────┬──────────────────────┬────────────────────────────────────────┐
+  │    层级     │         内容         │                关键特性                │
+  ├─────────────┼──────────────────────┼────────────────────────────────────────┤
+  │ L1 事实对象 │ 实体/关系定义        │ 与业务无关，结构稳定                   │
+  ├─────────────┼──────────────────────┼────────────────────────────────────────┤
+  │ L2 归类分析 │ 行业、规模、风险标签 │ 多维度可叠加，规则打标                 │
+  ├─────────────┼──────────────────────┼────────────────────────────────────────┤
+  │ L3 分析要素 │ 指标、变量、函数     │ atomic/derived/composite/graph 类型    │
+  ├─────────────┼──────────────────────┼────────────────────────────────────────┤
+  │ L4 业务逻辑 │ 规则组、决策、流程   │ 声明式 applies_to，显式 inputs/outputs │
+  └─────────────┴──────────────────────┴────────────────────────────────────────┘
+  关键改进：规则不再硬编码 entity_types，改为声明式 applies_to: {fact_objects, categories}，实现事实与分析分离。
+
+  关键决策备份
+
+  已写入 discuss/2026-04-08-docs-reorganization.md
+
+workbuddy:
+
+从软件工程的管理开发视角分析 /Volumes/Extension/Projects/CodeDev/OntologyEngine/docs 下的所有文档，从愿景、动机、目标、模块、API设计等来方面进行拆分内容，审视目录结构的合理性，同时对具体内容的核心设计点进行辩论，尤其是设计是否能够满足愿景，愿景和方案是否足够清晰合理，可以调用各种外部检索工具。
+
+
+claude:
+
+❯ 针对审查Agent的文档审视意见，对内容和目录框架进行分析，有争议点则弹出，意见文件：discuss/2026-04-08-engineering-revie
+
+---
+  行动项建议
+
+  立即执行 (P0):
+  1. 删除 docs/roadmap.md
+  2. 修改 02-design/02-api-design.md 移除 Cypher 接口
+  3. 在 05-schema-v2/ 添加 formula 语言限制说明
+
+  Phase 1 前 (P1):
+  4. 编写 02-design/05-services-design.md
+  5. 在 05-schema-v2/04-business-logic.md 补充跨引擎协调机制
+
+  是否立即执行 P0 修复项？
+
+✻ Churned for 1m 48s
+
+❯ 执行修复，过程中遇到有冲突需要决策或不确定的部分弹出进行讨论评审
+
+⏺ 决策点 2: L4 Business Logic 的 Formula 如何处理？
+
+  读取 04-business-logic.md 发现 L4 也有 formula：
+
+  action:
+    type: compute
+    output: credit_limit
+    formula: |
+      base = min(registered_capital * 0.5, 10000000)
+      if credit_score >= 80:
+        base * 1.5
+
+  这与刚添加的限制（单行表达式）冲突。
+
+  选项:
+  - A: L4 也限制为单行，复杂逻辑用 switch 算子替代
+  - B: L4 允许多行（需引入 RestrictedPython），L3 保持单行
+  - C: 统一使用 JSON 结构表达条件逻辑（非文本 formula）
+
+  倾向 A — 保持简单，复杂逻辑用算子：
+
+  action:
+    type: compute
+    operator: SWITCH
+    cases:
+      - condition: "credit_score >= 80"
+        value: "min(registered_capital * 0.5, 10000000) * 1.5"
+      - condition: "credit_score >= 70"
+        value: "min(registered_capital * 0.5, 10000000) * 1.2"
+    default: "min(registered_capital * 0.5, 10000000)"
+
+❯ formula 统一放在 business_logic 中承载，规则实例中定义输出要素/指标的结果是通用逻辑还是BY场景有不同的逻辑,
+在规则的适用条件中有一类是 GLOBAL 的无条件通用逻辑. formula 限制为单行, 结构化表达,更简洁. 通过SWITCH来实现是可以的. 但
+同时要考虑复杂规则逻辑的表达能力，以及基础表达式的扩展，至少覆盖：连续数值分箱、评分卡、决策表、决策树、图的检索和计算
+以及 外部模型的注册 或 调用大模型的语义化推理。以上场景需要考虑。
+
+workbuddy:
+
+从软件工程的管理开发视角分析 /Volumes/Extension/Projects/CodeDev/OntologyEngine/docs 下的所有文档，从愿景、动机、目标、模块、API设计等来方面进行拆分内容，审视目录结构的合理性，同时对具体内容的核心设计点进行辩论，尤其是设计是否能够满足愿景，愿景和方案是否足够清晰合理，提出补充或者修正意见，可以调用各种外部检索工具。
+
+
+minimax m2.7:
+
+❯ 结合其他Agent在review/review_workbuddy_software-engineering-analysis_0408_2300.md中给出的审视意见，思考docs中设计上的
+优化/调整点, 将关键设计点抛出讨论。在过程中考虑: 1. 以配置文件为核心，本地优先之外，考虑平台化的部署，可以引入中间件(数
+据库等)作为扩展，进行中间态的管理和Schema历史记录的审计等 2. 需要考虑给Agent提供的知识资产构建的接口设计,MCP 或者 CLI
+3. 提供给Agent做知识检索服务，需要有 a. query的匹配, 通过向量&图的Schema语义 匹配到具体的实例点、边、路径的 TopN 结果,
+可以有不同的匹配模式选择 b. 指定对象实例->使用规则的检索, 如通过分析对象的实例找到归属的场景分类再找到应用的规则逻辑的
+实例，进一步找到规则之间的依赖逻辑(通过输入输出要素)，最终串联出完整的计算逻辑树以及输入的原子指标
+c.规则执行，根据上一步的规则和原子指标的值，计算出输出要素的值，此外可以附加可解释性，将中间的要素结果也返回 ; PS: FOR
+agent 的接口需要考虑反馈的闭环，如操作的模拟（输出关联影响）、问题/报错信息的可读性、操作历史记录管理和回退机制
+
+04-09
+
+---
+  请确认:
+  1. L3/L4 边界方案 (A/B/C)
+  2. Formula 执行器选择 (simpleeval / asteval)
+  3. Agent 接口形态 (MCP / CLI / 混合)
+
+❯ 1. 方案B default_formula (可选) 相当于直接生成一个通用规则 对管理面更简单直观. 2. 使用asteval + 预制的表达式/函数 3.
+形态混合，但功能设计逻辑一致，同时考虑未来知识引擎服务可以同时部署在云端和本地，共享一部分组织级资产同时可以刷新本地的
+知识资产.
+
+
+审视examples中的案例设计，尤其是 schema设计 与 实际执行的逻辑，对分析过程进行解释，可适当进行绘图，分析其中的亮点和问题
+
+
+
+

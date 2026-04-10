@@ -3,23 +3,26 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from ontology_engine.api.server import get_ingestion_service
+from ontology_engine.api.dependencies import get_ingestion_service
+from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.ingestion_service import IngestionService
 from ontology_engine.services.dto import IngestionRequest
 
-router = APIRouter()
+router = APIRouter(prefix="/v1/ingestion", tags=["Ingestion"])
 
 
 class EntityCreateItem(BaseModel):
+    """Entity item for ingestion."""
     concept_type: str
     entity_id: str
     attributes: dict[str, Any] | None = None
 
 
 class RelationCreateItem(BaseModel):
+    """Relation item for ingestion."""
     relation_type: str
     from_id: str
     to_id: str
@@ -27,6 +30,7 @@ class RelationCreateItem(BaseModel):
 
 
 class IngestionRequestBody(BaseModel):
+    """Request body for ingestion."""
     instances_path: str | None = None
     entities: list[EntityCreateItem] | None = None
     relations: list[RelationCreateItem] | None = None
@@ -62,9 +66,9 @@ async def import_instances(
             ) for r in (body.relations or [])]
         )
         result = await service.import_instances(request)
-        return result
+        return success_response(data=result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INGESTION_ERROR", message=str(e))
 
 
 @router.post("/import/dict")
@@ -92,9 +96,9 @@ async def import_from_dict(
     """
     try:
         result = await service.import_from_dict(data)
-        return result
+        return success_response(data=result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INGESTION_ERROR", message=str(e))
 
 
 @router.post("/validate")
@@ -127,9 +131,9 @@ async def validate_import(
             ) for r in (body.relations or [])]
         )
         valid_ids, invalid_reasons = await service.validate_import(request)
-        return {
+        return success_response(data={
             "valid_entity_ids": valid_ids,
             "invalid_reasons": invalid_reasons
-        }
+        })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INGESTION_ERROR", message=str(e))

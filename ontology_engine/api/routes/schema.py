@@ -1,13 +1,14 @@
 # ontology_engine/api/routes/schema.py
 """Schema management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 
-from ontology_engine.api.server import get_schema_service
+from ontology_engine.api.dependencies import get_schema_service
+from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.schema_service import SchemaService
 from ontology_engine.services.dto import SchemaValidationError
 
-router = APIRouter()
+router = APIRouter(prefix="/v1/schema", tags=["Schema"])
 
 
 @router.post("/load")
@@ -25,13 +26,16 @@ async def load_schema(
     """
     try:
         result = await service.load_schema(schema_path)
-        return result
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        return success_response(data=result)
+    except FileNotFoundError:
+        return error_response(
+            code="NOT_FOUND",
+            message=f"Schema file not found: {schema_path}"
+        )
     except SchemaValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return error_response(code="VALIDATION_ERROR", message=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
 @router.get("/")
@@ -45,8 +49,11 @@ async def get_schema(
     """
     schema = await service.get_schema()
     if schema is None:
-        raise HTTPException(status_code=404, detail="No schema loaded")
-    return schema
+        return error_response(
+            code="SCHEMA_NOT_LOADED",
+            message="No schema loaded"
+        )
+    return success_response(data=schema)
 
 
 @router.post("/reload")
@@ -64,11 +71,14 @@ async def reload_schema(
     """
     try:
         result = await service.reload_schema(schema_path)
-        return result
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        return success_response(data=result)
+    except FileNotFoundError:
+        return error_response(
+            code="NOT_FOUND",
+            message=f"Schema file not found: {schema_path}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
 @router.get("/versions")
@@ -81,7 +91,7 @@ async def get_schema_versions(
         List of version info dicts
     """
     versions = await service.get_schema_versions()
-    return {"versions": versions}
+    return success_response(data={"versions": versions})
 
 
 @router.post("/rollback/{target_version}")
@@ -99,8 +109,8 @@ async def rollback_schema(
     """
     try:
         result = await service.rollback_schema(target_version)
-        return result
+        return success_response(data=result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="INTERNAL_ERROR", message=str(e))

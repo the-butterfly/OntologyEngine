@@ -166,12 +166,15 @@ class DuckDBStorage(StorageBackend):
     async def get_entity(self, concept: str, entity_id: str) -> EntityInstance | None:
         """Get entity by concept and ID."""
         self._ensure_initialized()
-        cursor = await asyncio.to_thread(
-            self._conn.execute,
-            "SELECT data FROM entities WHERE concept = ? AND entity_id = ?",
-            [concept, entity_id]
-        )
-        result = cursor.fetchone()
+
+        def _fetch():
+            cursor = self._conn.execute(
+                "SELECT data FROM entities WHERE concept = ? AND entity_id = ?",
+                [concept, entity_id]
+            )
+            return cursor.fetchone()
+
+        result = await asyncio.to_thread(_fetch)
 
         if result is None:
             return None
@@ -186,25 +189,28 @@ class DuckDBStorage(StorageBackend):
     ) -> list[EntityInstance]:
         """Query entities with optional filters."""
         self._ensure_initialized()
-        if not filters:
-            cursor = await asyncio.to_thread(
-                self._conn.execute,
-                "SELECT entity_id, data FROM entities WHERE concept = ?",
-                [concept]
-            )
-        else:
-            # Build query with filters
-            conditions = ["concept = ?"]
-            params = [concept]
 
-            for key, value in filters.items():
-                conditions.append(f"json_extract(data, '$.{key}') = ?")
-                params.append(value)
+        def _fetch():
+            if not filters:
+                cursor = self._conn.execute(
+                    "SELECT entity_id, data FROM entities WHERE concept = ?",
+                    [concept]
+                )
+            else:
+                # Build query with filters
+                conditions = ["concept = ?"]
+                params = [concept]
 
-            query = f"SELECT entity_id, data FROM entities WHERE {' AND '.join(conditions)}"
-            cursor = await asyncio.to_thread(self._conn.execute, query, params)
+                for key, value in filters.items():
+                    conditions.append(f"json_extract(data, '$.{key}') = ?")
+                    params.append(value)
 
-        results = cursor.fetchall()
+                query = f"SELECT entity_id, data FROM entities WHERE {' AND '.join(conditions)}"
+                cursor = self._conn.execute(query, params)
+
+            return cursor.fetchall()
+
+        results = await asyncio.to_thread(_fetch)
 
         entities = []
         for row in results:
@@ -240,24 +246,25 @@ class DuckDBStorage(StorageBackend):
     ) -> list[RelationInstance]:
         """Get relations from an entity."""
         self._ensure_initialized()
-        if relation_type:
-            cursor = await asyncio.to_thread(
-                self._conn.execute,
-                """SELECT relation_type, to_entity_id, data
-                   FROM relations
-                   WHERE from_entity_id = ? AND relation_type = ?""",
-                [from_entity_id, relation_type]
-            )
-        else:
-            cursor = await asyncio.to_thread(
-                self._conn.execute,
-                """SELECT relation_type, to_entity_id, data
-                   FROM relations
-                   WHERE from_entity_id = ?""",
-                [from_entity_id]
-            )
 
-        results = cursor.fetchall()
+        def _fetch():
+            if relation_type:
+                cursor = self._conn.execute(
+                    """SELECT relation_type, to_entity_id, data
+                       FROM relations
+                       WHERE from_entity_id = ? AND relation_type = ?""",
+                    [from_entity_id, relation_type]
+                )
+            else:
+                cursor = self._conn.execute(
+                    """SELECT relation_type, to_entity_id, data
+                       FROM relations
+                       WHERE from_entity_id = ?""",
+                    [from_entity_id]
+                )
+            return cursor.fetchall()
+
+        results = await asyncio.to_thread(_fetch)
 
         relations = []
         for row in results:
@@ -294,13 +301,16 @@ class DuckDBStorage(StorageBackend):
     ) -> Any | None:
         """Get computed metric for an entity."""
         self._ensure_initialized()
-        cursor = await asyncio.to_thread(
-            self._conn.execute,
-            """SELECT value FROM computed_metrics
-               WHERE entity_id = ? AND metric_name = ?""",
-            [entity_id, metric_name]
-        )
-        result = cursor.fetchone()
+
+        def _fetch():
+            cursor = self._conn.execute(
+                """SELECT value FROM computed_metrics
+                   WHERE entity_id = ? AND metric_name = ?""",
+                [entity_id, metric_name]
+            )
+            return cursor.fetchone()
+
+        result = await asyncio.to_thread(_fetch)
         if result is None:
             return None
         return json.loads(result[0])
@@ -322,26 +332,27 @@ class DuckDBStorage(StorageBackend):
             List of (neighbor_entity, relation) tuples
         """
         self._ensure_initialized()
-        if direction == "outgoing":
-            cursor = await asyncio.to_thread(
-                self._conn.execute,
-                """SELECT e.concept, e.entity_id, e.data, r.data
-                   FROM relations r
-                   JOIN entities e ON r.to_entity_id = e.entity_id
-                   WHERE r.from_entity_id = ? AND r.relation_type = ?""",
-                [entity_id, relation_type]
-            )
-        else:
-            cursor = await asyncio.to_thread(
-                self._conn.execute,
-                """SELECT e.concept, e.entity_id, e.data, r.data
-                   FROM relations r
-                   JOIN entities e ON r.from_entity_id = e.entity_id
-                   WHERE r.to_entity_id = ? AND r.relation_type = ?""",
-                [entity_id, relation_type]
-            )
 
-        results = cursor.fetchall()
+        def _fetch():
+            if direction == "outgoing":
+                cursor = self._conn.execute(
+                    """SELECT e.concept, e.entity_id, e.data, r.data
+                       FROM relations r
+                       JOIN entities e ON r.to_entity_id = e.entity_id
+                       WHERE r.from_entity_id = ? AND r.relation_type = ?""",
+                    [entity_id, relation_type]
+                )
+            else:
+                cursor = self._conn.execute(
+                    """SELECT e.concept, e.entity_id, e.data, r.data
+                       FROM relations r
+                       JOIN entities e ON r.from_entity_id = e.entity_id
+                       WHERE r.to_entity_id = ? AND r.relation_type = ?""",
+                    [entity_id, relation_type]
+                )
+            return cursor.fetchall()
+
+        results = await asyncio.to_thread(_fetch)
         neighbors = []
         for row in results:
             entity = EntityInstance(
@@ -379,12 +390,15 @@ class DuckDBStorage(StorageBackend):
     ) -> dict[str, str] | None:
         """Get category tags for an entity."""
         self._ensure_initialized()
-        cursor = await asyncio.to_thread(
-            self._conn.execute,
-            """SELECT tags FROM category_tags WHERE entity_id = ?""",
-            [entity_id]
-        )
-        result = cursor.fetchone()
+
+        def _fetch():
+            cursor = self._conn.execute(
+                """SELECT tags FROM category_tags WHERE entity_id = ?""",
+                [entity_id]
+            )
+            return cursor.fetchone()
+
+        result = await asyncio.to_thread(_fetch)
         if result is None:
             return None
         return json.loads(result[0])
