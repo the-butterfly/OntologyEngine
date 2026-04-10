@@ -6,6 +6,7 @@ from ontology_engine.services.entity_service import EntityService
 from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.query_service import QueryService
 from ontology_engine.services.ingestion_service import IngestionService
+from ontology_engine.services.visualization_service import VisualizationService
 
 __all__ = [
     "SchemaService",
@@ -13,4 +14,5 @@ __all__ = [
     "AnalysisService",
     "QueryService",
     "IngestionService",
+    "VisualizationService",
 ]

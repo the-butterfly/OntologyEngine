@@ -6,7 +6,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from ontology_engine.services import (
@@ -16,68 +16,21 @@ from ontology_engine.services import (
     QueryService,
     IngestionService,
 )
+from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.storage.duckdb import DuckDBStorage
 from ontology_engine.core.schema import SchemaLoader
 from ontology_engine.engine.metric.engine import MetricEngine, MetricCache
 from ontology_engine.engine.categorization.engine import CategorizationEngine
 from ontology_engine.engine.rule.executor import RuleExecutor
-
-
-# Global storage and services (initialized on startup)
-_storage: DuckDBStorage | None = None
-_services: dict[str, Any] = {}
-
-
-def get_storage() -> DuckDBStorage:
-    """Get storage instance."""
-    if _storage is None:
-        raise HTTPException(status_code=500, detail="Storage not initialized")
-    return _storage
-
-
-def get_schema_service() -> SchemaService:
-    """Get schema service."""
-    if "schema" not in _services:
-        raise HTTPException(status_code=500, detail="Schema service not initialized")
-    return _services["schema"]
-
-
-def get_entity_service() -> EntityService:
-    """Get entity service."""
-    if "entity" not in _services:
-        raise HTTPException(status_code=500, detail="Entity service not initialized")
-    return _services["entity"]
-
-
-def get_analysis_service() -> AnalysisService:
-    """Get analysis service."""
-    if "analysis" not in _services:
-        raise HTTPException(status_code=500, detail="Analysis service not initialized")
-    return _services["analysis"]
-
-
-def get_query_service() -> QueryService:
-    """Get query service."""
-    if "query" not in _services:
-        raise HTTPException(status_code=500, detail="Query service not initialized")
-    return _services["query"]
-
-
-def get_ingestion_service() -> IngestionService:
-    """Get ingestion service."""
-    if "ingestion" not in _services:
-        raise HTTPException(status_code=500, detail="Ingestion service not initialized")
-    return _services["ingestion"]
+from ontology_engine.api import dependencies
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     """Application lifespan handler."""
-    global _storage, _services
-
     # Initialize storage
-    _storage = DuckDBStorage(db_path=":memory:")
-    await _storage.initialize()
+    storage = DuckDBStorage(db_path=":memory:")
+    await storage.initialize()
 
     # Initialize schema loader
     schema_loader = SchemaLoader()
@@ -89,33 +42,43 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
 
     # Initialize engines
     metric_cache = MetricCache() if schema else None
-    metric_engine = MetricEngine(schema=schema, storage=_storage, cache=metric_cache) if schema else None
+    metric_engine = MetricEngine(schema=schema, storage=storage, cache=metric_cache) if schema else None
     rule_executor = RuleExecutor(schema=schema) if schema else None
     categorization_engine = CategorizationEngine(
-        schema=schema, storage=_storage, rule_executor=rule_executor
+        schema=schema, storage=storage, rule_executor=rule_executor
     ) if schema and rule_executor else None
 
     # Initialize services with engines
-    _services["schema"] = SchemaService(storage=_storage)
-    _services["entity"] = EntityService(storage=_storage, schema=schema)
-    _services["analysis"] = AnalysisService(
+    services: dict[str, Any] = {}
+    services["schema"] = SchemaService(storage=storage)
+    services["entity"] = EntityService(storage=storage, schema=schema)
+    services["analysis"] = AnalysisService(
         categorization_engine=categorization_engine,
         metric_engine=metric_engine,
         rule_executor=rule_executor,
-        storage=_storage,
+        storage=storage,
         schema=schema
     )
-    _services["query"] = QueryService(storage=_storage, rule_executor=rule_executor)
-    _services["ingestion"] = IngestionService(
-        storage=_storage,
-        entity_service=_services["entity"]
+    services["query"] = QueryService(storage=storage, rule_executor=rule_executor)
+    services["ingestion"] = IngestionService(
+        storage=storage,
+        entity_service=services["entity"]
     )
+    services["visualization"] = VisualizationService(
+        schema_service=services["schema"],
+        analysis_service=services["analysis"],
+        storage=storage,
+        schema=schema,
+    )
+
+    # Initialize dependencies
+    dependencies.init_dependencies(storage, services)
 
     yield
 
     # Cleanup
-    if _storage:
-        await _storage.close()
+    if storage:
+        await storage.close()
 
 
 def create_app() -> FastAPI:
@@ -136,14 +99,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Import and include routes
-    from ontology_engine.api.routes import schema, entities, analysis, query, ingestion
+    # Import and include routes (routers already have their prefixes defined)
+    from ontology_engine.api.routes import schema, entities, analysis, query, ingestion, visualization, relations, rules
+    from ontology_engine.api.dto.responses import APIResponse
 
-    app.include_router(schema.router, prefix="/v1/schema", tags=["Schema"])
-    app.include_router(entities.router, prefix="/v1/entities", tags=["Entities"])
-    app.include_router(analysis.router, prefix="/v1/analysis", tags=["Analysis"])
-    app.include_router(query.router, prefix="/v1/query", tags=["Query"])
-    app.include_router(ingestion.router, prefix="/v1/ingestion", tags=["Ingestion"])
+    app.include_router(schema.router, tags=["Schema"])
+    app.include_router(entities.router, tags=["Entities"])
+    app.include_router(analysis.router, tags=["Analysis"])
+    app.include_router(query.router, tags=["Query"])
+    app.include_router(ingestion.router, tags=["Ingestion"])
+    app.include_router(visualization.router, tags=["Visualization"])
+    app.include_router(relations.router, tags=["Relations"])
+    app.include_router(rules.router, tags=["Rules"])
 
     @app.get("/health")
     async def health_check():
@@ -162,4 +129,10 @@ def create_app() -> FastAPI:
     return app
 
 
+# Module-level app instance for uvicorn
 app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("ontology_engine.api.server:app", host="0.0.0.0", port=8000, reload=True)

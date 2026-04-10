@@ -3,16 +3,130 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
-from ontology_engine.api.server import get_query_service
+from ontology_engine.api.dependencies import get_query_service
+from ontology_engine.api.dto.responses import success_response, error_response
+from ontology_engine.api.dto.requests import VectorSearchRequest, HybridSearchRequest, GraphQueryRequest
 from ontology_engine.services.query_service import QueryService
 
-router = APIRouter()
+router = APIRouter(prefix="/v1/query", tags=["Query"])
 
 
+class PatternMatchRequest(BaseModel):
+    """Request body for pattern match."""
+    concept: str
+    patterns: dict[str, Any] | None = None
+
+
+class TraverseRequest(BaseModel):
+    """Request body for graph traverse."""
+    relation_type: str = "has_invoice"
+    direction: str = "outgoing"
+    depth: int = 1
+
+
+class PathQueryRequest(BaseModel):
+    """Request body for path finding."""
+    from_entity_id: str
+    to_entity_id: str
+    max_depth: int = 3
+
+
+@router.post("/vector")
+async def vector_search(
+    body: VectorSearchRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Vector search for entities.
+
+    Args:
+        body: Vector search request with text query
+
+    Returns:
+        List of matching SearchResultResponse
+    """
+    try:
+        results = await service.pattern_match(
+            concept=body.concept_type or "",
+            patterns={"text": body.text}
+        )
+        return success_response(data={"results": results})
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+@router.post("/hybrid")
+async def hybrid_search(
+    body: HybridSearchRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Hybrid search combining text and filters.
+
+    Args:
+        body: Hybrid search request
+
+    Returns:
+        List of matching SearchResultResponse
+    """
+    try:
+        filters = body.filters or {}
+        if body.query:
+            filters["text"] = body.query
+        results = await service.pattern_match(
+            concept=body.concept_type or "",
+            patterns=filters
+        )
+        return success_response(data={"results": results})
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+@router.post("/graph")
+async def graph_query(
+    body: GraphQueryRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Graph traversal query.
+
+    Args:
+        body: Graph query request with start node and traversal spec
+
+    Returns:
+        List of traversed entities
+    """
+    try:
+        # Extract start entity from body.start
+        start_entity = body.start.get("entity_id")
+        if not start_entity:
+            return error_response(
+                code="INVALID_REQUEST",
+                message="start.entity_id is required"
+            )
+
+        # Extract traversal params
+        traverse = body.traverse[0] if body.traverse else {}
+        relation_type = traverse.get("relation_type", "has_invoice")
+        direction = traverse.get("direction", "outgoing")
+        depth = traverse.get("max_hops", 1)
+
+        results = await service.graph_traverse(
+            entity_id=start_entity,
+            relation_type=relation_type,
+            direction=direction,
+            depth=depth
+        )
+        return success_response(data={"results": results})
+    except ValueError as e:
+        return error_response(code="INVALID_REQUEST", message=str(e))
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+# Keep GET endpoints for backward compatibility
 @router.get("/pattern-match/{concept}")
-async def pattern_match(
+async def pattern_match_get(
     concept: str,
     patterns: dict[str, Any] | None = None,
     service: QueryService = Depends(get_query_service)
@@ -28,13 +142,35 @@ async def pattern_match(
     """
     try:
         results = await service.pattern_match(concept=concept, patterns=patterns)
-        return {"results": results}
+        return success_response(data={"results": results})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+@router.post("/pattern-match/{concept}")
+async def pattern_match_post(
+    concept: str,
+    body: PatternMatchRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Pattern match entities by concept and attribute patterns.
+
+    Args:
+        concept: Concept type to match
+        body: Pattern match request
+
+    Returns:
+        List of matching SearchResultResponse
+    """
+    try:
+        results = await service.pattern_match(concept=concept, patterns=body.patterns)
+        return success_response(data={"results": results})
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
 
 
 @router.get("/traverse/{entity_id}")
-async def graph_traverse(
+async def graph_traverse_get(
     entity_id: str,
     relation_type: str = "has_invoice",
     direction: str = "outgoing",
@@ -59,11 +195,40 @@ async def graph_traverse(
             direction=direction,
             depth=depth
         )
-        return {"results": results}
+        return success_response(data={"results": results})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+@router.post("/traverse/{entity_id}")
+async def graph_traverse_post(
+    entity_id: str,
+    body: TraverseRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Traverse graph from entity via relations.
+
+    Args:
+        entity_id: Starting entity ID
+        body: Traverse request with relation_type, direction, depth
+
+    Returns:
+        List of traversed entities
+    """
+    try:
+        results = await service.graph_traverse(
+            entity_id=entity_id,
+            relation_type=body.relation_type,
+            direction=body.direction,
+            depth=body.depth
+        )
+        return success_response(data={"results": results})
+    except ValueError as e:
+        return error_response(code="INVALID_REQUEST", message=str(e))
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
 
 
 @router.get("/trace/{entity_id}")
@@ -83,9 +248,9 @@ async def trace_rule(
     """
     try:
         results = await service.trace_rule(entity_id=entity_id, rule_id=rule_id)
-        return {"traces": results}
+        return success_response(data={"traces": results})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="QUERY_ERROR", message=str(e))
 
 
 @router.get("/path/{from_entity_id}/{to_entity_id}")
@@ -111,8 +276,34 @@ async def find_path(
             to_entity_id=to_entity_id,
             max_depth=max_depth
         )
-        return {"paths": results}
+        return success_response(data={"paths": results})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+@router.post("/path")
+async def find_path_post(
+    body: PathQueryRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Find paths between two entities.
+
+    Args:
+        body: Path query request
+
+    Returns:
+        List of paths, each path is a list of entity IDs
+    """
+    try:
+        results = await service.find_path(
+            from_entity_id=body.from_entity_id,
+            to_entity_id=body.to_entity_id,
+            max_depth=body.max_depth
+        )
+        return success_response(data={"paths": results})
+    except ValueError as e:
+        return error_response(code="INVALID_REQUEST", message=str(e))
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
