@@ -90,7 +90,7 @@ class TestMetricEngine:
         storage = AsyncMock()
         storage.get_metric = AsyncMock(return_value=None)
         storage.save_metric = AsyncMock()
-        storage.get_neighbors = AsyncMock(return_value=([], []))
+        storage.get_neighbors = AsyncMock(return_value=[])
         storage.get_entity = AsyncMock(return_value=None)
         return storage
 
@@ -136,10 +136,9 @@ class TestMetricEngine:
             entity_id="INV_002",
             data={"amount": {"value": 200000}, "issue_date": str(date.today() - timedelta(days=60))}
         )
-        storage.get_neighbors.return_value = (
-            [(invoice1, MagicMock()), (invoice2, MagicMock())],
-            []
-        )
+        storage.get_neighbors.return_value = [
+            (invoice1, MagicMock()), (invoice2, MagicMock())
+        ]
 
         entity = EntityInstance(
             concept="Supplier",
@@ -165,10 +164,9 @@ class TestMetricEngine:
             entity_id="INV_002",
             data={"amount": {"value": 200000}, "status": "PAID"}
         )
-        storage.get_neighbors.return_value = (
-            [(invoice1, MagicMock()), (invoice2, MagicMock())],
-            []
-        )
+        storage.get_neighbors.return_value = [
+            (invoice1, MagicMock()), (invoice2, MagicMock())
+        ]
 
         entity = EntityInstance(
             concept="Supplier",
@@ -200,7 +198,7 @@ class TestMetricEngine:
         """Test that compute_batch computes in topological order."""
         # The DAG should compute total before ratio
         storage.get_metric.return_value = None
-        storage.get_neighbors.return_value = ([], [])
+        storage.get_neighbors.return_value = []
 
         # Pre-populate cache to avoid division by zero
         engine.cache.set("SUP_001", "total_invoice_amount_90d", {"value": 1000000, "currency": "CNY"})
@@ -265,10 +263,9 @@ class TestMetricEngine:
             entity_id="INV_NEW",
             data={"amount": {"value": 200000}, "issue_date": str(date.today() - timedelta(days=30))}
         )
-        storage.get_neighbors.return_value = (
-            [(old_invoice, MagicMock()), (recent_invoice, MagicMock())],
-            []
-        )
+        storage.get_neighbors.return_value = [
+            (old_invoice, MagicMock()), (recent_invoice, MagicMock())
+        ]
 
         entity = EntityInstance(
             concept="Supplier",
@@ -301,7 +298,7 @@ class TestMetricEngineContractAmount:
         storage = AsyncMock()
         storage.get_metric = AsyncMock(return_value=None)
         storage.save_metric = AsyncMock()
-        storage.get_neighbors = AsyncMock(return_value=([], []))
+        storage.get_neighbors = AsyncMock(return_value=[])
         return storage
 
     @pytest.mark.asyncio
@@ -317,10 +314,9 @@ class TestMetricEngineContractAmount:
             entity_id="CTR_002",
             data={"contract_amount": {"value": 2000000}}
         )
-        storage.get_neighbors.return_value = (
-            [(contract1, MagicMock()), (contract2, MagicMock())],
-            []
-        )
+        storage.get_neighbors.return_value = [
+            (contract1, MagicMock()), (contract2, MagicMock())
+        ]
 
         engine = MetricEngine(schema=schema_with_contract, storage=storage)
         entity = EntityInstance(concept="Supplier", entity_id="SUP_001", data={})

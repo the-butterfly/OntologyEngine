@@ -12,26 +12,30 @@ interface SchemaGraphProps {
 }
 
 export interface SchemaGraphRef {
-  exportImage: () => string | null;
+  exportImage: () => Promise<string | null>;
 }
 
 function SchemaGraphComponent({ data, loading, onNodeClick, onNodeHover }: SchemaGraphProps, ref: React.Ref<SchemaGraphRef>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const isDestroyedRef = useRef(false);
-  const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const renderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const instanceId = useId();
 
   // Expose export method via ref
   useImperativeHandle(ref, () => ({
-    exportImage: () => {
+    exportImage: async () => {
       if (graphRef.current && !isDestroyedRef.current) {
         try {
-          // Use G6's built-in toDataURL method
-          return graphRef.current.toDataURL({
+          const graph = graphRef.current;
+          // Wait for graph to complete all rendering and layout
+          // G6 5.x may still be computing layout when toDataURL is called
+          await new Promise(resolve => setTimeout(resolve, 150));
+          const dataURL = await graph.toDataURL({
             type: 'image/png',
-            backgroundColor: '#fafafa',
+            encoderOptions: 1.0,
           });
+          return dataURL;
         } catch (e) {
           console.error('Failed to export graph:', e);
           return null;
@@ -154,7 +158,10 @@ function SchemaGraphComponent({ data, loading, onNodeClick, onNodeHover }: Schem
             },
           },
           edge: {
-            type: 'cubic',
+            // Use cubic-vertical for TB/BT layouts
+            type: (graphData.layout_config?.rankdir === 'TB' || graphData.layout_config?.rankdir === 'BT')
+              ? 'cubic-vertical'
+              : 'cubic-horizontal',
             style: {
               stroke: (d: any) => getEdgeStyle(d.data?.edgeType)?.stroke || '#A0A0A0',
               lineWidth: (d: any) => {
@@ -167,7 +174,15 @@ function SchemaGraphComponent({ data, loading, onNodeClick, onNodeHover }: Schem
               },
               lineDash: (d: any) => getEdgeStyle(d.data?.edgeType)?.lineDash || [],
               endArrow: (d: any) => getEdgeStyle(d.data?.edgeType)?.endArrow ?? true,
-              curveOffset: (d: any) => d.data?.curveOffset || 0,
+              // curveOffset=0 for non-parallel (straight-ish), non-zero for parallel (curved)
+              curveOffset: (d: any) => {
+                const isParallel = d.data?.isParallel;
+                const curveOffset = d.data?.curveOffset;
+                if (!isParallel || curveOffset === undefined || curveOffset === null) {
+                  return 0;
+                }
+                return curveOffset;
+              },
               labelText: (d: any) => {
                 const w = d.data?.weight;
                 if (w != null) return `${(w * 100).toFixed(0)}%`;
@@ -310,7 +325,9 @@ function highlightDependencies(graph: Graph, nodeId: string) {
       }
     });
 
-    graph.setElementState(Array.from(connectedNodeIds), 'hover');
+    graph.setElementState(
+      Object.fromEntries(Array.from(connectedNodeIds).map((id) => [id, 'hover'])),
+    );
   } catch (e) {
     // Ignore errors on destroyed graph
   }
@@ -318,7 +335,10 @@ function highlightDependencies(graph: Graph, nodeId: string) {
 
 function clearHighlights(graph: Graph) {
   try {
-    graph.setElementState([], 'hover');
+    const data = graph.getData() as { nodes?: Array<{ id: string }> };
+    data.nodes?.forEach((node) => {
+      graph.setElementState({ [node.id]: [] });
+    });
   } catch (e) {
     // Ignore errors
   }
@@ -339,14 +359,17 @@ function transformToG6(data: SchemaGraphData) {
   
   // Count edges between same node pairs for curve offset
   const edgePairCount: Map<string, number> = new Map();
-  const edgePairIndex: Map<string, number> = new Map();
+  const edgePairIndex: Map<string, { count: number; pairKey: string; source: string; target: string }> = new Map();
   
   edges.forEach(edge => {
     if (nodeIds.has(edge.source) && nodeIds.has(edge.target)) {
-      const pairKey = [edge.source, edge.target].sort().join('->');
-      const count = edgePairCount.get(pairKey) || 0;
-      edgePairCount.set(pairKey, count + 1);
-      edgePairIndex.set(edge.id, count);
+      // Use unordered (sorted) pairKey to group ALL edges between two nodes together
+      // This ensures A->B and B->A are treated as parallel edges that can overlap
+      const unorderedPairKey = [edge.source, edge.target].sort().join('->');
+      const count = edgePairCount.get(unorderedPairKey) || 0;
+      edgePairCount.set(unorderedPairKey, count + 1);
+      // Store edge direction info for proper curve offset calculation
+      edgePairIndex.set(edge.id, { count: count, pairKey: unorderedPairKey, source: edge.source, target: edge.target });
     }
   });
   
@@ -362,18 +385,40 @@ function transformToG6(data: SchemaGraphData) {
     edges: edges
       .filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target))
       .map(edge => {
-        const pairKey = [edge.source, edge.target].sort().join('->');
-        const count = edgePairCount.get(pairKey) || 1;
-        const index = edgePairIndex.get(edge.id) || 0;
-        
-        // Calculate curve offset for multiple edges between same nodes
+        // Use unordered (sorted) pairKey for grouping - all edges between two nodes
+        // regardless of direction are considered parallel (can overlap)
+        const unorderedPairKey = [edge.source, edge.target].sort().join('->');
+        const count = edgePairCount.get(unorderedPairKey) || 1;
+        const edgeInfo = edgePairIndex.get(edge.id);
+        const index = edgeInfo?.count ?? 0;
+        const isParallel = count > 1;
+
+        // Calculate curve offset for parallel edges
+        // For 2 edges in opposite directions (A->B and B->A):
+        //   Use direction-based curveOffset: forward goes one way, reverse goes opposite
+        // For 3+ edges: alternate +/- with spacing
         let curveOffset = 0;
-        if (count > 1) {
-          const spacing = 20;
-          const totalWidth = (count - 1) * spacing;
-          curveOffset = index * spacing - totalWidth / 2;
+        if (isParallel) {
+          const spacing = 80; // Large spacing for clear separation
+
+          if (count === 2) {
+            // Bidirectional: determine curve direction based on actual edge direction
+            // edge.source < edge.target alphabetically means "forward" direction
+            const sourceNode = edge.source;
+            const targetNode = edge.target;
+            // Sort the pair key to get the "forward" direction for this pair
+            const sortedPair = [sourceNode, targetNode].sort();
+            const isForward = sourceNode === sortedPair[0];
+            // Forward edge curves one way, reverse curves the opposite
+            curveOffset = isForward ? spacing : -spacing;
+          } else {
+            // Multiple edges: alternate with centered distribution
+            const totalWidth = (count - 1) * spacing;
+            const sign = index % 2 === 0 ? 1 : -1;
+            curveOffset = sign * (index * spacing - totalWidth / 2 + spacing / 2);
+          }
         }
-        
+
         return {
           id: edge.id,
           source: edge.source,
@@ -383,6 +428,7 @@ function transformToG6(data: SchemaGraphData) {
             label: getEdgeLabel(edge),
             weight: edge.data?.weight,
             curveOffset,
+            isParallel,
             ...edge.data,
           },
         };

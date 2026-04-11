@@ -181,6 +181,28 @@ class ComparisonResult:
 
 
 @dataclass
+class VisualizationEntityOption:
+    """Selectable entity option for visualization pages."""
+
+    entity_id: str
+    concept_type: str
+    label: str
+    active_dimensions: list[str] = field(default_factory=list)
+
+
+@dataclass
+class MetricSnapshot:
+    """Real metric values for one entity and dimension."""
+
+    entity_id: str
+    dimension: str
+    metrics: dict[str, Any] = field(default_factory=dict)
+    outputs: dict[str, Any] = field(default_factory=dict)
+    decision: str | None = None
+    decision_reasoning: str | None = None
+
+
+@dataclass
 class SimulationResult:
     """Complete simulation execution result."""
 
@@ -200,3 +222,6 @@ class SimulationResult:
 
     # What-if comparison
     comparison: ComparisonResult | None = None
+
+    # Full execution context with all computed metrics (including intermediate sub-metrics)
+    final_context: dict[str, Any] = field(default_factory=dict)

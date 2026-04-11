@@ -152,7 +152,7 @@ export default function NodeDetailPanel({ node, onMetricClick }: NodeDetailPanel
             styles={{ header: { fontSize: 12, padding: '4px 12px' } }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {Object.entries(weightMap).map(([key, weight]) => (
+              {(Object.entries(weightMap as Record<string, number>) as Array<[string, number]>).map(([key, weight]) => (
                 <div key={key}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                     <Text style={{ fontSize: 11 }}>{METRIC_LABELS[key] || key}</Text>

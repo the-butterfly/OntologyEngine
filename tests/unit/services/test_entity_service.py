@@ -25,7 +25,7 @@ class TestEntityService:
         storage.get_entity = AsyncMock(return_value=None)
         storage.query_entities = AsyncMock(return_value=[])
         storage.save_relation = AsyncMock()
-        storage.get_neighbors = AsyncMock(return_value=([], []))
+        storage.get_neighbors = AsyncMock(return_value=[])
         return storage
 
     @pytest.fixture

@@ -33,7 +33,7 @@ class CategorizationEngine:
     def __init__(
         self,
         schema: "KGMLSchema",
-        storage: DuckDBStorage,
+        storage: StorageBackend,
         rule_executor: "RuleExecutor",
     ):
         """Initialize CategorizationEngine.

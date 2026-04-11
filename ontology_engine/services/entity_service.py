@@ -13,7 +13,7 @@ from ontology_engine.services.dto import (
     BatchOperationResult,
     ConceptNotDefinedError,
 )
-from ontology_engine.storage.duckdb import DuckDBStorage, EntityInstance, RelationInstance
+from ontology_engine.storage.base import StorageBackend, EntityInstance, RelationInstance
 
 if TYPE_CHECKING:
     from ontology_engine.core.schema.models import KGMLSchema
@@ -27,7 +27,7 @@ class EntityService:
 
     def __init__(
         self,
-        storage: DuckDBStorage,
+        storage: StorageBackend,
         schema: KGMLSchema | None = None,
     ):
         """Initialize EntityService.

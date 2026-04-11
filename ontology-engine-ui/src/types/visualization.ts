@@ -64,6 +64,22 @@ export interface RuleChainGraphData {
   dimension_info: DimensionInfo;
 }
 
+export interface VisualizationEntityOption {
+  entity_id: string;
+  concept_type: string;
+  label: string;
+  active_dimensions: string[];
+}
+
+export interface MetricSnapshot {
+  entity_id: string;
+  dimension: string;
+  metrics: Record<string, any>;
+  outputs: Record<string, any>;
+  decision: string | null;
+  decision_reasoning: string | null;
+}
+
 export interface ConditionDetail {
   expression: string;
   resolved: string;
@@ -123,6 +139,10 @@ export interface SimulationResult {
   decision_reasoning: string | null;
   alerts: Record<string, any>[];
   comparison: ComparisonResult | null;
+  final_context?: {
+    entity_data: Record<string, any>;
+    computed_metrics: Record<string, any>;
+  };
 }
 
 export interface SimulationRequest {

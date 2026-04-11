@@ -1,8 +1,22 @@
 # 前端架构与操作逻辑说明
 
-**文档版本**: v1.0  
-**更新日期**: 2026-04-10  
+**文档版本**: v1.2
+**更新日期**: 2026-04-11
 **适用范围**: OntologyEngine 可视化前端
+
+---
+
+## 0. 已知问题修复记录
+
+### 2026-04-11 修复
+
+| # | 问题 | 修复方案 | 影响文件 |
+|---|------|----------|----------|
+| 1 | EntityNotFoundError: SUP_2024_001 | server.py 启动时加载 instances.yaml | `ontology_engine/api/server.py` |
+| 2 | RuleChainDAG 画布重影 | 销毁前清理容器 DOM 元素 | `RuleChainDAG.tsx` |
+| 3 | 实体关系图平行边重叠 | 使用 `cubic-vertical/horizontal` 边类型 + curveOffset | `SchemaGraph.tsx` |
+| 4 | 导出 PNG 文件损坏 | `exportImage` 改为返回 `Promise<string \| null>` (G6 5.x async) | `SchemaGraph.tsx` |
+| 5 | `MetricScorecard` 显示 Mock 数据 | 新增实体列表/指标快照 API，评分卡直接读取真实快照，规则链页面改为动态实体选择 | `visualization.py`, `visualization_service.py`, `visualization.ts`, `MetricScorecard.tsx`, `RuleChainPage.tsx`, `SchemaPage.tsx` |
 
 ---
 
@@ -49,9 +63,22 @@
 | 层级 | 数据来源 | 说明 |
 |------|----------|------|
 | Schema 定义 | `examples/supply_chain_finance/schema.yaml` | 后端启动时加载 |
-| 实体数据 | DuckDB (内存数据库) | 通过 Ingestion API 导入 |
-| 图结构 | SchemaGraphBuilder 实时构建 | 基于 KGML Schema 定义 |
-| 规则链 | RuleChainGraphBuilder 实时构建 | 基于规则优先级和依赖 |
+| 实体数据 | `examples/supply_chain_finance/instances.yaml` | `server.py` 启动时通过 `InstanceLoader` 加载到 DuckDB |
+| 实体下拉选项 | `VisualizationService.list_entities()` | `SchemaPage` / `RuleChainPage` 动态拉取实体，不再硬编码实体 ID |
+| 指标快照 | `VisualizationService.get_metric_snapshot()` | `MetricScorecard` 基于真实计算结果渲染评分、等级、雷达图和权重贡献 |
+| 图结构 | `SchemaGraphBuilder` 实时构建 | 基于 KGML Schema 定义 |
+| 规则链 | `RuleChainGraphBuilder` 实时构建 | 基于规则优先级和依赖 |
+
+**实体加载流程** (server.py lifespan):
+```python
+instance_loader = InstanceLoader()
+instances_path = "examples/supply_chain_finance/instances.yaml"
+entities, relations = instance_loader.load(instances_path)
+for entity in entities:
+    await storage.save_entity(entity)
+for relation in relations:
+    await storage.save_relation(relation)
+```
 
 **数据流验证**:
 ```bash
@@ -106,8 +133,8 @@ ontology-engine-ui/src/
 |------|------|------------|
 | `SchemaGraph` | 渲染 G6 图谱，处理交互 | `data`, `onNodeClick`, `onNodeHover` |
 | `NodeDetailPanel` | 展示选中节点详情 | `node`, `onMetricClick` |
-| `MetricScorecard` | 评分卡可视化 (雷达图) | `node` |
-| `RuleChainDAG` | 规则链 DAG 图 | `data`, `executionTrace` |
+| `MetricScorecard` | 基于真实指标快照展示评分卡与权重贡献 | `node`, `entityId`, `dimension` |
+| `RuleChainDAG` | 规则链 DAG 图与执行态叠加 | `chainData`, `executionSteps`, `currentStep`, `onNodeClick` |
 | `ExecutionReplay` | 回放控制面板 | `steps`, `onStepChange` |
 | `StepDetailPanel` | 执行步骤详情 | `step`, `comparison` |
 
@@ -146,7 +173,8 @@ ontology-engine-ui/src/
    - 拖拽画布 → 移动视图
    - 滚轮 → 缩放
 4. **搜索**: 输入节点 ID 或标签，回车定位
-5. **导出**: 将当前画布导出为 PNG
+5. **选择实体**: 通过右上角实体下拉框切换当前实体，评分卡显示对应真实指标快照
+6. **导出**: 将当前画布导出为 PNG
 
 **视图类型说明**:
 
@@ -161,7 +189,7 @@ ontology-engine-ui/src/
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  [授信评估] [准入评估] ...      实体ID: [________] [加载执行] │
+│  [授信评估] [准入评估] ...      实体: [供应商 ▼] [加载执行] │
 ├────────────────────────────────────┬─────────────────────────┤
 │                                    │                         │
 │    ┌─────┐                        │   ┌─────────────────┐   │
@@ -189,7 +217,7 @@ ontology-engine-ui/src/
 
 **操作流程**:
 1. **选择维度**: Segmented 控件切换评估维度
-2. **输入实体ID**: 输入要评估的实体ID，点击"加载执行"
+2. **选择实体**: 从下拉列表选择要评估的实体，页面通过 `/v1/visualize/entities` 拉取候选项后点击“加载执行”
 3. **查看DAG**: 规则按优先级从上到下排列，边表示数据依赖
 4. **查看执行结果**: 节点颜色表示执行状态 (passed/failed/executing)
 5. **步骤回放**: 使用底部控制面板逐步查看执行过程
@@ -246,23 +274,32 @@ ontology-engine-ui/src/
 
 **解决方案**:
 ```typescript
-// 1. 使用 useId 生成唯一实例标识
-const instanceId = useId();
-
-// 2. 完整的清理函数
+// 1. 完整的清理函数 - 确保 DOM 元素也被清除
 const cleanupGraph = useCallback(() => {
   isDestroyedRef.current = true;
-  
+
   if (graphRef.current) {
     graphRef.current.destroy();
     graphRef.current = null;
   }
-  
-  // 清理 DOM 中的 canvas 元素
+
+  // 清理容器中的所有子元素 (G6 会创建多个 canvas/layer)
   if (containerRef.current) {
-    const canvases = containerRef.current.querySelectorAll('canvas');
-    canvases.forEach(canvas => canvas.remove());
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild);
+    }
   }
+}, []);
+
+// 2. renderGraph 开头也清理容器
+const renderGraph = useCallback(async () => {
+  // 销毁前先清理容器
+  if (containerRef.current) {
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild);
+    }
+  }
+  // ... 然后创建新 graph
 }, []);
 
 // 3. useEffect 正确管理生命周期
@@ -361,9 +398,53 @@ def _build_rule_execution_flow_edges(self) -> list[GraphEdge]:
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/v1/visualize/schema/graph` | GET | 获取 Schema 图数据 |
+| `/v1/visualize/entities` | GET | 获取实体下拉选项，可按概念和维度过滤 |
+| `/v1/visualize/metrics/{entity_id}` | GET | 获取实体在指定维度下的真实指标快照 |
 | `/v1/visualize/rule-chain/{dimension}` | GET | 获取规则链 DAG |
 | `/v1/visualize/simulate` | POST | 执行 What-if 模拟 |
 | `/v1/visualize/execution/{entity_id}/{dimension}` | GET | 获取执行追踪 |
+
+### 6.1 实体与指标快照响应结构
+
+```typescript
+interface VisualizationEntityOption {
+  entity_id: string;
+  concept_type: string;
+  label: string;
+  active_dimensions: string[];
+}
+
+interface MetricSnapshot {
+  entity_id: string;
+  dimension: string;
+  metrics: Record<string, any>;
+  outputs: Record<string, any>;
+  decision: string | null;
+  decision_reasoning: string | null;
+}
+```
+
+### 6.2 SimulationResult 响应结构
+
+```typescript
+interface SimulationResult {
+  entity_id: string;
+  dimension: string;
+  simulation_type: 'dry_run' | 'what_if';
+  steps: ExecutionStepSnapshot[];      // 每步执行快照
+  execution_path: string[];            // 执行的规则ID序列
+  skipped_rules: string[];             // 跳过的规则
+  final_outputs: Record<string, any>; // 最终决策输出 (eligible, credit_score 等)
+  decision: string | null;            // REJECT / APPROVE / APPROVE_WITH_CONDITIONS
+  decision_reasoning: string | null;  // 决策原因
+  alerts: Alert[];                     // 预警列表
+  comparison: ComparisonResult | null;  // What-if 对比结果 (仅 what_if 模式)
+  final_context: {                     // ✅ 完整计算上下文 (含子指标)
+    entity_data: Record<string, any>;  // 实体原始数据
+    computed_metrics: Record<string, any>; // 所有计算的指标 (含中间子指标)
+  };
+}
+```
 
 ---
 
@@ -391,13 +472,41 @@ def _build_rule_execution_flow_edges(self) -> list[GraphEdge]:
 - **原因**: antd v5 中 `headStyle` 属性已弃用
 - **解决**: 改为 `styles={{ header: { ... } }}` 新 API
 
-**问题6**: 导出按钮点击无响应
-- **原因**: 选择器 `.graph-container canvas` 无法找到 G6 渲染的 canvas
-- **解决**: 使用 `forwardRef` + `useImperativeHandle` 暴露 G6 的 `toDataURL()` 方法
+**问题6**: 导出按钮点击无响应或下载文件损坏
+- **原因**: G6 5.x 的 `toDataURL()` 返回 `Promise<string>` 而非同步 string
+- **解决**: `exportImage` 方法改为 `async`，返回 `Promise<string | null>`
+
+```typescript
+// SchemaGraphRef 接口
+export interface SchemaGraphRef {
+  exportImage: () => Promise<string | null>;  // G6 5.x 是异步的
+}
+
+// SchemaPage 调用
+const handleExport = async () => {
+  const dataUrl = await graphRef.current?.exportImage();
+  if (dataUrl) {
+    // download
+  }
+};
+```
 
 **问题7**: 两个节点间多条边重叠
 - **原因**: G6 默认直线边在同节点对间会重叠
-- **解决**: 使用 `cubic` 边类型，计算 `curveOffset` 使边呈扇形分布
+- **解决**: 使用 `cubic-vertical` (TB布局) 或 `cubic-horizontal` (LR布局) 边类型，通过 `curveOffset` 使边呈扇形分布
+
+```typescript
+// SchemaGraph.tsx edge type
+type: (d: any) => {
+  if (graphData.layout_config?.rankdir === 'TB') {
+    return 'cubic-vertical';  // 支持 curveOffset
+  }
+  return 'cubic-horizontal';
+},
+style: {
+  curveOffset: (d: any) => d.data?.curveOffset || 0,
+}
+```
 
 **问题8**: 规则概览视图节点孤立
 - **原因**: 只显示 L4 规则节点，缺少规则间执行顺序边

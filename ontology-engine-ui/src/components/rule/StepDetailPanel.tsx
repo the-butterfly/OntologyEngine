@@ -221,7 +221,7 @@ function ConditionDetailItem({ detail, index }: { detail: ConditionDetail; index
         marginBottom: 4,
       }}>
         <Space>
-          <Tag size="small" color={result ? 'green' : 'red'} style={{ margin: 0 }}>
+          <Tag color={result ? 'green' : 'red'} style={{ margin: 0 }}>
             条件{index + 1}
           </Tag>
           <code style={{ 

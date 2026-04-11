@@ -206,6 +206,16 @@ class RuleChainSimulator:
             logger.info(f"Executed {len(snapshots)} steps, building result")
 
             # Build result with safe serialization
+            # Collect all computed metrics including intermediate sub-metrics
+            computed_metrics = dict(context.computed_metrics)
+            # Also extract intermediate metrics from step contexts for composite metrics
+            for snapshot in snapshots:
+                if snapshot.context_before:
+                    ctx_metrics = snapshot.context_before.get("computed_metrics", {})
+                    for k, v in ctx_metrics.items():
+                        if k not in computed_metrics:
+                            computed_metrics[k] = v
+
             result = SimulationResult(
                 entity_id=entity_id,
                 dimension=dimension,
@@ -221,6 +231,10 @@ class RuleChainSimulator:
                     for a in context.alerts
                 ],
                 comparison=None,
+                final_context={
+                    "entity_data": dict(context.entity_data) if context.entity_data else {},
+                    "computed_metrics": computed_metrics,
+                },
             )
             logger.info("SimulationResult built successfully")
             return result

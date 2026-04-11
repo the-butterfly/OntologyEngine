@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Segmented, Spin, Card, Space, Input, Checkbox, Button, Empty, Tag, Tooltip } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Segmented, Spin, Space, Input, Checkbox, Button, Empty, Tag, Tooltip, Alert, Select } from 'antd';
 import { SearchOutlined, DownloadOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import { fetchSchemaGraph } from '../api/visualization';
+import { fetchSchemaGraph, fetchVisualizationEntities, ApiError } from '../api/visualization';
 import SchemaGraph from '../components/schema/SchemaGraph';
 import type { SchemaGraphRef } from '../components/schema/SchemaGraph';
 import NodeDetailPanel from '../components/schema/NodeDetailPanel';
 import MetricScorecard from '../components/schema/MetricScorecard';
-import type { SchemaGraphData, GraphNode } from '../types/visualization';
+import type { SchemaGraphData, GraphNode, VisualizationEntityOption } from '../types/visualization';
 import '../App.css';
 
 const GRAPH_TYPES = [
@@ -29,32 +29,63 @@ export default function SchemaPage() {
   const [searchText, setSearchText] = useState('');
   const [layerFilter, setLayerFilter] = useState<string[]>(['L1', 'L3', 'L4']);
   const [data, setData] = useState<SchemaGraphData | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [, setHoveredNode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [entityOptions, setEntityOptions] = useState<VisualizationEntityOption[]>([]);
+  const [entityId, setEntityId] = useState<string>('');
+  const [entityLoading, setEntityLoading] = useState(false);
   const graphRef = useRef<SchemaGraphRef>(null);
 
   const loadGraph = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await fetchSchemaGraph(graphType, layerFilter);
       setData(result);
       setSelectedNode(null);
     } catch (e) {
+      const message = e instanceof ApiError ? e.message : 'Failed to load schema graph';
+      setError(message);
       console.error('Failed to load schema graph:', e);
     } finally {
       setLoading(false);
     }
   }, [graphType, layerFilter]);
 
+  const loadEntities = useCallback(async () => {
+    setEntityLoading(true);
+    try {
+      const options = await fetchVisualizationEntities('Supplier', 'credit_assessment');
+      setEntityOptions(options);
+      setEntityId((prev) => {
+        if (prev && options.some((item) => item.entity_id === prev)) {
+          return prev;
+        }
+        return options[0]?.entity_id || '';
+      });
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : 'Failed to load entities';
+      setError(message);
+      setEntityOptions([]);
+      setEntityId('');
+    } finally {
+      setEntityLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    loadGraph();
+    void loadGraph();
   }, [loadGraph]);
 
+  useEffect(() => {
+    void loadEntities();
+  }, [loadEntities]);
+
   const handleSearch = () => {
-    // Search functionality can be implemented to focus on nodes
     if (!searchText || !data) return;
-    const found = data.nodes.find(n => 
-      n.id.toLowerCase().includes(searchText.toLowerCase()) ||
-      n.data?.label?.toLowerCase().includes(searchText.toLowerCase())
+    const found = data.nodes.find((node) =>
+      node.id.toLowerCase().includes(searchText.toLowerCase()) ||
+      node.data?.label?.toLowerCase().includes(searchText.toLowerCase())
     );
     if (found) {
       setSelectedNode(found);
@@ -62,9 +93,8 @@ export default function SchemaPage() {
   };
 
   const handleExport = async () => {
-    // Use G6's built-in export method via ref
     if (graphRef.current) {
-      const dataUrl = graphRef.current.exportImage();
+      const dataUrl = await graphRef.current.exportImage();
       if (dataUrl) {
         const a = document.createElement('a');
         a.href = dataUrl;
@@ -80,54 +110,70 @@ export default function SchemaPage() {
     }
   };
 
-  const showScorecard = selectedNode?.type === 'metric' && 
+  const showScorecard =
+    selectedNode?.type === 'metric' &&
     (selectedNode.id === 'credit_score' || Object.keys(selectedNode.data?.weight_map || {}).length > 0);
 
   return (
     <div className="page-container">
-      {/* Header */}
       <div className="page-header">
-        <Space size="middle">
-          <Segmented 
-            options={GRAPH_TYPES} 
-            value={graphType} 
-            onChange={(v) => setGraphType(v as string)}
-            style={{ fontSize: 13 }}
-          />
-          <Tooltip title="实体关系=L1实体图; 指标依赖=L3指标勾稽图; 全景图=所有层级; 规则概览=L4规则图">
-            <InfoCircleOutlined style={{ color: '#999' }} />
-          </Tooltip>
-        </Space>
-        
-        <Space size="middle">
-          <Input
-            placeholder="搜索节点..."
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onPressEnter={handleSearch}
-            style={{ width: 180 }}
-            size="middle"
-          />
-          <Checkbox.Group
-            options={LAYER_OPTIONS}
-            value={layerFilter}
-            onChange={(v) => setLayerFilter(v as string[])}
-          />
-          <Button 
-            icon={<DownloadOutlined />} 
-            onClick={handleExport}
-            size="middle"
-          >
-            导出
-          </Button>
+        <Space size="middle" wrap>
+          <Space size="middle">
+            <Segmented
+              options={GRAPH_TYPES}
+              value={graphType}
+              onChange={(value) => setGraphType(value as string)}
+              style={{ fontSize: 13 }}
+            />
+            <Tooltip title="实体关系=L1实体图; 指标依赖=L3指标勾稽图; 全景图=所有层级; 规则概览=L4规则图">
+              <InfoCircleOutlined style={{ color: '#999' }} />
+            </Tooltip>
+          </Space>
+
+          <Space size="middle" wrap>
+            <Input
+              placeholder="搜索节点..."
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onPressEnter={handleSearch}
+              style={{ width: 180 }}
+              size="middle"
+            />
+            <Checkbox.Group
+              options={LAYER_OPTIONS}
+              value={layerFilter}
+              onChange={(value) => setLayerFilter(value as string[])}
+            />
+            <Select
+              value={entityId || undefined}
+              onChange={setEntityId}
+              options={entityOptions.map((item) => ({ label: item.label, value: item.entity_id }))}
+              style={{ width: 240 }}
+              size="middle"
+              placeholder="选择评分实体"
+              loading={entityLoading}
+              disabled={entityLoading || entityOptions.length === 0}
+            />
+            <Button icon={<DownloadOutlined />} onClick={handleExport} size="middle">
+              导出
+            </Button>
+          </Space>
         </Space>
       </div>
 
-      {/* Body */}
       <div className="page-body">
-        {/* Graph Panel */}
         <div className="graph-panel">
+          {error && (
+            <Alert
+              type="error"
+              message="加载失败"
+              description={error}
+              showIcon
+              closable
+              style={{ margin: 16 }}
+            />
+          )}
           {loading ? (
             <div className="loading-container">
               <Spin size="large">
@@ -143,8 +189,7 @@ export default function SchemaPage() {
               onNodeHover={setHoveredNode}
             />
           )}
-          
-          {/* Metadata stats overlay */}
+
           {data?.metadata && (
             <div className="graph-stats">
               <Space size="small">
@@ -157,29 +202,28 @@ export default function SchemaPage() {
           )}
         </div>
 
-        {/* Detail Panel */}
         <div className="detail-panel">
           {selectedNode ? (
             showScorecard ? (
-              <MetricScorecard node={selectedNode} />
+              <MetricScorecard node={selectedNode} entityId={entityId} />
             ) : (
-              <NodeDetailPanel 
+              <NodeDetailPanel
                 node={selectedNode}
                 onMetricClick={(id) => {
-                  const metric = data?.nodes.find(n => n.id === id);
+                  const metric = data?.nodes.find((node) => node.id === id);
                   if (metric) setSelectedNode(metric);
                 }}
               />
             )
           ) : (
-            <Empty 
+            <Empty
               description={
                 <span>
                   <div style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
                     点击节点查看详情
                   </div>
                   <div style={{ fontSize: 12, color: '#999' }}>
-                    在图谱中点击任意节点<br/>
+                    在图谱中点击任意节点<br />
                     查看 Schema 定义详情
                   </div>
                 </span>

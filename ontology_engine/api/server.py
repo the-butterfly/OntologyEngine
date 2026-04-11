@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+logger = logging.getLogger(__name__)
 
 from ontology_engine.services import (
     SchemaService,
@@ -19,6 +22,7 @@ from ontology_engine.services import (
 from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.storage.duckdb import DuckDBStorage
 from ontology_engine.core.schema import SchemaLoader
+from ontology_engine.core.instances import InstanceLoader
 from ontology_engine.engine.metric.engine import MetricEngine, MetricCache
 from ontology_engine.engine.categorization.engine import CategorizationEngine
 from ontology_engine.engine.rule.executor import RuleExecutor
@@ -39,6 +43,24 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         schema = schema_loader.load("examples/supply_chain_finance/schema.yaml")
     except FileNotFoundError:
         pass  # Schema file optional at startup
+
+    # Load instance data from instances.yaml
+    instance_loader = InstanceLoader()
+    try:
+        instances_path = "examples/supply_chain_finance/instances.yaml"
+        entities, relations = instance_loader.load(instances_path)
+        logger.info(f"Loaded {len(entities)} entities and {len(relations)} relations from {instances_path}")
+        # Save entities to storage
+        for entity in entities:
+            await storage.save_entity(entity)
+        # Save relations to storage
+        for relation in relations:
+            await storage.save_relation(relation)
+        logger.info(f"Saved {len(entities)} entities and {len(relations)} relations to storage")
+    except Exception as e:
+        import traceback
+        logger.error(f"Failed to load instances from {instances_path}: {e}")
+        logger.error(traceback.format_exc())
 
     # Initialize engines
     metric_cache = MetricCache() if schema else None
