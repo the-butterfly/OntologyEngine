@@ -1,10 +1,20 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Select, Spin, Card, Space, Tag, Empty, Typography, Tabs, Badge } from 'antd';
-import { fetchRuleChainGraph, simulateExecution } from '../api/visualization';
+import { useCallback, useEffect, useState } from 'react';
+import { Select, Spin, Card, Space, Tag, Empty, Typography, Tabs, Badge, Alert } from 'antd';
+import {
+  fetchRuleChainGraph,
+  fetchVisualizationEntities,
+  simulateExecution,
+  ApiError,
+} from '../api/visualization';
 import RuleChainDAG from '../components/rule/RuleChainDAG';
 import ExecutionReplay from '../components/rule/ExecutionReplay';
 import StepDetailPanel from '../components/rule/StepDetailPanel';
-import type { RuleChainGraphData, ExecutionStepSnapshot, SimulationResult } from '../types/visualization';
+import type {
+  ExecutionStepSnapshot,
+  RuleChainGraphData,
+  SimulationResult,
+  VisualizationEntityOption,
+} from '../types/visualization';
 import '../App.css';
 
 const { Text } = Typography;
@@ -17,31 +27,68 @@ const DIMENSIONS = [
 
 export default function RuleChainPage() {
   const [dimension, setDimension] = useState('credit_assessment');
+  const [entityId, setEntityId] = useState<string>('');
+  const [entityOptions, setEntityOptions] = useState<VisualizationEntityOption[]>([]);
+  const [entityLoading, setEntityLoading] = useState(false);
   const [chainData, setChainData] = useState<RuleChainGraphData | null>(null);
   const [simulation, setSimulation] = useState<SimulationResult | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('dag');
+  const [error, setError] = useState<string | null>(null);
+
+  const loadEntities = useCallback(async () => {
+    setEntityLoading(true);
+    try {
+      const options = await fetchVisualizationEntities('Supplier', dimension);
+      setEntityOptions(options);
+      setEntityId((prev) => {
+        if (prev && options.some((item) => item.entity_id === prev)) {
+          return prev;
+        }
+        return options[0]?.entity_id || '';
+      });
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : 'Failed to load entities';
+      setError(message);
+      setEntityOptions([]);
+      setEntityId('');
+    } finally {
+      setEntityLoading(false);
+    }
+  }, [dimension]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [chain, sim] = await Promise.all([
-        fetchRuleChainGraph(dimension),
-        simulateExecution({ entity_id: 'SUP_2024_001', dimension, dry_run: true }),
-      ]);
+      const chain = await fetchRuleChainGraph(dimension);
       setChainData(chain);
+
+      if (!entityId) {
+        setSimulation(null);
+        setCurrentStep(0);
+        return;
+      }
+
+      const sim = await simulateExecution({ entity_id: entityId, dimension, dry_run: true });
       setSimulation(sim);
       setCurrentStep(0);
     } catch (e) {
+      const message = e instanceof ApiError ? e.message : 'Failed to load rule chain';
+      setError(message);
       console.error('Failed to load rule chain:', e);
     } finally {
       setLoading(false);
     }
-  }, [dimension]);
+  }, [dimension, entityId]);
 
   useEffect(() => {
-    loadData();
+    void loadEntities();
+  }, [loadEntities]);
+
+  useEffect(() => {
+    void loadData();
   }, [loadData]);
 
   const handleStepChange = (step: number) => {
@@ -52,9 +99,8 @@ export default function RuleChainPage() {
 
   return (
     <div className="page-container">
-      {/* Header */}
       <div className="page-header">
-        <Space size="large">
+        <Space size="large" wrap>
           <Space>
             <span style={{ fontWeight: 500 }}>评估维度:</span>
             <Select
@@ -65,16 +111,25 @@ export default function RuleChainPage() {
               size="middle"
             />
           </Space>
-          
+
+          <Space>
+            <span style={{ fontWeight: 500 }}>评估实体:</span>
+            <Select
+              value={entityId || undefined}
+              onChange={setEntityId}
+              options={entityOptions.map((item) => ({ label: item.label, value: item.entity_id }))}
+              style={{ width: 260 }}
+              size="middle"
+              placeholder="请选择实体"
+              loading={entityLoading}
+              disabled={entityLoading || entityOptions.length === 0}
+            />
+          </Space>
+
           {chainData?.dimension_info && (
             <Space size="middle">
-              <Badge 
-                count={chainData.dimension_info.rule_count} 
-                style={{ backgroundColor: '#1890ff' }} 
-              />
-              <Text type="secondary" style={{ fontSize: 13 }}>
-                条规则
-              </Text>
+              <Badge count={chainData.dimension_info.rule_count} style={{ backgroundColor: '#1890ff' }} />
+              <Text type="secondary" style={{ fontSize: 13 }}>条规则</Text>
               {chainData.dimension_info.description && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   ({chainData.dimension_info.description})
@@ -85,29 +140,29 @@ export default function RuleChainPage() {
         </Space>
       </div>
 
-      {/* Body */}
       <div className="page-body">
-        {/* Left: Visualization */}
         <div className="graph-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <Tabs
             activeKey={activeTab}
             onChange={setActiveTab}
             style={{ margin: '0 16px' }}
             items={[
-              { 
-                key: 'dag', 
-                label: '规则DAG图',
-                children: null,
-              },
-              { 
-                key: 'list', 
-                label: '执行列表',
-                children: null,
-              },
+              { key: 'dag', label: '规则DAG图', children: null },
+              { key: 'list', label: '执行列表', children: null },
             ]}
           />
-          
+
           <div style={{ flex: 1, overflow: 'hidden', padding: '0 16px 16px' }}>
+            {error && (
+              <Alert
+                type="error"
+                message="加载失败"
+                description={error}
+                showIcon
+                closable
+                style={{ marginBottom: 16 }}
+              />
+            )}
             {loading ? (
               <div className="loading-container">
                 <Spin size="large">
@@ -120,7 +175,7 @@ export default function RuleChainPage() {
                 executionSteps={simulation?.steps || []}
                 currentStep={currentStep}
                 onNodeClick={(nodeId) => {
-                  const stepIndex = simulation?.steps?.findIndex(s => s.rule_id === nodeId);
+                  const stepIndex = simulation?.steps?.findIndex((step) => step.rule_id === nodeId);
                   if (stepIndex !== undefined && stepIndex >= 0) {
                     setCurrentStep(stepIndex + 1);
                   }
@@ -133,11 +188,10 @@ export default function RuleChainPage() {
                 onStepClick={handleStepChange}
               />
             ) : (
-              <Empty description="暂无数据" />
+              <Empty description={entityId ? '暂无数据' : '请选择可评估实体'} />
             )}
           </div>
-          
-          {/* Execution Replay Controls */}
+
           {simulation?.steps && simulation.steps.length > 0 && (
             <ExecutionReplay
               steps={simulation.steps}
@@ -147,7 +201,6 @@ export default function RuleChainPage() {
           )}
         </div>
 
-        {/* Right: Detail Panel */}
         <div className="detail-panel">
           {currentSnapshot ? (
             <StepDetailPanel snapshot={currentSnapshot} />
@@ -159,8 +212,8 @@ export default function RuleChainPage() {
                     选择步骤查看详情
                   </div>
                   <div style={{ fontSize: 12, color: '#999' }}>
-                    点击执行时间线上的步骤<br/>
-                    或点击DAG图中的节点<br/>
+                    点击执行时间线上的步骤<br />
+                    或点击DAG图中的节点<br />
                     查看规则执行详情
                   </div>
                 </span>
@@ -174,7 +227,6 @@ export default function RuleChainPage() {
   );
 }
 
-// List view as fallback
 function RuleChainList({
   steps,
   currentStep,
@@ -185,17 +237,13 @@ function RuleChainList({
   onStepClick: (step: number) => void;
 }) {
   return (
-    <div style={{ 
-      height: '100%', 
-      overflowY: 'auto',
-      padding: '0 8px',
-    }}>
+    <div style={{ height: '100%', overflowY: 'auto', padding: '0 8px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {steps.map((step, idx) => {
           const stepNum = idx + 1;
           const isActive = stepNum === currentStep;
           const isPast = stepNum < currentStep;
-          
+
           return (
             <Card
               key={step.rule_id}
@@ -209,67 +257,85 @@ function RuleChainList({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: step.status === 'passed' ? '#f6ffed' : 
-                             step.status === 'failed' ? '#fff1f0' : 
-                             step.status === 'skipped' ? '#fff7e6' : '#f0f0f0',
-                  border: `2px solid ${
-                    step.status === 'passed' ? '#52c41a' : 
-                    step.status === 'failed' ? '#f5222d' : 
-                    step.status === 'skipped' ? '#fa8c16' : '#d9d9d9'
-                  }`,
-                  color: step.status === 'passed' ? '#52c41a' : 
-                        step.status === 'failed' ? '#f5222d' : 
-                        step.status === 'skipped' ? '#fa8c16' : '#999',
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background:
+                      step.status === 'passed'
+                        ? '#f6ffed'
+                        : step.status === 'failed'
+                          ? '#fff1f0'
+                          : step.status === 'skipped'
+                            ? '#fff7e6'
+                            : '#f0f0f0',
+                    border: `2px solid ${
+                      step.status === 'passed'
+                        ? '#52c41a'
+                        : step.status === 'failed'
+                          ? '#f5222d'
+                          : step.status === 'skipped'
+                            ? '#fa8c16'
+                            : '#d9d9d9'
+                    }`,
+                    color:
+                      step.status === 'passed'
+                        ? '#52c41a'
+                        : step.status === 'failed'
+                          ? '#f5222d'
+                          : step.status === 'skipped'
+                            ? '#fa8c16'
+                            : '#999',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
                   {stepNum}
                 </div>
-                
+
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
                     {step.rule_name}
                   </div>
-                  <div style={{ fontSize: 11, color: '#999' }}>
-                    {step.rule_id}
-                  </div>
+                  <div style={{ fontSize: 11, color: '#999' }}>{step.rule_id}</div>
                 </div>
-                
+
                 <Space direction="vertical" size={0} style={{ alignItems: 'flex-end' }}>
-                  <Tag size="small" style={{ fontSize: 10 }}>
+                  <Tag style={{ fontSize: 10 }}>
                     {step.duration_ms.toFixed(1)}ms
                   </Tag>
                   {step.condition_result !== null && (
-                    <span style={{ 
-                      fontSize: 11,
-                      color: step.condition_result ? '#52c41a' : '#f5222d',
-                    }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: step.condition_result ? '#52c41a' : '#f5222d',
+                      }}
+                    >
                       {step.condition_result ? '✓ 通过' : '✗ 未通过'}
                     </span>
                   )}
                 </Space>
               </div>
-              
+
               {step.condition_expression && (
-                <div style={{
-                  marginTop: 8,
-                  padding: '6px 10px',
-                  background: '#fafafa',
-                  borderRadius: 4,
-                  fontSize: 11,
-                  color: '#666',
-                  fontFamily: 'monospace',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: '6px 10px',
+                    background: '#fafafa',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    color: '#666',
+                    fontFamily: 'monospace',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {step.condition_expression}
                 </div>
               )}

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ontology_engine.services.dto import (
     SearchResultResponse,
 )
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.base import StorageBackend
 
 if TYPE_CHECKING:
     from ontology_engine.engine.rule import RuleExecutor
@@ -22,7 +22,7 @@ class QueryService:
 
     def __init__(
         self,
-        storage: DuckDBStorage,
+        storage: StorageBackend,
         rule_executor: RuleExecutor | None = None,
     ):
         """Initialize QueryService.
@@ -91,7 +91,7 @@ class QueryService:
         for _ in range(depth):
             next_level = []
             for current_id, rel_data in current_level:
-                neighbors, relations = await self.storage.get_neighbors(
+                neighbors = await self.storage.get_neighbors(
                     entity_id=current_id,
                     relation_type=relation_type,
                     direction=direction
@@ -192,7 +192,7 @@ class QueryService:
                 return
 
             visited.add(current)
-            neighbors, _ = await self.storage.get_neighbors(
+            neighbors = await self.storage.get_neighbors(
                 entity_id=current,
                 relation_type="has_invoice",  # Default relation
                 direction="outgoing"

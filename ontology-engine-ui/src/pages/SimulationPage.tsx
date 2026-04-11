@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { Card, Select, Input, Button, Space, Table, Tag, Empty, Spin, Typography, Descriptions, Divider, Alert, Progress, Badge } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, DiffOutlined, FileSearchOutlined } from '@ant-design/icons';
-import { simulateExecution } from '../api/visualization';
+import { simulateExecution, ApiError } from '../api/visualization';
 import { DECISION_COLORS, CHANGE_TYPE_COLORS, EXECUTION_STATUS_COLORS } from '../utils/colorSchemes';
 import { METRIC_LABELS, formatMoney } from '../utils/labelMappings';
 import type { SimulationResult, DiffEntry, ImpactChain } from '../types/visualization';
@@ -23,14 +23,16 @@ const DIMENSIONS = [
 ];
 
 export default function SimulationPage() {
-  const [entityId, setEntityId] = useState('SUP_2024_EXC');
+  const [entityId, setEntityId] = useState('SUP_2024_001');
   const [dimension, setDimension] = useState('credit_assessment');
   const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const runSimulation = async () => {
     setLoading(true);
+    setError(null);
     try {
       const sim = await simulateExecution({
         entity_id: entityId,
@@ -39,6 +41,8 @@ export default function SimulationPage() {
       });
       setResult(sim);
     } catch (e) {
+      const message = e instanceof ApiError ? e.message : 'Simulation failed';
+      setError(message);
       console.error('Simulation failed:', e);
     } finally {
       setLoading(false);
@@ -225,6 +229,16 @@ export default function SimulationPage() {
 
         {/* Right: Results */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {error && (
+            <Alert
+              type="error"
+              message="模拟失败"
+              description={error}
+              showIcon
+              closable
+              style={{ marginBottom: 16 }}
+            />
+          )}
           {loading ? (
             <div className="loading-container">
               <Spin size="large">
@@ -283,7 +297,6 @@ export default function SimulationPage() {
                         }
                         message={alert.message}
                         showIcon
-                        size="small"
                         style={{ marginBottom: 8 }}
                       />
                     ))}
@@ -360,35 +373,76 @@ export default function SimulationPage() {
 
               {/* Final outputs (Dry-run only) */}
               {!result.comparison && (
-                <Card
-                  size="small"
-                  title="最终输出"
-                  styles={{ header: { fontSize: 13 } }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {Object.entries(result.final_outputs).map(([key, value]) => (
-                      <div 
-                        key={key} 
-                        style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '10px 12px',
-                          background: '#f6ffed',
-                          borderRadius: 6,
-                          border: '1px solid #b7eb8f',
-                        }}
-                      >
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          {METRIC_LABELS[key] || key}
-                        </Text>
-                        <Text strong style={{ fontSize: 14, color: '#389e0d' }}>
-                          {typeof value === 'number' ? value.toFixed(2) : String(value)}
-                        </Text>
+                <>
+                  {/* Computed Sub-Metrics from final_context */}
+                  {result.final_context?.computed_metrics && Object.keys(result.final_context.computed_metrics).length > 0 && (
+                    <Card
+                      size="small"
+                      title={
+                        <Space>
+                          <span style={{ color: '#722ED1' }}>◉</span>
+                          <span>指标计算结果</span>
+                        </Space>
+                      }
+                      style={{ marginBottom: 16 }}
+                      styles={{ header: { fontSize: 13, background: '#f9f0ff' } }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+                        {Object.entries(result.final_context.computed_metrics)
+                          .filter(([key]) => !['eligible', 'final_decision', 'rejection_reason', 'approved_credit_limit', 'requires_additional_guarantee'].includes(key))
+                          .map(([key, value]) => (
+                            <div
+                              key={key}
+                              style={{
+                                padding: '8px 12px',
+                                background: '#fff',
+                                borderRadius: 6,
+                                border: '1px solid #d3adf7',
+                              }}
+                            >
+                              <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                                {METRIC_LABELS[key] || key}
+                              </Text>
+                              <Text strong style={{ fontSize: 16, color: '#722ED1' }}>
+                                {typeof value === 'number' ? value.toFixed(key.includes('ratio') || key.includes('rate') ? 4 : 2) : String(value)}
+                              </Text>
+                            </div>
+                          ))}
                       </div>
-                    ))}
-                  </div>
-                </Card>
+                    </Card>
+                  )}
+
+                  {/* Final Decision Outputs */}
+                  <Card
+                    size="small"
+                    title="决策输出"
+                    styles={{ header: { fontSize: 13 } }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {Object.entries(result.final_outputs).map(([key, value]) => (
+                        <div
+                          key={key}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '10px 12px',
+                            background: '#f6ffed',
+                            borderRadius: 6,
+                            border: '1px solid #b7eb8f',
+                          }}
+                        >
+                          <Text type="secondary" style={{ fontSize: 13 }}>
+                            {METRIC_LABELS[key] || key}
+                          </Text>
+                          <Text strong style={{ fontSize: 14, color: '#389e0d' }}>
+                            {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                          </Text>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </>
               )}
             </div>
           ) : (

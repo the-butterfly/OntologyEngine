@@ -1,0 +1,99 @@
+"""Tests for DuckDBStorage."""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+import pytest_asyncio
+
+from ontology_engine.storage.duckdb import DuckDBStorage, EntityInstance, RelationInstance
+
+
+class TestDuckDBStorage:
+    """Exercise storage behavior against real DuckDB."""
+
+    @pytest_asyncio.fixture
+    async def storage(self) -> DuckDBStorage:
+        db = DuckDBStorage(":memory:")
+        await db.initialize()
+        try:
+            yield db
+        finally:
+            await db.close()
+
+    @pytest.mark.asyncio
+    async def test_entity_crud(self, storage: DuckDBStorage) -> None:
+        entity = EntityInstance(
+            concept="Supplier",
+            entity_id="SUP_001",
+            data={"company_name": "测试供应商", "status": "ACTIVE"},
+        )
+
+        saved_id = await storage.save_entity(entity)
+        loaded = await storage.get_entity("Supplier", "SUP_001")
+
+        assert saved_id == "SUP_001"
+        assert loaded is not None
+        assert loaded.data["company_name"] == "测试供应商"
+
+    @pytest.mark.asyncio
+    async def test_query_entities_supports_all_concepts(self, storage: DuckDBStorage) -> None:
+        await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
+        await storage.save_entity(EntityInstance("Invoice", "INV_001", {"status": "PAID"}))
+
+        all_entities = await storage.query_entities(concept=None)
+        supplier_entities = await storage.query_entities(concept="Supplier")
+
+        assert {entity.entity_id for entity in all_entities} == {"SUP_001", "INV_001"}
+        assert [entity.entity_id for entity in supplier_entities] == ["SUP_001"]
+
+    @pytest.mark.asyncio
+    async def test_query_entities_with_json_filters(self, storage: DuckDBStorage) -> None:
+        await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
+        await storage.save_entity(EntityInstance("Supplier", "SUP_002", {"status": "SUSPENDED"}))
+
+        results = await storage.query_entities(concept="Supplier", filters={"status": "ACTIVE"})
+
+        assert [entity.entity_id for entity in results] == ["SUP_001"]
+
+    @pytest.mark.asyncio
+    async def test_relations_and_neighbors(self, storage: DuckDBStorage) -> None:
+        supplier = EntityInstance("Supplier", "SUP_001", {"company_name": "A"})
+        invoice = EntityInstance("Invoice", "INV_001", {"amount": {"value": 10}})
+        await storage.save_entity(supplier)
+        await storage.save_entity(invoice)
+        await storage.save_relation(RelationInstance("has_invoice", "SUP_001", "INV_001", {"source": "demo"}))
+
+        relations = await storage.get_relations("SUP_001", "has_invoice")
+        neighbors = await storage.get_neighbors("SUP_001", "has_invoice")
+
+        assert len(relations) == 1
+        assert relations[0].to_entity_id == "INV_001"
+        assert len(neighbors) == 1
+        assert neighbors[0][0].entity_id == "INV_001"
+        assert neighbors[0][1].data["source"] == "demo"
+
+    @pytest.mark.asyncio
+    async def test_metric_and_category_persistence(self, storage: DuckDBStorage) -> None:
+        await storage.save_metric("SUP_001", "credit_score", 88)
+        await storage.save_category_tags("SUP_001", {"risk_level": "LOW"})
+
+        assert await storage.get_metric("SUP_001", "credit_score") == 88
+        assert await storage.get_category_tags("SUP_001") == {"risk_level": "LOW"}
+
+    @pytest.mark.asyncio
+    async def test_rule_execution_log_accepts_multiple_rows(self, storage: DuckDBStorage) -> None:
+        await storage.log_rule_execution("SUP_001", "R001", "passed")
+        await storage.log_rule_execution("SUP_001", "R002", "failed")
+
+        assert storage._conn is not None
+
+        def _fetch_count() -> int:
+            cursor = storage._conn.execute("SELECT COUNT(*) FROM rule_execution_log")
+            row = cursor.fetchone()
+            assert row is not None
+            return int(row[0])
+
+        count = await asyncio.to_thread(_fetch_count)
+        assert count == 2

@@ -28,7 +28,7 @@ class IngestionService:
         """Initialize IngestionService.
 
         Args:
-            storage: DuckDBStorage instance
+            storage: StorageBackend instance
             entity_service: EntityService for entity creation
         """
         self.storage = storage

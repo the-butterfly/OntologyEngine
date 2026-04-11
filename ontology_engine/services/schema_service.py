@@ -10,7 +10,7 @@ from ontology_engine.services.dto import (
     SchemaInfo,
     SchemaValidationError,
 )
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.base import StorageBackend
 
 if TYPE_CHECKING:
     from ontology_engine.core.schema.models import KGMLSchema

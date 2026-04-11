@@ -38,6 +38,13 @@ export default function RuleChainDAG({
       return;
     }
 
+    // Clean up container before creating new graph (prevent ghost nodes)
+    if (containerRef.current) {
+      while (containerRef.current.firstChild) {
+        containerRef.current.removeChild(containerRef.current.firstChild);
+      }
+    }
+
     // Destroy existing graph
     if (graphRef.current) {
       try {
@@ -55,7 +62,7 @@ export default function RuleChainDAG({
     const height = container.clientHeight || 600;
 
     const g6Data = transformToG6(chainData, getStepStatus);
-    
+
     if (!g6Data.nodes || g6Data.nodes.length === 0) {
       console.warn('RuleChainDAG: No nodes after transform');
       return;
@@ -136,7 +143,7 @@ export default function RuleChainDAG({
       if (!isDestroyedRef.current) {
         graphRef.current = graph;
         // After render, add HTML overlays for rich node content
-        addNodeOverlays(graph, chainData, getStepStatus);
+        addNodeOverlays(graph, chainData, getStepStatus, containerRef.current);
       } else {
         graph.destroy();
       }
@@ -158,6 +165,12 @@ export default function RuleChainDAG({
           // Ignore destroy errors
         }
         graphRef.current = null;
+      }
+      // Clean up container child elements to prevent ghost nodes
+      if (containerRef.current) {
+        while (containerRef.current.firstChild) {
+          containerRef.current.removeChild(containerRef.current.firstChild);
+        }
       }
     };
   }, [renderGraph]);
@@ -197,23 +210,25 @@ export default function RuleChainDAG({
 
 // Add HTML overlays for rich node content
 function addNodeOverlays(
-  graph: Graph, 
+  graph: Graph,
   chainData: RuleChainGraphData,
-  getStepStatus: (id: string) => string
+  getStepStatus: (id: string) => string,
+  container: HTMLDivElement | null,
 ) {
   try {
-    const container = graph.getContainer();
     if (!container) return;
-    
+
     // Remove existing overlays
-    container.querySelectorAll('.rule-node-overlay').forEach(el => el.remove());
+    container.querySelectorAll<HTMLElement>('.rule-node-overlay').forEach((el) => el.remove());
     
     chainData.nodes.forEach(node => {
       try {
         const graphNode = graph.getNodeData(node.id);
         if (!graphNode) return;
         
-        const { x, y } = graphNode.style || { x: 0, y: 0 };
+        const style = (graphNode.style || {}) as { x?: number; y?: number };
+        const x = style.x ?? 0;
+        const y = style.y ?? 0;
         const status = getStepStatus(node.id);
         const statusColor = EXECUTION_STATUS_COLORS[status] || '#D9D9D9';
         const ruleTypeColor = RULE_TYPE_COLORS[node.data.ruleType as string];

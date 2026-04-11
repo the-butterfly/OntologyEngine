@@ -177,7 +177,7 @@ class ConditionExplainer:
 
         # Try AND first
         if " AND " in expression.upper():
-            and_parts = self.evaluator._split_outside_strings(expression, " AND ")
+            and_parts = self._split_outside_strings(expression, " AND ")
             if len(and_parts) > 1:
                 for part in and_parts:
                     parts.extend(self._split_condition(part.strip()))
@@ -185,7 +185,7 @@ class ConditionExplainer:
 
         # Try OR
         if " OR " in expression.upper():
-            or_parts = self.evaluator._split_outside_strings(expression, " OR ")
+            or_parts = self._split_outside_strings(expression, " OR ")
             if len(or_parts) > 1:
                 for part in or_parts:
                     parts.extend(self._split_condition(part.strip()))
@@ -194,11 +194,37 @@ class ConditionExplainer:
         # Atomic condition
         return [expression]
 
+    def _split_outside_strings(self, expression: str, delimiter: str) -> list[str]:
+        """Split expression by delimiter while respecting string literals."""
+        string_ranges = self.evaluator.engine._find_string_ranges(expression)
+        parts: list[str] = []
+        cursor = 0
+        delim_upper = delimiter.upper()
+
+        while cursor < len(expression):
+            # Check if we're inside a string
+            inside_string = any(start <= cursor < end for start, end in string_ranges)
+
+            if not inside_string:
+                # Check for delimiter match
+                remaining = expression[cursor:].upper()
+                if remaining.startswith(delim_upper):
+                    parts.append(expression[:cursor].strip())
+                    expression = expression[cursor + len(delimiter):]
+                    cursor = 0
+                    string_ranges = self.evaluator.engine._find_string_ranges(expression)
+                    continue
+
+            cursor += 1
+
+        parts.append(expression.strip())
+        return parts
+
     def _resolve_expression(
         self, expression: str, eval_context: dict[str, Any]
     ) -> str:
         """Resolve field references in expression to actual values."""
-        return self.evaluator._resolve_fields(expression, eval_context)
+        return self.evaluator.engine._resolve_fields(expression, eval_context)
 
     def _generate_explanation(
         self,

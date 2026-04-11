@@ -185,7 +185,7 @@ export default function ExecutionReplay({ steps, currentStep, onStepChange }: Ex
             <Text strong style={{ fontSize: 13 }}>
               {currentSnapshot.rule_name}
             </Text>
-            <Tag size="small" color={EXECUTION_STATUS_COLORS[currentSnapshot.status] || 'default'}>
+            <Tag color={EXECUTION_STATUS_COLORS[currentSnapshot.status] || 'default'}>
               {currentSnapshot.status === 'passed' ? '通过' : 
                currentSnapshot.status === 'failed' ? '失败' : 
                currentSnapshot.status === 'skipped' ? '跳过' : '执行中'}

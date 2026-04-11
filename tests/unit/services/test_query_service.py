@@ -16,7 +16,7 @@ class TestQueryService:
         """Create mock storage."""
         storage = AsyncMock()
         storage.query_entities = AsyncMock(return_value=[])
-        storage.get_neighbors = AsyncMock(return_value=([], []))
+        storage.get_neighbors = AsyncMock(return_value=[])
         storage._ensure_initialized = MagicMock()
         storage._conn = MagicMock()
         return storage
@@ -73,7 +73,7 @@ class TestQueryService:
             (EntityInstance(concept="Invoice", entity_id="INV_001", data={}), MagicMock()),
             (EntityInstance(concept="Invoice", entity_id="INV_002", data={}), MagicMock()),
         ]
-        storage.get_neighbors.return_value = (neighbors, [])
+        storage.get_neighbors.return_value = neighbors
 
         result = await service.graph_traverse("SUP_001", "has_invoice")
 
@@ -131,8 +131,8 @@ class TestQueryService:
         """Test finding paths between entities."""
         # First call returns neighbor
         storage.get_neighbors.side_effect = [
-            ([(EntityInstance(concept="Invoice", entity_id="INV_001", data={}), MagicMock())], []),
-            ([], [])  # Second level has no neighbors
+            [(EntityInstance(concept="Invoice", entity_id="INV_001", data={}), MagicMock())],
+            []  # Second level has no neighbors
         ]
 
         result = await service.find_path("SUP_001", "INV_001", max_depth=2)

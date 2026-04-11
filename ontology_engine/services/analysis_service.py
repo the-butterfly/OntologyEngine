@@ -34,7 +34,7 @@ class AnalysisService:
         categorization_engine: CategorizationEngine,
         metric_engine: MetricEngine,
         rule_executor: RuleExecutor,
-        storage: DuckDBStorage,
+        storage: StorageBackend,
         schema: KGMLSchema | None = None,
     ):
         """Initialize AnalysisService.
@@ -43,7 +43,7 @@ class AnalysisService:
             categorization_engine: L2 categorization engine
             metric_engine: L3 metric computation engine
             rule_executor: L4 rule execution engine
-            storage: DuckDBStorage for entity retrieval
+            storage: StorageBackend for entity retrieval
             schema: Optional schema for validation
         """
         self.categorization_engine = categorization_engine
