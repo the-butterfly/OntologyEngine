@@ -1,0 +1,392 @@
+{
+  "metadata": {
+    "id": "space_supply_chain_demo",
+    "name": "供应链金融演示空间",
+    "space_type": "management",
+    "description": "供应链金融场景的演示语义空间",
+    "domain": "supply_chain_finance",
+    "status": "active",
+    "created_at": "2026-04-12T00:00:00Z",
+    "updated_at": "2026-04-12T00:00:00Z",
+    "created_by": "system"
+  },
+  "layers": {
+    "L1_fact_objects": [
+      {
+        "id": "Supplier",
+        "name": "供应商",
+        "description": "供应链中的供应商企业",
+        "properties": [
+          {"name": "entity_id", "type": "string", "required": true, "unique": true},
+          {"name": "company_name", "type": "string", "required": true},
+          {"name": "registered_capital", "type": "Money"},
+          {"name": "annual_revenue", "type": "Money"},
+          {"name": "employee_count", "type": "integer"},
+          {"name": "establishment_date", "type": "date"},
+          {"name": "industry_category", "type": "string"}
+        ],
+        "relations": [
+          {
+            "name": "supplies_to",
+            "target": "CoreEnterprise",
+            "description": "供货关系",
+            "attributes": [
+              {"name": "transaction_amount", "type": "Money"},
+              {"name": "transaction_date", "type": "date"}
+            ]
+          },
+          {
+            "name": "guarantees",
+            "target": "Supplier",
+            "description": "担保关系",
+            "attributes": [
+              {"name": "guarantee_amount", "type": "Money"},
+              {"name": "guarantee_type", "type": "string"}
+            ]
+          }
+        ]
+      },
+      {
+        "id": "CoreEnterprise",
+        "name": "核心企业",
+        "description": "供应链中的核心企业",
+        "properties": [
+          {"name": "entity_id", "type": "string", "required": true, "unique": true},
+          {"name": "company_name", "type": "string", "required": true},
+          {"name": "registered_capital", "type": "Money"},
+          {"name": "annual_revenue", "type": "Money"}
+        ],
+        "relations": []
+      },
+      {
+        "id": "Invoice",
+        "name": "发票",
+        "description": "交易发票",
+        "properties": [
+          {"name": "invoice_id", "type": "string", "required": true, "unique": true},
+          {"name": "amount", "type": "Money", "required": true},
+          {"name": "issue_date", "type": "date", "required": true},
+          {"name": "due_date", "type": "date"},
+          {"name": "status", "type": "string"}
+        ],
+        "relations": [
+          {
+            "name": "issued_by",
+            "target": "Supplier",
+            "description": "开票供应商"
+          },
+          {
+            "name": "received_by",
+            "target": "CoreEnterprise",
+            "description": "收票核心企业"
+          }
+        ]
+      }
+    ],
+    "L2_categorizations": [
+      {
+        "id": "industry_category",
+        "name": "行业分类",
+        "type": "hierarchical",
+        "description": "国标行业分类",
+        "values": [
+          {"code": "C", "name": "制造业", "children": [
+            {"code": "31", "name": "黑色金属冶炼和压延加工业"},
+            {"code": "32", "name": "有色金属冶炼和压延加工业"}
+          ]},
+          {"code": "F", "name": "批发和零售业"}
+        ]
+      },
+      {
+        "id": "company_scale",
+        "name": "企业规模",
+        "type": "derived",
+        "description": "企业规模分类",
+        "values": [
+          {"id": "LARGE", "name": "大型企业"},
+          {"id": "MEDIUM", "name": "中型企业"},
+          {"id": "SMALL", "name": "小型企业"},
+          {"id": "MICRO", "name": "微型企业"}
+        ]
+      },
+      {
+        "id": "risk_level",
+        "name": "风险等级",
+        "type": "flat",
+        "description": "企业风险等级",
+        "values": [
+          {"id": "HIGH", "name": "高风险", "color": "#FF4D4F"},
+          {"id": "MEDIUM", "name": "中风险", "color": "#FAAD14"},
+          {"id": "LOW", "name": "低风险", "color": "#52C41A"}
+        ]
+      },
+      {
+        "id": "business_tags",
+        "name": "业务标签",
+        "type": "tags",
+        "description": "业务标签",
+        "values": [
+          {"id": "CORE_ENTERPRISE", "name": "核心企业"},
+          {"id": "WHITELIST", "name": "白名单"},
+          {"id": "KEY_SUPPLIER", "name": "重点供应商"},
+          {"id": "NEW_CUSTOMER", "name": "新客户"}
+        ]
+      }
+    ],
+    "L3_analytical_elements": [
+      {
+        "id": "registered_capital_value",
+        "name": "注册资本值",
+        "element_type": "atomic",
+        "source": {"type": "fact_attribute", "attribute": "registered_capital.value"},
+        "dependencies": []
+      },
+      {
+        "id": "annual_revenue_value",
+        "name": "年营业收入值",
+        "element_type": "atomic",
+        "source": {"type": "fact_attribute", "attribute": "annual_revenue.value"},
+        "dependencies": []
+      },
+      {
+        "id": "asset_liability_ratio",
+        "name": "资产负债率",
+        "element_type": "derived",
+        "dependencies": ["total_liabilities_value", "total_assets_value"],
+        "overridable": true
+      },
+      {
+        "id": "current_ratio",
+        "name": "流动比率",
+        "element_type": "derived",
+        "dependencies": ["current_assets_value", "current_liabilities_value"],
+        "overridable": true
+      },
+      {
+        "id": "credit_score",
+        "name": "信用评分",
+        "element_type": "composite",
+        "dependencies": ["financial_health_score", "business_stability_score"],
+        "overridable": true
+      },
+      {
+        "id": "guarantee_exposure",
+        "name": "担保敞口",
+        "element_type": "graph",
+        "dependencies": [],
+        "overridable": true
+      }
+    ],
+    "L4_business_logic": {
+      "rule_definitions": [
+        {
+          "id": "R001_eligibility_check",
+          "name": "准入检查",
+          "description": "基础准入资格检查",
+          "rule_type": "constraint",
+          "priority": 100,
+          "target_objects": ["Supplier", "CoreEnterprise"],
+          "input_elements": [
+            {"id": "credit_score", "name": "信用评分", "type": "metric"}
+          ],
+          "output_elements": [
+            {"id": "eligible", "name": "是否合格", "type": "flag"}
+          ],
+          "enabled": true,
+          "logic_ids": ["R001_logic_1"]
+        },
+        {
+          "id": "R002_credit_score_calc",
+          "name": "信用评分计算",
+          "description": "计算综合信用评分",
+          "rule_type": "decision",
+          "priority": 90,
+          "target_objects": ["Supplier"],
+          "input_elements": [
+            {"id": "annual_revenue", "name": "年营收", "type": "metric"},
+            {"id": "registered_capital", "name": "注册资本", "type": "attribute"}
+          ],
+          "output_elements": [
+            {"id": "credit_score", "name": "信用评分", "type": "computed_value"}
+          ],
+          "enabled": true,
+          "logic_ids": ["R002_logic_1"]
+        },
+        {
+          "id": "R003_credit_limit_calc",
+          "name": "授信额度计算",
+          "description": "根据信用评分计算授信额度",
+          "rule_type": "decision",
+          "priority": 80,
+          "target_objects": ["Supplier"],
+          "input_elements": [
+            {"id": "credit_score", "name": "信用评分", "type": "metric"},
+            {"id": "registered_capital", "name": "注册资本", "type": "attribute"}
+          ],
+          "output_elements": [
+            {"id": "credit_limit", "name": "授信额度", "type": "computed_value"}
+          ],
+          "enabled": true,
+          "logic_ids": ["R003_logic_1", "R003_logic_2"]
+        }
+      ],
+      "rule_logics": [
+        {
+          "id": "R001_logic_1",
+          "definition_id": "R001_eligibility_check",
+          "name": "基础准入逻辑",
+          "applicable_conditions": [],
+          "when": {
+            "expression": "credit_score >= 60"
+          },
+          "then_action": {
+            "action_type": "set_flag",
+            "output": {"eligible": true}
+          },
+          "else_action": {
+            "action_type": "set_flag",
+            "output": {"eligible": false}
+          },
+          "priority": 100,
+          "version": 1,
+          "environment": "default"
+        },
+        {
+          "id": "R002_logic_1",
+          "definition_id": "R002_credit_score_calc",
+          "name": "信用评分计算逻辑",
+          "applicable_conditions": [],
+          "when": {
+            "expression": "annual_revenue_value >= 0"
+          },
+          "then_action": {
+            "action_type": "compute",
+            "output": {
+              "credit_score": "min(100, annual_revenue_value / 1000000 + 50)"
+            }
+          },
+          "priority": 100,
+          "version": 1,
+          "environment": "default"
+        },
+        {
+          "id": "R003_logic_1",
+          "definition_id": "R003_credit_limit_calc",
+          "name": "制造业授信额度",
+          "applicable_conditions": [
+            {"classification": "industry_category", "operator": "eq", "value": "C"}
+          ],
+          "when": {
+            "expression": "credit_score >= 60"
+          },
+          "then_action": {
+            "action_type": "compute",
+            "output": {
+              "credit_limit": "registered_capital_value * 0.5"
+            }
+          },
+          "priority": 100,
+          "version": 1,
+          "environment": "default"
+        },
+        {
+          "id": "R003_logic_2",
+          "definition_id": "R003_credit_limit_calc",
+          "name": "批发零售授信额度",
+          "applicable_conditions": [
+            {"classification": "industry_category", "operator": "eq", "value": "F"}
+          ],
+          "when": {
+            "expression": "credit_score >= 70"
+          },
+          "then_action": {
+            "action_type": "compute",
+            "output": {
+              "credit_limit": "registered_capital_value * 0.3"
+            }
+          },
+          "priority": 100,
+          "version": 1,
+          "environment": "default"
+        }
+      ]
+    }
+  },
+  "instances": {
+    "entities": [
+      {
+        "entity_id": "SUP_001",
+        "_concept": "Supplier",
+        "company_name": "东方钢铁有限公司",
+        "registered_capital": {"value": 50000000, "currency": "CNY"},
+        "annual_revenue": {"value": 200000000, "currency": "CNY"},
+        "employee_count": 500,
+        "establishment_date": "2010-05-15",
+        "industry_category": "C"
+      },
+      {
+        "entity_id": "SUP_002",
+        "_concept": "Supplier",
+        "company_name": "华南贸易集团",
+        "registered_capital": {"value": 20000000, "currency": "CNY"},
+        "annual_revenue": {"value": 80000000, "currency": "CNY"},
+        "employee_count": 200,
+        "establishment_date": "2015-08-20",
+        "industry_category": "F"
+      },
+      {
+        "entity_id": "CORE_001",
+        "_concept": "CoreEnterprise",
+        "company_name": "国家电网有限公司",
+        "registered_capital": {"value": 5000000000, "currency": "CNY"},
+        "annual_revenue": {"value": 300000000000, "currency": "CNY"}
+      },
+      {
+        "entity_id": "SUP_003",
+        "_concept": "Supplier",
+        "company_name": "精密机械制造厂",
+        "registered_capital": {"value": 10000000, "currency": "CNY"},
+        "annual_revenue": {"value": 50000000, "currency": "CNY"},
+        "employee_count": 100,
+        "establishment_date": "2018-03-10",
+        "industry_category": "C"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "REL_001",
+        "relation_type": "supplies_to",
+        "from_entity_id": "SUP_001",
+        "to_entity_id": "CORE_001",
+        "attributes": {
+          "transaction_amount": {"value": 10000000, "currency": "CNY"},
+          "transaction_date": "2026-01-15"
+        }
+      },
+      {
+        "relation_id": "REL_002",
+        "relation_type": "supplies_to",
+        "from_entity_id": "SUP_002",
+        "to_entity_id": "CORE_001",
+        "attributes": {
+          "transaction_amount": {"value": 5000000, "currency": "CNY"},
+          "transaction_date": "2026-02-20"
+        }
+      },
+      {
+        "relation_id": "REL_003",
+        "relation_type": "guarantees",
+        "from_entity_id": "SUP_001",
+        "to_entity_id": "SUP_003",
+        "attributes": {
+          "guarantee_amount": {"value": 3000000, "currency": "CNY"},
+          "guarantee_type": "GUARANTEE"
+        }
+      }
+    ],
+    "category_tags": [],
+    "metric_values": []
+  },
+  "versions": [],
+  "active_version": 1
+}
