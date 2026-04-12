@@ -1,284 +1,313 @@
 # L2: 归类分析 (Categorization)
 
-> 对事实对象的业务分类标签
+> **Status**: v2.0 (with Declaration/Instance separation)
+> **Date**: 2026-04-12
 
 ## 核心概念
 
+L2 归类分析包含**声明**和**实例**两个层面：
+
+| 层面 | 内容 | 说明 |
+|------|------|------|
+| **声明 (Declaration)** | 分类方案定义 | 维度、值范畴、打标规则 |
+| **实例 (Instance)** | 实体的分类标签 | entity_id → dimension = value |
+
+---
+
+## 1. 声明：分类方案
+
+### 1.1 结构
+
 ```yaml
-categorization:
-  dimensions:        # 分类维度
-  rules:             # 打标规则
-```
+categorization_declaration:
+  id: string                    # 全局唯一标识
+  name: string                  # 显示名称
+  description: string | null    # 描述
 
-## 分类维度
-
-### 行业分类
-
-```yaml
-categorization:
+  # 分类维度
   dimensions:
-    - name: industry_category
-      description: "国标行业分类"
-      type: hierarchical          # 层级分类
+    - name: string              # 维度名称
+      type: hierarchical | flat | derived | tags
+      description: string
+
+      # type = hierarchical 时
       levels:
-        - name: section           # 门类
-          code_length: 1
-        - name: division          # 大类
-          code_length: 2
-        - name: group             # 中类
-          code_length: 3
-        - name: class             # 小类
-          code_length: 4
+        - name: string
+          code_length: integer
       values:
-        - code: "C"
-          name: "制造业"
-          children:
-            - code: "31"
-              name: "黑色金属冶炼和压延加工业"
-              children:
-                - code: "311"
-                  name: "炼铁"
+        - code: string
+          name: string
+          children: [...]        # 层级结构
 
-    - name: custom_industry
-      description: "业务自定义行业"
-      type: flat                  # 平级分类
+      # type = flat 时
       values:
-        - id: CORE_MANUFACTURING
-          name: "核心制造企业"
-        - id: LOGISTICS
-          name: "物流配套企业"
+        - id: string
+          name: string
+
+      # type = derived 时
+      ruleset: string           # 引用打标规则 ID
+      values:
+        - id: string
+          name: string
+
+      # type = tags 时
+      values:
+        - id: string
+          name: string
 ```
 
-### 企业规模
+### 1.2 分类类型
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| `hierarchical` | 层级分类 | 行业分类 (门类→大类→中类→小类) |
+| `flat` | 平级分类 | 业务标签 (核心企业/白名单/重点供应商) |
+| `derived` | 派生分类 | 由规则计算得出 (规模/风险等级) |
+| `tags` | 多值标签 | 可同时打多个标签 |
+
+### 1.3 示例
 
 ```yaml
-    - name: company_scale
-      description: "企业规模"
-      type: derived               # 派生分类，由规则计算
-      ruleset: determine_scale    # 引用打标规则
-      values:
-        - id: LARGE
-          name: "大型企业"
-        - id: MEDIUM
-          name: "中型企业"
-        - id: SMALL
-          name: "小型企业"
-        - id: MICRO
-          name: "微型企业"
+# 行业分类 - 层级
+categorization_declaration:
+  id: industry_category
+  name: 行业分类
+  type: hierarchical
+
+  levels:
+    - name: section
+      code_length: 1
+    - name: division
+      code_length: 2
+
+  values:
+    - code: "C"
+      name: "制造业"
+      children:
+        - code: "31"
+          name: "黑色金属冶炼和压延加工业"
+
+# 企业规模 - 派生
+categorization_declaration:
+  id: company_scale
+  name: 企业规模
+  type: derived
+  ruleset: determine_scale_rules
+  values:
+    - id: LARGE
+      name: "大型企业"
+    - id: MEDIUM
+      name: "中型企业"
+    - id: SMALL
+      name: "小型企业"
+
+# 风险等级 - 派生
+categorization_declaration:
+  id: risk_level
+  name: 风险等级
+  type: derived
+  ruleset: assess_risk_rules
+  values:
+    - id: HIGH
+      name: "高风险"
+      color: "#FF4D4F"
+    - id: MEDIUM
+      name: "中风险"
+      color: "#FAAD14"
+    - id: LOW
+      name: "低风险"
+      color: "#52C41A"
+
+# 业务标签 - 多值标签
+categorization_declaration:
+  id: business_tags
+  name: 业务标签
+  type: tags
+  values:
+    - id: CORE_ENTERPRISE
+      name: "核心企业"
+    - id: WHITELIST
+      name: "白名单"
+    - id: KEY_SUPPLIER
+      name: "重点供应商"
 ```
 
-### 风险等级
+---
 
-```yaml
-    - name: risk_level
-      description: "风险等级"
-      type: derived
-      ruleset: assess_risk_level
-      values:
-        - id: HIGH
-          name: "高风险"
-          color: "#FF4D4F"
-        - id: MEDIUM
-          name: "中风险"
-          color: "#FAAD14"
-        - id: LOW
-          name: "低风险"
-          color: "#52C41A"
-```
+## 2. 声明：打标规则
 
-## 打标规则
+### 2.1 结构
 
 ```yaml
 categorization_rules:
-  - name: determine_scale
-    description: "根据营收和员工数判定规模"
-    target_dimension: company_scale
+  id: string                    # 规则 ID
+  name: string                  # 规则名称
+  target_dimension: string       # 目标维度 ID
 
-    rules:
-      - priority: 100
-        condition:
-          and:
-            - fact: "annual_revenue.value"
-              op: gte
-              value: 400000000  # 4亿
-            - fact: "employee_count"
-              op: gte
-              value: 1000
-        result: LARGE
-
-      - priority: 90
-        condition:
-          and:
-            - fact: "annual_revenue.value"
-              op: gte
-              value: 20000000   # 2000万
-            - fact: "employee_count"
-              op: gte
-              value: 300
-        result: MEDIUM
-
-      - priority: 80
-        condition:
-          and:
-            - fact: "annual_revenue.value"
-              op: gte
-              value: 3000000    # 300万
-            - fact: "employee_count"
-              op: gte
-              value: 20
-        result: SMALL
-
-      - priority: 0              # 默认规则
-        condition: {}
-        result: MICRO
+  rules:
+    - priority: integer
+      condition:
+        and: [...]               # AND 条件
+        or: [...]                # OR 条件
+      result: string | list      # 单一值或标签列表
 ```
 
-## 标签系统
-
-```yaml
-    - name: business_tags
-      description: "业务标签"
-      type: tags                  # 多标签
-      values:
-        - id: CORE_ENTERPRISE
-          name: "核心企业"
-        - id: WHITELIST
-          name: "白名单"
-        - id: KEY_SUPPLIER
-          name: "重点供应商"
-        - id: NEW_CUSTOMER
-          name: "新客户"
-```
-
-标签打标规则：
+### 2.2 示例
 
 ```yaml
 categorization_rules:
-  - name: tag_core_enterprise
-    description: "标记核心企业"
-    target_dimension: business_tags
-    operation: add_tag           # add_tag / remove_tag
+  id: determine_scale_rules
+  name: 企业规模判定规则
+  target_dimension: company_scale
 
-    rules:
-      - condition:
-          or:
-            - fact: "annual_revenue.value"
-              op: gte
-              value: 10000000000  # 10亿
-            - fact: "is_listed"
-              op: eq
-              value: true
-        result: CORE_ENTERPRISE
+  rules:
+    - priority: 100
+      condition:
+        and:
+          - fact: "annual_revenue"
+            op: gte
+            value: 400000000  # 4亿
+          - fact: "employee_count"
+            op: gte
+            value: 1000
+      result: LARGE
+
+    - priority: 90
+      condition:
+        and:
+          - fact: "annual_revenue"
+            op: gte
+            value: 20000000   # 2000万
+          - fact: "employee_count"
+            op: gte
+            value: 300
+      result: MEDIUM
+
+    - priority: 0              # 默认
+      condition: {}
+      result: SMALL
 ```
 
-## 使用场景
+---
 
-### 场景 1: 行业准入
+## 3. 实例：分类标签
+
+### 3.1 结构
 
 ```yaml
-logic:
-  - name: IndustryAccess
-    applies_to:
-      categories:
-        industry_category: ["C", "F"]  # 制造业、批发零售
+category_tag_instance:
+  entity_id: string             # 实体 ID
+  dimension: string             # 维度 ID
+  value: string | list          # 分类值 (单一值或标签列表)
+  source: string                # 来源: manual | rule | dataset
+  rule_id: string | null       # 如果是规则打标，记录规则 ID
+  timestamp: string             # 打标时间
 ```
 
-### 场景 2: 规模差异化政策
+### 3.2 示例
 
 ```yaml
-logic:
-  - name: CreditLimitByScale
-    applies_to:
-      categories:
-        company_scale: [LARGE, MEDIUM]
-    config:
-      LARGE:
-        max_limit: 100000000
-      MEDIUM:
-        max_limit: 50000000
+# 实体的分类标签
+category_tag_instances:
+  - entity_id: SUP_001
+    dimension: industry_category
+    value: "C"                  # 制造业
+    source: rule
+    rule_id: null
+    timestamp: "2026-04-12T10:00:00Z"
+
+  - entity_id: SUP_001
+    dimension: company_scale
+    value: "MEDIUM"
+    source: rule
+    rule_id: determine_scale_rules
+    timestamp: "2026-04-12T10:00:00Z"
+
+  - entity_id: SUP_001
+    dimension: business_tags
+    value: ["CORE_ENTERPRISE", "WHITELIST"]  # 多标签
+    source: manual
+    timestamp: "2026-04-01T00:00:00Z"
 ```
 
-## 与 v1 的区别
+---
+
+## 4. 运行时行为
+
+### 4.1 分类引擎
+
+L2 复用 L4 规则引擎执行：
+
+```python
+class CategorizationEngine:
+    """L2 归类引擎 - 复用 L4 规则引擎"""
+
+    def categorize(self, entity: Entity, dimensions: list[str]) -> CategoryTags:
+        """为实体打标"""
+        tags = CategoryTags()
+
+        for dimension_id in dimensions:
+            declaration = self.get_declaration(dimension_id)
+
+            if declaration.type == "hierarchical":
+                value = self.match_hierarchical(entity, declaration)
+            elif declaration.type == "derived":
+                # 编译 L2 规则为 L4 格式，复用 RuleExecutor
+                rules = self._compile_to_l4_rules(declaration)
+                result = self.rule_executor.execute(entity.id, dimension_id, rules)
+                value = result.computed.get(dimension_id)
+            elif declaration.type == "flat":
+                value = self.match_flat(entity, declaration)
+            elif declaration.type == "tags":
+                value = self.apply_tag_rules(entity, declaration)
+
+            tags.set(dimension_id, value)
+
+        return tags
+```
+
+### 4.2 执行时机
+
+| 来源 | 时机 |
+|------|------|
+| `manual` | 用户手动打标 |
+| `rule` | 规则执行时自动打标 |
+| `dataset` | Dataset 同步时更新 |
+
+---
+
+## 5. API 设计
+
+### 5.1 声明 CRUD
+
+```
+GET    /v1/management/{spaceId}/schema/L2/categorizations
+POST   /v1/management/{spaceId}/schema/L2/categorizations
+GET    /v1/management/{spaceId}/schema/L2/categorizations/{id}
+PUT    /v1/management/{spaceId}/schema/L2/categorizations/{id}
+DELETE /v1/management/{spaceId}/schema/L2/categorizations/{id}
+```
+
+### 5.2 实例管理
+
+```
+GET    /v1/management/{spaceId}/instances/category-tags
+POST   /v1/management/{spaceId}/instances/category-tags
+PUT    /v1/management/{spaceId}/instances/category-tags/{entityId}/{dimension}
+DELETE /v1/management/{spaceId}/instances/category-tags/{entityId}/{dimension}
+```
+
+---
+
+## 6. 与 v1 的区别
 
 | v1 | v2 |
 |-----|-----|
 | 无明确分类层 | 独立的 categorization 层 |
 | 分类逻辑散落在 rules | 分类规则集中管理 |
 | 无法多维度叠加 | 支持多维度分类共存 |
+| 分类结果混在 entity.attributes | 分类标签独立存储 |
 
-## 运行时行为
+---
 
-**L2 复用 L4 规则引擎（决策 #6）**：CategorizationEngine 将 L2 规则编译为 L4 格式后，调用 RuleExecutor 统一执行。
-
-```python
-class CategorizationEngine:
-    """L2 归类引擎 - 复用 L4 规则引擎"""
-    
-    def __init__(self, rule_executor: RuleExecutor):
-        self.rule_executor = rule_executor
-    
-    def categorize(self, entity: Entity) -> CategoryTags:
-        """为实体打标"""
-        tags = CategoryTags()
-
-        for dimension in self.dimensions:
-            if dimension.type == "hierarchical":
-                value = self.match_hierarchical(entity, dimension)
-            elif dimension.type == "derived":
-                # 将 L2 规则编译为 L4 格式，复用 RuleExecutor
-                rules = self._compile_to_l4_rules(
-                    dimension.ruleset, dimension.name
-                )
-                result = self.rule_executor.execute(
-                    entity_id=entity.id,
-                    dimension=dimension.name,
-                    rules=rules
-                )
-                value = result.computed.get(dimension.name)
-            elif dimension.type == "tags":
-                value = self.apply_tag_rules(entity, dimension)
-
-            tags.set(dimension.name, value)
-
-        return tags
-    
-    def _compile_to_l4_rules(
-        self, ruleset: CategorizationRuleset, dimension_name: str
-    ) -> list[Rule]:
-        """将 L2 categorization_rules 编译为 L4 Rule 格式
-        
-        L2: condition → result (简单映射)
-        L4: id + when + then (DAG 节点)
-        
-        编译规则：
-        - L2 condition.and[] → L4 when.expression (AND 连接)
-        - L2 result → L4 then.set_flag(dimension_name, result)
-        - L2 priority → L4 priority
-        """
-        rules = []
-        for i, cat_rule in enumerate(ruleset.rules):
-            rule = Rule(
-                id=f"L2_{dimension_name}_{i}",
-                when=Condition(expression=self._build_expression(cat_rule.condition)),
-                then=Action(
-                    type="set_flag",
-                    flag=dimension_name,
-                    value=cat_rule.result
-                ),
-                priority=cat_rule.priority
-            )
-            rules.append(rule)
-        return rules
-    
-    def _build_expression(self, condition: dict) -> str:
-        """将 L2 条件结构编译为表达式字符串"""
-        if not condition:
-            return "True"  # 默认规则
-        
-        parts = []
-        for cond in condition.get("and", []):
-            op_map = {"gte": ">=", "lte": "<=", "eq": "==", "gt": ">", "lt": "<"}
-            op = op_map.get(cond["op"], cond["op"])
-            parts.append(f"{cond['fact']} {op} {cond['value']}")
-        return " AND ".join(parts)
-```
+*文档结束*

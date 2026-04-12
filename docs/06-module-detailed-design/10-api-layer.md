@@ -3,6 +3,8 @@
 > **位置**: `ontology_engine/api/`
 > **依赖**: 服务层
 > **被依赖**: 外部调用方 (CLI / MCP / HTTP Client)
+> **[待核对代码]**: 本文是 Phase 1 API 层设计，不应将固定端点数量或路由结构视为长期真相；当前实现请以 `ontology_engine/api/server.py` 为准
+> **[关键设计点]**: Current API 与 Target API 的边界统一在 `docs/04-migration-and-gap/README.md` 跟踪
 
 ## 1. 职责
 
