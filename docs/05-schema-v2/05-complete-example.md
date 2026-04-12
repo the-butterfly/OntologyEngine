@@ -1,6 +1,8 @@
 # Schema v2 完整示例
 
 > 供应链金融场景
+> **[待扩展]**: 本示例主要用于说明阅读路径，尚未完全同步到 `09-canonical-schema-spec.md`；如与 canonical grammar 冲突，以后者为准
+> **[关键设计点]**: 完整文件根级结构应逐步收敛到 `semantic_space / fact_objects / categorizations / analytical_elements / business_logic.rule_definitions / business_logic.rule_logics`
 
 ## 场景
 

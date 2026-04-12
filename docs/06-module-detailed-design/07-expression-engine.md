@@ -3,6 +3,8 @@
 > **位置**: `ontology_engine/engine/expression/`
 > **依赖**: simpleeval, asteval
 > **被依赖**: MetricEngine, RuleEngine, CategorizationEngine
+> **[待核对代码]**: 本文当前描述的是 Phase 1 目标设计，不等同于当前已验证实现；当前代码请优先核对 `ontology_engine/engine/expression/` 与 `ontology_engine/engine/rule/evaluator.py`
+> **[关键设计点]**: 表达式执行能力的当前态 / 目标态差异统一在 `docs/04-migration-and-gap/README.md` 跟踪
 
 ## 1. 职责
 

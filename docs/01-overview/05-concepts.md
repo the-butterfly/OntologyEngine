@@ -1,5 +1,8 @@
 # 核心概念
 
+> **[待扩展]**: 本文仍混用 `Concept / Metric / Rule` 等旧术语，后续需与 Schema v2 的 `Fact Object / Analytical Element / Business Logic` 体系继续统一
+> **[关键设计点]**: 当概念解释与目标态设计冲突时，请优先参考 `docs/05-schema-v2/README.md` 与 `docs/05-schema-v2/09-canonical-schema-spec.md`
+
 ## Schema 层
 
 ### Concept (概念)
