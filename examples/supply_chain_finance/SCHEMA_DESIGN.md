@@ -1,539 +1,252 @@
-# Schema 设计深度分析
+# 供应链金融授信评估 — Schema 设计说明
 
-## 一、设计哲学：图谱Schema+实例的管理逻辑
-
-### 1.1 核心洞察
-
-在金融风控场景中，**同一实体在不同业务场景下需要不同的分析视角和计算逻辑**。
-
-```
-传统方式：
-Supplier实体 + 一堆属性（无法区分场景）
-
-KGML方式：
-Supplier实体 
-  ├── 基础属性（所有场景通用）
-  ├── credit_assessment维度属性（融资授信场景）
-  ├── transaction_monitoring维度属性（交易监控场景）
-  └── risk_early_warning维度属性（风险预警场景）
-```
-
-### 1.2 维度上下文设计
-
-```yaml
-# 维度定义
-rule_dimensions:
-  dimensions:
-    - name: "credit_assessment"
-      description: "融资授信评估维度"
-      applicable_entities: ["Supplier"]
-      triggers:
-        - event: "financing_application_submitted"
-        - event: "credit_review_scheduled"
-
-# 维度特定属性
-concepts:
-  - name: "Supplier"
-    dimension_attributes:
-      credit_assessment:
-        - name: "credit_limit_recommendation"
-          description: "仅在融资授信场景下计算的推荐额度"
-        - name: "financing_eligibility"
-          description: "仅在融资授信场景下判断的融资资格"
-```
-
-**价值**：
-- 场景隔离：不同业务场景的计算逻辑互不干扰
-- 按需计算：仅在激活的维度下计算派生属性
-- 规则归属：规则明确归属到特定维度，避免冲突
+> 文件角色：当前案例的设计意图说明，**非** OntologyEngine canonical grammar 规范  
+> 关联规范：`docs/05-schema-v2/09-canonical-schema-spec.md`  
+> 关联配置：`schema.yaml`（定义）`instances.yaml`（数据）`testcases.yaml`（验收）
 
 ---
 
-## 二、指标体系：三层架构
+## 一、设计目标
 
-### 2.1 原子指标（Atomic）
+本案例以**供应链金融授信评估**为场景，演示 OntologyEngine 四层 Schema v2 架构的完整推理链路：
 
-**定义**：直接来自数据源，不可再分的原始数据
-
-```yaml
-metrics:
-  - name: "total_invoice_amount_90d"
-    description: "近90天发票总金额"
-    metric_type: "atomic"
-    data_source:
-      type: "graph"
-      query: "MATCH (s:Supplier)-[:has_invoice]->(i:Invoice) WHERE ... RETURN sum(...)"
+```
+L1 事实对象  →  L2 分类视角  →  L3 指标计算  →  L4 规则决策
+（结构/关系）    （分析范围）    （量化度量）     （条件+动作）
 ```
 
-**特点**：
-- 直接查询获得
-- 作为计算的输入
-- 可追溯至原始数据
-
-### 2.2 派生指标（Derived）
-
-**定义**：由原子指标通过公式计算得出
-
-```yaml
-metrics:
-  - name: "overdue_invoice_ratio"
-    description: "逾期发票占比"
-    metric_type: "derived"
-    formula: "overdue_invoice_amount.value / total_invoice_amount_90d.value * 100"
-    dependencies: ["overdue_invoice_amount", "total_invoice_amount_90d"]
-```
-
-**计算链路**：
-```
-原子指标A + 原子指标B → 派生指标C
-  15万(逾期) + 1245万(总额) → 1.2%(逾期率)
-```
-
-**特点**：
-- 有明确的计算公式
-- 依赖原子指标
-- 可自动重算
-
-### 2.3 复合指标（Composite）
-
-**定义**：多维度加权聚合的评分指标
-
-```yaml
-metrics:
-  - name: "credit_score"
-    description: "综合信用评分"
-    metric_type: "composite"
-    components:
-      - metric: "business_stability_score"  weight: 0.30
-      - metric: "tax_compliance_score"      weight: 0.25
-      - metric: "reputation_score"          weight: 0.25
-      - metric: "guarantee_risk_score"      weight: 0.20
-    formula: "SUM(component_score * weight)"
-```
-
-**计算链路**：
-```
-业务稳定性(80) * 30% = 24
-税务合规(85)   * 25% = 21.25
-声誉风险(97)   * 25% = 24.4
-担保风险(70)   * 20% = 14
-─────────────────────────────
-综合信用评分 = 83.65
-```
-
-**特点**：
-- 多维度融合
-- 权重可配置
-- 结果标准化
-
-### 2.4 图算法指标（Graph）
-
-**定义**：基于图结构计算的指标
-
-```yaml
-metrics:
-  - name: "guarantee_chain_depth"
-    description: "担保链深度"
-    metric_type: "graph"
-    algorithm: "longest_path"
-    graph_query: |
-      MATCH path = (s:Supplier)-[:guarantees_for|guaranteed_by*1..10]-(other:Supplier)
-      RETURN MAX(LENGTH(path)) AS max_depth
-```
-
-**计算链路**：
-```
-担保关系图:
-  A --guarantees_for--> B --guarantees_for--> C
-  
-对于A：担保链深度 = 2
-```
-
-**特点**：
-- 利用图结构信息
-- 支持图算法（PageRank、社区发现等）
-- 发现隐藏风险（如担保圈）
+核心演示能力：
+1. **多维指标 DAG**：原子 → 派生 → 复合，自动拓扑排序执行
+2. **图算法指标**：担保链深度、担保圈检测（`GuaranteeRelation` 图遍历）
+3. **规则声明/逻辑分离**：同一规则声明绑定多个行业特化逻辑实例
+4. **可解释决策**：每个规则执行步骤输出条件满足情况和推理依据
 
 ---
 
-## 三、规则引擎：声明式规则定义
+## 二、L1 事实对象层：领域模型
 
-### 3.1 规则类型
+### 2.1 实体关系图
 
-| 类型 | 说明 | 示例 |
+```
+CoreEnterprise
+      ▲  (procures_from)
+      │
+  Supplier ──has_invoice──▶ Invoice
+      │
+      ├──has_contract──▶ Contract
+      │
+      └──GuaranteeRelation──▶ Supplier（担保边，带属性）
+              ▲
+              └── 自引用，构成担保网络图
+```
+
+### 2.2 关键设计点
+
+| 设计点 | 说明 |
+|--------|------|
+| **税务/舆情字段作原子指标来源** | `tax_compliance_score`、`negative_news_count_90d` 直接存于 Supplier 属性，模拟外部系统注入；L3 通过 `source.type: fact_attribute` 读取 |
+| **GuaranteeRelation 作为关系对象** | 担保关系带属性（金额、类型、状态），在 L3 图指标中参与图遍历 |
+| **Invoice 状态不派生** | 逾期判断依赖 `status == 'OVERDUE'`，不在 L1 计算派生布尔字段，保持事实层的纯洁性 |
+
+---
+
+## 三、L2 分类层：分析视角
+
+本案例定义三个互相独立的分析维度：
+
+| 维度 ID | 业务场景 | 触发事件 |
+|---------|---------|---------|
+| `credit_assessment` | 供应商提交融资申请时的信用评估 | `financing_application_submitted` |
+| `transaction_monitoring` | 日常交易行为的持续监控 | `daily_batch_check`、`large_invoice_detected` |
+| `risk_early_warning` | 多维风险信号的预警聚合 | `overdue_invoice_detected`、`negative_news_detected` |
+
+**关键设计点**：分类层只定义"哪些实体在哪些视角下参与分析"，不存储派生属性值，不含任何计算逻辑。
+
+---
+
+## 四、L3 分析要素层：指标体系
+
+### 4.1 指标依赖 DAG
+
+```
+                         ┌──────────────────────────────┐
+                         │       credit_score (复合)     │
+                         │     5维度加权 → [0,100]       │
+                         └────────────┬─────────────────┘
+                                      │
+         ┌──────────────┬─────────────┼────────────────┬──────────────┐
+         ▼              ▼             ▼                ▼              ▼
+ business_stability  tax_score   reputation_score  guarantee_depth  core_ent_count
+   (derived)         (atomic)       (derived)        (graph)         (atomic)
+         │                              │
+         ├── contract_fulfillment_rate  ├── negative_news_count_90d
+         │       (derived)             └── overdue_invoice_ratio
+         │            │                       (derived)
+         ├── core_ent_count        ┌───────────────────┤
+         └── overdue_invoice_ratio │ overdue_inv_amount│ total_inv_amount_90d
+                    ▲              └───────────────────┘
+                    │              (atomic)              (atomic)
+                    └── [图遍历] Supplier→Invoice (status=OVERDUE)
+```
+
+### 4.2 指标类型对照
+
+| 指标 | 类型 | 计算来源 |
+|------|------|---------|
+| `total_invoice_amount_90d` | atomic | 图遍历聚合 `SUM(Invoice.amount.value)` |
+| `overdue_invoice_amount` | atomic | 图遍历聚合（`OVERDUE` 过滤） |
+| `tax_compliance_score` | atomic | `Supplier.tax_compliance_score` 属性 |
+| `overdue_invoice_ratio` | derived | `overdue_amount / total_amount * 100` |
+| `contract_fulfillment_rate` | derived | `total_90d / total_contract * 100` |
+| `business_stability_score` | derived | 多条件打分公式（L1 沙箱） |
+| `guarantee_chain_depth` | graph | BFS 最长路径，`GuaranteeRelation` 边 |
+| `has_guarantee_cycle` | graph | 环路检测，输出 boolean |
+| `credit_score` | composite | 5维度加权求和 × 100 |
+| `credit_grade` | scorecard | `credit_score` → 等级映射 |
+
+### 4.3 L3 可覆盖性设计
+
+标记 `overridable: true` 的指标允许 L4 规则逻辑通过 `$metric:xxx` 引用覆盖：
+
+```yaml
+# schema.yaml 中
+- id: credit_score
+  overridable: true     # L4 可以为特定行业提供自定义评分逻辑
+
+# RL002_score_manufacturing_boost 中
+then_action:
+  output:
+    credit_score: "min(100, $metric:credit_score + 5)"   # 覆盖标准值
+```
+
+---
+
+## 五、L4 业务逻辑层：规则声明与逻辑
+
+### 5.1 规则声明/逻辑分离设计
+
+```
+Rule Definition（声明）      Rule Logic（逻辑实例）
+─────────────────────────    ─────────────────────────────────────────
+RD002_credit_score_compute → RL002_score_standard         (通用行业)
+                           → RL002_score_manufacturing_boost (制造业)
+
+RD001_basic_eligibility    → RL001_eligibility_standard   (统一准入)
+```
+
+**价值**：同一声明（I/O 契约不变）可绑定多个逻辑实例，按 `applicable_conditions` 分流，实现"场景化规则"而无需重复声明元数据。
+
+### 5.2 规则执行链（credit_assessment 维度）
+
+```
+输入：Supplier 实体 + 激活 credit_assessment 维度
+       │
+       ▼ priority=100
+  RD001 基础准入检查
+  RL001_eligibility_standard
+       │ is_eligible=false → 终止，输出 REJECT
+       │ is_eligible=true
+       ▼ priority=95
+  RD003 担保圈检测（图算法）
+  RL003_guarantee_alert
+       │ 触发 CRITICAL 预警（如有担保圈）
+       │
+       ▼ priority=90
+  RD002 信用评分计算
+  RL002_score_standard / RL002_score_manufacturing_boost
+       │ 输出 credit_score + credit_grade
+       │
+       ▼ priority=80
+  RD004 授信额度计算
+  RL004_limit_formula
+       │ 输出 recommended_credit_limit
+       │
+       ▼ priority=70
+  RD005 风险预警
+  RL005_warning_thresholds
+       │ （可能触发多条 MEDIUM/HIGH 预警）
+       │
+       ▼ priority=50
+  RD006 综合授信决策
+  RL006_decision_table
+       │
+       ▼
+  输出：final_decision + approved_credit_limit + decision_reason
+```
+
+### 5.3 算子使用说明
+
+| 算子类型 | 使用场景 | 规则 |
+|----------|---------|------|
+| `set_flag` | 设置布尔/枚举状态 | RL001（准入标志） |
+| `compute` | 公式计算或引用 L3 指标 | RL002、RL004、RL006 |
+| `alert` | 触发结构化预警 | RL003、RL005 |
+| `$metric:xxx` | 引用 L3 指标计算结果 | RL002（score 引用） |
+
+---
+
+## 六、三个验收场景设计意图
+
+### CASE-A：优质供应商（正常路径）
+
+| 维度 | 数值 | 结论 |
 |------|------|------|
-| constraint | 约束规则 | 准入检查 |
-| inference | 推理规则 | 信用评分计算 |
-| alert | 预警规则 | 担保圈检测 |
-| decision | 决策规则 | 最终授信决策 |
+| 注册资本 | 5000万 | ✅ 远超门槛 |
+| 成立年限 | 8年 | ✅ 通过 |
+| 逾期发票占比 | ~1.2%（15万/1245万） | ✅ 远低于5%警戒线 |
+| 税务合规 | 88分 | ✅ 优 |
+| 担保链深度 | 0 | ✅ 无风险 |
+| **预期信用评分** | **~85-88分（AA级）** | |
+| **预期决策** | **APPROVE，额度约3375万** | |
 
-### 3.2 规则结构
-
-```yaml
-rules:
-  - id: "R001_basic_eligibility"
-    name: "基础准入检查"
-    type: "constraint"
-    priority: 100
-    
-    # 规则作用域
-    scope:
-      dimensions: ["credit_assessment"]
-      entity_types: ["Supplier"]
-    
-    # 触发条件
-    when:
-      allOf:
-        - expression: "status == 'ACTIVE'"
-        - expression: "registered_capital.value >= 1000000"
-    
-    # 执行动作
-    then:
-      action: "approve_eligibility"
-      output:
-        eligible: true
-    
-    # 否则
-    else:
-      action: "reject_eligibility"
-      output:
-        eligible: false
-        rejection_reason: "不符合基础准入条件"
-```
-
-### 3.3 规则链执行
-
-```
-输入原子指标
-     ↓
-R001 基础准入检查 ──不通过──→ 拒绝
-     ↓ 通过
-R002 信用评分计算
-     ↓
-R003 担保圈检测 ────发现────→ 预警
-     ↓
-R004 授信额度计算
-     ↓
-R005 风险预警检查 ──触发────→ 预警
-     ↓
-R006 利率定价
-     ↓
-R007 综合授信决策
-     ↓
-输出授信结果
-```
-
-### 3.4 图查询规则
-
-```yaml
-rules:
-  - id: "R003_guarantee_circle_detection"
-    name: "担保圈风险检测"
-    type: "alert"
-    
-    when:
-      # 图查询条件
-      graph_query: |
-        MATCH cycle = (s:Supplier {supplier_id: $supplier_id})
-                      -[:guarantees_for|guaranteed_by*3..10]-(s)
-        RETURN count(cycle) > 0 AS has_cycle
-    
-    then:
-      action: "trigger_alert"
-      output:
-        alert_level: "critical"
-        alert_type: "guarantee_circle_detected"
-```
-
-**优势**：
-- 直接在图数据上执行复杂查询
-- 支持路径分析、模式匹配
-- 发现传统SQL难以识别的风险
+验收要点：完整执行链路通过，无预警触发，高评分正常批准。
 
 ---
 
-## 四、计算图与依赖解析
+### CASE-B：高风险供应商（失败路径）
 
-### 4.1 依赖关系图
+| 维度 | 数值 | 结论 |
+|------|------|------|
+| 注册资本 | 100万 | ⚠️ 刚在门槛 |
+| 成立年限 | 约7个月 | ❌ 未满1年 |
+| 逾期发票占比 | 80%（800万/1000万） | ❌ 极高 |
+| 舆情条数 | 4条 | ❌ 超阈值 |
+| **预期结论** | **准入检查失败 → REJECT** | |
 
-```
-                    ┌─────────────────────┐
-                    │   credit_score      │
-                    │    (复合指标)        │
-                    └──────────┬──────────┘
-                               │
-          ┌────────────────────┼────────────────────┐
-          │                    │                    │
-          ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│business_stability│  │reputation_score │  │guarantee_risk  │
-│   (派生指标)     │  │   (派生指标)     │  │   (派生指标)    │
-└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
-         │                    │                    │
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│total_invoice    │  │negative_news    │  │guarantee_chain  │
-│invoice_count    │  │overdue_ratio    │  │   (图算法)      │
-│contract_amount  │  │                 │  │                 │
-│  (原子指标)      │  │  (原子指标)      │  │                 │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
-```
-
-### 4.2 拓扑排序执行
-
-```python
-# 依赖解析器自动构建DAG并拓扑排序
-execution_order = [
-    # 第一层：原子指标
-    "total_invoice_amount_90d",
-    "invoice_count_90d",
-    "overdue_invoice_amount",
-    "total_contract_amount",
-    "negative_news_count_90d",
-    
-    # 第二层：派生指标
-    "overdue_invoice_ratio",
-    "avg_invoice_amount",
-    "contract_utilization_rate",
-    "business_stability_score",
-    "reputation_score",
-    "guarantee_chain_depth",
-    "guarantee_risk_score",
-    
-    # 第三层：复合指标
-    "credit_score",
-    "credit_grade",
-]
-```
+验收要点：准入规则（RL001）的 `else_action` 正确触发，整体流程短路终止，不进入评分阶段。
 
 ---
 
-## 五、Schema 与实例分离
-
-### 5.1 设计原则
+### CASE-C：担保圈供应商（图算法路径）
 
 ```
-Schema层（schema.yaml）：定义"类"
-  ├── Concept定义
-  ├── Attribute定义
-  ├── Metric定义
-  ├── Rule定义
-  └── 业务逻辑
-
-实例层（instances.yaml）：定义"对象"
-  ├── 具体实体数据
-  ├── 关系实例
-  └── 激活的维度标记
+SUP_C_A ──担保──▶ SUP_C_C ──担保──▶ SUP_C_B ──担保──▶ SUP_C_A
+                                                          ↑
+                                                        (循环！)
 ```
 
-### 5.2 优势
+| 维度 | 数值 | 结论 |
+|------|------|------|
+| 各方注册资本 | 800万~1200万 | ✅ 基础面尚可 |
+| 成立年限 | 5-6年 | ✅ 通过 |
+| 担保链深度 | 2（三角圈） | ⚠️ 达阈值 |
+| `has_guarantee_cycle` | true | ❌ 担保圈 |
+| **预期信用评分** | **约55-65分（BB/B级）** | 担保风险拉低评分 |
+| **预期决策** | **APPROVE_WITH_CONDITIONS，额度打8折** | |
+| **预警** | **RL003 触发 CRITICAL 担保圈预警** | |
 
-1. **Schema复用**：同一Schema可应用于多个实例集
-2. **版本管理**：Schema变更不影响历史实例
-3. **多租户**：不同租户共享Schema，隔离实例
-4. **权限控制**：Schema层控制元数据权限，实例层控制数据权限
-
-### 5.3 维度激活
-
-```yaml
-# 实例层标记激活的维度
-instances:
-  - concept: "Supplier"
-    data:
-      - supplier_id: "SUP_2024_001"
-        company_name: "深圳智造科技"
-        # 标记激活的分析维度
-        active_dimensions:
-          - "credit_assessment"
-          # - "transaction_monitoring"  # 未激活
-          # - "aml_monitoring"          # 未激活
-```
+验收要点：图算法指标正确计算担保圈，预警规则正确触发，额度计算正确应用担保折扣。
 
 ---
 
-## 六、多策略计算
+## 七、与设计文档的对应关系
 
-### 6.1 指标计算策略回退
-
-```yaml
-metrics:
-  - name: "customer_lifetime_value"
-    description: "客户终身价值"
-    
-    calculation:
-      # 多策略聚合模式
-      aggregation_mode: "fallback"  # fallback | parallel | weighted
-      
-      strategies:
-        # 策略1：图计算（首选）
-        - priority: 1
-          type: "graph"
-          language: "cypher"
-          query: "MATCH ... RETURN ..."
-          confidence: 0.9
-        
-        # 策略2：SQL计算（备选）
-        - priority: 2
-          type: "sql"
-          query: "SELECT ... FROM ..."
-          confidence: 0.85
-        
-        # 策略3：LLM估算（最后备选）
-        - priority: 3
-          type: "llm"
-          model: "gpt-4o"
-          prompt: "估算客户终身价值..."
-          confidence: 0.7
-```
-
-### 6.2 派生属性多策略计算
-
-```yaml
-concepts:
-  - name: "Supplier"
-    attributes:
-      - name: "credit_score"
-        derived: true
-        calculation:
-          type: "multi_strategy"
-          fallback_mode: "sequential"
-          
-          strategies:
-            # 策略1：本地表达式（最快）
-            - priority: 1
-              type: "formula"
-              engine: "local"
-              expression: "..."
-            
-            # 策略2：图查询
-            - priority: 2
-              type: "graph"
-              language: "cypher"
-              query: "..."
-            
-            # 策略3：外部API
-            - priority: 3
-              type: "remote"
-              service: "credit-scoring-service"
-```
-
----
-
-## 七、设计对比
-
-### 7.1 与传统风控系统的对比
-
-| 特性 | 传统系统 | KGML方案 |
-|------|---------|---------|
-| 指标定义 | 代码硬编码 | Schema声明式 |
-| 指标依赖 | 手动管理 | 自动构建DAG |
-| 图关系利用 | 有限 | 原生支持 |
-| 规则引擎 | 独立系统 | 与图谱集成 |
-| 维度隔离 | 数据库表隔离 | 维度上下文标记 |
-| 可解释性 | 弱 | 强（计算链路可追溯）|
-| 扩展性 | 需改代码 | 改配置即可 |
-
-### 7.2 与通用知识图谱的对比
-
-| 特性 | 通用KG | KGML Schema |
-|------|--------|-------------|
-| 属性计算 | 静态 | 动态派生 |
-| 业务规则 | 无 | 声明式规则 |
-| 指标定义 | 无 | 完整指标体系 |
-| 维度上下文 | 无 | 核心特性 |
-| 计算图 | 无 | 自动构建DAG |
-
----
-
-## 八、MVP案例验证
-
-### 8.1 案例设计
-
-| 案例 | 设计意图 | 验证点 |
-|------|---------|--------|
-| 案例1（优质供应商） | 正常场景 | 准入通过、正常授信、无预警 |
-| 案例2（高风险供应商） | 风险场景 | 风险识别、额度限制、预警触发 |
-| 案例3（担保圈供应商） | 图算法场景 | 担保圈检测、风险调整、有条件授信 |
-
-### 8.2 验证结果
-
-```
-案例1: 深圳智造科技
-  - 准入检查: 通过 ✓
-  - 信用评分: 83分 (AA级)
-  - 授信额度: 3375万
-  - 风险预警: 无 ✓
-  - 决策: APPROVE ✓
-
-案例2: 某贸易公司
-  - 准入检查: 通过（刚好过线）
-  - 信用评分: 48分 (CCC级)
-  - 授信额度: 30万（严格限制）
-  - 风险预警: 逾期率80%、信用分不足、负面新闻 ✓
-  - 决策: APPROVE_RESTRICTED ✓
-
-案例3: 供应商A（担保圈）
-  - 准入检查: 通过
-  - 担保圈检测: 发现A→B→C→A循环 ✓
-  - 信用评分: 71分（因担保风险降至20分）
-  - 授信额度: 420万（较正常情况降低）
-  - 风险预警: 担保圈风险 ✓
-  - 决策: APPROVE_WITH_CONDITIONS ✓
-```
-
----
-
-## 九、扩展方向
-
-### 9.1 更多分析维度
-
-```yaml
-rule_dimensions:
-  - name: "aml_monitoring"
-    description: "反洗钱监控维度"
-    applicable_entities: ["Supplier", "Transaction"]
-  
-  - name: "fraud_detection"
-    description: "欺诈检测维度"
-    applicable_entities: ["Invoice", "Transaction"]
-  
-  - name: "supply_chain_optimization"
-    description: "供应链优化维度"
-    applicable_entities: ["Supplier", "CoreEnterprise"]
-```
-
-### 9.2 更多计算策略
-
-- **机器学习模型算子**：集成XGBoost、神经网络模型
-- **时序分析算子**：ARIMA、Prophet预测
-- **知识图谱推理算子**：基于本体推理的规则
-
-### 9.3 实时计算
-
-```yaml
-metrics:
-  - name: "realtime_risk_score"
-    realtime: true
-    calculation:
-      type: "stream"
-      source: "kafka"
-      processing:
-        window:
-          type: "sliding"
-          size_seconds: 300
-```
-
----
-
-## 十、总结
-
-本Schema设计实现了：
-
-1. **完整的指标体系**：原子→派生→复合→图算法
-2. **维度上下文**：同一实体多场景分析
-3. **声明式规则**：YAML定义业务逻辑
-4. **自动依赖解析**：DAG构建与拓扑排序
-5. **图谱原生集成**：图查询、图算法
-6. **多策略回退**：高可用计算
-
-验证通过MVP案例证明该设计可以有效支撑供应链金融授信评估场景。
+| 本案例设计元素 | 对应设计文档 |
+|---------------|-------------|
+| canonical 根级结构 | `docs/05-schema-v2/09-canonical-schema-spec.md` |
+| fact_objects / relations | `docs/05-schema-v2/01-fact-objects.md` |
+| categorizations | `docs/05-schema-v2/02-categorization.md` |
+| analytical_elements（含 graph 类型） | `docs/05-schema-v2/03-analytical-elements.md` |
+| rule_definitions / rule_logics | `docs/05-schema-v2/04-business-logic.md` |
+| 规则声明/实例分离 | `docs/05-schema-v2/07-rule-declaration-and-instance.md` |
+| L3 overridable + L4 覆盖 | `docs/architecture/decisions/007-l3-l4-computation-boundary.md` |

@@ -1,0 +1,327 @@
+# ============================================================
+# 个人消费信贷 — 验收用例规格
+# ============================================================
+
+test_suite:
+  id: "consumer_credit_v1"
+  name: "个人消费信贷风险评估验收套件"
+  schema: "examples/consumer_credit/schema.yaml"
+  instances: "examples/consumer_credit/instances.yaml"
+
+test_cases:
+
+  # ============================================================
+  # TC-C01: 优质借款人分期贷 — 完整正常路径
+  # 验证：L3 五维评分卡、分期贷逻辑分支、APPROVED
+  # ============================================================
+  - id: TC-C01
+    name: "优质借款人分期贷完整流程（张伟）"
+    entity_id: "BRW_P"
+    application_id: "APP_P_INSTALLMENT"
+    categorization: loan_risk_assessment
+    tags: [smoke, happy_path, scorecard, installment]
+
+    expected_metrics:
+      monthly_income_value:
+        value: 30000
+      monthly_obligations_value:
+        value: 3000
+      # 新增贷款月供（20万/24期/年化7%）≈ 8787元
+      new_loan_monthly_burden:
+        value: 8787
+        tolerance: 200
+      # 贷后DTI = (3000 + 8787) / 30000 = 0.393
+      post_loan_dti:
+        value: 0.393
+        tolerance: 0.01
+      debt_to_income_ratio:
+        value: 0.1          # 3000/30000
+        tolerance: 0.01
+      credit_bureau_score:
+        value: 720
+      repayment_on_time_count:
+        value: 24           # 实例中简化标注
+      total_repayment_count:
+        value: 24
+      repayment_rate_24m:
+        value: 1.0          # 24/24
+      online_behavior_score:
+        value: 85
+      co_borrower_risk_count:
+        value: 0
+      network_risk_score:
+        value: 0
+      net_asset_ratio:
+        value: 0.733        # (300万-80万)/300万
+        tolerance: 0.01
+      # credit_risk_score（标准分期贷评分）：
+      # DTI=0.1→(1-0.1/0.6)=0.833*0.30=0.25
+      # bureau=(720-350)/600=0.617*0.25=0.154
+      # repay=1.0*0.20=0.20
+      # behavior=0.85*0.15=0.128
+      # network=(1-0)*0.10=0.10
+      # total=(0.25+0.154+0.20+0.128+0.10)*100=83.2
+      credit_risk_score:
+        value: 83
+        tolerance: 3
+      risk_grade:
+        value: "R2"         # 70≤score<85 → R2
+
+    expected_rule_steps:
+      - rule_id: RD101_veto_check
+        fired: false
+        reason: "is_blacklisted=false AND has_current_overdue=false"
+
+      - rule_id: RD102_eligibility_check
+        logic_id: RL102_eligibility_base
+        fired: true
+        condition_result: true
+        output:
+          is_eligible: true
+
+      - rule_id: RD103_repayment_capacity
+        fired: true
+        output:
+          capacity_level: ADEQUATE    # 0.393 在 [0.3, 0.5]
+
+      - rule_id: RD104_credit_scoring
+        logic_id: RL104_scoring_standard    # 分期贷不特化
+        fired: true
+        output:
+          credit_risk_score_range: [80, 90]
+          risk_grade: "R2"
+
+      - rule_id: RD105_network_risk
+        fired: false
+        reason: "co_borrower_risk_count=0"
+
+      - rule_id: RD106_interest_pricing
+        logic_id: RL106_pricing_installment
+        fired: true
+        output:
+          base_annual_rate: 9.0     # R2 分期贷 = 9%
+
+      - rule_id: RD107_approval_decision
+        logic_id: RL107_decision_installment
+        fired: true
+        output:
+          approval_decision: APPROVED
+          approved_amount: 200000   # R2 全额通过
+
+    expected_output:
+      approval_decision: APPROVED
+      approved_amount: 200000
+      base_annual_rate: 9.0
+      has_alerts: false
+      is_eligible: true
+
+  # ============================================================
+  # TC-C02: 优质借款人快贷 — 产品分流逻辑验证
+  # 验证：RL104_scoring_quick_loan 分支（行为评分权重提升）
+  # ============================================================
+  - id: TC-C02
+    name: "优质借款人快贷产品分流验证（张伟）"
+    entity_id: "BRW_P"
+    application_id: "APP_P_QUICK"
+    categorization: loan_risk_assessment
+    tags: [product_branch, quick_loan]
+
+    expected_rule_steps:
+      - rule_id: RD104_credit_scoring
+        logic_id: RL104_scoring_quick_loan    # 快贷分支，非标准分支
+        fired: true
+        logic_not_fired: RL104_scoring_standard   # 标准逻辑不应触发
+
+      - rule_id: RD106_interest_pricing
+        logic_id: RL106_pricing_quick         # 快贷利率
+        fired: true
+        output:
+          base_annual_rate: 9.0              # 张伟快贷R1或R2，9%
+
+      - rule_id: RD107_approval_decision
+        logic_id: RL107_decision_quick
+        fired: true
+
+    expected_output:
+      approval_decision: APPROVED
+      has_alerts: false
+
+  # ============================================================
+  # TC-C03: 中等风险借款人快贷 — 附条件通过
+  # 验证：R3/R4 风险等级、快贷容忍度、RL107 减额逻辑
+  # ============================================================
+  - id: TC-C03
+    name: "中等风险借款人快贷附条件审批（李敏）"
+    entity_id: "BRW_M"
+    application_id: "APP_M_QUICK"
+    categorization: loan_risk_assessment
+    tags: [conditional_approval, quick_loan, medium_risk]
+
+    expected_metrics:
+      monthly_income_value:
+        value: 8000
+      debt_to_income_ratio:
+        value: 0.1875       # 1500/8000
+        tolerance: 0.01
+      # 快贷月供(3万/12期/15%)≈2700，贷后DTI=(1500+2700)/8000=0.525
+      post_loan_dti:
+        value: 0.525
+        tolerance: 0.02
+      credit_bureau_score:
+        value: 610
+      repayment_rate_24m:
+        value: 0.958        # 23/24（1次逾期）
+        tolerance: 0.02
+      has_stable_income:
+        value: true         # 自雇月入8000*12=96000 < 12万 → false！
+        expected_value: false    # 注意：月入8000，年收入9.6万 < 12万，不满足自雇稳定收入条件
+      credit_risk_score:
+        value: 58
+        tolerance: 5
+
+    expected_rule_steps:
+      - rule_id: RD102_eligibility_check
+        logic_id: RL102_eligibility_base
+        fired: true
+        condition_result: false   # has_stable_income=false（9.6万<12万）
+        output:
+          is_eligible: false
+
+    # 注意：李敏快贷因自雇收入不达12万门槛而准入失败
+    expected_output:
+      approval_decision: REJECTED
+      is_eligible: false
+      rejection_reason_contains: "收入来源不稳定"
+
+  # ============================================================
+  # TC-C04: 中等风险借款人大额信贷 — 拒绝路径
+  # 验证：大额信贷严格规则、R4拒绝逻辑
+  # ============================================================
+  - id: TC-C04
+    name: "中等风险借款人大额信贷拒绝（李敏）"
+    entity_id: "BRW_M"
+    application_id: "APP_M_LARGE"
+    categorization: loan_risk_assessment
+    tags: [rejection_path, large_credit]
+    mode: simulation
+
+    # 放宽准入条件做大额路径测试
+    overrides:
+      employment.employment_type: FULL_TIME
+      employment.years_employed: 3
+
+    expected_rule_steps:
+      - rule_id: RD104_credit_scoring
+        logic_id: RL104_scoring_large_credit   # 大额严格评分
+        fired: true
+
+      - rule_id: RD107_approval_decision
+        logic_id: RL107_decision_large
+        fired: true
+        output:
+          # R3/R4 + net_asset_ratio偏低 → 被拒
+          approval_decision: REJECTED
+
+    expected_output:
+      approval_decision: REJECTED
+      rejection_reason_not_null: true
+
+  # ============================================================
+  # TC-C05: 关联风险借款人 — 图算法路径验证
+  # 验证：BorrowerRelation 图遍历 → co_borrower_risk_count=1
+  #       → RL105 触发网络风险预警 → 影响审批
+  # ============================================================
+  - id: TC-C05
+    name: "关联风险借款人网络风险检测（王芳）"
+    entity_id: "BRW_R_WANG"
+    application_id: "APP_R_WANG_INST"
+    categorization: loan_risk_assessment
+    tags: [smoke, graph_algorithm, network_risk, relationship_risk]
+
+    expected_metrics:
+      monthly_income_value:
+        value: 15000
+      debt_to_income_ratio:
+        value: 0.133        # 2000/15000
+        tolerance: 0.01
+      credit_bureau_score:
+        value: 680
+      overdue_count_24m:
+        value: 0
+      co_borrower_risk_count:
+        value: 1            # 陈刚当前逾期1.5万
+      network_risk_score:
+        value: 20           # 1人 × 20 = 20分
+        tolerance: 0
+      credit_risk_score:
+        # 标准分期贷评分（略低于纯净版，因 network 减分）
+        # DTI=0.133 → (1-0.133/0.6)=0.778 * 0.30 = 0.233
+        # bureau=(680-350)/600=0.55 * 0.25 = 0.138
+        # repay=1.0 * 0.20 = 0.20
+        # behavior=0.78 * 0.15 = 0.117
+        # network=(1-0.20) * 0.10 = 0.08
+        # total = (0.233+0.138+0.20+0.117+0.08)*100 = 76.8
+        value: 77
+        tolerance: 3
+      risk_grade:
+        value: "R2"         # 70≤77<85 → R2
+
+    expected_rule_steps:
+      - rule_id: RD101_veto_check
+        fired: false        # 王芳自身无问题
+
+      - rule_id: RD105_network_risk
+        logic_id: RL105_network_alert
+        fired: true         # co_borrower_risk_count=1 ≥ 1
+        output:
+          alert_level: MEDIUM    # network_risk_score=20，在[40]以下但≥1人
+          message_contains: "1人当前逾期"
+
+      - rule_id: RD107_approval_decision
+        logic_id: RL107_decision_installment
+        fired: true
+        output:
+          # R2 但存在预警，选择9折批准（需人工核查关系网络）
+          approval_decision: APPROVED
+          approved_amount: 90000   # 10万 * 90% = 9万
+
+    expected_output:
+      approval_decision: APPROVED
+      approved_amount: 90000
+      has_alerts: true
+      alert_types_contain: ["network_risk"]
+      is_eligible: true
+
+  # ============================================================
+  # TC-C06: 一票否决 — 黑名单快速拦截
+  # 验证：RD101 最高优先级短路，后续规则全部跳过
+  # ============================================================
+  - id: TC-C06
+    name: "黑名单一票否决快速拦截（What-if）"
+    entity_id: "BRW_P"          # 基于张伟做 what-if
+    application_id: "APP_P_INSTALLMENT"
+    categorization: loan_risk_assessment
+    tags: [veto, boundary_test, what_if]
+    mode: simulation
+
+    overrides:
+      is_blacklisted: true
+
+    expected_rule_steps:
+      - rule_id: RD101_veto_check
+        fired: true
+        output:
+          veto_triggered: true
+          rejection_contains: "黑名单"
+
+      - rule_id: RD102_eligibility_check
+        fired: false          # 一票否决后跳过
+      - rule_id: RD104_credit_scoring
+        fired: false
+      - rule_id: RD107_approval_decision
+        fired: false
+
+    expected_output:
+      approval_decision: REJECTED
+      veto_triggered: true
+      steps_executed_count: 1   # 仅执行一票否决规则
