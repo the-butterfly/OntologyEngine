@@ -658,3 +658,60 @@ ontology_engine/engine/rule/
     ├── graph_ops.py       # GraphTraversal
     └── alert_ops.py       # TriggerAlert
 ```
+
+## 9. 代码映射
+
+| 设计组件 | 实际代码路径 | 实现状态 |
+|---------|-------------|---------|
+| RuleEngine (DAG驱动) | `ontology_engine/engine/rule/engine.py` | ⏭️ 待实现 (设计目标) |
+| RuleExecutor | `ontology_engine/engine/rule/executor.py` | ✅ 已实现 (当前实现) |
+| ExecutionContext | `ontology_engine/engine/rule/models.py` | ✅ 已实现 |
+| RuleResult | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| AnalysisResult | `ontology_engine/engine/rule/models.py` | ✅ 已实现 |
+| Alert | `ontology_engine/engine/rule/models.py` | ✅ 已实现 |
+| ExpressionEvaluator | `ontology_engine/engine/rule/evaluator.py` | ✅ 已实现 |
+| Operator 基类 | `ontology_engine/engine/rule/operators/base.py` | ✅ 已实现 |
+| OperatorRegistry | `ontology_engine/engine/rule/operators/base.py` | ✅ 已实现 |
+| SetFlagOperator | `ontology_engine/engine/rule/operators/set_flag.py` | ✅ 已实现 |
+| ApproveEligibilityOperator | `ontology_engine/engine/rule/operators/set_flag.py` | ✅ 已实现 |
+| RejectEligibilityOperator | `ontology_engine/engine/rule/operators/set_flag.py` | ✅ 已实现 |
+| ComputeFormulaOperator | `ontology_engine/engine/rule/operators/compute.py` | ✅ 已实现 |
+| CalculateCreditScoreOperator | `ontology_engine/engine/rule/operators/compute.py` | ✅ 已实现 |
+| CalculateCreditLimitOperator | `ontology_engine/engine/rule/operators/compute.py` | ✅ 已实现 |
+| DetermineInterestRateOperator | `ontology_engine/engine/rule/operators/compute.py` | ✅ 已实现 |
+| SwitchOperator | `ontology_engine/engine/rule/operators/switch.py` | ✅ 已实现 |
+| BinningOperator | `ontology_engine/engine/rule/operators/switch.py` | ✅ 已实现 |
+| ScorecardOperator | `ontology_engine/engine/rule/operators/switch.py` | ✅ 已实现 |
+| TriggerAlertOperator | `ontology_engine/engine/rule/operators/alert.py` | ✅ 已实现 |
+| GraphTraversalOperator | `ontology_engine/engine/rule/operators/alert.py` | ⚠️ 部分实现 |
+| RuleDAG | `ontology_engine/engine/rule/dag.py` | ⏭️ 待实现 |
+| 动作执行器 | `ontology_engine/engine/rule/action_executor.py` | ⏭️ 待实现 (已内联到 executor.py) |
+
+## 10. 测试要点
+
+- [ ] 规则执行测试 - 单条规则的完整执行流程
+- [ ] 条件评估测试 - 表达式条件评估 (when 子句)
+- [ ] allOf 条件测试 - 逻辑与条件组合
+- [ ] anyOf 条件测试 - 逻辑或条件组合
+- [ ] then 动作执行测试 - 条件满足时执行动作
+- [ ] else 动作执行测试 - 条件不满足时执行动作
+- [ ] 优先级排序测试 - 规则按 priority 降序执行
+- [ ] 维度筛选测试 - 按 dimension 筛选适用规则
+- [ ] 实体类型筛选测试 - 按 entity_types 筛选适用规则
+- [ ] 禁用规则跳过测试 - enabled=false 的规则不执行
+- [ ] 计算指标传递测试 - 规则输出注入执行上下文
+- [ ] SetFlagOperator 测试 - 设置标志值
+- [ ] ApproveEligibilityOperator 测试 - 批准资格
+- [ ] RejectEligibilityOperator 测试 - 拒绝资格
+- [ ] ComputeFormulaOperator 测试 - 公式计算
+- [ ] CalculateCreditScoreOperator 测试 - 信用评分计算
+- [ ] CalculateCreditLimitOperator 测试 - 信用额度计算
+- [ ] DetermineInterestRateOperator 测试 - 利率计算
+- [ ] SwitchOperator 测试 - 多分支选择
+- [ ] TriggerAlertOperator 测试 - 预警触发
+- [ ] OperatorRegistry 注册测试 - 算子正确注册
+- [ ] OperatorRegistry 获取测试 - 按名称获取算子
+- [ ] 未知算子错误处理测试
+- [ ] 规则执行异常处理测试 - 单条规则失败不影响后续规则
+- [ ] 决策结果判定测试 - 根据规则结果确定最终决策
+- [ ] 临界预警影响决策测试
