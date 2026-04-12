@@ -1,7 +1,27 @@
 # API 架构
 
+---
+status: proposed
+phase: phase2
+source_of_truth: false
+last_verified: 2026-04-12
+verified_against: docs-only
+related_docs:
+  - 05-schema-v2/06-dataset-and-sync.md
+  - 04-migration-and-gap/README.md
+---
+
 > **Status**: v1.0
 > **Date**: 2026-04-12
+
+> **平台化能力边界** **[待扩展]**
+> 
+> 本文档定义的 `/v1/management/` 与 `/v1/consumption/` 是目标态 API 结构。
+> - **Current (当前)**：仅实现 `/v1/schema`、`/v1/entities` 等基础端点
+> - **Optional (可选)**：Dataset 管理、版本管理 API（占位实现）
+> - **Future (未来)**：完整的空间管理、授权、同步调度 API
+> 
+> 详细能力矩阵参见 [`05-schema-v2/06-dataset-and-sync.md`](./05-schema-v2/06-dataset-and-sync.md) 第 6 节
 
 ## 1. 架构概览
 

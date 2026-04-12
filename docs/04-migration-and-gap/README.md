@@ -20,7 +20,7 @@
 | Formula / Expression | [`02-design/06-formula-spec.md`](../02-design/06-formula-spec.md) | `05-schema-v2/*` 的目标算子与逻辑约定 | [`06-module-detailed-design/07-expression-engine.md`](../06-module-detailed-design/07-expression-engine.md) | **[待核对代码]** 设计描述多于已验证实现 | 继续与 `ontology_engine/engine/expression/`、`ontology_engine/engine/rule/evaluator.py` 逐段核验 |
 | API 形态 | `/v1/schema`、`/v1/entities` 等当前 FastAPI 口径 | `/v1/management`、`/v1/consumption` 等空间 API | [`06-module-detailed-design/10-api-layer.md`](../06-module-detailed-design/10-api-layer.md) | **[待扩展]** 现在还没有稳定映射文档 | 建议补 current API / target API / migration 三段式说明 |
 | 引擎拆分 | 当前代码与旧设计存在 `Vector / Query` 口径差异 | 目标态倾向统一查询能力 | [`06-module-detailed-design/08-query-engine.md`](../06-module-detailed-design/08-query-engine.md) | **[待核对代码]** | 先在模块 README 中标清“当前实现 vs 目标收敛” |
-| 平台化能力 | 当前约束仍以本地优先为主 | 目标态引入空间、同步、管理面 | [`05-schema-v2/06-dataset-and-sync.md`](../05-schema-v2/06-dataset-and-sync.md)、[`10-api-architecture.md`](../10-api-architecture.md) | **[待扩展]** | 用 `current / optional / future` 三栏归位，避免混写 |
+| 平台化能力 **[待扩展]** | 当前约束仍以本地优先为主 | 目标态引入空间、同步、管理面 | [`05-schema-v2/06-dataset-and-sync.md`](../05-schema-v2/06-dataset-and-sync.md) **[单一事实源]** | **[待扩展]** | 能力矩阵已更新，详见数据集与同步文档第 6 节 |
 
 ## 本轮收敛结论
 
