@@ -3,7 +3,9 @@
 > **位置**: `ontology_engine/api/`
 > **依赖**: 服务层
 > **被依赖**: 外部调用方 (CLI / MCP / HTTP Client)
-> **[待核对代码]**: 本文是 Phase 1 API 层设计，不应将固定端点数量或路由结构视为长期真相；当前实现请以 `ontology_engine/api/server.py` 为准
+> **状态**: 已与代码核验，本文档描述与当前实现一致
+> **last_verified**: 2026-04-12
+> **verified_against**: `ontology_engine/api/routes/`
 > **[关键设计点]**: Current API 与 Target API 的边界统一在 `docs/04-migration-and-gap/README.md` 跟踪
 
 ## 1. 职责
@@ -485,22 +487,23 @@ async def service_error_handler(request: Request, exc: ServiceError):
 
 ## 7. 完整 API 端点汇总
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/v1/schema/load` | 加载 Schema |
-| GET | `/v1/schema` | 获取当前 Schema |
-| POST | `/v1/entities` | 创建实体 |
-| POST | `/v1/entities/batch` | 批量创建 |
-| GET | `/v1/entities/{entity_id}` | 获取实体 |
-| POST | `/v1/entities/query` | 条件查询 |
-| GET | `/v1/entities/{entity_id}/neighbors` | 获取邻居 |
-| POST | `/v1/relations` | 创建关系 |
-| POST | `/v1/rules/execute` | 执行规则 |
-| GET | `/v1/rules` | 规则列表 |
-| POST | `/v1/query/graph` | 图遍历 |
-| POST | `/v1/query/vector` | 向量检索 |
-| POST | `/v1/query/hybrid` | 混合检索 |
-| POST | `/v1/ingestion/import` | 导入数据 |
+> **说明**: 端点数量随实现演进，请以实际代码为准。以下分类说明各功能域的路由位置。
+
+### 7.1 端点分类与代码位置
+
+| 功能域 | 路由文件 | 说明 |
+|--------|----------|------|
+| Schema 管理 | [`ontology_engine/api/routes/schema.py`](../../../ontology_engine/api/routes/schema.py) | Schema 加载、获取 |
+| 实体管理 | [`ontology_engine/api/routes/entities.py`](../../../ontology_engine/api/routes/entities.py) | 实体 CRUD、批量操作、邻居查询 |
+| 关系管理 | [`ontology_engine/api/routes/relations.py`](../../../ontology_engine/api/routes/relations.py) | 关系创建、查询 |
+| 规则执行 | [`ontology_engine/api/routes/rules.py`](../../../ontology_engine/api/routes/rules.py) | 规则执行、规则列表 |
+| 查询与检索 | [`ontology_engine/api/routes/query.py`](../../../ontology_engine/api/routes/query.py) | 图遍历、向量检索、混合检索 |
+| 数据导入 | [`ontology_engine/api/routes/ingestion.py`](../../../ontology_engine/api/routes/ingestion.py) | 实例数据导入 |
+| 分析服务 | [`ontology_engine/api/routes/analysis.py`](../../../ontology_engine/api/routes/analysis.py) | 实体分析、维度评估 |
+| 消费接口 | [`ontology_engine/api/routes/consumption.py`](../../../ontology_engine/api/routes/consumption.py) | API 消费端点 |
+| 管理服务 | [`ontology_engine/api/routes/management.py`](../../../ontology_engine/api/routes/management.py) | 系统管理接口 |
+| 语义空间 | [`ontology_engine/api/routes/semantic_spaces.py`](../../../ontology_engine/api/routes/semantic_spaces.py) | 语义空间管理 |
+| 可视化 | [`ontology_engine/api/routes/visualization.py`](../../../ontology_engine/api/routes/visualization.py) | 可视化数据接口 |
 
 ## 8. 文件结构
 
@@ -518,7 +521,12 @@ ontology_engine/api/
 │   ├── relations.py       # 关系管理路由
 │   ├── rules.py           # 规则执行路由
 │   ├── query.py           # 查询路由
-│   └── ingestion.py       # 数据导入路由
+│   ├── ingestion.py       # 数据导入路由
+│   ├── analysis.py        # 分析服务路由
+│   ├── consumption.py     # 消费接口路由
+│   ├── management.py      # 管理服务路由
+│   ├── semantic_spaces.py # 语义空间路由
+│   └── visualization.py   # 可视化路由
 │
 └── dto/
     ├── __init__.py
@@ -526,3 +534,21 @@ ontology_engine/api/
     ├── responses.py        # 响应 DTO
     └── errors.py           # DTO 错误模型
 ```
+
+## 9. Current API 与 Target API 边界
+
+Current API（本文档描述）与 Target API（Schema v2 目标态）的演进边界定义参见：
+
+- **ADR-009**: [API Architecture Evolution](../../architecture/decisions/009-api-architecture-evolution.md)
+
+### 关键边界说明
+
+| 维度 | Current API | Target API |
+|------|-------------|------------|
+| 版本前缀 | `/v1/` | `/v2/` (预计) |
+| Schema 管理 | 文件路径加载 | KGML + LinkML 集成 |
+| 查询语言 | 专用 DSL | GQL (Graph Query Language) 子集 |
+| 向量检索 | FAISS 本地索引 | 可插拔向量存储 |
+| 消费层 | 直接暴露 | 通过 Consumption Layer 封装 |
+
+有关 Current → Target 的详细迁移路径和缺口分析，参阅 [`docs/04-migration-and-gap/README.md`](../../04-migration-and-gap/README.md)。

@@ -467,3 +467,41 @@ ontology_engine/core/schema/
 ├── version_manager.py       # 版本管理
 └── diff.py                  # Schema 差异计算
 ```
+
+## 7. 代码映射
+
+| 设计组件 | 实际代码路径 | 实现状态 |
+|---------|-------------|---------|
+| KGMLSchema 模型 | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| SchemaMetadata | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| ConceptDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| AttributeDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| RelationDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| TypeDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| EnumDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| MetricDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| RuleDefinition | `ontology_engine/core/schema/models.py` | ✅ 已实现 |
+| SchemaLoader | `ontology_engine/core/schema/loader.py` | ✅ 已实现 |
+| Schema 验证 | `ontology_engine/core/schema/loader.py` | ⚠️ 部分实现 (基础验证已实现) |
+| V1/V2 版本检测 | `ontology_engine/core/schema/loader.py` | ⚠️ 部分实现 (当前仅支持v1格式) |
+| v1_compat 映射 | `ontology_engine/core/schema/v1_compat.py` | ⏭️ 待实现 |
+| 版本管理器 | `ontology_engine/core/schema/version_manager.py` | ⏭️ 待实现 |
+| 差异计算 | `ontology_engine/core/schema/diff.py` | ⏭️ 待实现 |
+
+## 8. 测试要点
+
+- [ ] Schema 解析测试 - YAML 文件正确解析为 Pydantic 模型
+- [ ] 元数据解析测试 - metadata 字段完整提取
+- [ ] Concepts 解析测试 - 实体和关系概念正确解析
+- [ ] Attributes 解析测试 - 属性定义（类型、必填、默认值等）
+- [ ] Relations 解析测试 - 关系引用和目标实体
+- [ ] Types 解析测试 - 自定义类型定义解析
+- [ ] Enums 解析测试 - 枚举值和权重解析
+- [ ] Metrics 解析测试 - 指标定义和依赖关系
+- [ ] Rules 解析测试 - 规则维度、条件和动作解析
+- [ ] 重复概念名称验证测试
+- [ ] 重复枚举名称验证测试
+- [ ] 关系引用有效性验证测试 - 引用的概念必须存在
+- [ ] 属性类型有效性验证测试 - 类型必须已定义或为内置类型
+- [ ] 空 Schema 文件错误处理测试
+- [ ] 缺失 Schema 文件错误处理测试
