@@ -29,11 +29,12 @@ export interface GraphMetadata {
 }
 
 export interface SchemaGraphData {
-  schema_id: string;
+  view_id?: string;
+  schema_id?: string;
   graph_type: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
-  layout_config: LayoutConfig;
+  layout_config?: LayoutConfig;
   metadata: GraphMetadata;
 }
 

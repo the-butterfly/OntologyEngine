@@ -122,7 +122,8 @@ def create_app() -> FastAPI:
     )
 
     # Import and include routes (routers already have their prefixes defined)
-    from ontology_engine.api.routes import schema, entities, analysis, query, ingestion, visualization, relations, rules
+    from ontology_engine.api.routes import schema, entities, analysis, query, ingestion, visualization, relations, rules, semantic_spaces
+    from ontology_engine.api.routes import management, consumption
     from ontology_engine.api.dto.responses import APIResponse
 
     app.include_router(schema.router, tags=["Schema"])
@@ -133,6 +134,11 @@ def create_app() -> FastAPI:
     app.include_router(visualization.router, tags=["Visualization"])
     app.include_router(relations.router, tags=["Relations"])
     app.include_router(rules.router, tags=["Rules"])
+    # Legacy semantic spaces route (deprecated, use /v1/management and /v1/consumption)
+    app.include_router(semantic_spaces.router, tags=["SemanticSpaces"])
+    # New management and consumption routes
+    app.include_router(management.router, tags=["Management"])
+    app.include_router(consumption.router, tags=["Consumption"])
 
     @app.get("/health")
     async def health_check():
