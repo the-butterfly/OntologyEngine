@@ -1,0 +1,1068 @@
+# ============================================================
+# OntologyEngine Schema v2 - 个人消费信贷风险评估
+# 遵循 canonical grammar spec (docs/05-schema-v2/09-canonical-schema-spec.md)
+#
+# 场景：基于借款人画像（收入、负债、行为、社会关系）的贷款申请风险评估
+#
+# 关键设计点（与供应链案例互补）：
+# 1. 多对象规则：Rule Definition 同时作用于 Borrower + LoanApplication
+# 2. DECISION_TABLE 算子：多条件交叉的二维决策表
+# 3. L3 Indicator（布尔型指示器）：is_blacklisted、has_stable_income
+# 4. L3 Scorecard：五维评分卡（行为 / 财务 / 关系 / 还款 / 外部）
+# 5. applicable_conditions：同一规则声明按贷款类型分流逻辑实例
+# 6. 图指标：关系网络中的担保/共借关系风险传导
+# ============================================================
+
+schema_version: "2.0"
+
+semantic_space:
+  id: "space.consumer_credit"
+  name: "个人消费信贷风险评估语义空间"
+  description: |
+    面向个人借款人，融合收入负债、还款历史、社会关系网络等多维度数据，
+    通过五级评分卡驱动贷款审批决策，支持快贷/分期/大额信贷三类产品差异化规则。
+  type: management
+  status: DRAFT
+
+
+# ============================================================
+# L1: Fact Objects（事实对象层）
+# ============================================================
+fact_objects:
+
+  shared_types:
+    - name: Money
+      base_type: object
+      properties:
+        value: { type: decimal }
+        currency: { type: string, default: CNY }
+
+    - name: EmploymentInfo
+      base_type: object
+      properties:
+        employer_name: { type: string }
+        job_title: { type: string }
+        employment_type:
+          type: string
+          enum: [FULL_TIME, PART_TIME, SELF_EMPLOYED, RETIRED, UNEMPLOYED]
+        years_employed: { type: integer }
+
+  enums:
+    - name: LoanPurpose
+      values:
+        - { id: CONSUMPTION,  label: "消费贷款" }
+        - { id: EDUCATION,    label: "教育贷款" }
+        - { id: HOME_IMPROVE, label: "装修贷款" }
+        - { id: MEDICAL,      label: "医疗贷款" }
+        - { id: TRAVEL,       label: "旅游贷款" }
+        - { id: OTHER,        label: "其他" }
+
+    - name: LoanType
+      values:
+        - { id: QUICK_LOAN,    label: "快贷（<5万，≤12期）" }
+        - { id: INSTALLMENT,   label: "分期贷（5-30万，12-36期）" }
+        - { id: LARGE_CREDIT,  label: "大额信贷（>30万，24-60期）" }
+
+    - name: ApplicationStatus
+      values:
+        - { id: SUBMITTED, label: "已提交" }
+        - { id: IN_REVIEW,  label: "审核中" }
+        - { id: APPROVED,   label: "已批准" }
+        - { id: REJECTED,   label: "已拒绝" }
+        - { id: WITHDRAWN,  label: "已撤回" }
+
+    - name: RelationshipType
+      values:
+        - { id: CO_BORROWER, label: "共同借款人" }
+        - { id: GUARANTOR,   label: "担保人" }
+        - { id: EMERGENCY_CONTACT, label: "紧急联系人" }
+
+  entities:
+
+    - id: Borrower
+      name: "借款人"
+      description: "申请贷款的个人，是本空间核心分析对象"
+      attributes:
+        - name: borrower_id
+          type: string
+          required: true
+          unique: true
+
+        - name: name
+          type: string
+          required: true
+
+        - name: id_number
+          type: string
+          required: true
+          unique: true
+          description: "身份证号"
+
+        - name: age
+          type: integer
+          required: true
+          range: [18, 80]
+
+        - name: monthly_income
+          type: Money
+          required: true
+          description: "月收入（税后）"
+
+        - name: employment
+          type: EmploymentInfo
+          description: "就业信息"
+
+        - name: monthly_obligations
+          type: Money
+          description: "每月固定还款义务（其他贷款/信用卡最低还款）"
+          default: { value: 0, currency: CNY }
+
+        - name: total_assets
+          type: Money
+          description: "名下总资产（含不动产估值）"
+
+        - name: total_liabilities
+          type: Money
+          description: "总负债"
+
+        - name: residence_years
+          type: integer
+          description: "在现居住地居住年数"
+          default: 0
+
+        # 外部系统注入的原子数据
+        - name: credit_bureau_score
+          type: integer
+          description: "央行征信评分（350-950）"
+          range: [350, 950]
+
+        - name: overdue_count_24m
+          type: integer
+          description: "近24个月逾期次数（征信报告）"
+          default: 0
+
+        - name: current_overdue_amount
+          type: Money
+          description: "当前逾期金额"
+          default: { value: 0, currency: CNY }
+
+        - name: is_blacklisted
+          type: boolean
+          description: "是否在黑名单/法院失信被执行人名单"
+          default: false
+
+        - name: online_behavior_score
+          type: integer
+          description: "线上行为评分（0-100，由行为风控系统提供）"
+          range: [0, 100]
+
+      relations:
+        - name: has_applications
+          target: LoanApplication
+          cardinality: "0..*"
+          description: "历史贷款申请记录"
+
+        - name: co_borrows_with
+          target: Borrower
+          cardinality: "0..*"
+          description: "与其他借款人共同借款（形成关系网络）"
+
+        - name: guarantees_for
+          target: Borrower
+          cardinality: "0..*"
+          description: "为其他借款人提供担保"
+
+    - id: LoanApplication
+      name: "贷款申请"
+      description: "借款人的具体贷款申请单，包含申请条件和当前状态"
+      attributes:
+        - name: application_id
+          type: string
+          required: true
+          unique: true
+
+        - name: loan_amount
+          type: Money
+          required: true
+          description: "申请贷款金额"
+
+        - name: loan_term_months
+          type: integer
+          required: true
+          description: "申请贷款期限（月）"
+          range: [1, 60]
+
+        - name: loan_type
+          type: LoanType
+          required: true
+
+        - name: loan_purpose
+          type: LoanPurpose
+          required: true
+
+        - name: applied_interest_rate
+          type: decimal
+          description: "申请利率（年化百分比）"
+
+        - name: status
+          type: ApplicationStatus
+          required: true
+          default: SUBMITTED
+
+        - name: submitted_at
+          type: datetime
+          required: true
+
+      relations:
+        - name: applied_by
+          target: Borrower
+          cardinality: "1"
+          inverse: has_applications
+
+    - id: RepaymentRecord
+      name: "还款记录"
+      description: "历史贷款的按期还款情况"
+      attributes:
+        - name: record_id
+          type: string
+          required: true
+          unique: true
+
+        - name: loan_id
+          type: string
+          description: "关联的历史贷款 ID"
+
+        - name: due_date
+          type: date
+          required: true
+
+        - name: actual_payment_date
+          type: date
+          description: "实际还款日（null 表示未还）"
+
+        - name: amount_due
+          type: Money
+          required: true
+
+        - name: amount_paid
+          type: Money
+          description: "实际还款金额"
+
+        - name: days_overdue
+          type: integer
+          description: "逾期天数（0 表示按时还款）"
+          default: 0
+
+      relations:
+        - name: belongs_to
+          target: Borrower
+          cardinality: "1"
+
+  relations:
+    - id: BorrowerRelation
+      name: "借款人关系"
+      description: "借款人之间的社会关系（共借/担保），构成风险传导网络"
+      from: Borrower
+      to: Borrower
+      attributes:
+        - name: relation_type
+          type: RelationshipType
+          required: true
+
+        - name: related_loan_amount
+          type: Money
+          description: "关联贷款金额（共借/担保场景）"
+
+        - name: established_at
+          type: date
+          description: "关系建立日期"
+
+
+# ============================================================
+# L2: Categorizations（分类层）
+# ============================================================
+categorizations:
+
+  - id: loan_risk_assessment
+    name: "贷款风险评估"
+    description: |
+      借款人提交申请时触发的全面信用风险评估。
+      基于多维指标体系输出风险等级和最终审批决策。
+    applicable_to: [Borrower, LoanApplication]
+    triggers:
+      - event: loan_application_submitted
+        entity: LoanApplication
+    filters:
+      - attribute: status
+        operator: EQ
+        value: SUBMITTED
+
+  - id: overdue_monitoring
+    name: "逾期行为监控"
+    description: |
+      持续监控在贷客户的还款行为，识别早期逾期信号。
+    applicable_to: [Borrower, RepaymentRecord]
+    triggers:
+      - event: payment_due_date_passed
+        entity: RepaymentRecord
+      - event: monthly_batch_check
+        entity: Borrower
+
+  - id: relationship_risk
+    name: "关系网络风险"
+    description: |
+      分析借款人社会关系网络中的风险传导，识别关联风险。
+    applicable_to: [Borrower]
+    triggers:
+      - event: co_borrower_overdue_detected
+        entity: Borrower
+      - event: guarantor_risk_changed
+        entity: Borrower
+
+
+# ============================================================
+# L3: Analytical Elements（分析要素层）
+# ============================================================
+analytical_elements:
+
+  metrics:
+    # ========== 原子指标 ==========
+
+    - id: monthly_income_value
+      name: "月收入（元）"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: monthly_income.value
+      unit: CNY
+      overridable: false
+
+    - id: monthly_obligations_value
+      name: "月还款义务（元）"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: monthly_obligations.value
+      unit: CNY
+      default: 0
+      overridable: false
+
+    - id: total_assets_value
+      name: "总资产（元）"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: total_assets.value
+      unit: CNY
+      overridable: false
+
+    - id: total_liabilities_value
+      name: "总负债（元）"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: total_liabilities.value
+      unit: CNY
+      default: 0
+      overridable: false
+
+    - id: credit_bureau_score
+      name: "征信评分"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: credit_bureau_score
+      range: [350, 950]
+      overridable: true     # 支持外部实时征信系统覆盖
+
+    - id: overdue_count_24m
+      name: "近24个月逾期次数"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: overdue_count_24m
+      default: 0
+      overridable: false
+
+    - id: online_behavior_score
+      name: "线上行为评分"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: online_behavior_score
+      range: [0, 100]
+      overridable: true
+
+    - id: repayment_on_time_count
+      name: "近24月按时还款次数"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Borrower
+        traversal: "Borrower --belongs_to(inverse)--> RepaymentRecord"
+        filter: "RepaymentRecord.days_overdue == 0 AND due_date >= today() - 730d"
+        aggregate: "COUNT(RepaymentRecord)"
+      default: 0
+      overridable: false
+
+    - id: total_repayment_count
+      name: "近24月总还款次数"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Borrower
+        traversal: "Borrower --belongs_to(inverse)--> RepaymentRecord"
+        filter: "RepaymentRecord.due_date >= today() - 730d"
+        aggregate: "COUNT(RepaymentRecord)"
+      default: 0
+      overridable: false
+
+    # ========== 派生指标 ==========
+
+    - id: debt_to_income_ratio
+      name: "债务收入比（DTI）"
+      description: "月还款义务 / 月收入，衡量偿债压力"
+      element_type: derived
+      dependencies: [monthly_obligations_value, monthly_income_value]
+      formula: "monthly_obligations_value / monthly_income_value"
+      unit: "ratio"
+      range: [0, 5]
+      thresholds:
+        warning: 0.4
+        critical: 0.6
+      overridable: false
+
+    - id: net_asset_ratio
+      name: "净资产比率"
+      description: "(总资产 - 总负债) / 总资产，衡量资产质量"
+      element_type: derived
+      dependencies: [total_assets_value, total_liabilities_value]
+      formula: |
+        if total_assets_value > 0:
+            (total_assets_value - total_liabilities_value) / total_assets_value
+        else:
+            0
+      range: [-1, 1]
+      overridable: false
+
+    - id: repayment_rate_24m
+      name: "近24月按时还款率"
+      description: "按时还款次数 / 总还款次数，衡量历史还款表现"
+      element_type: derived
+      dependencies: [repayment_on_time_count, total_repayment_count]
+      formula: |
+        if total_repayment_count > 0:
+            repayment_on_time_count / total_repayment_count
+        else:
+            1.0    # 无记录视为满分（新客户保护）
+      range: [0, 1]
+      overridable: false
+
+    - id: new_loan_monthly_burden
+      name: "新增贷款月供（元）"
+      description: "若批准申请，每月新增还款额（等额还款估算）"
+      element_type: derived
+      dependencies: []
+      parameters:
+        - name: loan_amount
+          type: decimal
+        - name: annual_rate
+          type: decimal
+          default: 0.08
+        - name: term_months
+          type: integer
+      formula: |
+        r = annual_rate / 12
+        loan_amount * r * (1 + r) ** term_months / ((1 + r) ** term_months - 1)
+      unit: CNY
+      overridable: false
+
+    - id: post_loan_dti
+      name: "贷后DTI（含新增贷款）"
+      description: "批准后的月还款负担 / 月收入，用于压力测试"
+      element_type: derived
+      dependencies: [monthly_obligations_value, new_loan_monthly_burden, monthly_income_value]
+      formula: "(monthly_obligations_value + new_loan_monthly_burden) / monthly_income_value"
+      thresholds:
+        warning: 0.5
+        critical: 0.7
+      overridable: false
+
+    # ========== 图指标 ==========
+
+    - id: co_borrower_risk_count
+      name: "关联共借人逾期人数"
+      description: "与当前借款人共同借款/担保关系中，存在当前逾期的人数"
+      element_type: graph
+      algorithm: neighbor_attribute_count
+      traversal:
+        entity: Borrower
+        edge: BorrowerRelation
+        direction: both
+        max_hops: 2
+        filter: "BorrowerRelation.relation_type IN ['CO_BORROWER', 'GUARANTOR']"
+      neighbor_filter: "Borrower.current_overdue_amount.value > 0"
+      default: 0
+      overridable: false
+
+    - id: network_risk_score
+      name: "关系网络风险评分"
+      description: "借款人关系网络中的整体风险程度（0=无风险，100=极高风险）"
+      element_type: graph
+      algorithm: weighted_neighbor_risk
+      traversal:
+        entity: Borrower
+        edge: BorrowerRelation
+        direction: both
+        max_hops: 2
+      formula: |
+        direct_risk = co_borrower_risk_count * 20
+        min(direct_risk, 100)
+      range: [0, 100]
+      overridable: true
+
+    # ========== 复合指标（五维评分卡）==========
+
+    - id: credit_risk_score
+      name: "综合信用风险评分"
+      description: |
+        五维度信用评分卡（分越高代表越安全）：
+        - 财务偿债力（30%）：债务收入比 + 净资产
+        - 历史还款表现（25%）：征信评分 + 还款率
+        - 稳定性（20%）：就业稳定、居住稳定
+        - 行为风控（15%）：线上行为模式
+        - 关系网络（10%）：共借人/担保人风险
+      element_type: composite
+      overridable: true
+      components:
+        - metric: debt_to_income_ratio
+          weight: 0.30
+          transform: "max(0, 1 - value / 0.6)"   # DTI越低越好，0.6为上限
+
+        - metric: credit_bureau_score
+          weight: 0.25
+          transform: "(value - 350) / (950 - 350)"  # 归一化到[0,1]
+
+        - metric: repayment_rate_24m
+          weight: 0.20
+          transform: "value"                      # 已在[0,1]
+
+        - metric: online_behavior_score
+          weight: 0.15
+          transform: "value / 100"
+
+        - metric: network_risk_score
+          weight: 0.10
+          transform: "1 - value / 100"            # 网络风险越高，分越低
+
+      formula: "SUM(transform(component) * weight) * 100"
+      range: [0, 100]
+      dependencies:
+        - debt_to_income_ratio
+        - credit_bureau_score
+        - repayment_rate_24m
+        - online_behavior_score
+        - network_risk_score
+
+  indicators:
+    - id: has_stable_income
+      name: "是否有稳定收入来源"
+      description: "全职就业≥1年 OR 自雇年收入≥12万 → true"
+      element_type: derived
+      dependencies: []
+      formula: |
+        employment.employment_type == 'FULL_TIME' and employment.years_employed >= 1
+        or (employment.employment_type == 'SELF_EMPLOYED' and monthly_income_value * 12 >= 120000)
+      output_type: boolean
+      overridable: false
+
+    - id: is_blacklisted
+      name: "是否黑名单"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Borrower
+        attribute: is_blacklisted
+      output_type: boolean
+      overridable: false
+
+    - id: has_current_overdue
+      name: "是否存在当前逾期"
+      element_type: derived
+      dependencies: []
+      formula: "current_overdue_amount.value > 0"
+      output_type: boolean
+      overridable: false
+
+  scorecards:
+    - id: risk_grade
+      name: "风险等级"
+      description: "credit_risk_score 映射至风险等级"
+      element_type: derived
+      dependencies: [credit_risk_score]
+      formula: |
+        if credit_risk_score >= 85:   "R1"   # 极低风险
+        elif credit_risk_score >= 70: "R2"   # 低风险
+        elif credit_risk_score >= 55: "R3"   # 中等风险
+        elif credit_risk_score >= 40: "R4"   # 较高风险
+        else:                         "R5"   # 高风险
+      output_type: string
+      overridable: false
+
+
+# ============================================================
+# L4: Business Logic（业务逻辑层）
+# ============================================================
+business_logic:
+
+  rule_definitions:
+
+    # ---- 一票否决：黑名单与当前逾期检查 ----
+    - id: RD101_veto_check
+      name: "一票否决检查"
+      description: "黑名单或存在当前逾期 → 直接拒绝，不进入评分"
+      rule_type: constraint
+      priority: 200           # 最高优先级，最先执行
+      target_objects: [Borrower]
+      applicable_categorizations: [loan_risk_assessment]
+      input_elements:
+        - { id: is_blacklisted,      name: "黑名单",       type: attribute }
+        - { id: has_current_overdue, name: "当前逾期",     type: indicator }
+      output_elements:
+        - { id: veto_triggered,      name: "一票否决触发", type: flag }
+        - { id: veto_reason,         name: "否决原因",     type: computed_value }
+      logic_ids: [RL101_veto_standard]
+      enabled: true
+
+    # ---- 基础准入检查 ----
+    - id: RD102_eligibility_check
+      name: "基础准入检查"
+      description: "年龄、收入、就业稳定性基础门槛校验"
+      rule_type: constraint
+      priority: 180
+      target_objects: [Borrower, LoanApplication]
+      applicable_categorizations: [loan_risk_assessment]
+      input_elements:
+        - { id: age,                  name: "年龄",           type: attribute }
+        - { id: monthly_income_value, name: "月收入",         type: metric }
+        - { id: has_stable_income,    name: "收入稳定性",     type: indicator }
+        - { id: loan_amount,          name: "申请金额",       type: attribute }
+      output_elements:
+        - { id: is_eligible,          name: "是否准入",       type: flag }
+        - { id: rejection_reason,     name: "拒绝原因",       type: computed_value }
+      logic_ids: [RL102_eligibility_base]
+      enabled: true
+
+    # ---- 偿债能力评估 ----
+    - id: RD103_repayment_capacity
+      name: "偿债能力评估"
+      description: "评估贷后 DTI 是否超过可承受上限，并产生偿债预警"
+      rule_type: inference
+      priority: 160
+      target_objects: [Borrower, LoanApplication]
+      applicable_categorizations: [loan_risk_assessment]
+      input_elements:
+        - { id: post_loan_dti,        name: "贷后DTI",   type: metric }
+        - { id: monthly_income_value, name: "月收入",    type: metric }
+      output_elements:
+        - { id: capacity_warning,     name: "偿债预警",  type: alert }
+        - { id: capacity_level,       name: "偿债能力等级", type: computed_value }
+      logic_ids: [RL103_capacity_check]
+      enabled: true
+
+    # ---- 综合信用评分 ----
+    - id: RD104_credit_scoring
+      name: "综合信用评分"
+      description: "驱动五维评分卡计算，产出风险等级"
+      rule_type: inference
+      priority: 140
+      target_objects: [Borrower]
+      applicable_categorizations: [loan_risk_assessment]
+      input_elements:
+        - { id: is_eligible,    name: "是否准入", type: flag }
+      output_elements:
+        - { id: credit_risk_score, name: "信用风险评分", type: computed_value }
+        - { id: risk_grade,        name: "风险等级",     type: computed_value }
+      logic_ids:
+        - RL104_scoring_standard
+        - RL104_scoring_quick_loan     # 快贷产品：宽松评分
+        - RL104_scoring_large_credit   # 大额信贷：严格评分
+      enabled: true
+
+    # ---- 网络风险检查 ----
+    - id: RD105_network_risk
+      name: "关系网络风险检查"
+      description: "检查共借人/担保人中是否存在逾期风险传导"
+      rule_type: alert
+      priority: 130
+      target_objects: [Borrower]
+      applicable_categorizations: [loan_risk_assessment, relationship_risk]
+      input_elements:
+        - { id: co_borrower_risk_count, name: "关联逾期人数", type: metric }
+        - { id: network_risk_score,     name: "网络风险评分", type: metric }
+      output_elements:
+        - { id: network_alert, name: "网络风险预警", type: alert }
+      logic_ids: [RL105_network_alert]
+      enabled: true
+
+    # ---- 利率定价（产品差异化）----
+    - id: RD106_interest_pricing
+      name: "利率定价"
+      description: "根据风险等级和贷款产品类型确定利率区间"
+      rule_type: decision
+      priority: 80
+      target_objects: [LoanApplication]
+      applicable_categorizations: [loan_risk_assessment]
+      input_elements:
+        - { id: risk_grade, name: "风险等级", type: metric }
+        - { id: loan_type,  name: "贷款类型", type: attribute }
+      output_elements:
+        - { id: base_annual_rate,  name: "基础年化利率",   type: computed_value }
+        - { id: rate_band,         name: "利率区间",       type: computed_value }
+      logic_ids:
+        - RL106_pricing_quick
+        - RL106_pricing_installment
+        - RL106_pricing_large
+      enabled: true
+
+    # ---- 最终审批决策 ----
+    - id: RD107_approval_decision
+      name: "最终审批决策"
+      description: "综合所有维度输出最终审批结果和批准额度"
+      rule_type: decision
+      priority: 50
+      target_objects: [Borrower, LoanApplication]
+      applicable_categorizations: [loan_risk_assessment]
+      input_elements:
+        - { id: credit_risk_score,  name: "信用评分",   type: metric }
+        - { id: risk_grade,         name: "风险等级",   type: metric }
+        - { id: post_loan_dti,      name: "贷后DTI",    type: metric }
+        - { id: capacity_level,     name: "偿债能力",   type: computed_value }
+        - { id: overdue_count_24m,  name: "逾期次数",   type: metric }
+      output_elements:
+        - { id: approval_decision,     name: "审批决策",       type: flag }
+        - { id: approved_amount,       name: "批准金额",       type: computed_value }
+        - { id: required_conditions,   name: "附加条件",       type: computed_value }
+        - { id: decision_reasoning,    name: "决策理由",       type: computed_value }
+      logic_ids:
+        - RL107_decision_quick
+        - RL107_decision_installment
+        - RL107_decision_large
+      enabled: true
+
+  rule_logics:
+
+    # ---- RL101: 一票否决 ----
+    - id: RL101_veto_standard
+      definition_id: RD101_veto_check
+      name: "一票否决标准逻辑"
+      applicable_conditions: []
+      when:
+        expression: "is_blacklisted == true OR has_current_overdue == true"
+      then_action:
+        action_type: reject
+        output:
+          veto_triggered: true
+          veto_reason: |
+            if is_blacklisted:
+                "申请人在黑名单/失信被执行人名单，不可申请贷款"
+            else:
+                "存在当前逾期未还（金额：{current_overdue_amount.value}元），需先结清"
+          approval_decision: REJECTED
+      priority: 200
+      version: 1
+      environment: default
+
+    # ---- RL102: 基础准入 ----
+    - id: RL102_eligibility_base
+      definition_id: RD102_eligibility_check
+      name: "基础准入检查"
+      description: "年龄18-65岁、月收入≥3000元、有稳定收入来源"
+      applicable_conditions: []
+      when:
+        expression: |
+          age >= 18
+          AND age <= 65
+          AND monthly_income_value >= 3000
+          AND has_stable_income == true
+      then_action:
+        action_type: set_flag
+        output:
+          is_eligible: true
+      else_action:
+        action_type: set_flag
+        output:
+          is_eligible: false
+          rejection_reason: |
+            reasons = []
+            if age < 18 or age > 65: reasons.append("年龄不在18-65岁范围")
+            if monthly_income_value < 3000: reasons.append("月收入低于3000元")
+            if not has_stable_income: reasons.append("收入来源不稳定")
+            "；".join(reasons)
+      priority: 180
+      version: 1
+      environment: default
+
+    # ---- RL103: 偿债能力 ----
+    - id: RL103_capacity_check
+      definition_id: RD103_repayment_capacity
+      name: "贷后偿债能力检查"
+      applicable_conditions: []
+      when:
+        expression: "is_eligible == true"
+      then_action:
+        action_type: compute
+        output:
+          capacity_level: |
+            if post_loan_dti <= 0.3:     "STRONG"
+            elif post_loan_dti <= 0.5:   "ADEQUATE"
+            elif post_loan_dti <= 0.7:   "WEAK"
+            else:                        "INSUFFICIENT"
+          capacity_warning: |
+            if post_loan_dti > 0.5:
+                {'level': 'HIGH', 'message': f'贷后DTI={post_loan_dti:.1%}，超出50%警戒线，偿债压力较大'}
+            elif post_loan_dti > 0.4:
+                {'level': 'MEDIUM', 'message': f'贷后DTI={post_loan_dti:.1%}，接近警戒线，建议适当减额'}
+            else:
+                None
+      priority: 160
+      version: 1
+      environment: default
+
+    # ---- RL104a: 标准信用评分 ----
+    - id: RL104_scoring_standard
+      definition_id: RD104_credit_scoring
+      name: "标准信用评分"
+      applicable_conditions: []    # 无特定产品条件，通用
+      when:
+        expression: "is_eligible == true"
+      then_action:
+        action_type: compute
+        output:
+          credit_risk_score: "$metric:credit_risk_score"
+          risk_grade: "$metric:risk_grade"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL104b: 快贷宽松评分（快贷产品给新客户更友好）----
+    - id: RL104_scoring_quick_loan
+      definition_id: RD104_credit_scoring
+      name: "快贷产品评分宽松模式"
+      description: "快贷产品金额小，可接受相对较高的 R4 风险，给线上行为评分更高权重"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: QUICK_LOAN
+      when:
+        expression: "is_eligible == true AND loan_amount_value <= 50000"
+      then_action:
+        action_type: compute
+        output:
+          # 快贷：行为评分权重提升到25%，征信权重降至15%
+          credit_risk_score: |
+            dti_score = max(0, 1 - debt_to_income_ratio / 0.6) * 0.30
+            bureau_score = (credit_bureau_score - 350) / 600 * 0.15
+            repay_score = repayment_rate_24m * 0.20
+            behavior_score = online_behavior_score / 100 * 0.25
+            network_score = (1 - network_risk_score / 100) * 0.10
+            (dti_score + bureau_score + repay_score + behavior_score + network_score) * 100
+          risk_grade: "$metric:risk_grade"
+      priority: 95
+      version: 1
+      environment: default
+
+    # ---- RL104c: 大额信贷严格评分 ----
+    - id: RL104_scoring_large_credit
+      definition_id: RD104_credit_scoring
+      name: "大额信贷严格评分模式"
+      description: "大额信贷更注重财务状况和征信历史，提升征信权重"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: LARGE_CREDIT
+      when:
+        expression: "is_eligible == true"
+      then_action:
+        action_type: compute
+        output:
+          credit_risk_score: |
+            dti_score = max(0, 1 - debt_to_income_ratio / 0.5) * 0.35   # 大额DTI容忍度更低
+            bureau_score = (credit_bureau_score - 350) / 600 * 0.35     # 征信权重提升
+            repay_score = repayment_rate_24m * 0.20
+            behavior_score = online_behavior_score / 100 * 0.05
+            net_asset_bonus = max(0, net_asset_ratio) * 0.05
+            (dti_score + bureau_score + repay_score + behavior_score + net_asset_bonus) * 100
+          risk_grade: "$metric:risk_grade"
+      priority: 95
+      version: 1
+      environment: default
+
+    # ---- RL105: 关系网络风险预警 ----
+    - id: RL105_network_alert
+      definition_id: RD105_network_risk
+      name: "关系网络风险预警"
+      applicable_conditions: []
+      when:
+        expression: "co_borrower_risk_count >= 1 OR network_risk_score >= 40"
+      then_action:
+        action_type: alert
+        output:
+          alert_level: |
+            if network_risk_score >= 60: "HIGH"
+            elif network_risk_score >= 40: "MEDIUM"
+            else: "LOW"
+          message: "关联共借人/担保人中存在{co_borrower_risk_count}人当前逾期，风险评分{network_risk_score}，建议人工核查关系网络"
+      priority: 130
+      version: 1
+      environment: default
+
+    # ---- RL106: 利率定价（按产品类型分流）----
+    - id: RL106_pricing_quick
+      definition_id: RD106_interest_pricing
+      name: "快贷利率定价"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: QUICK_LOAN
+      when:
+        expression: "risk_grade IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          # 快贷基础年化：R1→9% / R2→12% / R3→15% / R4→18% / R5→拒绝
+          base_annual_rate: |
+            {'R1': 9.0, 'R2': 12.0, 'R3': 15.0, 'R4': 18.0}.get(risk_grade, None)
+          rate_band: |
+            base = {'R1': 9.0, 'R2': 12.0, 'R3': 15.0, 'R4': 18.0}.get(risk_grade, None)
+            f"{base}% ~ {base + 3.0}%" if base else "N/A"
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL106_pricing_installment
+      definition_id: RD106_interest_pricing
+      name: "分期贷利率定价"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: INSTALLMENT
+      when:
+        expression: "risk_grade IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          base_annual_rate: |
+            {'R1': 7.0, 'R2': 9.0, 'R3': 12.0, 'R4': 15.0}.get(risk_grade, None)
+          rate_band: |
+            base = {'R1': 7.0, 'R2': 9.0, 'R3': 12.0, 'R4': 15.0}.get(risk_grade, None)
+            f"{base}% ~ {base + 2.0}%" if base else "N/A"
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL106_pricing_large
+      definition_id: RD106_interest_pricing
+      name: "大额信贷利率定价"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: LARGE_CREDIT
+      when:
+        expression: "risk_grade IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          base_annual_rate: |
+            {'R1': 5.5, 'R2': 7.0, 'R3': 9.0}.get(risk_grade, None)   # R4/R5拒绝大额
+          rate_band: |
+            base = {'R1': 5.5, 'R2': 7.0, 'R3': 9.0}.get(risk_grade, None)
+            f"{base}% ~ {base + 1.5}%" if base else "N/A"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL107: 最终审批决策（按产品类型分流）----
+    - id: RL107_decision_quick
+      definition_id: RD107_approval_decision
+      name: "快贷审批决策"
+      description: "快贷风险容忍度高，R4也可有条件批准"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: QUICK_LOAN
+      when:
+        expression: "true"
+      then_action:
+        action_type: compute
+        output:
+          approval_result: |
+            if risk_grade in ['R1', 'R2'] and post_loan_dti <= 0.5:
+                {'decision': 'APPROVED', 'amount': loan_amount_value, 'conditions': [], 'reason': '信用良好，快速审批通过'}
+            elif risk_grade == 'R3' or (risk_grade in ['R1','R2'] and post_loan_dti > 0.5):
+                {'decision': 'APPROVED', 'amount': loan_amount_value * 0.8, 'conditions': ['适当减额'], 'reason': '中等风险，减额80%批准'}
+            elif risk_grade == 'R4' and overdue_count_24m <= 1:
+                {'decision': 'APPROVED', 'amount': loan_amount_value * 0.5, 'conditions': ['降额50%', '需提供担保人'], 'reason': '较高风险，严格限额'}
+            else:
+                {'decision': 'REJECTED', 'amount': 0, 'conditions': [], 'reason': f'风险等级{risk_grade}或逾期记录过多，不符合快贷条件'}
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL107_decision_installment
+      definition_id: RD107_approval_decision
+      name: "分期贷审批决策"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: INSTALLMENT
+      when:
+        expression: "true"
+      then_action:
+        action_type: compute
+        output:
+          approval_result: |
+            if risk_grade in ['R1', 'R2'] and post_loan_dti <= 0.5:
+                {'decision': 'APPROVED', 'amount': loan_amount_value, 'conditions': [], 'reason': '综合资质优良，全额批准'}
+            elif risk_grade == 'R2' or (risk_grade == 'R3' and overdue_count_24m == 0):
+                {'decision': 'APPROVED', 'amount': loan_amount_value * 0.9, 'conditions': ['九折额度'], 'reason': '资质良好，九折批准'}
+            elif risk_grade == 'R3':
+                {'decision': 'CONDITIONAL', 'amount': loan_amount_value * 0.7, 'conditions': ['七折额度', '需提供工资流水3个月'], 'reason': '中等风险，附条件批准'}
+            else:
+                {'decision': 'REJECTED', 'amount': 0, 'conditions': [], 'reason': f'风险等级{risk_grade}不符合分期贷条件'}
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL107_decision_large
+      definition_id: RD107_approval_decision
+      name: "大额信贷审批决策"
+      description: "大额信贷仅接受R1-R3，且需满足更严格的财务条件"
+      applicable_conditions:
+        - classification: loan_type
+          operator: eq
+          value: LARGE_CREDIT
+      when:
+        expression: "true"
+      then_action:
+        action_type: compute
+        output:
+          approval_result: |
+            if risk_grade == 'R1' and post_loan_dti <= 0.4 and net_asset_ratio >= 0.3:
+                {'decision': 'APPROVED', 'amount': loan_amount_value, 'conditions': [], 'reason': '财务状况优异，大额全额批准'}
+            elif risk_grade in ['R1', 'R2'] and post_loan_dti <= 0.5:
+                {'decision': 'APPROVED', 'amount': loan_amount_value * 0.8, 'conditions': ['需提供资产证明', '净资产≥贷款额'], 'reason': '资质达标，八折批准附条件'}
+            elif risk_grade == 'R3' and overdue_count_24m == 0 and net_asset_ratio >= 0.5:
+                {'decision': 'CONDITIONAL', 'amount': loan_amount_value * 0.6, 'conditions': ['需提供抵押物', '六折额度'], 'reason': '中等风险，需抵押担保'}
+            else:
+                {'decision': 'REJECTED', 'amount': 0, 'conditions': [], 'reason': f'大额信贷要求风险等级≤R3且净资产充足，当前不满足'}
+      priority: 100
+      version: 1
+      environment: default

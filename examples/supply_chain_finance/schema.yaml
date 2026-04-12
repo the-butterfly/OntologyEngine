@@ -1,1082 +1,878 @@
 # ============================================================
-# KGML Schema v3.0 - 供应链金融知识图谱 Schema
-# 场景：供应商融资授信风险评估
+# OntologyEngine Schema v2 - 供应链金融授信评估
+# 遵循 canonical grammar spec (docs/05-schema-v2/09-canonical-schema-spec.md)
+# 场景：基于多维数据（交易、担保图谱）的供应商融资授信决策
 # ============================================================
 
-# ============================================================
-# 模块1: metadata - 元信息层
-# ============================================================
-metadata:
-  id: "kg://supply-chain/finance/credit-assessment/1.0"
-  name: "供应链金融授信评估知识图谱"
-  description: "基于供应商多维数据（交易、税务、物流、舆情）构建的融资授信风险评估体系"
-  version: "1.0.0"
-  schema_version: "3.0"
-  domain: "finance/supply-chain/credit-assessment"
-  language: ["zh", "en"]
-  license: "Apache-2.0"
-  authors:
-    - name: "Supply Chain Risk Team"
-      contact: "risk@example.com"
-  dependencies:
-    - id: "kg://common/financial-ontology/1.0"
-      type: "import"
-  metadata:
-    created: "2026-04-07T00:00:00Z"
-    modified: "2026-04-07T00:00:00Z"
+schema_version: "2.0"
+
+semantic_space:
+  id: "space.supply_chain_finance"
+  name: "供应链金融授信评估语义空间"
+  description: |
+    以供应商为核心分析对象，融合发票交易、担保关系、税务合规等多维数据，
+    通过四层知识模型（事实/分类/指标/规则）驱动授信决策推理。
+  type: management
+  status: DRAFT
 
 # ============================================================
-# 模块2: types - 类型系统
+# L1: Fact Objects（事实对象层）
+# 定义领域实体结构与关系，不含任何计算逻辑
 # ============================================================
-types:
-  - name: "Money"
-    description: "带货币的金额"
-    base_type: "object"
-    properties:
-      value:
-        type: "decimal"
-        description: "数值"
-      currency:
-        type: "string"
-        default: "CNY"
-        description: "货币代码"
-    vector_config:
-      enabled: true
-      model: "text-embedding-3-small"
-      dimension: 1536
-      fields: ["value", "currency"]
+fact_objects:
 
-  - name: "Percentage"
-    description: "百分比 0-100"
-    base_type: "float"
-    min: 0.0
-    max: 100.0
-    unit: "%"
+  # ---------- 共享类型 ----------
+  shared_types:
+    - name: Money
+      description: "带货币的金额"
+      base_type: object
+      properties:
+        value: { type: decimal, description: "数值（元）" }
+        currency: { type: string, default: CNY }
 
-  - name: "RiskScore"
-    description: "风险评分 0-100"
-    base_type: "integer"
-    min: 0
-    max: 100
+    - name: Address
+      base_type: object
+      properties:
+        province: { type: string }
+        city: { type: string }
+        district: { type: string }
+        detail: { type: string }
 
-  - name: "CreditGrade"
-    description: "信用等级评分"
-    base_type: "string"
-    enum: ["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D"]
+  # ---------- 枚举 ----------
+  enums:
+    - name: SupplierStatus
+      values:
+        - { id: ACTIVE,    label: "正常经营" }
+        - { id: SUSPENDED, label: "暂停经营" }
+        - { id: REVOKED,   label: "吊销/注销" }
+        - { id: ABNORMAL,  label: "经营异常" }
 
-  - name: "DateRange"
-    description: "日期范围"
-    base_type: "object"
-    properties:
-      start:
-        type: "date"
-      end:
-        type: "date"
+    - name: IndustryType
+      values:
+        - { id: MANUFACTURING, label: "制造业" }
+        - { id: RETAIL,        label: "批发零售" }
+        - { id: TECHNOLOGY,    label: "科技业" }
+        - { id: LOGISTICS,     label: "物流业" }
+        - { id: AGRICULTURE,   label: "农业" }
+        - { id: OTHER,         label: "其他" }
 
-  - name: "Address"
-    description: "地址信息"
-    base_type: "object"
-    properties:
-      province:
-        type: "string"
-      city:
-        type: "string"
-      district:
-        type: "string"
-      detail:
-        type: "string"
+    - name: GuaranteeType
+      values:
+        - { id: JOINT_LIABILITY, label: "连带责任担保" }
+        - { id: MORTGAGE,        label: "抵押担保" }
+        - { id: PLEDGE,          label: "质押担保" }
 
-# ============================================================
-# 模块3: enums - 枚举类型
-# ============================================================
-enums:
-  - name: "SupplierStatus"
-    description: "供应商经营状态"
-    values:
-      - id: "ACTIVE"
-        label: "正常经营"
-        weight: 1.0
-        severity_score: 1
-      - id: "SUSPENDED"
-        label: "暂停经营"
-        weight: 0.5
-        severity_score: 3
-      - id: "REVOKED"
-        label: "吊销/注销"
-        weight: 0.0
-        severity_score: 5
-      - id: "ABNORMAL"
-        label: "经营异常"
-        weight: 0.3
-        severity_score: 4
+  # ---------- 实体对象 ----------
+  entities:
 
-  - name: "RiskLevel"
-    description: "风险等级"
-    values:
-      - id: "LOW"
-        label: "低风险"
-        weight: 0.1
-        severity_score: 1
-        color: "#28a745"
-      - id: "MEDIUM"
-        label: "中风险"
-        weight: 0.5
-        severity_score: 3
-        color: "#ffc107"
-      - id: "HIGH"
-        label: "高风险"
-        weight: 1.0
-        severity_score: 5
-        color: "#dc3545"
+    - id: Supplier
+      name: "供应商"
+      description: "供应链中的供应商/卖方企业，是本空间核心分析对象"
+      attributes:
+        - name: supplier_id
+          type: string
+          required: true
+          unique: true
+          description: "供应商唯一标识"
 
-  - name: "CreditLimitLevel"
-    description: "授信额度等级"
-    values:
-      - id: "UNLIMITED"
-        label: "无限制授信"
-        description: "信用极好，可全额授信"
-      - id: "HIGH"
-        label: "高额度授信"
-        description: "信用良好，高额度授信"
-      - id: "MEDIUM"
-        label: "中额度授信"
-        description: "信用一般，适度授信"
-      - id: "LOW"
-        label: "低额度授信"
-        description: "信用较差，严控额度"
-      - id: "DENIED"
-        label: "拒绝授信"
-        description: "信用极差，拒绝授信"
+        - name: company_name
+          type: string
+          required: true
+          description: "企业名称"
 
-  - name: "IndustryType"
-    description: "行业类型"
-    values:
-      - id: "MANUFACTURING"
-        label: "制造业"
-      - id: "RETAIL"
-        label: "零售业"
-      - id: "LOGISTICS"
-        label: "物流业"
-      - id: "TECHNOLOGY"
-        label: "科技业"
-      - id: "AGRICULTURE"
-        label: "农业"
-      - id: "OTHER"
-        label: "其他"
+        - name: unified_credit_code
+          type: string
+          required: true
+          unique: true
+          description: "统一社会信用代码（18位）"
+          validation:
+            pattern: "^[A-Z0-9]{18}$"
 
-# ============================================================
-# 模块4: concepts - 概念/本体层（核心）
-# ============================================================
-concepts:
-  # ========== 核心实体：供应商 ==========
-  - name: "Supplier"
-    description: "供应链中的供应商/卖方企业"
-    category: "entity"
-    
-    # 基础属性
-    attributes:
-      - name: "supplier_id"
-        type: "string"
-        required: true
-        unique: true
-        description: "供应商唯一标识"
-      
-      - name: "company_name"
-        type: "string"
-        required: true
-        description: "企业名称"
-        vector_config:
-          enabled: true
-          weight: 1.0
-      
-      - name: "unified_credit_code"
-        type: "string"
-        required: true
-        unique: true
-        description: "统一社会信用代码"
-        validation:
-          pattern: "^[A-Z0-9]{18}$"
-      
-      - name: "registered_capital"
-        type: "Money"
-        required: true
-        description: "注册资本"
-      
-      - name: "establishment_date"
-        type: "date"
-        required: true
-        description: "成立日期"
-      
-      - name: "industry_type"
-        type: "IndustryType"
-        required: true
-        description: "所属行业"
-      
-      - name: "company_size"
-        type: "string"
-        enum: ["LARGE", "MEDIUM", "SMALL", "MICRO"]
-        description: "企业规模"
-      
-      - name: "address"
-        type: "Address"
-        description: "注册地址"
-      
-      - name: "status"
-        type: "SupplierStatus"
-        required: true
-        default: "ACTIVE"
-        description: "经营状态"
-      
-      - name: "contact_phone"
-        type: "string"
-        description: "联系电话"
-      
-      - name: "contact_email"
-        type: "string"
-        description: "联系邮箱"
+        - name: registered_capital
+          type: Money
+          required: true
+          description: "注册资本"
 
-    # 关系定义
-    relations:
-      - name: "supplies_to"
-        target: "CoreEnterprise"
-        cardinality: "0..*"
-        description: "为核心企业供货"
-      
-      - name: "has_invoice"
-        target: "Invoice"
-        cardinality: "0..*"
-        description: "持有的发票"
-      
-      - name: "has_contract"
-        target: "Contract"
-        cardinality: "0..*"
-        description: "持有的合同"
-      
-      - name: "has_logistics_record"
-        target: "LogisticsRecord"
-        cardinality: "0..*"
-        description: "物流记录"
-      
-      - name: "guarantees_for"
-        target: "Supplier"
-        cardinality: "0..*"
-        description: "为其他供应商担保"
-      
-      - name: "guaranteed_by"
-        target: "Supplier"
-        cardinality: "0..*"
-        inverse: "guarantees_for"
-        description: "被其他供应商担保"
+        - name: establishment_date
+          type: date
+          required: true
+          description: "成立日期"
 
-  # ========== 核心企业 ==========
-  - name: "CoreEnterprise"
-    description: "供应链中的核心企业/买方"
-    category: "entity"
-    attributes:
-      - name: "enterprise_id"
-        type: "string"
-        required: true
-        unique: true
-      
-      - name: "company_name"
-        type: "string"
-        required: true
-      
-      - name: "credit_rating"
-        type: "string"
-        description: "主体信用评级"
-      
-      - name: "annual_procurement_volume"
-        type: "Money"
-        description: "年采购额"
-    
-    relations:
-      - name: "procures_from"
-        target: "Supplier"
-        cardinality: "0..*"
-        inverse: "supplies_to"
-        description: "从供应商采购"
+        - name: industry_type
+          type: IndustryType
+          required: true
+          description: "所属行业"
 
-  # ========== 发票 ==========
-  - name: "Invoice"
-    description: "增值税发票"
-    category: "entity"
-    attributes:
-      - name: "invoice_no"
-        type: "string"
-        required: true
-        unique: true
-        description: "发票号码"
-      
-      - name: "invoice_type"
-        type: "string"
-        enum: ["SPECIAL", "NORMAL", "ELECTRONIC"]
-        description: "发票类型"
-      
-      - name: "amount"
-        type: "Money"
-        required: true
-        description: "发票金额"
-      
-      - name: "issue_date"
-        type: "date"
-        required: true
-        description: "开票日期"
-      
-      - name: "due_date"
-        type: "date"
-        description: "到期日"
-      
-      - name: "status"
-        type: "string"
-        enum: ["PENDING", "PAID", "OVERDUE", "CANCELLED"]
-        default: "PENDING"
-        description: "发票状态"
-      
-      - name: "is_overdue"
-        type: "boolean"
-        description: "是否逾期"
-        derived: true
-        calculation:
-          type: "formula"
-          expression: "status == 'OVERDUE' OR (due_date IS NOT NULL AND due_date < today())"
-    
-    relations:
-      - name: "issued_by"
-        target: "Supplier"
-        cardinality: "1"
-        inverse: "has_invoice"
-      
-      - name: "issued_to"
-        target: "CoreEnterprise"
-        cardinality: "1"
-        description: "发票开给"
+        - name: company_size
+          type: string
+          enum: [LARGE, MEDIUM, SMALL, MICRO]
+          description: "企业规模"
 
-  # ========== 合同 ==========
-  - name: "Contract"
-    description: "采购合同"
-    category: "entity"
-    attributes:
-      - name: "contract_no"
-        type: "string"
-        required: true
-        unique: true
-      
-      - name: "contract_amount"
-        type: "Money"
-        required: true
-        description: "合同金额"
-      
-      - name: "start_date"
-        type: "date"
-        required: true
-      
-      - name: "end_date"
-        type: "date"
-        required: true
-      
-      - name: "status"
-        type: "string"
-        enum: ["DRAFT", "ACTIVE", "COMPLETED", "TERMINATED"]
-        default: "ACTIVE"
-    
-    relations:
-      - name: "signed_by"
-        target: "Supplier"
-        cardinality: "1"
-        inverse: "has_contract"
-      
-      - name: "signed_with"
-        target: "CoreEnterprise"
-        cardinality: "1"
+        - name: address
+          type: Address
+          description: "注册地址"
 
-  # ========== 物流记录 ==========
-  - name: "LogisticsRecord"
-    description: "物流运输记录"
-    category: "entity"
-    attributes:
-      - name: "tracking_no"
-        type: "string"
-        required: true
-        unique: true
-      
-      - name: "goods_value"
-        type: "Money"
-        description: "货值"
-      
-      - name: "ship_date"
-        type: "date"
-      
-      - name: "receive_date"
-        type: "date"
-      
-      - name: "status"
-        type: "string"
-        enum: ["SHIPPED", "IN_TRANSIT", "DELIVERED", "RETURNED"]
-    
-    relations:
-      - name: "delivered_by"
-        target: "Supplier"
-        cardinality: "1"
-        inverse: "has_logistics_record"
+        - name: status
+          type: SupplierStatus
+          required: true
+          default: ACTIVE
+          description: "当前经营状态"
 
-  # ========== 担保关系 ==========
-  - name: "GuaranteeRelation"
-    description: "供应商之间的担保关系"
-    category: "relation"
-    attributes:
-      - name: "guarantee_amount"
-        type: "Money"
-        required: true
-        description: "担保金额"
-      
-      - name: "guarantee_type"
-        type: "string"
-        enum: ["JOINT_LIABILITY", "MORTGAGE", "PLEDGE"]
-        description: "担保类型"
-      
-      - name: "start_date"
-        type: "date"
-        required: true
-      
-      - name: "end_date"
-        type: "date"
-      
-      - name: "status"
-        type: "string"
-        enum: ["ACTIVE", "EXPIRED", "RELEASED"]
-        default: "ACTIVE"
+        # 用于外部数据直接注入的原子字段
+        - name: tax_compliance_score
+          type: integer
+          description: "税务合规评分（0-100，由税务系统提供）"
+          range: [0, 100]
+
+        - name: negative_news_count_90d
+          type: integer
+          description: "近90天负面新闻数量（由舆情系统提供）"
+          default: 0
+
+      relations:
+        - name: supplies_to
+          target: CoreEnterprise
+          cardinality: "0..*"
+          description: "为核心企业供货"
+
+        - name: has_invoice
+          target: Invoice
+          cardinality: "0..*"
+          description: "持有的发票"
+
+        - name: has_contract
+          target: Contract
+          cardinality: "0..*"
+          description: "持有的采购合同"
+
+    - id: CoreEnterprise
+      name: "核心企业"
+      description: "供应链中的采购方/核心买家，其信用为供应链金融提供底层支撑"
+      attributes:
+        - name: enterprise_id
+          type: string
+          required: true
+          unique: true
+
+        - name: company_name
+          type: string
+          required: true
+
+        - name: credit_rating
+          type: string
+          description: "外部主体信用评级（如 AAA/AA+）"
+
+        - name: annual_procurement_volume
+          type: Money
+          description: "年采购额"
+
+    - id: Invoice
+      name: "发票"
+      description: "增值税发票，记录供应商与核心企业的交易凭证"
+      attributes:
+        - name: invoice_no
+          type: string
+          required: true
+          unique: true
+          description: "发票号码"
+
+        - name: invoice_type
+          type: string
+          enum: [SPECIAL, NORMAL, ELECTRONIC]
+          description: "发票类型"
+
+        - name: amount
+          type: Money
+          required: true
+          description: "发票金额"
+
+        - name: issue_date
+          type: date
+          required: true
+          description: "开票日期"
+
+        - name: due_date
+          type: date
+          description: "应付款日期"
+
+        - name: status
+          type: string
+          enum: [PENDING, PAID, OVERDUE, CANCELLED]
+          default: PENDING
+          description: "付款状态"
+
+      relations:
+        - name: issued_by
+          target: Supplier
+          cardinality: "1"
+          inverse: has_invoice
+
+        - name: issued_to
+          target: CoreEnterprise
+          cardinality: "1"
+
+    - id: Contract
+      name: "采购合同"
+      description: "供应商与核心企业签订的采购合同"
+      attributes:
+        - name: contract_no
+          type: string
+          required: true
+          unique: true
+
+        - name: contract_amount
+          type: Money
+          required: true
+          description: "合同总金额"
+
+        - name: start_date
+          type: date
+          required: true
+
+        - name: end_date
+          type: date
+          required: true
+
+        - name: status
+          type: string
+          enum: [DRAFT, ACTIVE, COMPLETED, TERMINATED]
+          default: ACTIVE
+
+      relations:
+        - name: signed_by
+          target: Supplier
+          cardinality: "1"
+          inverse: has_contract
+
+        - name: signed_with
+          target: CoreEnterprise
+          cardinality: "1"
+
+  # ---------- 关系对象（带属性的边）----------
+  relations:
+
+    - id: GuaranteeRelation
+      name: "担保关系"
+      description: "供应商之间的互保/连保关系，是图风险分析的核心边类型"
+      from: Supplier
+      to: Supplier
+      attributes:
+        - name: guarantee_amount
+          type: Money
+          required: true
+          description: "担保金额"
+
+        - name: guarantee_type
+          type: GuaranteeType
+          description: "担保方式"
+
+        - name: start_date
+          type: date
+          required: true
+
+        - name: end_date
+          type: date
+          description: "到期日（null 表示无固定期限）"
+
+        - name: status
+          type: string
+          enum: [ACTIVE, EXPIRED, RELEASED]
+          default: ACTIVE
+
 
 # ============================================================
-# 模块5: metrics - 指标层
+# L2: Categorizations（分类层）
+# 定义分析视角——决定哪些实体在哪些场景下参与计算
+# 注意：这里不存储派生属性，仅定义分析维度边界
 # ============================================================
-metrics:
-  # ========== 原子指标（直接输入）==========
-  - name: "total_invoice_amount_90d"
-    description: "近90天发票总金额"
-    type: "Money"
-    scope: "Supplier"
-    metric_type: "atomic"
-    data_source:
-      type: "graph"
-      query: |
-        MATCH (s:Supplier {supplier_id: $supplier_id})-[:has_invoice]->(i:Invoice)
-        WHERE i.issue_date >= date_sub(today(), 90)
-        RETURN sum(i.amount.value) AS total
+categorizations:
 
-  - name: "invoice_count_90d"
-    description: "近90天发票数量"
-    type: "integer"
-    scope: "Supplier"
-    metric_type: "atomic"
+  - id: credit_assessment
+    name: "融资授信评估"
+    description: |
+      供应商融资申请时触发的信用评估视角。
+      关注偿债能力、合同履约、担保风险，输出授信额度与决策建议。
+    applicable_to: [Supplier]
+    triggers:
+      - event: financing_application_submitted
+        entity: Supplier
+      - event: periodic_credit_review
+        entity: Supplier
+    filters:
+      - attribute: status
+        operator: EQ
+        value: ACTIVE
 
-  - name: "overdue_invoice_amount"
-    description: "逾期发票金额"
-    type: "Money"
-    scope: "Supplier"
-    metric_type: "atomic"
+  - id: transaction_monitoring
+    name: "交易行为监控"
+    description: |
+      持续监控供应商日常交易行为，识别异常模式（大额突增、高频逾期等）。
+    applicable_to: [Supplier, Invoice]
+    triggers:
+      - event: daily_batch_check
+        entity: Supplier
+      - event: large_invoice_detected
+        entity: Invoice
 
-  - name: "total_contract_amount"
-    description: "合同总金额"
-    type: "Money"
-    scope: "Supplier"
-    metric_type: "atomic"
+  - id: risk_early_warning
+    name: "风险预警"
+    description: |
+      多维风险信号聚合预警，覆盖逾期、舆情、担保圈等风险维度。
+    applicable_to: [Supplier]
+    triggers:
+      - event: overdue_invoice_detected
+        entity: Invoice
+      - event: negative_news_detected
+        entity: Supplier
 
-  - name: "avg_monthly_tax_revenue"
-    description: "月均纳税额"
-    type: "Money"
-    scope: "Supplier"
-    metric_type: "atomic"
-
-  - name: "tax_compliance_score"
-    description: "税务合规评分"
-    type: "RiskScore"
-    scope: "Supplier"
-    metric_type: "atomic"
-
-  - name: "negative_news_count_90d"
-    description: "近90天负面新闻数量"
-    type: "integer"
-    scope: "Supplier"
-    metric_type: "atomic"
-    default: 0
-
-  - name: "core_enterprise_count"
-    description: "合作核心企业数量"
-    type: "integer"
-    scope: "Supplier"
-    metric_type: "atomic"
-
-  # ========== 派生指标（规则计算）==========
-  - name: "overdue_invoice_ratio"
-    description: "逾期发票占比"
-    type: "Percentage"
-    scope: "Supplier"
-    metric_type: "derived"
-    formula: "overdue_invoice_amount.value / total_invoice_amount_90d.value * 100"
-    dependencies:
-      - "overdue_invoice_amount"
-      - "total_invoice_amount_90d"
-    risk_threshold:
-      warning: 5.0
-      critical: 15.0
-
-  - name: "avg_invoice_amount"
-    description: "平均发票金额"
-    type: "Money"
-    scope: "Supplier"
-    metric_type: "derived"
-    formula: "total_invoice_amount_90d.value / invoice_count_90d"
-    dependencies:
-      - "total_invoice_amount_90d"
-      - "invoice_count_90d"
-
-  - name: "contract_utilization_rate"
-    description: "合同执行率"
-    type: "Percentage"
-    scope: "Supplier"
-    metric_type: "derived"
-    formula: "total_invoice_amount_90d.value / total_contract_amount.value * 100"
-    dependencies:
-      - "total_invoice_amount_90d"
-      - "total_contract_amount"
-
-  - name: "business_stability_score"
-    description: "业务稳定性评分"
-    type: "RiskScore"
-    scope: "Supplier"
-    metric_type: "derived"
-    formula: |
-      # 基于合同执行率、交易连续性、买家稳定性的综合评分
-      score = 50
-      if contract_utilization_rate >= 80: score += 20
-      elif contract_utilization_rate >= 50: score += 10
-      
-      if core_enterprise_count >= 3: score += 15
-      elif core_enterprise_count >= 1: score += 5
-      
-      if overdue_invoice_ratio < 5: score += 15
-      elif overdue_invoice_ratio < 10: score += 5
-      
-      return min(score, 100)
-    dependencies:
-      - "contract_utilization_rate"
-      - "core_enterprise_count"
-      - "overdue_invoice_ratio"
-
-  # ========== 图算法指标 ==========
-  - name: "guarantee_chain_depth"
-    description: "担保链深度"
-    type: "integer"
-    scope: "Supplier"
-    metric_type: "graph"
-    algorithm: "longest_path"
-    graph_query: |
-      MATCH path = (s:Supplier {supplier_id: $supplier_id})-[:guarantees_for|guaranteed_by*1..10]-(other:Supplier)
-      RETURN MAX(LENGTH(path)) AS max_depth
-    timeout: 30000
-
-  - name: "network_centrality_score"
-    description: "网络中心性得分"
-    type: "float"
-    scope: "Supplier"
-    metric_type: "graph"
-    algorithm: "page_rank"
-    parameters:
-      dampingFactor: 0.85
-      maxIterations: 100
-
-  # ========== 复合指标（多维度聚合）==========
-  - name: "credit_score"
-    description: "综合信用评分"
-    type: "RiskScore"
-    scope: "Supplier"
-    metric_type: "composite"
-    components:
-      - metric: "business_stability_score"
-        weight: 0.30
-        transform: "value / 100"
-      
-      - metric: "tax_compliance_score"
-        weight: 0.25
-        transform: "value / 100"
-      
-      - metric: "network_centrality_score"
-        weight: 0.15
-        transform: "min(value * 100, 100) / 100"
-      
-      - metric: "reputation_score"
-        weight: 0.15
-        transform: "value / 100"
-      
-      - metric: "guarantee_risk_adjustment"
-        weight: 0.15
-        transform: "max(0, 1 - guarantee_chain_depth / 10)"
-    
-    formula: "SUM(component_score * weight) * 100"
-    output_range: [0, 100]
-    dependencies:
-      - "business_stability_score"
-      - "tax_compliance_score"
-      - "network_centrality_score"
-      - "reputation_score"
-      - "guarantee_chain_depth"
-
-  - name: "reputation_score"
-    description: "声誉风险评分"
-    type: "RiskScore"
-    scope: "Supplier"
-    metric_type: "composite"
-    formula: |
-      base_score = 100
-      # 负面新闻扣分
-      news_deduction = negative_news_count_90d * 10
-      # 逾期记录扣分
-      overdue_deduction = overdue_invoice_ratio * 2
-      return max(0, base_score - news_deduction - overdue_deduction)
-    dependencies:
-      - "negative_news_count_90d"
-      - "overdue_invoice_ratio"
-
-  - name: "guarantee_risk_score"
-    description: "担保风险评分"
-    type: "RiskScore"
-    scope: "Supplier"
-    metric_type: "composite"
-    formula: |
-      if guarantee_chain_depth >= 5: return 20
-      elif guarantee_chain_depth >= 3: return 40
-      elif guarantee_chain_depth >= 1: return 70
-      else: return 100
-    dependencies:
-      - "guarantee_chain_depth"
-
-  # ========== 维度特定指标 ==========
-  - name: "credit_grade"
-    description: "信用等级"
-    type: "CreditGrade"
-    scope: "Supplier"
-    metric_type: "derived"
-    scope_dimensions:
-      - "credit_assessment"
-    formula: |
-      if credit_score >= 90: return "AAA"
-      elif credit_score >= 85: return "AA"
-      elif credit_score >= 80: return "A"
-      elif credit_score >= 70: return "BBB"
-      elif credit_score >= 60: return "BB"
-      elif credit_score >= 50: return "B"
-      elif credit_score >= 40: return "CCC"
-      elif credit_score >= 30: return "CC"
-      elif credit_score >= 20: return "C"
-      else: return "D"
-    dependencies:
-      - "credit_score"
 
 # ============================================================
-# 模块6: rules - 规则推理层
+# L3: Analytical Elements（分析要素层）
+# 定义可量化的业务度量，支持 atomic / derived / composite / graph 四类
+# L3 只声明计算意图，不承担执行逻辑（执行由 MetricEngine 驱动）
 # ============================================================
-rules:
-  # ========== 维度定义 ==========
-  rule_dimensions:
-    dimensions:
-      - name: "credit_assessment"
-        description: "融资授信评估维度"
-        applicable_entities: ["Supplier"]
-        triggers:
-          - event: "financing_application_submitted"
-            entity: "Supplier"
-          - event: "credit_review_scheduled"
-            entity: "Supplier"
-      
-      - name: "transaction_monitoring"
-        description: "交易监控维度"
-        applicable_entities: ["Supplier", "Invoice", "Transaction"]
-        triggers:
-          - event: "large_transaction_detected"
-            entity: "Invoice"
-          - event: "daily_batch_check"
-            entity: "Supplier"
-      
-      - name: "risk_early_warning"
-        description: "风险预警维度"
-        applicable_entities: ["Supplier", "Invoice", "Contract"]
-        triggers:
-          - event: "overdue_invoice_detected"
-            entity: "Invoice"
-          - event: "negative_news_detected"
-            entity: "Supplier"
+analytical_elements:
 
-  # ========== 规则集 ==========
-  ruleset:
-    # ---- 规则1: 基础准入检查 ----
-    - id: "R001_basic_eligibility"
+  metrics:
+    # ========== 原子指标：直接取自事实属性或外部系统 ==========
+
+    - id: total_invoice_amount_90d
+      name: "近90天发票总金额"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --has_invoice--> Invoice"
+        filter: "Invoice.issue_date >= today() - 90d"
+        aggregate: "SUM(Invoice.amount.value)"
+      unit: CNY
+      overridable: false
+
+    - id: invoice_count_90d
+      name: "近90天发票数量"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --has_invoice--> Invoice"
+        filter: "Invoice.issue_date >= today() - 90d"
+        aggregate: "COUNT(Invoice)"
+      overridable: false
+
+    - id: overdue_invoice_amount
+      name: "逾期发票金额"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --has_invoice--> Invoice"
+        filter: "Invoice.status == 'OVERDUE'"
+        aggregate: "SUM(Invoice.amount.value)"
+      unit: CNY
+      overridable: false
+
+    - id: total_contract_amount
+      name: "在执行合同总金额"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --has_contract--> Contract"
+        filter: "Contract.status == 'ACTIVE'"
+        aggregate: "SUM(Contract.contract_amount.value)"
+      unit: CNY
+      overridable: false
+
+    - id: core_enterprise_count
+      name: "合作核心企业数量"
+      element_type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --supplies_to--> CoreEnterprise"
+        aggregate: "COUNT(CoreEnterprise)"
+      overridable: false
+
+    - id: tax_compliance_score
+      name: "税务合规评分"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Supplier
+        attribute: tax_compliance_score
+      range: [0, 100]
+      overridable: true          # 可由 L4 提供实时税务 API 覆盖
+
+    - id: negative_news_count_90d
+      name: "近90天负面新闻数量"
+      element_type: atomic
+      source:
+        type: fact_attribute
+        entity: Supplier
+        attribute: negative_news_count_90d
+      default: 0
+      overridable: true
+
+    # ========== 派生指标：基于原子指标计算 ==========
+
+    - id: overdue_invoice_ratio
+      name: "逾期发票占比"
+      element_type: derived
+      dependencies: [overdue_invoice_amount, total_invoice_amount_90d]
+      formula: "overdue_invoice_amount / total_invoice_amount_90d * 100"
+      unit: "%"
+      range: [0, 100]
+      thresholds:
+        warning: 5.0
+        critical: 15.0
+      overridable: false
+
+    - id: contract_fulfillment_rate
+      name: "合同履约率"
+      description: "近90天发票额与在执行合同额之比，衡量供货兑现度"
+      element_type: derived
+      dependencies: [total_invoice_amount_90d, total_contract_amount]
+      formula: "total_invoice_amount_90d / total_contract_amount * 100"
+      unit: "%"
+      range: [0, 200]           # 可能超100%（多批发票核销同一合同）
+      overridable: false
+
+    - id: business_stability_score
+      name: "业务稳定性评分"
+      description: "综合合同履约率、买家多样性、逾期率的稳定性评估"
+      element_type: derived
+      dependencies:
+        - contract_fulfillment_rate
+        - core_enterprise_count
+        - overdue_invoice_ratio
+      formula: |
+        score = 50
+        if contract_fulfillment_rate >= 80:
+            score += 20
+        elif contract_fulfillment_rate >= 50:
+            score += 10
+        if core_enterprise_count >= 3:
+            score += 15
+        elif core_enterprise_count >= 1:
+            score += 5
+        if overdue_invoice_ratio < 5:
+            score += 15
+        elif overdue_invoice_ratio < 10:
+            score += 5
+        min(score, 100)
+      range: [0, 100]
+      overridable: true
+
+    - id: reputation_score
+      name: "声誉风险评分"
+      description: "基于负面舆情与逾期记录综合评估的声誉分"
+      element_type: derived
+      dependencies: [negative_news_count_90d, overdue_invoice_ratio]
+      formula: "max(0, 100 - negative_news_count_90d * 10 - overdue_invoice_ratio * 2)"
+      range: [0, 100]
+      overridable: true
+
+    # ========== 图指标：基于关系网络计算 ==========
+
+    - id: guarantee_chain_depth
+      name: "担保链深度"
+      description: "从当前供应商出发的最长担保链条长度，深度越大风险越高"
+      element_type: graph
+      algorithm: longest_path
+      traversal:
+        entity: Supplier
+        edge: GuaranteeRelation
+        direction: both
+        max_hops: 10
+        filter: "GuaranteeRelation.status == 'ACTIVE'"
+      default: 0
+      overridable: false
+
+    - id: has_guarantee_cycle
+      name: "是否存在担保圈"
+      description: "检测当前供应商是否处于循环担保圈中"
+      element_type: graph
+      algorithm: cycle_detection
+      traversal:
+        entity: Supplier
+        edge: GuaranteeRelation
+        direction: both
+        max_hops: 10
+        filter: "GuaranteeRelation.status == 'ACTIVE'"
+      output_type: boolean
+      default: false
+      overridable: false
+
+    # ========== 复合指标（评分卡）：多维度加权聚合 ==========
+
+    - id: credit_score
+      name: "综合信用评分"
+      description: |
+        五维度加权信用评分：
+        - 业务稳定性（30%）：合同履约、买家多样性
+        - 税务合规（25%）：纳税合规程度
+        - 声誉风险（20%）：舆情与逾期声誉
+        - 担保风险（15%）：担保链深度调整
+        - 图网络（10%）：供应链网络地位
+      element_type: composite
+      overridable: true            # 支持 L4 按行业类型覆盖权重
+      components:
+        - metric: business_stability_score
+          weight: 0.30
+          transform: "value / 100"
+
+        - metric: tax_compliance_score
+          weight: 0.25
+          transform: "value / 100"
+
+        - metric: reputation_score
+          weight: 0.20
+          transform: "value / 100"
+
+        - metric: guarantee_chain_depth
+          weight: 0.15
+          transform: "max(0, 1 - value / 10)"   # 链深越大，分越低
+
+        - metric: core_enterprise_count
+          weight: 0.10
+          transform: "min(value / 5, 1)"         # 最多5家核心买家满分
+
+      formula: "SUM(transform(component) * weight) * 100"
+      range: [0, 100]
+      dependencies:
+        - business_stability_score
+        - tax_compliance_score
+        - reputation_score
+        - guarantee_chain_depth
+        - core_enterprise_count
+
+  indicators:
+
+    - id: is_eligible
+      name: "是否满足准入条件"
+      element_type: variable     # 由 L4 规则写入，不自行计算
+      output_type: boolean
+      default: false
+
+    - id: risk_level
+      name: "风险等级"
+      element_type: variable
+      output_type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+
+  scorecards:
+    # 评分卡汇总已在 credit_score composite metric 中定义
+    # 此处仅补充等级映射的 canonical 定义
+    - id: credit_grade
+      name: "信用等级"
+      description: "credit_score 映射至标准等级，供决策规则引用"
+      element_type: derived
+      dependencies: [credit_score]
+      formula: |
+        if credit_score >= 90:   "AAA"
+        elif credit_score >= 85: "AA"
+        elif credit_score >= 80: "A"
+        elif credit_score >= 70: "BBB"
+        elif credit_score >= 60: "BB"
+        elif credit_score >= 50: "B"
+        elif credit_score >= 40: "CCC"
+        elif credit_score >= 30: "CC"
+        elif credit_score >= 20: "C"
+        else:                    "D"
+      output_type: string
+      overridable: false
+
+
+# ============================================================
+# L4: Business Logic（业务逻辑层）
+# 规则定义（声明）与规则逻辑（实例）分离，支持多逻辑实例复用同一声明
+# ============================================================
+business_logic:
+
+  # ----------------------------------------------------------
+  # Rule Definitions（规则声明）：描述规则的元数据与 I/O 契约
+  # ----------------------------------------------------------
+  rule_definitions:
+
+    - id: RD001_basic_eligibility
       name: "基础准入检查"
-      description: "供应商融资基础资质检查"
-      type: "constraint"
+      description: "供应商融资申请的基础资质门槛校验，不满足则直接拒绝，不进入后续流程"
+      rule_type: constraint
       priority: 100
+      target_objects: [Supplier]
+      applicable_categorizations: [credit_assessment]
+      input_elements:
+        - { id: status,                    name: "经营状态",       type: attribute }
+        - { id: registered_capital,        name: "注册资本",       type: attribute }
+        - { id: establishment_date,        name: "成立日期",       type: attribute }
+        - { id: total_invoice_amount_90d,  name: "近90天交易额",   type: metric }
+      output_elements:
+        - { id: is_eligible,               name: "是否准入",       type: flag }
+        - { id: rejection_reason,          name: "拒绝原因",       type: computed_value }
+      logic_ids: [RL001_eligibility_standard]
       enabled: true
-      scope:
-        dimensions: ["credit_assessment"]
-        entity_types: ["Supplier"]
-      
-      when:
-        allOf:
-          - expression: "status == 'ACTIVE'"
-          - expression: "registered_capital.value >= 1000000"  # 注册资本>=100万
-          - expression: "days_between(today(), establishment_date) >= 365"  # 成立>=1年
-          - expression: "total_invoice_amount_90d.value >= 500000"  # 近90天交易额>=50万
-      
-      then:
-        action: "approve_eligibility"
-        output:
-          eligible: true
-          next_step: "credit_scoring"
-      
-      else:
-        action: "reject_eligibility"
-        output:
-          eligible: false
-          rejection_reason: "不符合基础准入条件"
 
-    # ---- 规则2: 信用评分计算 ----
-    - id: "R002_credit_score_calculation"
+    - id: RD002_credit_score_compute
       name: "信用评分计算"
-      description: "根据多维度指标计算综合信用评分"
-      type: "inference"
+      description: "驱动 L3 credit_score 指标体系计算，将结果写入上下文供后续规则使用"
+      rule_type: inference
       priority: 90
+      target_objects: [Supplier]
+      applicable_categorizations: [credit_assessment]
+      input_elements:
+        - { id: is_eligible, name: "是否准入", type: flag }
+      output_elements:
+        - { id: credit_score, name: "综合信用评分", type: computed_value }
+        - { id: credit_grade, name: "信用等级",     type: computed_value }
+      logic_ids: [RL002_score_standard, RL002_score_manufacturing_boost]
       enabled: true
-      scope:
-        dimensions: ["credit_assessment"]
-        entity_types: ["Supplier"]
-      
-      when:
-        expression: "eligible == true"
-      
-      then:
-        action: "calculate_credit_score"
-        computation:
-          metric: "credit_score"
-        output:
-          credit_score: "${credit_score}"
-          credit_grade: "${credit_grade}"
 
-    # ---- 规则3: 担保圈检测 ----
-    - id: "R003_guarantee_circle_detection"
+    - id: RD003_guarantee_risk_check
       name: "担保圈风险检测"
-      description: "检测是否存在担保圈（循环担保）风险"
-      type: "alert"
+      description: "利用图算法检测循环担保圈，为预警和额度计算提供风险输入"
+      rule_type: alert
       priority: 95
+      target_objects: [Supplier]
+      applicable_categorizations: [credit_assessment, risk_early_warning]
+      input_elements:
+        - { id: has_guarantee_cycle,    name: "是否存在担保圈", type: metric }
+        - { id: guarantee_chain_depth,  name: "担保链深度",     type: metric }
+      output_elements:
+        - { id: guarantee_alert,        name: "担保风险预警",   type: alert }
+      logic_ids: [RL003_guarantee_alert]
       enabled: true
-      scope:
-        dimensions: ["credit_assessment", "risk_early_warning"]
-        entity_types: ["Supplier"]
 
-      when:
-        expression: "has_guarantee_circle == true OR guarantee_chain_depth >= 3"
-
-      then:
-        action: "trigger_alert"
-        output:
-          alert_level: "critical"
-          alert_type: "guarantee_circle_detected"
-          message: "检测到担保圈风险"
-          recommended_action: "降低授信额度或要求追加担保"
-
-    # ---- 规则4: 授信额度计算 ----
-    - id: "R004_credit_limit_calculation"
+    - id: RD004_credit_limit_calc
       name: "授信额度计算"
-      description: "根据信用评分计算推荐授信额度"
-      type: "inference"
+      description: "基于信用评分和担保风险计算推荐授信额度（万元）"
+      rule_type: inference
       priority: 80
+      target_objects: [Supplier]
+      applicable_categorizations: [credit_assessment]
+      input_elements:
+        - { id: credit_score,          name: "信用评分",   type: metric }
+        - { id: credit_grade,          name: "信用等级",   type: metric }
+        - { id: registered_capital,    name: "注册资本",   type: attribute }
+        - { id: guarantee_chain_depth, name: "担保链深度", type: metric }
+      output_elements:
+        - { id: recommended_credit_limit, name: "推荐授信额度（万元）", type: computed_value }
+      logic_ids: [RL004_limit_formula]
       enabled: true
-      scope:
-        dimensions: ["credit_assessment"]
-        entity_types: ["Supplier"]
-      
-      when:
-        expression: "credit_score IS NOT NULL"
-      
-      then:
-        action: "calculate_credit_limit"
-        computation:
-          formula: |
-            base = registered_capital.value * 0.5
-            multiplier = CASE credit_grade
-              WHEN 'AAA' THEN 2.0
-              WHEN 'AA' THEN 1.8
-              WHEN 'A' THEN 1.5
-              WHEN 'BBB' THEN 1.2
-              WHEN 'BB' THEN 1.0
-              WHEN 'B' THEN 0.8
-              ELSE 0.5
-            END
-            # 担保圈风险调整
-            if guarantee_chain_depth > 0:
-              multiplier = multiplier * (1 - guarantee_chain_depth * 0.1)
-            return base * multiplier
-        output:
-          recommended_credit_limit: "${credit_limit}"
-          credit_limit_level: "${level}"
 
-    # ---- 规则5: 风险预警 ----
-    - id: "R005_risk_early_warning"
-      name: "风险预警触发"
-      description: "根据指标阈值触发风险预警"
-      type: "alert"
+    - id: RD005_risk_early_warning
+      name: "风险指标预警"
+      description: "多维风险信号阈值触发预警，覆盖逾期率、舆情、信用分、担保链"
+      rule_type: alert
       priority: 70
+      target_objects: [Supplier]
+      applicable_categorizations: [risk_early_warning, transaction_monitoring]
+      input_elements:
+        - { id: overdue_invoice_ratio,   name: "逾期率",       type: metric }
+        - { id: negative_news_count_90d, name: "负面新闻数",   type: metric }
+        - { id: credit_score,            name: "信用评分",     type: metric }
+        - { id: guarantee_chain_depth,   name: "担保链深度",   type: metric }
+      output_elements:
+        - { id: risk_warning_list, name: "风险预警列表", type: alert }
+      logic_ids: [RL005_warning_thresholds]
       enabled: true
-      scope:
-        dimensions: ["risk_early_warning"]
-        entity_types: ["Supplier"]
-      
-      when:
-        anyOf:
-          - expression: "overdue_invoice_ratio >= 15"
-          - expression: "negative_news_count_90d >= 3"
-          - expression: "credit_score < 50"
-          - expression: "guarantee_chain_depth >= 5"
-      
-      then:
-        action: "trigger_alert"
-        output:
-          alert_level: "warning"
-          alert_type: "risk_early_warning"
-          message: "检测到风险指标异常"
 
-    # ---- 规则6: 利率定价 ----
-    - id: "R006_interest_rate_pricing"
-      name: "利率定价"
-      description: "根据风险等级确定融资利率"
-      type: "inference"
-      priority: 60
+    - id: RD006_final_decision
+      name: "综合授信决策"
+      description: "综合信用评分、担保风险、预警状态生成最终授信决策"
+      rule_type: decision
+      priority: 50
+      target_objects: [Supplier]
+      applicable_categorizations: [credit_assessment]
+      input_elements:
+        - { id: credit_score,             name: "信用评分",       type: metric }
+        - { id: guarantee_chain_depth,    name: "担保链深度",     type: metric }
+        - { id: has_guarantee_cycle,      name: "是否担保圈",     type: metric }
+        - { id: recommended_credit_limit, name: "推荐额度",       type: computed_value }
+      output_elements:
+        - { id: final_decision,         name: "授信决策",         type: flag }
+        - { id: approved_credit_limit,  name: "批准授信额度（万元）", type: computed_value }
+        - { id: decision_reason,        name: "决策理由",         type: computed_value }
+      logic_ids: [RL006_decision_table]
       enabled: true
-      scope:
-        dimensions: ["credit_assessment"]
-        entity_types: ["Supplier"]
-      
+
+  # ----------------------------------------------------------
+  # Rule Logics（规则逻辑）：条件表达式 + 动作实现
+  # 每个 logic 通过 definition_id 关联到上面的规则声明
+  # ----------------------------------------------------------
+  rule_logics:
+
+    # ---- RL001: 准入检查（通用逻辑） ----
+    - id: RL001_eligibility_standard
+      definition_id: RD001_basic_eligibility
+      name: "标准准入检查"
+      description: "注册资本≥100万、成立≥1年、近90天交易额≥50万"
+      applicable_conditions: []    # 无特殊分类条件，对所有行业适用
+      when:
+        expression: |
+          status == 'ACTIVE'
+          AND registered_capital_value >= 1000000
+          AND days_since(establishment_date) >= 365
+          AND total_invoice_amount_90d >= 500000
+      then_action:
+        action_type: set_flag
+        output:
+          is_eligible: true
+      else_action:
+        action_type: set_flag
+        output:
+          is_eligible: false
+          rejection_reason: "不满足基础准入条件（经营状态、注册资本、成立年限或近期交易额不达标）"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL002: 信用评分（标准行业） ----
+    - id: RL002_score_standard
+      definition_id: RD002_credit_score_compute
+      name: "标准信用评分计算"
+      description: "准入通过后，触发 L3 credit_score 指标体系计算"
+      applicable_conditions: []
+      when:
+        expression: "is_eligible == true"
+      then_action:
+        action_type: compute
+        output:
+          credit_score: "$metric:credit_score"   # 引用 L3 指标计算结果
+          credit_grade: "$metric:credit_grade"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL002b: 制造业信用评分加成 ----
+    - id: RL002_score_manufacturing_boost
+      definition_id: RD002_credit_score_compute
+      name: "制造业信用评分行业加成"
+      description: "制造业供应商因行业稳定性较高，获得额外5分基础加成"
+      applicable_conditions:
+        - classification: industry_type
+          operator: eq
+          value: MANUFACTURING
+      when:
+        expression: "is_eligible == true"
+      then_action:
+        action_type: compute
+        output:
+          credit_score: "min(100, $metric:credit_score + 5)"
+          credit_grade: "$metric:credit_grade"
+      priority: 95              # 低于标准逻辑，仅在行业匹配时覆盖
+      version: 1
+      environment: default
+
+    # ---- RL003: 担保圈预警 ----
+    - id: RL003_guarantee_alert
+      definition_id: RD003_guarantee_risk_check
+      name: "担保圈风险预警"
+      when:
+        expression: "has_guarantee_cycle == true OR guarantee_chain_depth >= 3"
+      then_action:
+        action_type: alert
+        output:
+          alert_level: CRITICAL
+          alert_type: guarantee_circle_detected
+          message: "检测到担保圈或深度担保链（深度={guarantee_chain_depth}），建议降低授信额度或要求追加抵押"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL004: 授信额度计算 ----
+    - id: RL004_limit_formula
+      definition_id: RD004_credit_limit_calc
+      name: "额度计算公式"
+      description: |
+        基础额度 = 注册资本 × 0.5
+        乘数按信用等级：AAA→2.0 / AA→1.8 / A→1.5 / BBB→1.2 / BB→1.0 / B→0.8 / 其他→0.5
+        担保链折扣：每增加1层深度，扣减10%（最多扣减50%）
       when:
         expression: "credit_grade IS NOT NULL"
-      
-      then:
-        action: "determine_interest_rate"
-        computation:
-          formula: |
-            base_rate = 0.05  # 5%基准利率
-            risk_premium = (100 - credit_score) / 100 * 0.05
-            return (base_rate + risk_premium) * 100
+      then_action:
+        action_type: compute
         output:
-          recommended_interest_rate: "${interest_rate}%"
-          rate_type: "浮动利率"
+          recommended_credit_limit: |
+            base = registered_capital_value * 0.5
+            grade_multiplier_map = {
+                'AAA': 2.0, 'AA': 1.8, 'A': 1.5,
+                'BBB': 1.2, 'BB': 1.0, 'B': 0.8
+            }
+            multiplier = grade_multiplier_map.get(credit_grade, 0.5)
+            guarantee_discount = max(0.5, 1 - guarantee_chain_depth * 0.1)
+            base * multiplier * guarantee_discount / 10000
+      priority: 100
+      version: 1
+      environment: default
 
-    # ---- 规则7: 综合授信决策 ----
-    - id: "R007_comprehensive_credit_decision"
-      name: "综合授信决策"
-      description: "综合所有因素生成最终授信决策"
-      type: "decision"
-      priority: 50
-      enabled: true
-      scope:
-        dimensions: ["credit_assessment"]
-        entity_types: ["Supplier"]
-      
+    # ---- RL005: 多维风险预警阈值 ----
+    - id: RL005_warning_thresholds
+      definition_id: RD005_risk_early_warning
+      name: "多维风险阈值预警"
+      description: "任一维度超过阈值即触发对应预警，多个维度可同时触发"
       when:
-        expression: "true"
-      
-      then:
-        action: "generate_decision"
-        computation:
-          rule_chain:
-            - condition: "credit_score >= 80 AND guarantee_chain_depth < 2"
-              decision: "APPROVE"
-              limit_multiplier: 1.5
-              requires_guarantee: false
-            
-            - condition: "credit_score >= 60 AND guarantee_chain_depth < 3"
-              decision: "APPROVE_WITH_CONDITIONS"
-              limit_multiplier: 1.0
-              requires_guarantee: true
-            
-            - condition: "credit_score >= 40"
-              decision: "APPROVE_RESTRICTED"
-              limit_multiplier: 0.5
-              requires_guarantee: true
-            
-            - condition: "true"
-              decision: "REJECT"
-              reason: "信用评分过低"
-        
+        expression: |
+          overdue_invoice_ratio >= 15
+          OR negative_news_count_90d >= 3
+          OR credit_score < 50
+          OR guarantee_chain_depth >= 5
+      then_action:
+        action_type: alert
         output:
-          final_decision: "${decision}"
-          approved_credit_limit: "${approved_limit}"
-          requires_additional_guarantee: "${requires_guarantee}"
-          decision_reasoning: "${reasoning}"
+          risk_warning_list:
+            - condition: "overdue_invoice_ratio >= 15"
+              level: HIGH
+              message: "逾期发票占比过高（{overdue_invoice_ratio:.1f}%），需关注资金周转"
+            - condition: "negative_news_count_90d >= 3"
+              level: MEDIUM
+              message: "近90天存在{negative_news_count_90d}条负面舆情，建议人工核查"
+            - condition: "credit_score < 50"
+              level: HIGH
+              message: "综合信用评分低于50分（当前{credit_score:.0f}），授信风险较高"
+            - condition: "guarantee_chain_depth >= 5"
+              level: CRITICAL
+              message: "担保链深度达{guarantee_chain_depth}层，存在系统性连锁风险"
+      priority: 100
+      version: 1
+      environment: default
 
-    # ---- 规则8: 大额交易监控 ----
-    - id: "R008_large_transaction_monitor"
-      name: "大额交易监控"
-      description: "检测大额交易并触发监控预警"
-      type: "alert"
-      priority: 85
-      enabled: true
-      scope:
-        dimensions: ["transaction_monitoring"]
-        entity_types: ["Supplier"]
-      
+    # ---- RL006: 最终授信决策表 ----
+    - id: RL006_decision_table
+      definition_id: RD006_final_decision
+      name: "授信决策表"
+      description: |
+        优先级排列的决策分支：
+        1. APPROVE          — 高信用 + 低担保风险
+        2. APPROVE_WITH_CONDITIONS — 中信用 OR 中担保风险
+        3. APPROVE_RESTRICTED      — 低信用（临界）
+        4. REJECT                  — 不符合授信条件
       when:
-        expression: "total_invoice_amount_90d.value >= 10000000"  # 90天交易额>=1000万
-      
-      then:
-        action: "trigger_alert"
+        expression: "true"    # 总是执行，内部走分支
+      then_action:
+        action_type: compute
         output:
-          alert_level: "info"
-          alert_type: "large_transaction_detected"
-          message: "检测到大额交易，建议加强监控"
-          recommended_action: "增加交易核查频率"
-
-    # ---- 规则9: 交易波动性检测 ----
-    - id: "R009_transaction_volatility"
-      name: "交易波动性检测"
-      description: "检测交易金额异常波动"
-      type: "alert"
-      priority: 75
-      enabled: true
-      scope:
-        dimensions: ["transaction_monitoring"]
-        entity_types: ["Supplier"]
-      
-      when:
-        expression: "invoice_count_90d >= 1 AND avg_invoice_amount.value >= 5000000"  # 平均发票金额>=500万
-      
-      then:
-        action: "trigger_alert"
-        output:
-          alert_level: "warning"
-          alert_type: "high_value_transaction"
-          message: "检测到高价值交易模式"
-
-# ============================================================
-# 模块7: data_sources - 数据源映射层
-# ============================================================
-data_sources:
-  - name: "erp_system"
-    type: "postgresql"
-    connection: "${ERP_DB_CONNECTION}"
-    description: "核心ERP系统"
-    
-    tables:
-      - source_table: "suppliers"
-        target_concept: "Supplier"
-        mapping:
-          supplier_code: "supplier_id"
-          company_full_name: "company_name"
-          credit_code: "unified_credit_code"
-          reg_capital: "registered_capital.value"
-          established_date: "establishment_date"
-          industry_category: "industry_type"
-          company_scale: "company_size"
-          business_status: "status"
-      
-      - source_table: "invoices"
-        target_concept: "Invoice"
-        mapping:
-          invoice_number: "invoice_no"
-          invoice_category: "invoice_type"
-          total_amount: "amount.value"
-          billing_date: "issue_date"
-          payment_due_date: "due_date"
-          invoice_status: "status"
-    
-    relations:
-      - source_join:
-          table: "invoices"
-          field: "supplier_code"
-        target:
-          concept: "Supplier"
-          field: "supplier_id"
-        relation: "has_invoice"
-
-  - name: "tax_system_api"
-    type: "rest_api"
-    endpoint: "https://api.tax.gov.cn/v2"
-    auth:
-      type: "bearer_token"
-      token: "${TAX_API_TOKEN}"
-    description: "税务系统API"
-
-  - name: "news_monitoring"
-    type: "rest_api"
-    endpoint: "https://api.news-monitor.com/v1"
-    auth:
-      type: "api_key"
-      key: "${NEWS_API_KEY}"
-    description: "舆情监控系统"
-
-# ============================================================
-# 模块8: vector_config - 向量检索配置
-# ============================================================
-vector_config:
-  global:
-    index_type: "HNSW"
-    distance_metric: "cosine"
-    dimension: 1536
-    model: "text-embedding-3-small"
-  
-  indexes:
-    - name: "supplier_semantic_search"
-      type: "HNSW"
-      metric: "cosine"
-      fields:
-        - "Supplier.company_name"
-        - "Supplier.address.detail"
-      concepts: ["Supplier"]
-    
-    - name: "risk_similarity"
-      type: "IVF_FLAT"
-      metric: "l2"
-      fields:
-        - "Supplier.credit_score"
-        - "Supplier.overdue_invoice_ratio"
-      concepts: ["Supplier"]
-
-# ============================================================
-# 模块9: llm_config - 大模型配置层
-# ============================================================
-llm_config:
-  providers:
-    - name: "openai"
-      type: "openai"
-      model: "gpt-4o"
-      api_key: "${OPENAI_API_KEY}"
-      default: true
-      config:
-        temperature: 0.3
-        max_tokens: 2000
-  
-  prompt_templates:
-    credit_assessment_explanation: |
-      请基于以下供应商数据，生成授信评估解释：
-      
-      供应商名称: {company_name}
-      信用评分: {credit_score}
-      信用等级: {credit_grade}
-      注册资本: {registered_capital}
-      成立时间: {establishment_date}
-      
-      业务指标:
-      - 近90天交易额: {total_invoice_amount_90d}
-      - 合同执行率: {contract_utilization_rate}%
-      - 逾期发票占比: {overdue_invoice_ratio}%
-      
-      风险评估:
-      - 担保链深度: {guarantee_chain_depth}
-      - 负面新闻数: {negative_news_count_90d}
-      
-      请用简洁专业的语言解释该供应商的信用状况和授信建议。
-    
-    risk_alert_analysis: |
-      分析供应商 {company_name} 的风险预警：
-      预警类型: {alert_type}
-      预警级别: {alert_level}
-      
-      请给出风险成因分析和应对建议。
+          final_decision_result: |
+            if credit_score >= 80 and not has_guarantee_cycle and guarantee_chain_depth < 2:
+                decision = 'APPROVE'
+                limit = recommended_credit_limit * 1.0
+                reason = '信用状况优良，担保风险低，全额批准'
+            elif credit_score >= 60 and guarantee_chain_depth < 3:
+                decision = 'APPROVE_WITH_CONDITIONS'
+                limit = recommended_credit_limit * 0.8
+                reason = '信用良好但存在一定风险，附条件批准（需提供追加担保）'
+            elif credit_score >= 40:
+                decision = 'APPROVE_RESTRICTED'
+                limit = recommended_credit_limit * 0.5
+                reason = '信用评分较低，严格限额批准'
+            else:
+                decision = 'REJECT'
+                limit = 0
+                reason = '综合信用评分不达标（< 40分），拒绝授信'
+            {
+              'final_decision': decision,
+              'approved_credit_limit': limit,
+              'decision_reason': reason
+            }
+      priority: 100
+      version: 1
+      environment: default

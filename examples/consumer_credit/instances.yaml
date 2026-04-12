@@ -1,0 +1,232 @@
+# ============================================================
+# OntologyEngine 个人消费信贷 - 验收实例数据
+#
+# 场景设计（三条主路径 + 三类产品交叉）：
+#   CASE-P: 优质借款人（全职高收入，低DTI，良好征信）→ 三类产品均通过
+#   CASE-M: 中等借款人（自雇，中等收入，偶有逾期）→ 快贷通过/分期附条件/大额拒绝
+#   CASE-R: 关联风险借款人（共借人当前逾期，自身资质尚可）→ 图算法路径验收
+# ============================================================
+
+instances:
+
+  # ============================================================
+  # CASE-P: 张伟 — 优质借款人（正常路径）
+  # 全职工程师，月入3万，无历史逾期，低DTI
+  # ============================================================
+  - fact_object: Borrower
+    data:
+      - borrower_id: "BRW_P"
+        name: "张伟"
+        id_number: "110105198801010011"
+        age: 36
+        monthly_income: { value: 30000, currency: CNY }
+        employment:
+          employer_name: "某科技股份有限公司"
+          job_title: "高级工程师"
+          employment_type: FULL_TIME
+          years_employed: 5
+        monthly_obligations: { value: 3000, currency: CNY }   # 房贷月供
+        total_assets: { value: 3000000, currency: CNY }        # 含房产300万
+        total_liabilities: { value: 800000, currency: CNY }    # 房贷余额
+        residence_years: 8
+        # 外部注入
+        credit_bureau_score: 720
+        overdue_count_24m: 0
+        current_overdue_amount: { value: 0, currency: CNY }
+        is_blacklisted: false
+        online_behavior_score: 85
+
+  - fact_object: RepaymentRecord
+    data:
+      # 连续24期按时还款记录（房贷）
+      - record_id: "RPY_P_001"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2026-03-01"
+        actual_payment_date: "2026-03-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_002"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2026-02-01"
+        actual_payment_date: "2026-02-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      # 省略中间22条（在测试用例中标注 repayment_on_time_count=24, total=24）
+
+  - fact_object: LoanApplication
+    data:
+      # 申请分期贷 20万 24期
+      - application_id: "APP_P_INSTALLMENT"
+        loan_amount: { value: 200000, currency: CNY }
+        loan_term_months: 24
+        loan_type: INSTALLMENT
+        loan_purpose: HOME_IMPROVE
+        status: SUBMITTED
+        submitted_at: "2026-04-13T09:00:00"
+        applied_by: { borrower_id: "BRW_P" }
+
+      # 同一借款人同时模拟快贷申请
+      - application_id: "APP_P_QUICK"
+        loan_amount: { value: 30000, currency: CNY }
+        loan_term_months: 12
+        loan_type: QUICK_LOAN
+        loan_purpose: CONSUMPTION
+        status: SUBMITTED
+        submitted_at: "2026-04-13T09:05:00"
+        applied_by: { borrower_id: "BRW_P" }
+
+  # ============================================================
+  # CASE-M: 李敏 — 中等风险借款人（产品边界测试）
+  # 自雇，月入8000元，有1次逾期，DTI中等
+  # 预期：快贷通过 / 分期附条件 / 大额拒绝
+  # ============================================================
+  - fact_object: Borrower
+    data:
+      - borrower_id: "BRW_M"
+        name: "李敏"
+        id_number: "440305199005152222"
+        age: 34
+        monthly_income: { value: 8000, currency: CNY }
+        employment:
+          employer_name: "个体工商户（餐饮）"
+          job_title: "经营者"
+          employment_type: SELF_EMPLOYED
+          years_employed: 3
+        monthly_obligations: { value: 1500, currency: CNY }
+        total_assets: { value: 300000, currency: CNY }
+        total_liabilities: { value: 50000, currency: CNY }
+        residence_years: 5
+        credit_bureau_score: 610
+        overdue_count_24m: 1
+        current_overdue_amount: { value: 0, currency: CNY }   # 当前无逾期（历史有1次）
+        is_blacklisted: false
+        online_behavior_score: 65
+
+  - fact_object: RepaymentRecord
+    data:
+      # 23期按时 + 1期逾期（7天）
+      - record_id: "RPY_M_001"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-12-01"
+        actual_payment_date: "2025-12-08"   # 逾期7天
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 7
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_002"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2026-01-01"
+        actual_payment_date: "2026-01-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+  - fact_object: LoanApplication
+    data:
+      # 申请快贷 3万 12期
+      - application_id: "APP_M_QUICK"
+        loan_amount: { value: 30000, currency: CNY }
+        loan_term_months: 12
+        loan_type: QUICK_LOAN
+        loan_purpose: CONSUMPTION
+        status: SUBMITTED
+        submitted_at: "2026-04-13T10:00:00"
+        applied_by: { borrower_id: "BRW_M" }
+
+      # 申请分期贷 15万 36期（产品边界测试）
+      - application_id: "APP_M_INSTALLMENT"
+        loan_amount: { value: 150000, currency: CNY }
+        loan_term_months: 36
+        loan_type: INSTALLMENT
+        loan_purpose: HOME_IMPROVE
+        status: SUBMITTED
+        submitted_at: "2026-04-13T10:05:00"
+        applied_by: { borrower_id: "BRW_M" }
+
+      # 申请大额信贷 50万 48期（预期被拒）
+      - application_id: "APP_M_LARGE"
+        loan_amount: { value: 500000, currency: CNY }
+        loan_term_months: 48
+        loan_type: LARGE_CREDIT
+        loan_purpose: CONSUMPTION
+        status: SUBMITTED
+        submitted_at: "2026-04-13T10:10:00"
+        applied_by: { borrower_id: "BRW_M" }
+
+  # ============================================================
+  # CASE-R: 王芳 — 关联风险借款人（图算法路径）
+  # 自身资质良好（月入1.5万，零逾期），但共同借款人陈刚当前逾期
+  # 预期：图算法识别网络风险 → 触发预警 → 影响审批决策
+  # ============================================================
+  - fact_object: Borrower
+    data:
+      # 主借款人：王芳
+      - borrower_id: "BRW_R_WANG"
+        name: "王芳"
+        id_number: "310108199203083333"
+        age: 32
+        monthly_income: { value: 15000, currency: CNY }
+        employment:
+          employer_name: "某金融机构"
+          job_title: "客户经理"
+          employment_type: FULL_TIME
+          years_employed: 4
+        monthly_obligations: { value: 2000, currency: CNY }
+        total_assets: { value: 800000, currency: CNY }
+        total_liabilities: { value: 200000, currency: CNY }
+        residence_years: 6
+        credit_bureau_score: 680
+        overdue_count_24m: 0
+        current_overdue_amount: { value: 0, currency: CNY }
+        is_blacklisted: false
+        online_behavior_score: 78
+
+      # 共同借款人：陈刚（当前逾期）
+      - borrower_id: "BRW_R_CHEN"
+        name: "陈刚"
+        id_number: "440306198807074444"
+        age: 37
+        monthly_income: { value: 6000, currency: CNY }
+        employment:
+          employer_name: "某建筑公司"
+          job_title: "施工员"
+          employment_type: FULL_TIME
+          years_employed: 2
+        monthly_obligations: { value: 3000, currency: CNY }
+        total_assets: { value: 100000, currency: CNY }
+        total_liabilities: { value: 80000, currency: CNY }
+        residence_years: 3
+        credit_bureau_score: 540
+        overdue_count_24m: 3
+        current_overdue_amount: { value: 15000, currency: CNY }   # 当前逾期 1.5万
+        is_blacklisted: false
+        online_behavior_score: 45
+
+  # 王芳与陈刚的共同借款关系
+  - fact_object: BorrowerRelation
+    data:
+      - from_borrower_id: "BRW_R_WANG"
+        to_borrower_id: "BRW_R_CHEN"
+        relation_type: CO_BORROWER
+        related_loan_amount: { value: 100000, currency: CNY }
+        established_at: "2024-06-01"
+
+  - fact_object: LoanApplication
+    data:
+      # 王芳申请分期贷 10万 24期
+      - application_id: "APP_R_WANG_INST"
+        loan_amount: { value: 100000, currency: CNY }
+        loan_term_months: 24
+        loan_type: INSTALLMENT
+        loan_purpose: EDUCATION
+        status: SUBMITTED
+        submitted_at: "2026-04-13T11:00:00"
+        applied_by: { borrower_id: "BRW_R_WANG" }

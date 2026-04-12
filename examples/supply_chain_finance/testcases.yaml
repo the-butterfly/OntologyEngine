@@ -1,0 +1,349 @@
+# ============================================================
+# 供应链金融授信评估 — 验收用例规格
+#
+# 用途：描述规则引擎执行和模拟分析的预期行为，用于功能验收
+# 数据来源：instances.yaml
+# Schema 来源：schema.yaml
+#
+# 每条测试用例包含：
+#   - 输入（entity_id + 激活的分类维度）
+#   - 预期的中间指标值（用于验证 L3 计算）
+#   - 预期的规则执行步骤（用于验证 L4 链路）
+#   - 预期的最终输出
+# ============================================================
+
+test_suite:
+  id: "supply_chain_finance_v2"
+  name: "供应链金融授信评估验收套件"
+  schema: "examples/supply_chain_finance/schema.yaml"
+  instances: "examples/supply_chain_finance/instances.yaml"
+
+# ============================================================
+# TC-01: 优质供应商 — 完整正常路径
+# 目标：验证 L3 指标 DAG 正确计算，L4 规则链全程通过，输出 APPROVE
+# ============================================================
+test_cases:
+
+  - id: TC-01
+    name: "优质供应商完整授信流程"
+    entity_id: "SUP_A"
+    categorization: credit_assessment
+    tags: [smoke, happy_path, l3_dag, l4_chain]
+
+    # ---- 预期 L3 指标值 ----
+    expected_metrics:
+      total_invoice_amount_90d:
+        value: 12450000       # 280万+350万+420万+180万+15万
+        tolerance: 1000       # 允许1000元误差（日期边界）
+      overdue_invoice_amount:
+        value: 150000
+      invoice_count_90d:
+        value: 5
+      overdue_invoice_ratio:
+        value: 1.21
+        tolerance: 0.1        # 单位 %
+      total_contract_amount:
+        value: 23000000       # 1500万+800万
+      contract_fulfillment_rate:
+        value: 54.13
+        tolerance: 1.0
+      core_enterprise_count:
+        value: 2
+      tax_compliance_score:
+        value: 88
+      negative_news_count_90d:
+        value: 0
+      business_stability_score:
+        value: 75             # score=50 + 10(履约率≥50%) + 5(买家≥1) + 15(逾期率<5%) → 80？
+        # 注：50 + 10 + 5 + 15 = 80，制造业加成后 credit_score 再+5，但 stability 本身 = 80
+        expected_value: 80
+        tolerance: 0
+      reputation_score:
+        value: 100            # 100 - 0*10 - 1.21*2 ≈ 97.6
+        expected_value: 97
+        tolerance: 2
+      guarantee_chain_depth:
+        value: 0
+      has_guarantee_cycle:
+        value: false
+      credit_score:
+        # 制造业加成：(80/100*0.30 + 88/100*0.25 + 97/100*0.20 + (1-0)*0.15 + min(2/5,1)*0.10)*100 + 5
+        # = (0.24+0.22+0.194+0.15+0.04)*100 + 5 = 84.4+5 = 89.4
+        value: 89
+        tolerance: 3
+      credit_grade:
+        value: "AA"           # score≈89 → AA（85≤score<90）
+
+    # ---- 预期规则执行步骤 ----
+    expected_rule_steps:
+      - rule_id: RD001_basic_eligibility
+        logic_id: RL001_eligibility_standard
+        fired: true
+        condition_result: true
+        output:
+          is_eligible: true
+
+      - rule_id: RD003_guarantee_risk_check
+        logic_id: RL003_guarantee_alert
+        fired: false           # 担保深度=0，不触发预警
+        reason: "guarantee_chain_depth=0 AND has_guarantee_cycle=false"
+
+      - rule_id: RD002_credit_score_compute
+        logic_id: RL002_score_manufacturing_boost    # 制造业分支优先匹配
+        fired: true
+        output:
+          credit_score_gte: 85
+          credit_grade: "AA"
+
+      - rule_id: RD004_credit_limit_calc
+        logic_id: RL004_limit_formula
+        fired: true
+        output:
+          # base=2500万, multiplier_AA=1.8, discount=1.0, /10000=450万
+          recommended_credit_limit_gte: 4000000   # 单位：万元，即≥4000万元/10000
+          # 修正：base=50000000*0.5=25000000, *1.8=45000000, /10000=4500（单位万元）
+          recommended_credit_limit_range: [3000, 5000]   # 单位：万元
+
+      - rule_id: RD005_risk_early_warning
+        logic_id: RL005_warning_thresholds
+        fired: false           # 所有指标均未超警戒阈值
+        reason: "overdue_ratio=1.21%<15%, news=0<3, score≥50, depth=0<5"
+
+      - rule_id: RD006_final_decision
+        logic_id: RL006_decision_table
+        fired: true
+        output:
+          final_decision: APPROVE
+          approved_credit_limit_range: [3000, 5000]   # 单位：万元
+
+    # ---- 预期最终输出 ----
+    expected_output:
+      final_decision: APPROVE
+      has_alerts: false
+      approved_credit_limit_min: 3000   # 万元
+      credit_grade: "AA"
+      is_eligible: true
+
+  # ============================================================
+  # TC-02: 高风险供应商 — 准入失败路径
+  # 目标：验证准入规则短路，流程不进入评分阶段
+  # ============================================================
+  - id: TC-02
+    name: "高风险供应商准入失败"
+    entity_id: "SUP_B"
+    categorization: credit_assessment
+    tags: [smoke, rejection_path, constraint_rule]
+
+    expected_metrics:
+      total_invoice_amount_90d:
+        value: 1000000        # 50万+30万+20万
+      overdue_invoice_amount:
+        value: 800000         # 50万+30万
+      overdue_invoice_ratio:
+        value: 80.0
+        tolerance: 1.0
+      tax_compliance_score:
+        value: 42
+      negative_news_count_90d:
+        value: 4
+
+    expected_rule_steps:
+      - rule_id: RD001_basic_eligibility
+        logic_id: RL001_eligibility_standard
+        fired: true
+        condition_result: false     # days_since(2025-09-01) ≈ 224天 < 365
+        failing_condition: "days_since(establishment_date) >= 365"
+        output:
+          is_eligible: false
+          rejection_reason_contains: "成立年限"
+
+      # 后续规则不应执行（短路）
+      - rule_id: RD002_credit_score_compute
+        fired: false
+        reason: "is_eligible=false，短路终止"
+
+      - rule_id: RD006_final_decision
+        fired: false
+        reason: "准入失败后不进入决策流程"
+
+    expected_output:
+      final_decision: REJECT
+      is_eligible: false
+      rejection_reason_not_null: true
+      has_credit_score: false       # 不应计算信用评分
+
+  # ============================================================
+  # TC-03: 担保圈供应商（SUP_C_A）— 图算法路径
+  # 目标：验证图算法识别担保圈，预警正确触发，额度正确打折
+  # ============================================================
+  - id: TC-03
+    name: "担保圈供应商图算法检测"
+    entity_id: "SUP_C_A"
+    categorization: credit_assessment
+    tags: [smoke, graph_algorithm, alert_rule, guarantee_circle]
+
+    expected_metrics:
+      total_invoice_amount_90d:
+        value: 3500000        # 150万+200万
+      invoice_count_90d:
+        value: 2
+      overdue_invoice_amount:
+        value: 0
+      overdue_invoice_ratio:
+        value: 0.0
+      total_contract_amount:
+        value: 5000000
+      contract_fulfillment_rate:
+        value: 70.0
+        tolerance: 5.0
+      core_enterprise_count:
+        value: 2              # CE_HW + CE_BYD
+      tax_compliance_score:
+        value: 75
+      negative_news_count_90d:
+        value: 0
+      guarantee_chain_depth:
+        value: 2              # A→C→B 或 A→被B担保，三角圈中最长路径为2
+      has_guarantee_cycle:
+        value: true           # A→C→B→A，形成环路
+      business_stability_score:
+        value: 75             # 50 + 10(履约率70%≥50%) + 5(买家≥1) + 15(逾期率=0) → 80
+        expected_value: 80
+        tolerance: 5
+      credit_score:
+        # (80/100*0.30 + 75/100*0.25 + 100/100*0.20 + (1-0.2)*0.15 + min(2/5,1)*0.10)*100
+        # = (0.24+0.1875+0.20+0.12+0.04)*100 = 78.75
+        # 制造业+5 → 83.75
+        value: 79
+        tolerance: 5
+
+    expected_rule_steps:
+      - rule_id: RD001_basic_eligibility
+        fired: true
+        condition_result: true
+        output:
+          is_eligible: true
+
+      - rule_id: RD003_guarantee_risk_check
+        logic_id: RL003_guarantee_alert
+        fired: true            # has_guarantee_cycle=true → 触发
+        condition_result: true
+        output:
+          alert_level: CRITICAL
+          alert_type: guarantee_circle_detected
+          message_contains: "担保圈"
+
+      - rule_id: RD004_credit_limit_calc
+        fired: true
+        output:
+          # base=10000000*0.5=5000000, 制造业约0.80级别乘数（~1.5 for A级），
+          # guarantee_discount=max(0.5, 1-2*0.1)=0.8
+          # 5000000 * 1.5 * 0.8 / 10000 = 600万元 (近似)
+          recommended_credit_limit_range: [400, 900]   # 万元，宽容范围
+
+      - rule_id: RD006_final_decision
+        logic_id: RL006_decision_table
+        fired: true
+        output:
+          # score≈79-84，has_guarantee_cycle=true → 不满足 APPROVE 条件（需要非担保圈）
+          # depth=2 < 3 → 满足 APPROVE_WITH_CONDITIONS
+          final_decision: APPROVE_WITH_CONDITIONS
+          approved_credit_limit_lt: recommended_credit_limit   # 8折
+
+    expected_output:
+      final_decision: APPROVE_WITH_CONDITIONS
+      has_alerts: true
+      alert_levels_contain: [CRITICAL]
+      is_eligible: true
+
+  # ============================================================
+  # TC-04: 担保圈内全员检测（批量验证）
+  # 目标：验证三角圈中的 B、C 也能被正确识别
+  # ============================================================
+  - id: TC-04
+    name: "担保圈全员检测（SUP_C_B）"
+    entity_id: "SUP_C_B"
+    categorization: credit_assessment
+    tags: [graph_algorithm, guarantee_circle]
+
+    expected_metrics:
+      has_guarantee_cycle:
+        value: true           # B 同样在圈中
+      guarantee_chain_depth:
+        value: 2              # 三角圈中每个节点深度均为2
+
+    expected_rule_steps:
+      - rule_id: RD003_guarantee_risk_check
+        fired: true
+        output:
+          alert_level: CRITICAL
+
+    expected_output:
+      final_decision: APPROVE_WITH_CONDITIONS
+      has_alerts: true
+
+  # ============================================================
+  # TC-05: 风险预警维度 — 多维异常触发
+  # 目标：验证 RD005 可同时产生多条不同级别的预警
+  # 使用一个假设的供应商配置（what-if 模拟场景）
+  # ============================================================
+  - id: TC-05
+    name: "多维风险预警触发（What-if 模拟）"
+    entity_id: "SUP_A"          # 基于 SUP_A 做 what-if 变更
+    categorization: risk_early_warning
+    tags: [what_if, alert_rule, simulation]
+    mode: simulation            # 仅内存计算，不持久化
+
+    # what-if 输入覆盖（覆盖原始数据）
+    overrides:
+      overdue_invoice_amount: 2000000    # 逾期比例拉高到 ~16%
+      negative_news_count_90d: 4         # 超过3条预警阈值
+      guarantee_chain_depth: 6           # 超过5层临界
+
+    expected_rule_steps:
+      - rule_id: RD005_risk_early_warning
+        fired: true
+        expected_alerts:
+          - condition: "overdue_invoice_ratio >= 15"
+            level: HIGH
+          - condition: "negative_news_count_90d >= 3"
+            level: MEDIUM
+          - condition: "guarantee_chain_depth >= 5"
+            level: CRITICAL
+
+    expected_output:
+      has_alerts: true
+      alert_count_gte: 3
+      alert_levels_contain: [HIGH, MEDIUM, CRITICAL]
+      # What-if 的核心验收：输出对比原始状态的 diff
+      impact_diff:
+        credit_score_delta_lt: -10       # 评分应下降超过10分
+        final_decision_changed: true     # 决策应由 APPROVE 变为更低级别
+
+  # ============================================================
+  # TC-06: 规则逻辑分支覆盖 — 批发零售行业（无加成）
+  # 目标：验证 RL002_score_manufacturing_boost 仅对制造业生效
+  # ============================================================
+  - id: TC-06
+    name: "批发零售行业不触发制造业加成"
+    entity_id: "SUP_B"
+    categorization: credit_assessment
+    tags: [rule_logic_branch, boundary_test]
+    mode: simulation
+
+    # 假设 SUP_B 满足准入（放宽成立年限限制做边界测试）
+    overrides:
+      establishment_date: "2020-01-01"   # 改为满足年限条件
+      tax_compliance_score: 70
+      negative_news_count_90d: 0
+
+    expected_rule_steps:
+      - rule_id: RD002_credit_score_compute
+        # SUP_B 是 RETAIL 行业，不应匹配制造业加成逻辑
+        logic_id: RL002_score_standard           # 应使用标准逻辑
+        fired: true
+        logic_not_fired: RL002_score_manufacturing_boost  # 不应触发
+
+    expected_output:
+      is_eligible: true
+      credit_score_lt: 70      # 无制造业加成 + 高逾期率，评分较低
