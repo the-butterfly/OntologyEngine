@@ -1,8 +1,8 @@
 # Schema v2 完整示例
 
 > 供应链金融场景
-> **[待扩展]**: 本示例主要用于说明阅读路径，尚未完全同步到 `09-canonical-schema-spec.md`；如与 canonical grammar 冲突，以后者为准
-> **[关键设计点]**: 完整文件根级结构应逐步收敛到 `semantic_space / fact_objects / categorizations / analytical_elements / business_logic.rule_definitions / business_logic.rule_logics`
+> **[单一事实源]**: 本示例已与 `09-canonical-schema-spec.md` 同步，可作为 Schema v2 完整文件根级结构的参考实现
+> **[关键设计点]**: 完整文件根级结构遵循 `semantic_space / fact_objects / categorizations / analytical_elements / business_logic.rule_definitions / business_logic.rule_logics`
 
 ## 场景
 
@@ -15,10 +15,13 @@
 ## Schema (schema-v2.yaml)
 
 ```yaml
-metadata:
+schema_version: "2.0"
+
+semantic_space:
   id: "kg://scf/v2.0"
-  version: "2.0.0"
-  description: "供应链金融风控模型 v2"
+  name: "供应链金融风控模型 v2"
+  type: management
+  status: DRAFT
 
 # ============ L1: 事实对象 ============
 fact_objects:
@@ -60,7 +63,7 @@ fact_objects:
           enum_type: GuaranteeType
 
 # ============ L2: 归类分析 ============
-categorization:
+categorizations:
   dimensions:
     - name: industry
       type: hierarchical
@@ -72,27 +75,13 @@ categorization:
 
     - name: company_scale
       type: derived
-      ruleset: determine_scale
+      rule_logic: determine_scale
       values: [LARGE, MEDIUM, SMALL, MICRO]
 
     - name: risk_level
       type: derived
-      ruleset: assess_risk
+      rule_logic: assess_risk
       values: [LOW, MEDIUM, HIGH]
-
-  rules:
-    - name: determine_scale
-      rules:
-        - condition:
-            "annual_revenue >= 400000000 AND employee_count >= 1000"
-          result: LARGE
-        - condition:
-            "annual_revenue >= 20000000 AND employee_count >= 300"
-          result: MEDIUM
-        - condition:
-            "annual_revenue >= 3000000 AND employee_count >= 20"
-          result: SMALL
-        - default: MICRO
 
 # ============ L3: 分析要素 ============
 # 注意: L3 仅定义指标存在和依赖，计算逻辑在 L4
@@ -134,7 +123,7 @@ analytical_elements:
 
 # ============ L4: 业务逻辑 ============
 business_logic:
-  rule_groups:
+  rule_definitions:
     # GLOBAL 规则: 适用于所有实体
     - name: global_eligibility_check
       description: "全局准入检查"
@@ -153,19 +142,53 @@ business_logic:
     # 场景特定规则: 供应链金融授信
     - name: credit_assessment
       description: "融资授信评估"
-
       applies_to:
         fact_objects: [Company]
         categories:
           industry: ["C", "F"]
           risk_level: [LOW, MEDIUM]
-
       inputs:
         - metric: credit_score
         - metric: guarantee_exposure
         - metric: asset_liability_ratio
+      outputs:
+        - name: eligible
+          type: boolean
+        - name: credit_limit
+          type: Money
+        - name: interest_rate
+          type: decimal
 
+  rule_logics:
+    # 规则逻辑: 企业规模判定
+    - name: determine_scale
+      description: "根据营收和员工数判定企业规模"
       rules:
+        - condition:
+            "annual_revenue >= 400000000 AND employee_count >= 1000"
+          result: LARGE
+        - condition:
+            "annual_revenue >= 20000000 AND employee_count >= 300"
+          result: MEDIUM
+        - condition:
+            "annual_revenue >= 3000000 AND employee_count >= 20"
+          result: SMALL
+        - default: MICRO
+
+    # 规则逻辑: 风险评估
+    - name: assess_risk
+      description: "企业信用风险评估"
+      rules:
+        - condition: "credit_score >= 80 AND guarantee_exposure < registered_capital"
+          result: LOW
+        - condition: "credit_score >= 60 AND guarantee_exposure < registered_capital * 2"
+          result: MEDIUM
+        - default: HIGH
+
+    # 规则逻辑: 信用评估流程
+    - name: credit_assessment_logic
+      description: "供应链金融授信评估完整流程"
+      steps:
         # R1: 基础准入
         - id: R001
           name: "信用分准入"
@@ -265,17 +288,6 @@ business_logic:
                   - "<= registered_capital": 0.005
                   - "> registered_capital": 0.015
             post_formula: "baseline + total_points"
-
-      outputs:
-        - name: eligible
-          type: boolean
-          source: R001.eligible
-        - name: credit_limit
-          type: Money
-          source: R004.credit_limit
-        - name: interest_rate
-          type: decimal
-          source: R005.interest_rate
 ```
 
 ## 实例数据 (instances.yaml)
@@ -344,7 +356,7 @@ computed:
   "fact_object": "Company",
   "execution": {
     "timestamp": "2026-04-08T10:00:00Z",
-    "rule_groups": {
+    "rule_definitions": {
       "global_eligibility_check": {
         "matched": true,
         "results": {"base_eligible": true}
