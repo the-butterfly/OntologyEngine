@@ -1,7 +1,16 @@
+---
+status: accepted
+phase: mvp
+source_of_truth: true
+last_verified: "2026-04-12"
+verified_against: code-and-docs
+---
+
 # Formula 表达式规范
 
+> **[单一事实源]**: 当前 Formula 语法规范的唯一入口
 > **约束**: 单行表达式，结构化复杂逻辑使用算子
-> **执行引擎**: simpleeval / 自定义安全求值器
+> **执行引擎**: simpleeval / 自定义安全求值器 (当前仅实现 simpleeval 方案)
 
 ## 语法概览
 
@@ -376,43 +385,39 @@ action:
   # 但分支逻辑由算子管理
 ```
 
-## 实现建议
+## 实现状态
 
-### Phase 1: simpleeval
+### 当前实现 (Current) **[单一事实源]**
 
-```python
-from simpleeval import simple_eval
+基于 `simpleeval` 的 `ExpressionEngine` 类，位于 `ontology_engine/engine/expression/engine.py`：
 
-def evaluate_formula(expression: str, context: dict) -> Any:
-    # 白名单函数
-    functions = {
-        "min": min,
-        "max": max,
-        "abs": abs,
-        "today": lambda: date.today(),
-        # ...
-    }
-
-    return simple_eval(
-        expression,
-        names=context,
-        functions=functions
-    )
-```
-
-### Phase 2: 自定义 AST
+**已实现功能：**
+- ✅ 基于 simpleeval 的单表达式求值
+- ✅ 关键字预处理：AND/OR/NOT → and/or/not，IS NULL/IS NOT NULL → is_null()
+- ✅ 嵌套字段解析：支持 `registered_capital.value` 格式
+- ✅ 内置函数：today, days_between, is_null, max, min, round, abs, int, float, bool
 
 ```python
-# 自定义解析器，更严格的控制
-class FormulaEvaluator:
-    def parse(self, expression: str) -> AST:
-        # 自定义语法解析
-        pass
+from ontology_engine.engine.expression.engine import ExpressionEngine
 
-    def evaluate(self, ast: AST, context: dict) -> Any:
-        # 受控执行
-        pass
+engine = ExpressionEngine()
+result = engine.evaluate(
+    "registered_capital.value >= 1000000 AND days_between(establishment_date, today()) >= 365",
+    context={"registered_capital": {"value": 5000000}, "establishment_date": "2020-01-01"}
+)
 ```
+
+**代码核验标记**: `verified_against: code@ontology_engine/engine/expression/engine.py`
+
+### 目标设计 (Target) **[待扩展]**
+
+两级执行模型（L0/L1），详见 `docs/06-module-detailed-design/07-expression-engine.md`：
+
+- L0: SimpleEvalExecutor — 简单表达式快速执行
+- L1: ASTSandboxExecutor — 复杂控制流 AST 沙箱执行 **[待扩展]**
+
+**状态**: 目标设计阶段，尚未实现 AST 沙箱和复杂控制流支持。
+
 
 ## 校验清单
 
