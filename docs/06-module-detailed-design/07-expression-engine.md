@@ -1,19 +1,67 @@
 # 模块 07: 表达式引擎 (ExpressionEngine)
 
 > **位置**: `ontology_engine/engine/expression/`
-> **依赖**: simpleeval, asteval
+> **依赖**: simpleeval
 > **被依赖**: MetricEngine, RuleEngine, CategorizationEngine
-> **[待核对代码]**: 本文当前描述的是 Phase 1 目标设计，不等同于当前已验证实现；当前代码请优先核对 `ontology_engine/engine/expression/` 与 `ontology_engine/engine/rule/evaluator.py`
+> **[单一事实源]**: 本文描述的是目标设计，当前实现请核对 `ontology_engine/engine/expression/engine.py`
 > **[关键设计点]**: 表达式执行能力的当前态 / 目标态差异统一在 `docs/04-migration-and-gap/README.md` 跟踪
+
+---
+status: design
+phase: target
+last_verified: "2026-04-12"
+verified_against: ontology_engine/engine/expression/engine.py
+---
 
 ## 1. 职责
 
+### 当前实现 (Current)
+
+1. **表达式求值** — 基于 simpleeval 的安全表达式执行
+2. **内置函数库** — 数学/日期/空值检查（有限函数集）
+3. **字段解析** — 支持嵌套字段（如 `registered_capital.value`）
+4. **关键字预处理** — SQL 风格关键字转 Python 语法
+
+### 目标设计 (Target) **[待扩展]**
+
 1. **两级安全执行** — L0 simpleeval (简单表达式) + L1 AST 沙箱 (复杂逻辑)
-2. **内置函数库** — 数学/字符串/日期/聚合
+2. **完整内置函数库** — 数学/字符串/日期/聚合
 3. **字段白名单** — 只允许访问合法数据源
 4. **超时保护** — 单条表达式执行超时
 
-## 2. 两级执行模型 (决策 #10)
+## 2. 当前实现 **[单一事实源]**
+
+### ExpressionEngine 类
+
+位于 `ontology_engine/engine/expression/engine.py`：
+
+```python
+class ExpressionEngine:
+    """基于 simpleeval 的安全表达式引擎."""
+    
+    _KNOWN_FUNCTIONS = frozenset({
+        "today", "days_between", "is_null",
+        "max", "min", "round", "abs",
+        "int", "float", "bool",
+    })
+    
+    def evaluate(self, expression: str, context: Mapping[str, Any]) -> Any:
+        # 1. 预处理表达式（关键字转换）
+        # 2. 字段解析（嵌套字段支持）
+        # 3. 使用 simpleeval 执行
+```
+
+**关键特性：**
+- 单行表达式，不支持多行或复杂控制流
+- 支持的关键字：today, days_between, is_null, max, min, round, abs, int, float, bool
+- 表达式预处理：IS NULL/IS NOT NULL → is_null(), AND/OR/NOT → and/or/not
+- 字段解析：支持嵌套字段（如 `registered_capital.value`）
+
+---
+
+## 3. 两级执行模型 (决策 #10) **[待扩展]**
+
+> **[待扩展]**: 目标设计，尚未实现
 
 ```
 表达式字符串
@@ -28,7 +76,7 @@
                     AST 白名单 + 资源限制 + 超时
 ```
 
-## 3. 核心接口
+## 4. 核心接口（目标设计） **[待扩展]**
 
 ```python
 # engine/expression/engine.py
@@ -93,7 +141,7 @@ class ExpressionEngine:
         return set(re.findall(r'\b\w+\b', expression))
 ```
 
-## 4. L0: SimpleEvalExecutor
+## 5. L0: SimpleEvalExecutor（目标设计） **[待扩展]**
 
 ```python
 # engine/expression/l0_simpleeval.py
@@ -209,7 +257,7 @@ def _add_days(d, n):
     return (d + timedelta(days=int(n))).isoformat()
 ```
 
-## 5. L1: ASTSandboxExecutor
+## 6. L1: ASTSandboxExecutor（目标设计） **[待扩展]**
 
 ```python
 # engine/expression/l1_ast_sandbox.py
@@ -382,10 +430,12 @@ class FieldAccessDeniedError(ExpressionError):
     """字段访问被拒绝"""
 ```
 
-## 6. 供应链金融表达式示例
+## 7. 供应链金融表达式示例
 
 ```python
-# L0 简单表达式
+# 当前实现（已验证）
+from ontology_engine.engine.expression.engine import ExpressionEngine
+
 engine = ExpressionEngine()
 
 # 算术
@@ -396,39 +446,100 @@ engine.evaluate("registered_capital.value * 0.5", context)
 engine.evaluate("credit_score >= 60", context)
 # → True
 
-# 逻辑
-engine.evaluate("status == 'ACTIVE' AND registered_capital.value >= 1000000", context)
+# 逻辑（支持 SQL 风格关键字）
+engine.evaluate(
+    "status == 'ACTIVE' AND registered_capital.value >= 1000000", 
+    context
+)
 # → True
 
 # 函数
-engine.evaluate("days_between(establishment_date, today())", context)
+days = engine.evaluate(
+    "days_between(establishment_date, today())", 
+    context
+)
 # → 2920
 
-# L1 复杂逻辑
-engine.evaluate("""
-score = 50
-if contract_utilization_rate >= 80:
-    score += 20
-elif contract_utilization_rate >= 50:
-    score += 10
-if core_enterprise_count >= 3:
-    score += 15
-elif core_enterprise_count >= 1:
-    score += 5
-result = min(score, 100)
-""", context)
-# → 80
+# 空值检查（支持 SQL 风格语法）
+engine.evaluate(
+    "registered_capital.value IS NOT NULL", 
+    context
+)
+# → True（内部转换为 not is_null(registered_capital.value)）
+
+# L1 复杂逻辑（目标设计） **[待扩展]**
+# 以下语法当前不支持：
+# - 多行表达式
+# - if/elif/else 控制流
+# - 变量赋值
+# - 循环结构
 ```
 
-## 7. 文件结构
+## 8. 文件结构
+
+### 当前实现 **[单一事实源]**
 
 ```
 ontology_engine/engine/expression/
 ├── __init__.py             # 导出 ExpressionEngine
-├── engine.py               # ExpressionEngine 主类
+└── engine.py               # ExpressionEngine 主类（含所有实现）
+```
+
+**实际代码核验** (`ontology_engine/engine/expression/engine.py`):
+- 单一 `ExpressionEngine` 类实现
+- 无分离的 L0/L1 执行器
+- 无 ASTSandboxExecutor 实现
+
+### 目标设计 **[待扩展]**
+
+```
+ontology_engine/engine/expression/
+├── __init__.py             # 导出 ExpressionEngine
+├── engine.py               # ExpressionEngine 主类（调度器）
 ├── l0_simpleeval.py        # L0: SimpleEvalExecutor
-├── l1_ast_sandbox.py       # L1: ASTSandboxExecutor
+├── l1_ast_sandbox.py       # L1: ASTSandboxExecutor **[待扩展]**
 ├── functions.py            # 内置函数库 (日期/数学/字符串)
 ├── errors.py               # 错误类型
 └── validators.py           # 表达式静态校验
 ```
+
+**状态**: 目标设计，文件拆分和 AST 沙箱待实现。
+
+## 9. 代码映射
+
+| 设计组件 | 实际代码路径 | 实现状态 |
+|---------|-------------|---------|
+| ExpressionEngine | `ontology_engine/engine/expression/engine.py` | ✅ 已实现 |
+| ExpressionSyntaxError | `ontology_engine/engine/expression/engine.py` | ✅ 已实现 |
+| L0 执行器 (SimpleEval) | `ontology_engine/engine/expression/engine.py` | ✅ 已实现 (内联实现) |
+| L1 执行器 (AST沙箱) | `ontology_engine/engine/expression/l1_ast_sandbox.py` | ⏭️ 待实现 |
+| SimpleEvalExecutor | `ontology_engine/engine/expression/l0_simpleeval.py` | ⏭️ 待实现 (设计目标) |
+| ASTSandboxExecutor | `ontology_engine/engine/expression/l1_ast_sandbox.py` | ⏭️ 待实现 (设计目标) |
+| 内置函数库 | `ontology_engine/engine/expression/engine.py` | ⚠️ 部分实现 |
+| 错误类型定义 | `ontology_engine/engine/expression/errors.py` | ⏭️ 待实现 (已内联) |
+| 表达式校验器 | `ontology_engine/engine/expression/validators.py` | ⏭️ 待实现 |
+
+## 10. 测试要点
+
+- [ ] 简单表达式求值测试 - 算术运算
+- [ ] 比较表达式测试 - 大于、小于、等于
+- [ ] 逻辑表达式测试 - AND、OR、NOT
+- [ ] 嵌套字段访问测试 - 如 `supplier.registered_capital.value`
+- [ ] IS NULL 判断测试 - 空值检查
+- [ ] IS NOT NULL 判断测试 - 非空检查
+- [ ] 字符串字面量测试 - 单引号和双引号
+- [ ] 日期函数测试 - `today()` 函数
+- [ ] 日期差计算测试 - `days_between()` 函数
+- [ ] 数学函数测试 - `min()`, `max()`, `round()`, `abs()`
+- [ ] 类型转换测试 - `int()`, `float()`, `bool()`
+- [ ] 空表达式处理测试 - 返回 True
+- [ ] 空值表达式处理测试 - 返回 True
+- [ ] 公式结果返回测试 - 非布尔表达式返回计算值
+- [ ] 无效表达式错误测试 - 语法错误抛出 ExpressionSyntaxError
+- [ ] 缺失字段处理测试 - 访问不存在的字段返回 None
+- [ ] 字符串范围保护测试 - 关键字替换不影响字符串内容
+- [ ] 日期解析测试 - 多种日期格式解析
+- [ ] 复杂嵌套路径测试 - 多级属性访问
+- [ ] ExpressionEvaluator 包装器测试 - 规则条件评估
+- [ ] RuleWhen 对象评估测试 - allOf/anyOf 条件
+- [ ] 字典条件评估测试 - allOf/anyOf 字典格式
