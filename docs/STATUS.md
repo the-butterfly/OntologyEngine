@@ -38,17 +38,18 @@
 | 主题 | 标注 | 现状 | 处理入口 |
 |------|------|------|----------|
 | Schema v2 根结构 | **[关键设计点]** | 已新增 canonical grammar，后续需要逐步同步旧示例 | [`05-schema-v2/09-canonical-schema-spec.md`](./05-schema-v2/09-canonical-schema-spec.md) |
-| Rule 模型双轨叙事 | **[待扩展]** | `rule_group` 与 `rule_definition + rule_logic` 仍在部分旧文档并存 | [`04-migration-and-gap/README.md`](./04-migration-and-gap/README.md) |
-| Formula / Expression 执行模型 | **[待核对代码]** | 设计文档与当前实现尚未逐段核验 | [`02-design/README.md`](./02-design/README.md) |
-| Current API vs Target API | **[待扩展]** | 当前 FastAPI 与目标空间 API 仍需进一步拆清 | [`04-migration-and-gap/README.md`](./04-migration-and-gap/README.md) |
-| 术语统一 | **[待扩展]** | `Concept / Fact Object / Entity` 等用法仍需归并 | [`01-overview/README.md`](./01-overview/README.md) |
+| Rule 模型双轨叙事 | **[关键设计点]** | ADR-008 已统一为 `rule_definitions + rule_logics`，旧写法标记为 authoring sugar | [`architecture/decisions/008-rule-model-unification.md`](./architecture/decisions/008-rule-model-unification.md) |
+| Formula / Expression 执行模型 | **[单一事实源]** | 已与代码核验，文档区分当前实现与目标设计 | [`02-design/06-formula-spec.md`](./02-design/06-formula-spec.md) |
+| Current API vs Target API | **[关键设计点]** | ADR-009 已明确边界，Current API 已核验 | [`architecture/decisions/009-api-architecture-evolution.md`](./architecture/decisions/009-api-architecture-evolution.md) |
+| 术语统一 | **[单一事实源]** | `01-overview/05-concepts.md` 已统一术语表并给出对照关系 | [`01-overview/05-concepts.md`](./01-overview/05-concepts.md) |
+| 平台化扩展边界 | **[待扩展]** | 能力矩阵已建立，明确 current/optional/future | [`05-schema-v2/06-dataset-and-sync.md`](./05-schema-v2/06-dataset-and-sync.md) |
 
 ## 重点核验清单
 
+- **[已核对代码]** `02-design/06-formula-spec.md`: 已与 `ontology_engine/engine/expression/engine.py` 核验，区分当前实现与目标设计
+- **[已核对代码]** `06-module-detailed-design/07-expression-engine.md`: 已区分当前实现（simpleeval）与目标设计（L0/L1）
+- **[已核对代码]** `06-module-detailed-design/10-api-layer.md`: 已与 `ontology_engine/api/routes/` 核验，移除固定端点数量
 - **[待核对代码]** `02-design/02-api-design.md`: 需继续和 `ontology_engine/api/server.py` 对齐
-- **[待核对代码]** `02-design/06-formula-spec.md`: 需继续和 `ontology_engine/engine/expression/`、`ontology_engine/engine/rule/evaluator.py` 对齐
-- **[待核对代码]** `06-module-detailed-design/07-expression-engine.md`: 当前以设计目标为主，不能视为现状实现文档
-- **[待核对代码]** `06-module-detailed-design/10-api-layer.md`: 路由细节需与当前 FastAPI 代码逐项复核
 
 ## 更新要求
 
