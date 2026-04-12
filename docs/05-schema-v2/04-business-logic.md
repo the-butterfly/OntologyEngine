@@ -1,5 +1,21 @@
 # L4: 业务逻辑 (Business Logic)
 
+---
+status: draft
+phase: phase1
+source_of_truth: false
+last_verified: 2026-04-12
+verified_against: docs-only
+related_docs:
+  - 00-overview.md
+  - 00b-semantic-space-architecture.md
+  - 01-fact-objects.md
+  - 02-categorization.md
+  - 03-analytical-elements.md
+  - 08-version-management.md
+  - 09-canonical-schema-spec.md
+---
+
 > **Status**: v2.0 (with Declaration/Instance separation)
 > **Date**: 2026-04-12
 

@@ -1,13 +1,29 @@
 # 版本管理
 
-> **Status**: v1.0
+---
+status: accepted
+phase: phase1
+source_of_truth: true
+last_verified: 2026-04-12
+verified_against: docs-only
+related_docs:
+  - 00-overview.md
+  - 00b-semantic-space-architecture.md
+  - 01-fact-objects.md
+  - 02-categorization.md
+  - 03-analytical-elements.md
+  - 04-business-logic.md
+---
+
+> **Status**: accepted
 > **Date**: 2026-04-12
+> **[关键设计点]** 本文档定义了 OntologyEngine 的分层版本管理策略和版本号生成规则
 
 ## 1. 设计原则
 
 ### 1.1 分层版本
 
-Schema v2 采用**分层版本管理**策略：
+**[关键设计点]** Schema v2 采用**分层版本管理**策略：
 
 ```
 语义空间
@@ -29,6 +45,41 @@ Schema v2 采用**分层版本管理**策略：
 | L4 rule_logics | **增量 diff** | 变更频繁，但需要保留历史 |
 | Instances | **增量 diff** | 数据量大，但记录数有上限 |
 
+### 1.3 版本号生成规则
+
+**[关键设计点]** 版本号采用双轨制：
+
+| 版本类型 | 格式 | 起始值 | 递增规则 |
+|----------|------|--------|----------|
+| **层版本** | 整数 | 1 | 每次变更自动 +1 |
+| **空间版本** | 语义化版本 (SemVer) | 1.0.0 | major.minor.patch |
+
+**层版本号规则**：
+- 格式：从 1 开始递增的整数 (1, 2, 3, ...)
+- 触发条件：层内任何声明变更时自动递增
+- 存储位置：每层独立维护版本序列
+
+**空间版本号规则 (SemVer)**：
+- **major**: 不兼容的 Schema 变更（如删除实体类型）
+- **minor**: 功能性添加（如新增指标）
+- **patch**: 修复性变更（如修正规则逻辑）
+- 触发条件：发布 (publish) 操作时根据变更类型确定
+
+### 1.4 版本策略决策矩阵
+
+**[关键设计点]** 根据数据特性和使用场景选择版本策略：
+
+| 维度 | 完整快照 | 增量 Diff |
+|------|----------|-----------|
+| **适用数据** | L1-L4 声明、规则定义 | 实体实例、规则逻辑实例 |
+| **数据量** | 小 (< 1MB/层) | 大 (可能 > 100MB) |
+| **变更频率** | 低 (日均 < 10 次) | 高 (可能每秒多次) |
+| **回滚速度** | 快 (直接替换) | 慢 (需重放 diff) |
+| **存储开销** | 高 (N 倍数据量) | 低 (仅变更部分) |
+| **历史精度** | 精确到任意版本 | 依赖 diff 链完整性 |
+
+---
+
 ## 2. 版本记录结构
 
 ### 2.1 层版本记录
@@ -48,7 +99,25 @@ layer_version:
     deleted: integer
 ```
 
-### 2.2 实例变更记录
+### 2.2 空间版本记录
+
+```yaml
+space_version:
+  version: string              # 语义化版本，如 "1.2.3"
+  layer_versions:              # 各层版本映射
+    L1: 5
+    L2: 3
+    L3: 4
+    L4_definitions: 2
+    L4_logics: 12
+  change_summary: string       # 版本变更摘要
+  change_type: major | minor | patch
+  created_at: string           # ISO 时间
+  created_by: string
+  is_snapshot: boolean         # 是否为发布快照
+```
+
+### 2.3 实例变更记录
 
 ```yaml
 instance_diff:
@@ -64,7 +133,7 @@ instance_diff:
   source: sync | manual | import
 ```
 
-### 2.3 实例版本历史 (简化)
+### 2.4 实例版本历史 (简化)
 
 ```yaml
 # 实际存储：只记录变更，不记录完整快照
@@ -103,15 +172,17 @@ entity_versions:
     ...
 ```
 
+---
+
 ## 3. 版本操作
 
-### 3.1 创建版本快照
+### 3.1 创建层版本快照
 
 ```python
 async def create_layer_snapshot(space_id: str, layer: str, description: str = None):
     """
     1. 读取当前层数据
-    2. 生成新版本号
+    2. 生成新版本号 (current + 1)
     3. 存储完整快照
     4. 返回版本记录
     """
@@ -127,7 +198,36 @@ async def create_layer_snapshot(space_id: str, layer: str, description: str = No
     return version_record
 ```
 
-### 3.2 回滚
+### 3.2 发布空间版本
+
+**[关键设计点]** 发布操作创建不可变快照：
+
+```python
+async def publish_space_version(space_id: str, change_type: str, description: str = None):
+    """
+    1. 收集各层当前版本
+    2. 计算新的空间版本号 (SemVer)
+    3. 创建各层快照
+    4. 标记为 PUBLISHED 状态
+    5. 记录发布历史
+    """
+    # 版本号计算
+    current = await get_current_space_version(space_id)
+    new_version = bump_semver(current, change_type)  # major/minor/patch
+    
+    # 创建快照
+    snapshot = {
+        "version": new_version,
+        "layer_versions": await collect_layer_versions(space_id),
+        "snapshots": await create_layer_snapshots(space_id),
+        "created_at": datetime.utcnow().isoformat(),
+        "immutable": True
+    }
+    await storage.save_space_snapshot(space_id, snapshot)
+    return snapshot
+```
+
+### 3.3 回滚
 
 ```python
 async def rollback_layer(space_id: str, layer: str, target_version: int):
@@ -152,7 +252,7 @@ async def rollback_layer(space_id: str, layer: str, target_version: int):
     await create_layer_snapshot(space_id, layer, f"回滚到 v{target_version}")
 ```
 
-### 3.3 影响分析
+### 3.4 影响分析
 
 ```yaml
 impact_report:
@@ -172,6 +272,8 @@ impact_report:
     - rule: R001
       reason: "引用的 metric 'credit_score' 在目标版本中已删除"
 ```
+
+---
 
 ## 4. 实例版本管理
 
@@ -239,11 +341,13 @@ GET /v1/management/{spaceId}/instances/entities/{entityId}/versions/compare?from
 }
 ```
 
+---
+
 ## 5. 空间状态与版本
 
 ### 5.1 PUBLISHED 快照
 
-当空间从 ACTIVE 发布时：
+**[关键设计点]** 当空间从 ACTIVE 发布时，创建不可变版本快照：
 
 ```
 状态转换: ACTIVE → PUBLISHED
@@ -251,22 +355,25 @@ GET /v1/management/{spaceId}/instances/entities/{entityId}/versions/compare?from
 执行:
 1. 为 L1-L4 创建完整快照
 2. 为 Instances 创建增量快照
-3. 快照版本标记为 immutable
-4. 记录发布历史
+3. 根据变更类型确定 SemVer (major/minor/patch)
+4. 快照版本标记为 immutable
+5. 记录发布历史
 ```
 
 ### 5.2 回滚与激活
 
 ```
-ARCHIVED → ACTIVE (通过 rollback)
+PUBLISHED → ACTIVE (通过 activate 或 rollback)
 
 执行:
-1. 选择要恢复的版本
+1. 选择要恢复的版本 (指定空间版本号)
 2. 影响分析
-3. 确认回滚
-4. 恢复数据
+3. 确认回滚/激活
+4. 恢复数据到对应层版本
 5. 状态变更为 ACTIVE
 ```
+
+---
 
 ## 6. API 设计
 
@@ -292,7 +399,18 @@ POST /v1/management/{spaceId}/versions/{layer}/{version}/rollback
 GET  /v1/management/{spaceId}/versions/{layer}/{version}/impact
 ```
 
-### 6.3 实例版本
+### 6.3 空间发布
+
+```
+POST /v1/management/{spaceId}/publish
+# Body:
+{
+  "change_type": "minor",      # major | minor | patch
+  "description": "新增供应商评估指标"
+}
+```
+
+### 6.4 实例版本
 
 ```
 GET  /v1/management/{spaceId}/instances/entities/{entityId}/versions
