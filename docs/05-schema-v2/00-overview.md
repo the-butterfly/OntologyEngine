@@ -1,5 +1,22 @@
 # Schema v2 设计概览
 
+---
+status: accepted
+phase: phase1
+source_of_truth: true
+last_verified: 2026-04-12
+verified_against: docs-only
+related_docs:
+  - 00b-semantic-space-architecture.md
+  - 01-fact-objects.md
+  - 02-categorization.md
+  - 03-analytical-elements.md
+  - 04-business-logic.md
+  - 06-dataset-and-sync.md
+  - 08-version-management.md
+  - 09-canonical-schema-spec.md
+---
+
 > **Status**: v2.0 (with Semantic Space)
 > **Date**: 2026-04-12
 

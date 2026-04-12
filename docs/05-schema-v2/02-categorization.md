@@ -1,5 +1,20 @@
 # L2: 归类分析 (Categorization)
 
+---
+status: draft
+phase: phase1
+source_of_truth: false
+last_verified: 2026-04-12
+verified_against: docs-only
+related_docs:
+  - 00-overview.md
+  - 00b-semantic-space-architecture.md
+  - 01-fact-objects.md
+  - 03-analytical-elements.md
+  - 04-business-logic.md
+  - 09-canonical-schema-spec.md
+---
+
 > **Status**: v2.0 (with Declaration/Instance separation)
 > **Date**: 2026-04-12
 

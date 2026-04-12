@@ -1,7 +1,24 @@
 # 语义空间架构
 
-> **Status**: v1.0
+---
+status: accepted
+phase: phase1
+source_of_truth: true
+last_verified: 2026-04-12
+verified_against: docs-only
+related_docs:
+  - 00-overview.md
+  - 01-fact-objects.md
+  - 02-categorization.md
+  - 03-analytical-elements.md
+  - 04-business-logic.md
+  - 06-dataset-and-sync.md
+  - 08-version-management.md
+---
+
+> **Status**: accepted
 > **Date**: 2026-04-12
+> **单一事实源**: 本文档是语义空间架构的唯一规范入口
 
 ## 1. 概念定义
 
@@ -71,6 +88,10 @@
 
 ## 2. 空间状态机
 
+**[关键设计点]** 语义空间状态机定义了空间从创建到归档的完整生命周期，明确各状态的准入条件和转换规则。
+
+### 2.1 状态定义
+
 ```
                     ┌──────────────────┐
                     │      DRAFT       │  ← 初始状态，可编辑
@@ -84,7 +105,7 @@
          │         publish()│
          │                  ▼
          │         ┌──────────────────┐
-         │         │   PUBLISHED      │  ← 版本快照（不可修改）
+         │         │   PUBLISHED      │  ← 快照状态（不可修改）
          │         └──────────────────┘
          │                  │
          │ rollback() │   activate()
@@ -97,7 +118,7 @@
 └──────────────────┘
 ```
 
-### 状态说明
+### 2.2 状态说明
 
 | 状态 | 含义 | 可编辑 | 可执行 | 可消费 |
 |------|------|--------|--------|--------|
@@ -105,6 +126,31 @@
 | `ACTIVE` | 生效中 | ⚠️ (需解锁) | ✅ | ✅ |
 | `PUBLISHED` | 已发布快照 | ❌ | ❌ | ✅ (读快照) |
 | `ARCHIVED` | 已归档 | ❌ | ❌ | ❌ |
+
+**[关键设计点]** PUBLISHED 是**快照状态**而非事件：
+- PUBLISHED 代表一个不可变的版本快照，可独立存在
+- 从 PUBLISHED 可通过 `activate()` 回到 ACTIVE 状态（基于该快照继续编辑）
+- 从 PUBLISHED 可通过 `rollback()` 回滚到之前的 ACTIVE 状态
+
+### 2.3 状态转换表
+
+| 当前状态 | 操作 | 目标状态 | 说明 |
+|----------|------|----------|------|
+| DRAFT | `activate()` | ACTIVE | 完成编辑，空间生效，可被消费 |
+| ACTIVE | `publish()` | PUBLISHED | 创建不可变快照，保存当前状态 |
+| PUBLISHED | `activate()` | ACTIVE | 基于快照继续编辑（创建新版本分支） |
+| ACTIVE | `archive()` | ARCHIVED | 下线空间，停止服务，保留历史 |
+| PUBLISHED | `rollback()` | ACTIVE | 回滚到发布时的状态 |
+
+### 2.4 状态转换约束
+
+**[关键设计点]** 状态转换的强制约束：
+
+1. **DRAFT → ACTIVE**: 必须完成基础配置（至少包含 L1 定义）
+2. **ACTIVE → PUBLISHED**: 创建完整快照，版本号递增
+3. **PUBLISHED → ACTIVE**: 可选择基于快照新建分支或覆盖当前
+4. **ACTIVE → ARCHIVED**: 需确认无活跃消费连接
+5. **PUBLISHED 不可直接 → ARCHIVED**: 必须先激活再归档
 
 ---
 
