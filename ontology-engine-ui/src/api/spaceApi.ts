@@ -310,6 +310,50 @@ class SpaceApi {
     });
     return response.data.data;
   }
+
+  // Consumption view entities
+  async listViewEntities(viewId: string, concept?: string): Promise<EntityInstance[]> {
+    const params = concept ? { concept } : {};
+    const response = await axios.get(`/v1/consumption/views/${viewId}/entities`, { params });
+    return response.data.data;
+  }
+
+  // Rule dependency graph for consumption view
+  async getRuleDependencyGraph(viewId: string): Promise<any> {
+    const response = await axios.get(`/v1/consumption/views/${viewId}/rules/dependency-graph`);
+    return response.data.data;
+  }
+
+  // Applicable rules for an entity in a consumption view
+  async getRulesForEntity(viewId: string, entityId: string, dimension?: string): Promise<any> {
+    const params = dimension ? { dimension } : {};
+    const response = await axios.get(`/v1/consumption/views/${viewId}/rules/for-entity/${entityId}`, { params });
+    return response.data.data;
+  }
+
+  // Schema YAML import
+  async loadSchemaFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
+    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/load-from-yaml`, {
+      yaml_path: yamlPath,
+      overwrite,
+    });
+    return response.data.data;
+  }
+
+  // Instance YAML import
+  async loadInstancesFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
+    const response = await axios.post(`${BASE_URL}/${spaceId}/instances/load-from-yaml`, {
+      yaml_path: yamlPath,
+      overwrite,
+    });
+    return response.data.data;
+  }
+
+  // Schema overview (all layers)
+  async getSchemaOverview(spaceId: string): Promise<any> {
+    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/overview`);
+    return response.data.data;
+  }
 }
 
 export const spaceApi = new SpaceApi();

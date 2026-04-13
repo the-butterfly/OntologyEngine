@@ -20,6 +20,21 @@ from ontology_engine.core.schema.models import (
     MetricDefinition,
     RuleWhen,
     RuleThen,
+    # V2 models
+    FactObjects,
+    FactObjectEntity,
+    Categorizations,
+    CategorizationDimension,
+    AnalyticalElements,
+    MetricDefinitionV2,
+    IndicatorDefinition,
+    ScorecardDefinition,
+    BusinessLogic,
+    RuleDefinitionV2,
+    RuleLogic,
+    RuleAction,
+    MetricSource,
+    MetricComponent,
 )
 
 
@@ -57,7 +72,19 @@ class SchemaLoader:
         return self._parse(raw)
 
     def _parse(self, raw: dict[str, Any]) -> KGMLSchema:
-        """Parse raw YAML dict into KGMLSchema."""
+        """Parse raw YAML dict into KGMLSchema.
+
+        Supports both v1 format (concepts, metrics, rules) and
+        v2 format (fact_objects, categorizations, analytical_elements, business_logic).
+        """
+        # Check schema version to determine format
+        schema_version = raw.get("schema_version", "1.0")
+
+        # Parse v2 format
+        if schema_version == "2.0" or "fact_objects" in raw or "business_logic" in raw:
+            return self._parse_v2(raw)
+
+        # Parse v1 format (legacy)
         return KGMLSchema(
             metadata=self._parse_metadata(raw.get("metadata", {})),
             types=self._parse_types(raw.get("types", [])),
@@ -66,6 +93,301 @@ class SchemaLoader:
             metrics=self._parse_metrics(raw.get("metrics", [])),
             rules=self._parse_rules(raw.get("rules")),
         )
+
+    def _parse_v2(self, raw: dict[str, Any]) -> KGMLSchema:
+        """Parse v2 format schema."""
+        # Parse L1: Fact Objects
+        fact_objects_raw = raw.get("fact_objects", {})
+        fact_objects = self._parse_fact_objects(fact_objects_raw)
+
+        # Parse L2: Categorizations
+        categorizations_raw = raw.get("categorizations", [])
+        categorizations = self._parse_categorizations(categorizations_raw)
+
+        # Parse L3: Analytical Elements
+        analytical_elements_raw = raw.get("analytical_elements", {})
+        analytical_elements = self._parse_analytical_elements(analytical_elements_raw)
+
+        # Parse L4: Business Logic
+        business_logic_raw = raw.get("business_logic", {})
+        business_logic = self._parse_business_logic(business_logic_raw)
+
+        return KGMLSchema(
+            metadata=self._parse_metadata(raw.get("metadata", raw.get("semantic_space", {}))),
+            schema_version="2.0",
+            # V1 fields derived from v2
+            types=fact_objects.shared_types if fact_objects else [],
+            enums=fact_objects.enums if fact_objects else [],
+            concepts=self._entities_to_concepts(fact_objects.entities) if fact_objects else [],
+            # V2 fields
+            fact_objects=fact_objects,
+            categorizations=categorizations,
+            analytical_elements=analytical_elements,
+            business_logic=business_logic,
+        )
+
+    def _parse_fact_objects(self, raw: dict) -> FactObjects | None:
+        """Parse fact_objects section (L1)."""
+        if not raw:
+            return None
+
+        # Parse shared types
+        shared_types = self._parse_types(raw.get("shared_types", []))
+
+        # Parse enums
+        enums = self._parse_enums(raw.get("enums", []))
+
+        # Parse entities
+        entities = []
+        for e in raw.get("entities", []):
+            attributes = [
+                AttributeDefinition(
+                    name=a["name"],
+                    type=a["type"],
+                    required=a.get("required", False),
+                    unique=a.get("unique", False),
+                    default=a.get("default"),
+                    description=a.get("description"),
+                    validation=a.get("validation"),
+                    enum=a.get("enum"),
+                )
+                for a in e.get("attributes", [])
+            ]
+
+            relations = [
+                RelationDefinition(
+                    name=r["name"],
+                    target=r["target"],
+                    cardinality=r.get("cardinality", "0..*"),
+                    description=r.get("description"),
+                    inverse=r.get("inverse"),
+                )
+                for r in e.get("relations", [])
+            ]
+
+            entities.append(FactObjectEntity(
+                id=e["id"],
+                name=e.get("name"),
+                description=e.get("description"),
+                attributes=attributes,
+                relations=relations,
+            ))
+
+        # Parse relations (as FactObjectEntity with from/to)
+        relations = []
+        for r in raw.get("relations", []):
+            # Convert relation to FactObjectEntity format for storage
+            # but keep the from/to structure available
+            rel = RelationDefinition(
+                name=r.get("id", r.get("name", "")),
+                target=r.get("to", r.get("target", "")),
+                cardinality=r.get("cardinality", "0..*"),
+                description=r.get("description"),
+                inverse=r.get("inverse"),
+            )
+            relations.append(rel)
+
+        return FactObjects(
+            shared_types=shared_types,
+            enums=enums,
+            entities=entities,
+            relations=relations,
+        )
+
+    def _parse_categorizations(self, raw: list) -> Categorizations | None:
+        """Parse categorizations section (L2)."""
+        if not raw:
+            return None
+
+        dimensions = []
+        for d in raw:
+            dimensions.append(CategorizationDimension(
+                id=d["id"],
+                name=d.get("name"),
+                description=d.get("description"),
+                applicable_to=d.get("applicable_to", []),
+                triggers=d.get("triggers", []),
+            ))
+
+        return Categorizations(dimensions=dimensions)
+
+    def _parse_analytical_elements(self, raw: dict) -> AnalyticalElements | None:
+        """Parse analytical_elements section (L3)."""
+        if not raw:
+            return None
+
+        # Parse metrics
+        metrics = []
+        for m in raw.get("metrics", []):
+            source = None
+            if "source" in m:
+                src = m["source"]
+                source = MetricSource(
+                    type=src.get("type", ""),
+                    entity=src.get("entity"),
+                    attribute=src.get("attribute"),
+                    traversal=src.get("traversal"),
+                    aggregate=src.get("aggregate"),
+                    filter=src.get("filter"),
+                    provider=src.get("provider"),
+                )
+
+            components = None
+            if "components" in m:
+                components = [
+                    MetricComponent(
+                        metric=c["metric"],
+                        weight=c.get("weight", 1.0),
+                        transform=c.get("transform"),
+                    )
+                    for c in m["components"]
+                ]
+
+            metrics.append(MetricDefinitionV2(
+                id=m["id"],
+                name=m.get("name"),
+                description=m.get("description"),
+                element_type=m.get("element_type", "atomic"),
+                source=source,
+                dependencies=m.get("dependencies", []),
+                formula=m.get("formula"),
+                unit=m.get("unit"),
+                range=m.get("range"),
+                default=m.get("default"),
+                thresholds=m.get("thresholds"),
+                overridable=m.get("overridable", False),
+                components=components,
+                algorithm=m.get("algorithm"),
+                traversal=m.get("traversal"),
+                neighbor_filter=m.get("neighbor_filter"),
+            ))
+
+        # Parse indicators
+        indicators = []
+        for i in raw.get("indicators", []):
+            source = None
+            if "source" in i:
+                src = i["source"]
+                source = MetricSource(
+                    type=src.get("type", ""),
+                    entity=src.get("entity"),
+                    attribute=src.get("attribute"),
+                )
+
+            indicators.append(IndicatorDefinition(
+                id=i["id"],
+                name=i.get("name"),
+                description=i.get("description"),
+                element_type=i.get("element_type", "atomic"),
+                source=source,
+                dependencies=i.get("dependencies", []),
+                formula=i.get("formula"),
+                output_type=i.get("output_type", "boolean"),
+                overridable=i.get("overridable", False),
+            ))
+
+        # Parse scorecards
+        scorecards = []
+        for s in raw.get("scorecards", []):
+            scorecards.append(ScorecardDefinition(
+                id=s["id"],
+                name=s.get("name"),
+                description=s.get("description"),
+                element_type=s.get("element_type", "derived"),
+                dependencies=s.get("dependencies", []),
+                formula=s.get("formula"),
+                output_type=s.get("output_type", "string"),
+                overridable=s.get("overridable", False),
+            ))
+
+        return AnalyticalElements(
+            metrics=metrics,
+            indicators=indicators,
+            scorecards=scorecards,
+        )
+
+    def _parse_business_logic(self, raw: dict) -> BusinessLogic | None:
+        """Parse business_logic section (L4)."""
+        if not raw:
+            return None
+
+        # Parse rule definitions
+        rule_definitions = []
+        for rd in raw.get("rule_definitions", []):
+            rule_definitions.append(RuleDefinitionV2(
+                id=rd["id"],
+                name=rd.get("name"),
+                description=rd.get("description"),
+                rule_type=rd.get("rule_type", "constraint"),
+                priority=rd.get("priority", 100),
+                target_objects=rd.get("target_objects", []),
+                applicable_categorizations=rd.get("applicable_categorizations", []),
+                input_elements=rd.get("input_elements", []),
+                output_elements=rd.get("output_elements", []),
+                enabled=rd.get("enabled", True),
+                logic_ids=rd.get("logic_ids", []),
+            ))
+
+        # Parse rule logics
+        rule_logics = []
+        for rl in raw.get("rule_logics", []):
+            when = None
+            if "when" in rl:
+                when_raw = rl["when"]
+                when = RuleWhen(
+                    expression=when_raw.get("expression"),
+                    allOf=when_raw.get("allOf"),
+                    anyOf=when_raw.get("anyOf"),
+                )
+
+            then_action = None
+            if "then_action" in rl:
+                ta = rl["then_action"]
+                then_action = RuleAction(
+                    action_type=ta.get("action_type"),
+                    output=ta.get("output"),
+                    computation=ta.get("computation"),
+                )
+
+            else_action = None
+            if "else_action" in rl:
+                ea = rl["else_action"]
+                else_action = RuleAction(
+                    action_type=ea.get("action_type"),
+                    output=ea.get("output"),
+                    computation=ea.get("computation"),
+                )
+
+            rule_logics.append(RuleLogic(
+                id=rl["id"],
+                name=rl.get("name"),
+                definition_id=rl["definition_id"],
+                applicable_conditions=rl.get("applicable_conditions", []),
+                when=when,
+                then_action=then_action,
+                else_action=else_action,
+                priority=rl.get("priority", 100),
+                version=rl.get("version", 1),
+                environment=rl.get("environment", "default"),
+            ))
+
+        return BusinessLogic(
+            rule_definitions=rule_definitions,
+            rule_logics=rule_logics,
+        )
+
+    def _entities_to_concepts(self, entities: list[FactObjectEntity]) -> list[ConceptDefinition]:
+        """Convert FactObjectEntity list to ConceptDefinition list for v1 compatibility."""
+        concepts = []
+        for e in entities:
+            concepts.append(ConceptDefinition(
+                name=e.id,
+                description=e.description,
+                category="entity",
+                attributes=e.attributes,
+                relations=e.relations,
+            ))
+        return concepts
 
     def _parse_metadata(self, raw: dict) -> SchemaMetadata:
         """Parse metadata section."""

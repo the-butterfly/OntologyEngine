@@ -235,9 +235,7 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
   activateSpace: async (spaceId: string) => {
     set({ loading: true, error: null });
     try {
-      await spaceApi.activateSpace(spaceId);
-      // Reload space data
-      const space = await spaceApi.getSpace(spaceId);
+      const space = await spaceApi.activateSpace(spaceId);
       set((state) => ({
         activeSpace: space,
         spaces: state.spaces.map((s) => (s.id === spaceId ? space : s)),
@@ -252,9 +250,7 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
   deactivateSpace: async (spaceId: string) => {
     set({ loading: true, error: null });
     try {
-      await spaceApi.deactivateSpace(spaceId);
-      // Reload space data
-      const space = await spaceApi.getSpace(spaceId);
+      const space = await spaceApi.deactivateSpace(spaceId);
       set((state) => ({
         activeSpace: space,
         spaces: state.spaces.map((s) => (s.id === spaceId ? space : s)),
