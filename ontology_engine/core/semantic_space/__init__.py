@@ -46,6 +46,12 @@ from ontology_engine.core.semantic_space.storage import (
     SemanticSpaceStorageError,
 )
 
+from ontology_engine.core.semantic_space.state_machine import (
+    SemanticSpaceStateMachine,
+    InvalidTransitionError,
+    transition_space,
+)
+
 __all__ = [
     # Core models
     "SemanticSpace",
@@ -71,4 +77,8 @@ __all__ = [
     # Storage
     "SemanticSpaceStorage",
     "SemanticSpaceStorageError",
+    # State machine (ADR-010)
+    "SemanticSpaceStateMachine",
+    "InvalidTransitionError",
+    "transition_space",
 ]

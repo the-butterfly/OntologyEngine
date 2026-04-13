@@ -7,10 +7,11 @@ Prefix: /v1/management/{spaceId}/
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
+from pathlib import Path
+import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 
 from ontology_engine.api.dto.responses import error_response, success_response
@@ -27,17 +28,10 @@ from ontology_engine.core.semantic_space import (
     SemanticSpaceStorage,
     SemanticSpaceStorageError,
 )
-from ontology_engine.core.dataset import (
-    DatasetDeclaration,
-    DatasetType,
-    SyncMode,
-    MappingRule,
-    SyncHistory,
-    SourceConnection,
-    FieldSchema,
-    SyncConfig,
-    IncrementalConfig,
-)
+from ontology_engine.core.schema import SchemaLoader
+from ontology_engine.core.instances import InstanceLoader
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/management", tags=["Management"])
 
@@ -138,17 +132,21 @@ class CreateVersionSnapshotRequest(BaseModel):
     description: str | None = None
 
 
-class CreateAuthorizationRequest(BaseModel):
-    target_view_id: str
-    enabled: bool = True
-    granted_layers: dict[str, Any] | None = None
-
-
 class CreateEntityInstanceRequest(BaseModel):
     entity_id: str
     concept: str
     properties: dict | None = None
     relations: list[dict] | None = None
+
+
+class LoadFromYamlRequest(BaseModel):
+    yaml_path: str  # Path to schema YAML file (relative to project root)
+    overwrite: bool = False  # Whether to overwrite existing layers
+
+
+class LoadInstancesFromYamlRequest(BaseModel):
+    yaml_path: str  # Path to instances YAML file
+    overwrite: bool = False  # Whether to clear existing instances first
 
 
 # ============================================================================
@@ -660,6 +658,84 @@ async def add_rule_definition(space_id: str, request: AddRuleDefinitionRequest):
     return success_response(data=definition)
 
 
+@router.get("/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
+async def get_rule_definition(space_id: str, rule_id: str):
+    """Get a rule definition by ID."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    definition = next(
+        (rd for rd in space.layers.L4_business_logic.rule_definitions if rd.get("id") == rule_id),
+        None,
+    )
+
+    if not definition:
+        return error_response(code="NOT_FOUND", message=f"Rule definition {rule_id} not found")
+
+    return success_response(data=definition)
+
+
+@router.put("/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
+async def update_rule_definition(space_id: str, rule_id: str, request: AddRuleDefinitionRequest):
+    """Update a rule definition."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    index = next(
+        (i for i, rd in enumerate(space.layers.L4_business_logic.rule_definitions) if rd.get("id") == rule_id),
+        None,
+    )
+
+    if index is None:
+        return error_response(code="NOT_FOUND", message=f"Rule definition {rule_id} not found")
+
+    definition = {
+        "id": rule_id,
+        "name": request.name,
+        "description": request.description,
+        "rule_type": request.rule_type,
+        "priority": request.priority,
+        "target_objects": request.target_objects or [],
+        "input_elements": request.input_elements or [],
+        "output_elements": request.output_elements or [],
+        "enabled": request.enabled,
+        "logic_ids": request.logic_ids or [],
+    }
+
+    space.layers.L4_business_logic.rule_definitions[index] = definition
+    await storage.save(space)
+
+    return success_response(data=definition)
+
+
+@router.delete("/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
+async def delete_rule_definition(space_id: str, rule_id: str):
+    """Delete a rule definition."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    original_count = len(space.layers.L4_business_logic.rule_definitions)
+    space.layers.L4_business_logic.rule_definitions = [
+        rd for rd in space.layers.L4_business_logic.rule_definitions if rd.get("id") != rule_id
+    ]
+
+    if len(space.layers.L4_business_logic.rule_definitions) == original_count:
+        return error_response(code="NOT_FOUND", message=f"Rule definition {rule_id} not found")
+
+    await storage.save(space)
+
+    return success_response(data={"deleted": True})
+
+
 # ============================================================================
 # Schema Management - L4 Rule Logics
 # ============================================================================
@@ -712,6 +788,85 @@ async def add_rule_logic(space_id: str, request: AddRuleLogicRequest):
     await storage.save(space)
 
     return success_response(data=logic)
+
+
+@router.get("/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
+async def get_rule_logic(space_id: str, logic_id: str):
+    """Get a rule logic by ID."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    logic = next(
+        (rl for rl in space.layers.L4_business_logic.rule_logics if rl.get("id") == logic_id),
+        None,
+    )
+
+    if not logic:
+        return error_response(code="NOT_FOUND", message=f"Rule logic {logic_id} not found")
+
+    return success_response(data=logic)
+
+
+@router.put("/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
+async def update_rule_logic(space_id: str, logic_id: str, request: AddRuleLogicRequest):
+    """Update a rule logic."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    index = next(
+        (i for i, rl in enumerate(space.layers.L4_business_logic.rule_logics) if rl.get("id") == logic_id),
+        None,
+    )
+
+    if index is None:
+        return error_response(code="NOT_FOUND", message=f"Rule logic {logic_id} not found")
+
+    logic = {
+        "id": logic_id,
+        "definition_id": request.definition_id,
+        "name": request.name,
+        "description": request.description,
+        "applicable_conditions": request.applicable_conditions or [],
+        "when": request.when,
+        "then_action": request.then_action,
+        "else_action": request.else_action,
+        "priority": request.priority,
+        "version": request.version,
+        "environment": request.environment,
+    }
+
+    space.layers.L4_business_logic.rule_logics[index] = logic
+    await storage.save(space)
+
+    return success_response(data=logic)
+
+
+@router.delete("/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
+async def delete_rule_logic(space_id: str, logic_id: str):
+    """Delete a rule logic."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    original_count = len(space.layers.L4_business_logic.rule_logics)
+    space.layers.L4_business_logic.rule_logics = [
+        rl for rl in space.layers.L4_business_logic.rule_logics if rl.get("id") != logic_id
+    ]
+
+    if len(space.layers.L4_business_logic.rule_logics) == original_count:
+        return error_response(code="NOT_FOUND", message=f"Rule logic {logic_id} not found")
+
+    await storage.save(space)
+
+    return success_response(data={"deleted": True})
 
 
 # ============================================================================
@@ -816,227 +971,428 @@ async def create_snapshot(space_id: str, request: CreateVersionSnapshotRequest):
         return error_response(code="SNAPSHOT_ERROR", message=str(e))
 
 
+@router.post("/{space_id}/versions/{version}/rollback", response_model=dict)
+async def rollback_to_version(space_id: str, version: int):
+    """Rollback to a previous version."""
+    storage = _get_storage()
+
+    try:
+        restored = await storage.rollback_to_version(space_id, version)
+
+        if not restored:
+            return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+        return success_response(data={"status": "restored", "version": version})
+    except SemanticSpaceStorageError as e:
+        return error_response(code="ROLLBACK_ERROR", message=str(e))
+
+
 # ============================================================================
-# Authorization Management
+# Schema YAML Import
 # ============================================================================
 
-@router.get("/{space_id}/authorizations", response_model=dict)
-async def list_authorizations(space_id: str):
-    """List all authorizations for a space."""
-    # Placeholder - authorizations stored in space metadata for now
-    return success_response(data=[])
+@router.post("/{space_id}/schema/load-from-yaml", response_model=dict)
+async def load_schema_from_yaml(space_id: str, request: LoadFromYamlRequest):
+    """Load schema from a YAML file into a semantic space.
 
+    Converts KGML v2 YAML schema into L1-L4 space layers.
+    """
+    storage = _get_storage()
+    space = await storage.load(space_id)
 
-@router.post("/{space_id}/authorizations", response_model=dict)
-async def create_authorization(space_id: str, request: CreateAuthorizationRequest):
-    """Create an authorization."""
-    # Placeholder implementation
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    yaml_path = request.yaml_path
+    # Support both absolute and relative paths
+    if not Path(yaml_path).is_absolute():
+        # Try relative to current working directory
+        full_path = Path(yaml_path)
+        if not full_path.exists():
+            return error_response(code="FILE_NOT_FOUND", message=f"Schema file not found: {yaml_path}")
+    else:
+        full_path = Path(yaml_path)
+        if not full_path.exists():
+            return error_response(code="FILE_NOT_FOUND", message=f"Schema file not found: {yaml_path}")
+
+    try:
+        schema_loader = SchemaLoader()
+        schema = schema_loader.load(str(full_path))
+    except Exception as e:
+        return error_response(code="SCHEMA_LOAD_ERROR", message=f"Failed to load schema: {str(e)}")
+
+    # Convert schema to space layers
+    try:
+        layers_dict = schema.to_space_layers_dict()
+    except Exception as e:
+        return error_response(code="SCHEMA_CONVERT_ERROR", message=f"Failed to convert schema: {str(e)}")
+
+    # Optionally overwrite or merge
+    if request.overwrite:
+        space.layers = SemanticSpaceLayers(
+            L1_fact_objects=layers_dict["L1_fact_objects"],
+            L2_categorizations=layers_dict["L2_categorizations"],
+            L3_analytical_elements=layers_dict["L3_analytical_elements"],
+            L4_business_logic=L4BusinessLogic(
+                rule_definitions=layers_dict["L4_business_logic"]["rule_definitions"],
+                rule_logics=layers_dict["L4_business_logic"]["rule_logics"],
+            ),
+        )
+    else:
+        # Merge (add non-existing items)
+        existing_l1_ids = {fo.get("id") for fo in space.layers.L1_fact_objects}
+        for fo in layers_dict["L1_fact_objects"]:
+            if fo.get("id") not in existing_l1_ids:
+                space.layers.L1_fact_objects.append(fo)
+
+        existing_l2_ids = {c.get("id") for c in space.layers.L2_categorizations}
+        for cat in layers_dict["L2_categorizations"]:
+            if cat.get("id") not in existing_l2_ids:
+                space.layers.L2_categorizations.append(cat)
+
+        existing_l3_ids = {e.get("id") for e in space.layers.L3_analytical_elements}
+        for elem in layers_dict["L3_analytical_elements"]:
+            if elem.get("id") not in existing_l3_ids:
+                space.layers.L3_analytical_elements.append(elem)
+
+        existing_rd_ids = {rd.get("id") for rd in space.layers.L4_business_logic.rule_definitions}
+        for rd in layers_dict["L4_business_logic"]["rule_definitions"]:
+            if rd.get("id") not in existing_rd_ids:
+                space.layers.L4_business_logic.rule_definitions.append(rd)
+
+        existing_rl_ids = {rl.get("id") for rl in space.layers.L4_business_logic.rule_logics}
+        for rl in layers_dict["L4_business_logic"]["rule_logics"]:
+            if rl.get("id") not in existing_rl_ids:
+                space.layers.L4_business_logic.rule_logics.append(rl)
+
+    # Update domain if schema has it
+    if schema.metadata.domain and not space.metadata.domain:
+        space.metadata.domain = schema.metadata.domain
+
+    await storage.save(space)
+
     return success_response(data={
-        "id": f"auth_{uuid.uuid4().hex[:8]}",
         "space_id": space_id,
-        "target_view_id": request.target_view_id,
-        "enabled": request.enabled,
+        "schema_id": schema.metadata.id,
+        "schema_name": schema.metadata.name,
+        "loaded": {
+            "L1_fact_objects": len(layers_dict["L1_fact_objects"]),
+            "L2_categorizations": len(layers_dict["L2_categorizations"]),
+            "L3_analytical_elements": len(layers_dict["L3_analytical_elements"]),
+            "L4_rule_definitions": len(layers_dict["L4_business_logic"]["rule_definitions"]),
+            "L4_rule_logics": len(layers_dict["L4_business_logic"]["rule_logics"]),
+        },
+        "total_after": {
+            "L1_fact_objects": len(space.layers.L1_fact_objects),
+            "L2_categorizations": len(space.layers.L2_categorizations),
+            "L3_analytical_elements": len(space.layers.L3_analytical_elements),
+            "L4_rule_definitions": len(space.layers.L4_business_logic.rule_definitions),
+            "L4_rule_logics": len(space.layers.L4_business_logic.rule_logics),
+        },
     })
 
 
 # ============================================================================
-# Dataset Management
+# Instance Batch Import from YAML
 # ============================================================================
 
-class CreateDatasetRequest(BaseModel):
-    id: str
-    name: str
-    description: str | None = None
-    source_type: DatasetType
-    connection: dict | None = None
-    schema_fields: list[dict] | None = None
-    sync_mode: SyncMode = SyncMode.FULL
+@router.post("/{space_id}/instances/load-from-yaml", response_model=dict)
+async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYamlRequest):
+    """Load entity and relation instances from an instances YAML file."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
 
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
-class CreateMappingRuleRequest(BaseModel):
-    id: str
-    target_entity_type: str
-    field_mappings: list[dict] | None = None
-    filters: list[dict] | None = None
+    yaml_path = request.yaml_path
+    full_path = Path(yaml_path)
+    if not full_path.exists():
+        return error_response(code="FILE_NOT_FOUND", message=f"Instances file not found: {yaml_path}")
 
+    try:
+        instance_loader = InstanceLoader()
+        entities, relations = instance_loader.load(str(full_path))
+    except Exception as e:
+        return error_response(code="INSTANCE_LOAD_ERROR", message=f"Failed to load instances: {str(e)}")
 
-class TriggerSyncRequest(BaseModel):
-    mode: SyncMode = SyncMode.FULL
-    override_last_sync: str | None = None
+    if request.overwrite:
+        space.instances.entities = []
+        space.instances.relations = []
 
+    # Convert entities to dict format
+    existing_entity_ids = {e.get("entity_id") for e in space.instances.entities}
+    added_entities = 0
+    for entity in entities:
+        entity_dict = {
+            "entity_id": entity.id,
+            "_concept": entity.concept,
+        }
+        # Add all attributes
+        if hasattr(entity, 'attributes') and entity.attributes:
+            entity_dict.update(entity.attributes)
+        elif hasattr(entity, '__dict__'):
+            for k, v in entity.__dict__.items():
+                if k not in ("id", "concept") and not k.startswith("_"):
+                    entity_dict[k] = v
 
-# In-memory dataset storage (for demo purposes - replace with proper storage)
-_DATASETS: dict[str, DatasetDeclaration] = {}
-_SYNC_HISTORY: list[SyncHistory] = []
+        if entity.id not in existing_entity_ids:
+            space.instances.entities.append(entity_dict)
+            existing_entity_ids.add(entity.id)
+            added_entities += 1
 
+    # Convert relations to dict format
+    added_relations = 0
+    for relation in relations:
+        rel_dict = {
+            "from_entity_id": relation.from_id if hasattr(relation, "from_id") else relation.source,
+            "to_entity_id": relation.to_id if hasattr(relation, "to_id") else relation.target,
+            "relation_type": relation.relation_type if hasattr(relation, "relation_type") else relation.type,
+        }
+        if hasattr(relation, 'attributes') and relation.attributes:
+            rel_dict.update(relation.attributes)
+        space.instances.relations.append(rel_dict)
+        added_relations += 1
 
-@router.get("/{space_id}/datasets", response_model=dict)
-async def list_datasets(space_id: str):
-    """List all datasets for a space."""
-    datasets = [d.model_dump() for d in _DATASETS.values() if d.id.startswith(space_id.split("_")[0] + "_") or not space_id]
-    return success_response(data=datasets)
-
-
-@router.post("/{space_id}/datasets", response_model=dict)
-async def create_dataset(space_id: str, request: CreateDatasetRequest):
-    """Create a new dataset."""
-    dataset_id = f"{space_id}_{request.id}"
-
-    source = SourceConnection(type=request.source_type)
-    if request.connection:
-        for key, value in request.connection.items():
-            if hasattr(source, key):
-                setattr(source, key, value)
-
-    fields = []
-    if request.schema_fields:
-        for f in request.schema_fields:
-            fields.append(FieldSchema(**f))
-
-    dataset = DatasetDeclaration(
-        id=dataset_id,
-        name=request.name,
-        description=request.description,
-        source=source,
-        schema_fields=fields,
-        sync_config=SyncConfig(mode=request.sync_mode),
-    )
-
-    _DATASETS[dataset_id] = dataset
-
-    return success_response(data=dataset.model_dump())
-
-
-@router.get("/{space_id}/datasets/{dataset_id}", response_model=dict)
-async def get_dataset(space_id: str, dataset_id: str):
-    """Get a dataset by ID."""
-    full_id = f"{space_id}_{dataset_id}" if not dataset_id.startswith(space_id) else dataset_id
-    dataset = _DATASETS.get(full_id)
-
-    if not dataset:
-        return error_response(code="NOT_FOUND", message=f"Dataset {dataset_id} not found")
-
-    return success_response(data=dataset.model_dump())
-
-
-@router.delete("/{space_id}/datasets/{dataset_id}", response_model=dict)
-async def delete_dataset(space_id: str, dataset_id: str):
-    """Delete a dataset."""
-    full_id = f"{space_id}_{dataset_id}" if not dataset_id.startswith(space_id) else dataset_id
-
-    if full_id in _DATASETS:
-        del _DATASETS[full_id]
-        return success_response(data={"deleted": True})
-
-    return error_response(code="NOT_FOUND", message=f"Dataset {dataset_id} not found")
-
-
-# ============================================================================
-# Mapping Rules
-# ============================================================================
-
-@router.get("/{space_id}/datasets/{dataset_id}/mappings", response_model=dict)
-async def list_mapping_rules(space_id: str, dataset_id: str):
-    """List mapping rules for a dataset."""
-    full_id = f"{space_id}_{dataset_id}" if not dataset_id.startswith(space_id) else dataset_id
-    dataset = _DATASETS.get(full_id)
-
-    if not dataset:
-        return error_response(code="NOT_FOUND", message=f"Dataset {dataset_id} not found")
-
-    return success_response(data=[r.model_dump() for r in dataset.mapping_rules])
-
-
-@router.post("/{space_id}/datasets/{dataset_id}/mappings", response_model=dict)
-async def add_mapping_rule(space_id: str, dataset_id: str, request: CreateMappingRuleRequest):
-    """Add a mapping rule to a dataset."""
-    full_id = f"{space_id}_{dataset_id}" if not dataset_id.startswith(space_id) else dataset_id
-    dataset = _DATASETS.get(full_id)
-
-    if not dataset:
-        return error_response(code="NOT_FOUND", message=f"Dataset {dataset_id} not found")
-
-    mappings = []
-    if request.field_mappings:
-        for fm in request.field_mappings:
-            mappings.append(FieldMapping(**fm))
-
-    rule = MappingRule(
-        id=request.id,
-        target_entity_type=request.target_entity_type,
-        field_mappings=mappings,
-        filters=request.filters or [],
-    )
-
-    dataset.mapping_rules.append(rule)
-
-    return success_response(data=rule.model_dump())
-
-
-# ============================================================================
-# Sync
-# ============================================================================
-
-@router.post("/{space_id}/datasets/{dataset_id}/sync", response_model=dict)
-async def trigger_sync(space_id: str, dataset_id: str, request: TriggerSyncRequest):
-    """Trigger a dataset sync."""
-    full_id = f"{space_id}_{dataset_id}" if not dataset_id.startswith(space_id) else dataset_id
-    dataset = _DATASETS.get(full_id)
-
-    if not dataset:
-        return error_response(code="NOT_FOUND", message=f"Dataset {dataset_id} not found")
-
-    # Create sync record
-    sync_id = f"sync_{uuid.uuid4().hex[:8]}"
-    sync_record = SyncHistory(
-        id=sync_id,
-        dataset_id=full_id,
-        triggered_by="manual",
-        started_at=datetime.utcnow(),
-        mode=request.mode,
-        parameters={"override_last_sync": request.override_last_sync} if request.override_last_sync else None,
-        stats={
-            "records_read": 0,
-            "records_created": 0,
-            "records_updated": 0,
-            "records_skipped": 0,
-        },
-        status="running",
-    )
-
-    _SYNC_HISTORY.append(sync_record)
-
-    # For demo: simulate completion
-    sync_record.completed_at = datetime.utcnow()
-    sync_record.status = "success"
-    sync_record.stats = {
-        "records_read": 100,
-        "records_created": 50,
-        "records_updated": 30,
-        "records_skipped": 20,
-    }
+    await storage.save(space)
 
     return success_response(data={
-        "sync_id": sync_id,
-        "status": sync_record.status,
-        "started_at": sync_record.started_at.isoformat(),
-        "completed_at": sync_record.completed_at.isoformat() if sync_record.completed_at else None,
-        "stats": sync_record.stats,
+        "space_id": space_id,
+        "added_entities": added_entities,
+        "added_relations": added_relations,
+        "total_entities": len(space.instances.entities),
+        "total_relations": len(space.instances.relations),
     })
 
 
-@router.get("/{space_id}/datasets/{dataset_id}/sync/history", response_model=dict)
-async def get_sync_history(space_id: str, dataset_id: str):
-    """Get sync history for a dataset."""
-    full_id = f"{space_id}_{dataset_id}" if not dataset_id.startswith(space_id) else dataset_id
+@router.get("/{space_id}/instances/relations", response_model=dict)
+async def list_relations(space_id: str):
+    """List all relation instances."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
 
-    history = [s.model_dump() for s in _SYNC_HISTORY if s.dataset_id == full_id]
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
-    # Convert datetime to string for JSON serialization
-    for h in history:
-        if h.get("started_at"):
-            h["started_at"] = h["started_at"].isoformat()
-        if h.get("completed_at") and h["completed_at"]:
-            h["completed_at"] = h["completed_at"].isoformat()
+    return success_response(data=space.instances.relations)
 
-    return success_response(data=history)
+
+@router.post("/{space_id}/instances/relations", response_model=dict)
+async def add_relation(space_id: str, relation: dict):
+    """Add a relation instance."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    space.instances.relations.append(relation)
+    await storage.save(space)
+
+    return success_response(data=relation)
+
+
+# ============================================================================
+# Schema Overview (L1-L4 Summary)
+# ============================================================================
+
+@router.get("/{space_id}/schema/overview", response_model=dict)
+async def get_schema_overview(space_id: str):
+    """Get a complete overview of all schema layers in a space."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    return success_response(data={
+        "space_id": space_id,
+        "L1": {
+            "count": len(space.layers.L1_fact_objects),
+            "items": space.layers.L1_fact_objects,
+        },
+        "L2": {
+            "count": len(space.layers.L2_categorizations),
+            "items": space.layers.L2_categorizations,
+        },
+        "L3": {
+            "count": len(space.layers.L3_analytical_elements),
+            "items": space.layers.L3_analytical_elements,
+        },
+        "L4": {
+            "rule_definitions_count": len(space.layers.L4_business_logic.rule_definitions),
+            "rule_logics_count": len(space.layers.L4_business_logic.rule_logics),
+            "rule_definitions": space.layers.L4_business_logic.rule_definitions,
+            "rule_logics": space.layers.L4_business_logic.rule_logics,
+        },
+    })
+
+
+@router.get("/{space_id}/schema/L2/categorizations", response_model=dict)
+async def list_categorizations_v2(space_id: str):
+    """List all L2 categorizations."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+    return success_response(data=space.layers.L2_categorizations)
+
+
+@router.get("/{space_id}/schema/L3/analytical-elements", response_model=dict)
+async def list_analytical_elements_v2(space_id: str):
+    """List all L3 analytical elements."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+    return success_response(data=space.layers.L3_analytical_elements)
+
+
+# ============================================================================
+# Rule Dependency Analysis
+# ============================================================================
+
+@router.get("/{space_id}/schema/L4/rules/dependency-graph", response_model=dict)
+async def get_rule_dependency_graph(space_id: str):
+    """Analyze rule dependencies based on input/output element connections.
+
+    Returns a DAG where nodes are rule definitions and edges represent
+    data flow (output of one rule used as input of another).
+    Also detects mutually exclusive rules based on applicable_categorizations.
+    """
+    storage = _get_storage()
+    space = await storage.load(space_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    rules = space.layers.L4_business_logic.rule_definitions
+
+    # Build nodes
+    nodes = []
+    for rule in rules:
+        # Gather logic details for this rule
+        logic_ids = rule.get("logic_ids", [])
+        logics = [
+            rl for rl in space.layers.L4_business_logic.rule_logics
+            if rl.get("id") in logic_ids
+        ]
+
+        nodes.append({
+            "id": rule["id"],
+            "label": rule.get("name") or rule["id"],
+            "rule_type": rule.get("rule_type", "constraint"),
+            "priority": rule.get("priority", 100),
+            "enabled": rule.get("enabled", True),
+            "target_objects": rule.get("target_objects", []),
+            "applicable_categorizations": rule.get("applicable_categorizations", []),
+            "input_elements": rule.get("input_elements", []),
+            "output_elements": rule.get("output_elements", []),
+            "logic_count": len(logics),
+        })
+
+    # Build dependency edges: rule A → rule B if A's output_elements overlap with B's input_elements
+    edges = []
+    output_map: dict[str, list[str]] = {}  # element_name -> [rule_id that produces it]
+    for rule in rules:
+        for out_elem in rule.get("output_elements", []):
+            elem_name = out_elem.get("name") or out_elem.get("id", "")
+            if elem_name:
+                output_map.setdefault(elem_name, []).append(rule["id"])
+
+    for rule in rules:
+        for in_elem in rule.get("input_elements", []):
+            elem_name = in_elem.get("name") or in_elem.get("id", "")
+            producers = output_map.get(elem_name, [])
+            for producer_id in producers:
+                if producer_id != rule["id"]:
+                    edges.append({
+                        "id": f"{producer_id}__{rule['id']}__{elem_name}",
+                        "source": producer_id,
+                        "target": rule["id"],
+                        "element": elem_name,
+                        "type": "data_dependency",
+                        "label": elem_name,
+                    })
+
+    # Detect mutual exclusion: rules with different applicable_categorizations
+    # that target the same object are mutually exclusive
+    exclusion_pairs = []
+    for i, rule_a in enumerate(rules):
+        for rule_b in rules[i + 1:]:
+            # Same target objects?
+            targets_a = set(rule_a.get("target_objects", []))
+            targets_b = set(rule_b.get("target_objects", []))
+            if not (targets_a & targets_b) and targets_a and targets_b:
+                continue
+            # Different applicable_categorizations?
+            cats_a = set(rule_a.get("applicable_categorizations", []))
+            cats_b = set(rule_b.get("applicable_categorizations", []))
+            if cats_a and cats_b and not (cats_a & cats_b):
+                exclusion_pairs.append({
+                    "rule_a": rule_a["id"],
+                    "rule_b": rule_b["id"],
+                    "reason": f"适用分类不同: {list(cats_a)} vs {list(cats_b)}",
+                    "type": "categorization_exclusive",
+                })
+            # Rules that produce the same output element are also mutually exclusive
+            outputs_a = {(e.get("name") or e.get("id", "")) for e in rule_a.get("output_elements", [])}
+            outputs_b = {(e.get("name") or e.get("id", "")) for e in rule_b.get("output_elements", [])}
+            shared_outputs = outputs_a & outputs_b - {""}
+            if shared_outputs:
+                exclusion_pairs.append({
+                    "rule_a": rule_a["id"],
+                    "rule_b": rule_b["id"],
+                    "reason": f"共同输出元素: {list(shared_outputs)}",
+                    "type": "output_conflict",
+                })
+
+    # Compute execution order (topological sort)
+    execution_order = _topological_sort(nodes, edges)
+
+    return success_response(data={
+        "space_id": space_id,
+        "nodes": nodes,
+        "edges": edges,
+        "mutual_exclusions": exclusion_pairs,
+        "execution_order": execution_order,
+        "stats": {
+            "total_rules": len(nodes),
+            "dependency_edges": len(edges),
+            "exclusion_pairs": len(exclusion_pairs),
+        },
+    })
+
+
+def _topological_sort(nodes: list[dict], edges: list[dict]) -> list[str]:
+    """Topological sort of rule nodes based on dependency edges."""
+    from collections import defaultdict, deque
+
+    in_degree: dict[str, int] = {n["id"]: 0 for n in nodes}
+    adj: dict[str, list[str]] = defaultdict(list)
+
+    for edge in edges:
+        src = edge["source"]
+        tgt = edge["target"]
+        if src in in_degree and tgt in in_degree:
+            adj[src].append(tgt)
+            in_degree[tgt] += 1
+
+    queue = deque([nid for nid, deg in in_degree.items() if deg == 0])
+    # Sort by priority (higher priority first)
+    priority_map = {n["id"]: n.get("priority", 100) for n in nodes}
+    sorted_queue = sorted(queue, key=lambda nid: -priority_map.get(nid, 100))
+    queue = deque(sorted_queue)
+
+    order = []
+    while queue:
+        nid = queue.popleft()
+        order.append(nid)
+        for neighbor in sorted(adj[nid], key=lambda x: -priority_map.get(x, 100)):
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+
+    # Nodes not in order (cycle) appended at end
+    remaining = [n["id"] for n in nodes if n["id"] not in set(order)]
+    return order + remaining

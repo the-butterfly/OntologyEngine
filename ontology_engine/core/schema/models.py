@@ -115,6 +115,9 @@ class RuleDefinition(BaseModel):
     when: RuleWhen | None = None
     then: RuleThen | None = None
     else_: dict | None = Field(default=None, alias="else")
+    # ADR-008: Forward compatibility for rule_definitions + rule_logics separation
+    # When logic_ids is non-empty, executor should use external RuleLogic objects
+    logic_ids: list[str] = Field(default_factory=list)
 
 
 class RulesDefinition(BaseModel):
@@ -132,6 +135,164 @@ class MetricDefinition(BaseModel):
     scope: str | None = None  # Concept name
     formula: str | None = None
     dependencies: list[str] = Field(default_factory=list)
+    # ADR-007: L3/L4 computation boundary
+    standard_formula: str | None = None  # Optional standard formula (declaration)
+    overridable: bool = False  # If True, L4 can override standard_formula
+
+
+# ============== V2 Models: Fact Objects (L1) ==============
+
+
+class FactObjectEntity(BaseModel):
+    """L1 Entity definition in v2 format."""
+    id: str
+    name: str | None = None
+    description: str | None = None
+    attributes: list[AttributeDefinition] = Field(default_factory=list)
+    relations: list[RelationDefinition] = Field(default_factory=list)
+
+
+class FactObjects(BaseModel):
+    """L1 Fact Objects container."""
+    shared_types: list[TypeDefinition] = Field(default_factory=list)
+    enums: list[EnumDefinition] = Field(default_factory=list)
+    entities: list[FactObjectEntity] = Field(default_factory=list)
+    relations: list[RelationDefinition] = Field(default_factory=list)
+
+
+# ============== V2 Models: Categorization (L2) ==============
+
+
+class CategorizationDimension(BaseModel):
+    """L2 Categorization dimension."""
+    id: str
+    name: str | None = None
+    description: str | None = None
+    applicable_to: list[str] = Field(default_factory=list)
+    triggers: list[dict] = Field(default_factory=list)
+
+
+class Categorizations(BaseModel):
+    """L2 Categorizations container."""
+    dimensions: list[CategorizationDimension] = Field(default_factory=list)
+
+
+# ============== V2 Models: Analytical Elements (L3) ==============
+
+
+class MetricSource(BaseModel):
+    """Metric source definition."""
+    type: str  # "fact_attribute", "graph_traversal", "external_api", "constant"
+    entity: str | None = None
+    attribute: str | None = None
+    traversal: str | None = None
+    aggregate: str | None = None
+    filter: str | None = None
+    provider: str | None = None
+
+
+class MetricComponent(BaseModel):
+    """Component for composite metrics."""
+    metric: str
+    weight: float = 1.0
+    transform: str | None = None
+
+
+class MetricDefinitionV2(BaseModel):
+    """L3 Metric definition in v2 format."""
+    id: str
+    name: str | None = None
+    description: str | None = None
+    element_type: str  # "atomic", "derived", "composite", "graph"
+    source: MetricSource | None = None
+    dependencies: list[str] = Field(default_factory=list)
+    formula: str | None = None
+    unit: str | None = None
+    range: tuple[float, float] | None = None
+    default: Any = None
+    thresholds: dict | None = None
+    overridable: bool = False
+    components: list[MetricComponent] | None = None
+    algorithm: str | None = None
+    traversal: dict | None = None
+    neighbor_filter: str | None = None
+
+
+class IndicatorDefinition(BaseModel):
+    """L3 Indicator definition."""
+    id: str
+    name: str | None = None
+    description: str | None = None
+    element_type: str  # "atomic", "derived"
+    source: MetricSource | None = None
+    dependencies: list[str] = Field(default_factory=list)
+    formula: str | None = None
+    output_type: str = "boolean"
+    overridable: bool = False
+
+
+class ScorecardDefinition(BaseModel):
+    """L3 Scorecard definition."""
+    id: str
+    name: str | None = None
+    description: str | None = None
+    element_type: str = "derived"
+    dependencies: list[str] = Field(default_factory=list)
+    formula: str | None = None
+    output_type: str = "string"
+    overridable: bool = False
+
+
+class AnalyticalElements(BaseModel):
+    """L3 Analytical Elements container."""
+    metrics: list[MetricDefinitionV2] = Field(default_factory=list)
+    indicators: list[IndicatorDefinition] = Field(default_factory=list)
+    scorecards: list[ScorecardDefinition] = Field(default_factory=list)
+
+
+# ============== V2 Models: Business Logic (L4) ==============
+
+
+class RuleDefinitionV2(BaseModel):
+    """L4 Rule definition in v2 format."""
+    id: str
+    name: str | None = None
+    description: str | None = None
+    rule_type: str = "constraint"  # "constraint", "inference", "alert", "decision"
+    priority: int = 100
+    target_objects: list[str] = Field(default_factory=list)
+    applicable_categorizations: list[str] = Field(default_factory=list)
+    input_elements: list[dict] = Field(default_factory=list)
+    output_elements: list[dict] = Field(default_factory=list)
+    enabled: bool = True
+    logic_ids: list[str] = Field(default_factory=list)
+
+
+class RuleLogic(BaseModel):
+    """L4 Rule logic instance."""
+    id: str
+    name: str | None = None
+    definition_id: str
+    applicable_conditions: list[dict] = Field(default_factory=list)
+    when: RuleWhen | None = None
+    then_action: RuleAction | None = None
+    else_action: RuleAction | None = None
+    priority: int = 100
+    version: int = 1
+    environment: str = "default"
+
+
+class RuleAction(BaseModel):
+    """Rule action."""
+    action_type: str | None = None
+    output: dict | None = None
+    computation: dict | None = None
+
+
+class BusinessLogic(BaseModel):
+    """L4 Business Logic container."""
+    rule_definitions: list[RuleDefinitionV2] = Field(default_factory=list)
+    rule_logics: list[RuleLogic] = Field(default_factory=list)
 
 
 # ============== KGML Schema (Complete) ==============
@@ -139,11 +300,20 @@ class MetricDefinition(BaseModel):
 
 class KGMLSchema(BaseModel):
     metadata: SchemaMetadata
+    schema_version: str = "1.0"
+
+    # V1 format fields
     types: list[TypeDefinition] = Field(default_factory=list)
     enums: list[EnumDefinition] = Field(default_factory=list)
     concepts: list[ConceptDefinition] = Field(default_factory=list)
     metrics: list[MetricDefinition] = Field(default_factory=list)
     rules: RulesDefinition | None = None
+
+    # V2 format fields
+    fact_objects: FactObjects | None = None
+    categorizations: Categorizations | None = None
+    analytical_elements: AnalyticalElements | None = None
+    business_logic: BusinessLogic | None = None
 
     def get_concept(self, name: str) -> ConceptDefinition | None:
         return next((c for c in self.concepts if c.name == name), None)
@@ -161,3 +331,245 @@ class KGMLSchema(BaseModel):
             r for r in self.rules.ruleset
             if dimension in (r.scope.get("dimensions", []) if r.scope else [])
         ]
+
+    def is_v2_format(self) -> bool:
+        """Check if this schema uses v2 format."""
+        return self.fact_objects is not None or self.schema_version == "2.0"
+
+    def get_all_metrics(self) -> list[MetricDefinitionV2]:
+        """Get all metrics from v2 analytical_elements or convert v1 metrics."""
+        if self.analytical_elements:
+            return self.analytical_elements.metrics
+        # Fallback: convert v1 metrics to v2 format
+        return []
+
+    def get_all_rule_definitions(self) -> list[RuleDefinitionV2]:
+        """Get all rule definitions from v2 business_logic."""
+        if self.business_logic:
+            return self.business_logic.rule_definitions
+        return []
+
+    def get_all_rule_logics(self) -> list[RuleLogic]:
+        """Get all rule logics from v2 business_logic."""
+        if self.business_logic:
+            return self.business_logic.rule_logics
+        return []
+
+    def to_space_layers_dict(self) -> dict:
+        """Convert KGMLSchema to dict format compatible with SemanticSpaceLayers.
+
+        This converts v2 structured objects to dict format for storage in
+        SemanticSpace. Works with both v1 and v2 schema formats.
+
+        Returns:
+            Dict with keys: L1_fact_objects, L2_categorizations,
+            L3_analytical_elements, L4_business_logic
+        """
+        # L1: Fact Objects
+        l1_fact_objects = []
+        if self.fact_objects and self.fact_objects.entities:
+            for entity in self.fact_objects.entities:
+                l1_fact_objects.append({
+                    "id": entity.id,
+                    "name": entity.name,
+                    "description": entity.description,
+                    "properties": [
+                        {
+                            "name": attr.name,
+                            "type": attr.type,
+                            "required": attr.required,
+                            "unique": attr.unique,
+                            "default": attr.default,
+                            "description": attr.description,
+                            "validation": attr.validation,
+                            "enum": attr.enum,
+                        }
+                        for attr in entity.attributes
+                    ],
+                    "relations": [
+                        {
+                            "name": rel.name,
+                            "target": rel.target,
+                            "cardinality": rel.cardinality,
+                            "description": rel.description,
+                            "inverse": rel.inverse,
+                        }
+                        for rel in entity.relations
+                    ],
+                })
+        elif self.concepts:
+            # Fallback to v1 concepts format
+            for concept in self.concepts:
+                l1_fact_objects.append({
+                    "id": concept.name,
+                    "name": concept.name,
+                    "description": concept.description,
+                    "properties": [
+                        {
+                            "name": attr.name,
+                            "type": attr.type,
+                            "required": attr.required,
+                            "unique": attr.unique,
+                            "default": attr.default,
+                            "description": attr.description,
+                            "validation": attr.validation,
+                            "enum": attr.enum,
+                        }
+                        for attr in concept.attributes
+                    ],
+                    "relations": [
+                        {
+                            "name": rel.name,
+                            "target": rel.target,
+                            "cardinality": rel.cardinality,
+                            "description": rel.description,
+                            "inverse": rel.inverse,
+                        }
+                        for rel in concept.relations
+                    ],
+                })
+
+        # L2: Categorizations
+        l2_categorizations = []
+        if self.categorizations and self.categorizations.dimensions:
+            for dim in self.categorizations.dimensions:
+                l2_categorizations.append({
+                    "id": dim.id,
+                    "name": dim.name,
+                    "description": dim.description,
+                    "applicable_to": dim.applicable_to,
+                    "triggers": dim.triggers,
+                })
+
+        # L3: Analytical Elements
+        l3_analytical_elements: list[dict[str, Any]] = []
+        if self.analytical_elements:
+            # Metrics
+            for metric in self.analytical_elements.metrics:
+                elem = {
+                    "id": metric.id,
+                    "name": metric.name,
+                    "description": metric.description,
+                    "element_type": metric.element_type,
+                    "dependencies": metric.dependencies,
+                    "formula": metric.formula,
+                    "unit": metric.unit,
+                    "range": list(metric.range) if metric.range else None,
+                    "default": metric.default,
+                    "thresholds": metric.thresholds,
+                    "overridable": metric.overridable,
+                }
+                if metric.source:
+                    elem["source"] = {
+                        "type": metric.source.type,
+                        "entity": metric.source.entity,
+                        "attribute": metric.source.attribute,
+                        "traversal": metric.source.traversal,
+                        "aggregate": metric.source.aggregate,
+                        "filter": metric.source.filter,
+                        "provider": metric.source.provider,
+                    }
+                if metric.components:
+                    elem["components"] = [
+                        {"metric": c.metric, "weight": c.weight, "transform": c.transform}
+                        for c in metric.components
+                    ]
+                l3_analytical_elements.append(elem)
+            # Indicators
+            for indicator in self.analytical_elements.indicators:
+                elem = {
+                    "id": indicator.id,
+                    "name": indicator.name,
+                    "description": indicator.description,
+                    "element_type": indicator.element_type,
+                    "output_type": indicator.output_type,
+                    "overridable": indicator.overridable,
+                }
+                if indicator.source:
+                    elem["source"] = {
+                        "type": indicator.source.type,
+                        "entity": indicator.source.entity,
+                        "attribute": indicator.source.attribute,
+                    }
+                l3_analytical_elements.append(elem)
+            # Scorecards
+            for scorecard in self.analytical_elements.scorecards:
+                l3_analytical_elements.append({
+                    "id": scorecard.id,
+                    "name": scorecard.name,
+                    "description": scorecard.description,
+                    "element_type": scorecard.element_type,
+                    "dependencies": scorecard.dependencies,
+                    "formula": scorecard.formula,
+                    "output_type": scorecard.output_type,
+                    "overridable": scorecard.overridable,
+                })
+        elif self.metrics:
+            # Fallback to v1 metrics format
+            for metric_v1 in self.metrics:
+                l3_analytical_elements.append({
+                    "id": metric_v1.name,
+                    "name": metric_v1.name,
+                    "description": metric_v1.description,
+                    "element_type": "derived" if metric_v1.formula else "atomic",
+                    "formula": metric_v1.formula,
+                    "dependencies": metric_v1.dependencies,
+                })
+
+        # L4: Business Logic
+        l4_rule_definitions = []
+        l4_rule_logics = []
+        if self.business_logic:
+            for rd in self.business_logic.rule_definitions:
+                l4_rule_definitions.append({
+                    "id": rd.id,
+                    "name": rd.name,
+                    "description": rd.description,
+                    "rule_type": rd.rule_type,
+                    "priority": rd.priority,
+                    "target_objects": rd.target_objects,
+                    "applicable_categorizations": rd.applicable_categorizations,
+                    "input_elements": rd.input_elements,
+                    "output_elements": rd.output_elements,
+                    "enabled": rd.enabled,
+                    "logic_ids": rd.logic_ids,
+                })
+            for rl in self.business_logic.rule_logics:
+                logic_dict: dict[str, Any] = {
+                    "id": rl.id,
+                    "name": rl.name,
+                    "definition_id": rl.definition_id,
+                    "applicable_conditions": rl.applicable_conditions,
+                    "priority": rl.priority,
+                    "version": rl.version,
+                    "environment": rl.environment,
+                }
+                if rl.when:
+                    logic_dict["when"] = {
+                        "expression": rl.when.expression,
+                        "allOf": rl.when.allOf,
+                        "anyOf": rl.when.anyOf,
+                    }
+                if rl.then_action:
+                    logic_dict["then_action"] = {
+                        "action_type": rl.then_action.action_type,
+                        "output": rl.then_action.output,
+                        "computation": rl.then_action.computation,
+                    }
+                if rl.else_action:
+                    logic_dict["else_action"] = {
+                        "action_type": rl.else_action.action_type,
+                        "output": rl.else_action.output,
+                        "computation": rl.else_action.computation,
+                    }
+                l4_rule_logics.append(logic_dict)
+
+        return {
+            "L1_fact_objects": l1_fact_objects,
+            "L2_categorizations": l2_categorizations,
+            "L3_analytical_elements": l3_analytical_elements,
+            "L4_business_logic": {
+                "rule_definitions": l4_rule_definitions,
+                "rule_logics": l4_rule_logics,
+            },
+        }
