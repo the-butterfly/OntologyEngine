@@ -24,12 +24,12 @@ class SchemaService:
 
     def __init__(
         self,
-        storage: DuckDBStorage,
+        storage: StorageBackend,
     ):
         """Initialize SchemaService.
 
         Args:
-            storage: DuckDBStorage instance
+            storage: StorageBackend instance
         """
         self.storage = storage
         self._loader = SchemaLoader()

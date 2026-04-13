@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -12,14 +11,14 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-logger = logging.getLogger(__name__)
-
 from ontology_engine.services import (
     SchemaService,
     EntityService,
     AnalysisService,
     QueryService,
     IngestionService,
+    DatasetService,
+    IncrementalUpdateService,
 )
 from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.storage.duckdb import DuckDBStorage
@@ -39,6 +38,8 @@ from ontology_engine.core.semantic_space import (
     SpaceInstances,
     SemanticSpaceStorage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -239,7 +240,6 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     try:
         all_metadata = await space_storage.list()
         from ontology_engine.core.semantic_space import SpaceType as ST
-        mgmt_spaces = {m.id: m for m in all_metadata if m.space_type == ST.MANAGEMENT}
         for meta in all_metadata:
             if meta.space_type == ST.MANAGEMENT and meta.view_id:
                 view = await space_storage.load(meta.view_id)
@@ -307,6 +307,8 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         storage=storage,
         schema=schema,
     )
+    services["dataset"] = DatasetService(storage=storage)
+    services["incremental"] = IncrementalUpdateService(storage=storage)
 
     # Initialize dependencies
     dependencies.init_dependencies(storage, services)
@@ -350,7 +352,6 @@ def create_app() -> FastAPI:
         visualization,
         relations,
         rules,
-        semantic_spaces,
         management,
         consumption,
         datasets,

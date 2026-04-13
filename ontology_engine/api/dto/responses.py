@@ -14,13 +14,16 @@ def create_response_meta() -> dict[str, Any]:
     }
 
 
-def success_response(data: Any = None) -> dict[str, Any]:
+def success_response(data: Any = None, meta: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create a successful response dict."""
+    response_meta = create_response_meta()
+    if meta:
+        response_meta.update(meta)
     return {
         "success": True,
         "data": data,
         "error": None,
-        "meta": create_response_meta()
+        "meta": response_meta,
     }
 
 

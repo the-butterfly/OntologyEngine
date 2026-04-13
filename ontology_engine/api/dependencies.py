@@ -11,12 +11,14 @@ from ontology_engine.services import (
     AnalysisService,
     QueryService,
     IngestionService,
+    DatasetService,
+    IncrementalUpdateService,
 )
 from ontology_engine.services.visualization_service import VisualizationService
 
 # Global storage and services (initialized on startup)
-_storage: "DuckDBStorage | None" = None
-_services: dict[str, Any] = None
+_storage: Any = None
+_services: dict[str, Any] | None = None
 
 
 def init_dependencies(storage: Any, services: dict[str, Any]) -> None:
@@ -73,3 +75,17 @@ def get_visualization_service() -> VisualizationService:
     if _services is None or "visualization" not in _services:
         raise HTTPException(status_code=500, detail="Visualization service not initialized")
     return _services["visualization"]
+
+
+def get_dataset_service() -> DatasetService:
+    """Get dataset service."""
+    if _services is None or "dataset" not in _services:
+        raise HTTPException(status_code=500, detail="Dataset service not initialized")
+    return _services["dataset"]
+
+
+def get_incremental_update_service() -> IncrementalUpdateService:
+    """Get incremental update service."""
+    if _services is None or "incremental" not in _services:
+        raise HTTPException(status_code=500, detail="Incremental update service not initialized")
+    return _services["incremental"]
