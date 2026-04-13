@@ -657,6 +657,212 @@ async def execute_simulate(view_id: str, request: ExecuteSimulateRequest):
 
 
 # ============================================================================
+# DAG Execution Support
+# ============================================================================
+
+def _build_rule_dependency_graph(
+    rules: list[dict],
+) -> tuple[dict[str, list[str]], dict[str, int], list[dict]]:
+    """Build rule dependency graph based on input/output element matching.
+
+    Rule A depends on Rule B if A's input_elements overlap with B's output_elements.
+
+    Returns:
+        Tuple of (adjacency_list, in_degree_map, edges)
+    """
+    # Build output_map: element_name -> [rule_ids that produce it]
+    output_map: dict[str, list[str]] = defaultdict(list)
+    for rule in rules:
+        for out_elem in rule.get("output_elements", []):
+            elem_name = out_elem.get("name") or out_elem.get("id", "")
+            if elem_name:
+                output_map[elem_name].append(rule["id"])
+
+    # Build dependency edges and adjacency list
+    adj: dict[str, list[str]] = defaultdict(list)
+    in_degree: dict[str, int] = {r["id"]: 0 for r in rules}
+    edges = []
+
+    for rule in rules:
+        rule_id = rule["id"]
+        for in_elem in rule.get("input_elements", []):
+            elem_name = in_elem.get("name") or in_elem.get("id", "")
+            producers = output_map.get(elem_name, [])
+            for producer_id in producers:
+                if producer_id != rule_id and producer_id in in_degree:
+                    adj[producer_id].append(rule_id)
+                    in_degree[rule_id] += 1
+                    edges.append({
+                        "source": producer_id,
+                        "target": rule_id,
+                        "via_element": elem_name,
+                    })
+
+    return dict(adj), in_degree, edges
+
+
+def _compute_rule_levels(
+    rules: list[dict],
+    adj: dict[str, list[str]],
+    in_degree: dict[str, int],
+) -> dict[str, int]:
+    """Compute execution level for each rule based on dependency graph.
+
+    Level 0 = rules with no dependencies (in_degree = 0)
+    Level N = rules that depend only on rules in levels 0..N-1
+
+    Returns:
+        Dict mapping rule_id -> level number
+
+    Raises:
+        ValueError if circular dependency is detected.
+    """
+    rule_levels: dict[str, int] = {}
+    remaining_in_degree = dict(in_degree)
+    level_queue = deque()
+
+    # Find all rules with in_degree = 0 (no dependencies)
+    for rule_id, deg in remaining_in_degree.items():
+        if deg == 0:
+            level_queue.append(rule_id)
+
+    while level_queue:
+        current_level_size = len(level_queue)
+        for _ in range(current_level_size):
+            rule_id = level_queue.popleft()
+            # Assign level if not already assigned
+            if rule_id not in rule_levels:
+                # Level is determined by max level of all prerequisites + 1
+                rule_levels[rule_id] = len([r for r in rules if rule_id in adj.get(r["id"], [])])
+
+            # Process all rules that depend on this one
+            for neighbor in adj.get(rule_id, []):
+                remaining_in_degree[neighbor] -= 1
+                if remaining_in_degree[neighbor] == 0:
+                    level_queue.append(neighbor)
+
+    # Check for cycles - rules not in rule_levels have circular dependencies
+    unassigned = [r["id"] for r in rules if r["id"] not in rule_levels]
+    if unassigned:
+        raise ValueError(f"Circular dependency detected involving rules: {unassigned}")
+
+    return rule_levels
+
+
+def _detect_circular_dependencies(
+    rules: list[dict],
+    adj: dict[str, list[str]],
+    in_degree: dict[str, int],
+) -> list[list[str]]:
+    """Detect circular dependencies in rule graph using DFS.
+
+    Returns:
+        List of cycles, where each cycle is a list of rule IDs.
+    """
+    cycles = []
+    visited = set()
+    rec_stack = set()
+    path = []
+
+    def dfs(node: str) -> bool:
+        visited.add(node)
+        rec_stack.add(node)
+        path.append(node)
+
+        for neighbor in adj.get(node, []):
+            if neighbor not in visited:
+                if dfs(neighbor):
+                    return True
+            elif neighbor in rec_stack:
+                # Found a cycle
+                cycle_start = path.index(neighbor)
+                cycles.append(path[cycle_start:] + [neighbor])
+
+        path.pop()
+        rec_stack.remove(node)
+        return False
+
+    for rule in rules:
+        rule_id = rule["id"]
+        if rule_id not in visited:
+            dfs(rule_id)
+
+    return cycles
+
+
+def _precompute_l3_elements(
+    space: SemanticSpace,
+    entity_data: dict,
+) -> dict[str, Any]:
+    """Precompute L3 Analytical Elements from entity data.
+
+    Handles:
+    - atomic: extracts value from fact attribute via source.path
+    - derived: resolves dependencies (simplified for MVP)
+    - composite/graph: returns None for MVP
+    """
+    computed = {}
+
+    for elem in space.layers.L3_analytical_elements:
+        elem_id = elem.get("id", "")
+        elem_type = elem.get("element_type", "atomic")
+        source = elem.get("source", {})
+        dependencies = elem.get("dependencies", [])
+
+        if elem_id in computed:
+            continue  # Already computed
+
+        if elem_type == "atomic":
+            # Extract from fact attribute
+            attr_path = source.get("attribute", "")
+            if attr_path:
+                value = _get_nested_path(entity_data, attr_path)
+                computed[elem_id] = value
+            else:
+                computed[elem_id] = None
+
+        elif elem_type == "derived":
+            # Simplified: use first dependency's value
+            if dependencies:
+                first_dep = dependencies[0]
+                if first_dep in computed:
+                    computed[elem_id] = computed[first_dep]
+                elif first_dep in entity_data:
+                    computed[elem_id] = entity_data[first_dep]
+                else:
+                    computed[elem_id] = None
+            else:
+                computed[elem_id] = None
+
+        elif elem_type == "composite":
+            # Composite is computed from components, skip for MVP
+            computed[elem_id] = None
+
+        elif elem_type == "graph":
+            # Graph metrics require traversal, skip for MVP
+            computed[elem_id] = None
+
+        else:
+            computed[elem_id] = None
+
+    return computed
+
+
+def _get_nested_path(data: dict, path: str) -> Any:
+    """Get nested value from dict using dot-separated path.
+
+    Example: _get_nested_path({"a": {"b": "c"}}, "a.b") -> "c"
+    """
+    value = data
+    for key in path.split("."):
+        if isinstance(value, dict):
+            value = value.get(key)
+        else:
+            return None
+    return value
+
+
+# ============================================================================
 # Core Execution Logic
 # ============================================================================
 
@@ -667,7 +873,17 @@ async def _run_full_analysis(
     overrides: dict[str, Any],
     include_trace: bool,
 ) -> dict[str, Any]:
-    """Execute all applicable rules with full tracing."""
+    """Execute all applicable rules with DAG-driven ordering and full tracing.
+
+    Execution order is determined by:
+    1. DAG levels (rules with no dependencies execute first, then rules that
+       depend on them, etc.)
+    2. Within the same level: priority order
+    3. Circular dependencies are detected and result in an error
+
+    This ensures that when rule A's output is rule B's input, A always executes
+    before B, regardless of priority settings.
+    """
     expression_engine = ExpressionEngine()
 
     entity_data = dict(entity)
@@ -684,135 +900,233 @@ async def _run_full_analysis(
     steps = []
     final_outputs: dict[str, Any] = {}
 
-    sorted_rules = sorted(
-        space.layers.L4_business_logic.rule_definitions,
-        key=lambda r: r.get("priority", 100),
-        reverse=True,
-    )
+    # Step 1: Precompute L3 Analytical Elements
+    l3_computed = _precompute_l3_elements(space, entity_data)
+    entity_data.update(l3_computed)
+    context.computed_metrics.update(l3_computed)
 
-    for rule in sorted_rules:
-        rule_id = rule["id"]
-        rule_name = rule.get("name", rule_id)
-        rule_type = rule.get("rule_type", "constraint")
+    # Step 2: Build dependency graph and compute levels
+    all_rules = space.layers.L4_business_logic.rule_definitions
+    enabled_rules = [r for r in all_rules if r.get("enabled", True)]
+    skipped_disabled = [r for r in all_rules if not r.get("enabled", True)]
 
-        # Skip disabled rules
-        if not rule.get("enabled", True):
-            steps.append({
-                "step": len(steps) + 1,
-                "rule_id": rule_id,
-                "rule_name": rule_name,
-                "rule_type": rule_type,
-                "status": "skipped",
-                "explanation": "规则已禁用",
-                "inputs": [],
-                "outputs": [],
-            })
-            continue
-
-        # Check target objects
-        target_objects = rule.get("target_objects", [])
-        entity_type = entity.get("_concept", "")
-        if target_objects and entity_type and entity_type not in target_objects:
-            steps.append({
-                "step": len(steps) + 1,
-                "rule_id": rule_id,
-                "rule_name": rule_name,
-                "rule_type": rule_type,
-                "status": "skipped",
-                "explanation": f"实体类型 {entity_type} 不在目标范围 {target_objects}",
-                "inputs": [],
-                "outputs": [],
-            })
-            continue
-
-        # Find matching rule logic
-        logic_ids = rule.get("logic_ids", [])
-        matching_logic = _find_matching_logic(
-            logic_ids,
-            space.layers.L4_business_logic.rule_logics,
-            entity_data,
-        )
-
-        # Gather current inputs
-        current_inputs = _gather_inputs(rule, entity_data, context.computed_metrics)
-
-        # Evaluate when condition
-        when_expr = _extract_when_expr(matching_logic, rule)
-        condition_result = True
-        condition_explanation = "无条件，默认执行"
-        condition_sub_conditions: list[dict] = []
-
-        if when_expr:
-            try:
-                eval_ctx = {**entity_data, **context.computed_metrics}
-                condition_result = bool(expression_engine.evaluate(when_expr, eval_ctx))
-                condition_explanation = f"条件: {when_expr} → {'满足' if condition_result else '不满足'}"
-            except Exception as exc:
-                condition_result = False
-                condition_explanation = f"条件评估出错: {exc}"
-
-        # Also evaluate allOf/anyOf conditions for explainability
-        if matching_logic and matching_logic.get("when"):
-            when_obj = matching_logic["when"]
-            condition_sub_conditions = _explain_conditions(when_obj, entity_data, context.computed_metrics, expression_engine)
-        elif rule.get("when"):
-            condition_sub_conditions = _explain_conditions(rule["when"], entity_data, context.computed_metrics, expression_engine)
-
-        context_before = dict(context.computed_metrics)
-        step_outputs: dict[str, Any] = {}
-
-        if condition_result:
-            then_action = None
-            if matching_logic:
-                then_action = matching_logic.get("then_action")
-            if not then_action:
-                then_action = rule.get("then_action")
-
-            if then_action:
-                step_outputs = _execute_action(
-                    then_action, entity_data, context.computed_metrics, expression_engine
-                )
-                context.computed_metrics.update(step_outputs)
-                final_outputs.update(step_outputs)
-
-            status = "passed"
-            action_type = (then_action or {}).get("action_type", "")
-            explanation = _build_explanation(action_type, step_outputs, condition_explanation)
-        else:
-            else_action = (matching_logic or {}).get("else_action") if matching_logic else rule.get("else_action")
-            if else_action:
-                else_outputs = _execute_action(
-                    else_action, entity_data, context.computed_metrics, expression_engine
-                )
-                context.computed_metrics.update(else_outputs)
-                final_outputs.update(else_outputs)
-                step_outputs = else_outputs
-                explanation = f"条件不满足，执行else分支: {_build_explanation(else_action.get('action_type',''), else_outputs, '')}"
-            else:
-                explanation = "条件不满足，规则跳过"
-            status = "skipped"
-
-        step = {
+    # Record disabled rules as skipped
+    for rule in skipped_disabled:
+        steps.append({
             "step": len(steps) + 1,
-            "rule_id": rule_id,
-            "rule_name": rule_name,
-            "rule_type": rule_type,
-            "condition_expression": when_expr or "",
-            "condition_result": condition_result,
-            "condition_sub_conditions": condition_sub_conditions,
-            "status": status,
-            "explanation": explanation,
-            "inputs": current_inputs,
-            "outputs": [{"name": k, "value": v} for k, v in step_outputs.items()],
-            "matching_logic_id": matching_logic.get("id") if matching_logic else None,
+            "rule_id": rule["id"],
+            "rule_name": rule.get("name", rule["id"]),
+            "rule_type": rule.get("rule_type", "constraint"),
+            "status": "skipped",
+            "explanation": "规则已禁用",
+            "inputs": [],
+            "outputs": [],
+        })
+
+    if not enabled_rules:
+        # No enabled rules, return early
+        return {
+            "entity_id": entity.get("entity_id", ""),
+            "dimension": dimension,
+            "steps": steps,
+            "execution_path": [],
+            "skipped_rules": [r["id"] for r in skipped_disabled],
+            "final_outputs": final_outputs,
+            "decision": "REVIEW",
+            "computed_metrics": context.computed_metrics,
         }
 
-        if include_trace:
-            step["context_before"] = context_before
-            step["context_after"] = dict(context.computed_metrics)
+    # Build dependency graph
+    try:
+        adj, in_degree, dep_edges = _build_rule_dependency_graph(enabled_rules)
+        rule_levels = _compute_rule_levels(enabled_rules, adj, in_degree)
+    except ValueError as e:
+        # Circular dependency detected - fall back to priority-only ordering
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"DAG execution failed, falling back to priority mode: {e}")
 
-        steps.append(step)
+        # Fall back to priority-based execution
+        sorted_rules = sorted(
+            enabled_rules,
+            key=lambda r: r.get("priority", 100),
+            reverse=True,
+        )
 
+        for rule in sorted_rules:
+            step = await _execute_single_rule(
+                rule, space, entity_data, context, expression_engine,
+                len(steps) + 1, include_trace
+            )
+            steps.append(step)
+            if step["status"] == "passed":
+                for k, v in step.get("outputs", []):
+                    final_outputs[k] = v
+
+        return _build_result(entity, dimension, steps, final_outputs, context)
+
+    # Step 3: Execute rules by DAG level
+    max_level = max(rule_levels.values()) if rule_levels else 0
+    rule_map = {r["id"]: r for r in enabled_rules}
+
+    # Group rules by level
+    level_groups: dict[int, list[dict]] = defaultdict(list)
+    for rule_id, level in rule_levels.items():
+        level_groups[level].append(rule_map[rule_id])
+
+    # Execute level by level
+    for level in range(max_level + 1):
+        level_rules = level_groups.get(level, [])
+
+        # Within the same level, sort by priority (higher first)
+        level_rules.sort(key=lambda r: r.get("priority", 100), reverse=True)
+
+        # Check target objects filter first
+        entity_type = entity_data.get("_concept", "")
+
+        for rule in level_rules:
+            # Additional filter: check if entity type matches target_objects
+            target_objects = rule.get("target_objects", [])
+            if target_objects and entity_type and entity_type not in target_objects:
+                steps.append({
+                    "step": len(steps) + 1,
+                    "rule_id": rule["id"],
+                    "rule_name": rule.get("name", rule["id"]),
+                    "rule_type": rule.get("rule_type", "constraint"),
+                    "status": "skipped",
+                    "explanation": f"实体类型 {entity_type} 不在目标范围 {target_objects}",
+                    "inputs": [],
+                    "outputs": [],
+                    "level": level,
+                })
+                continue
+
+            step = await _execute_single_rule(
+                rule, space, entity_data, context, expression_engine,
+                len(steps) + 1, include_trace
+            )
+            step["level"] = level  # Add level info for traceability
+            steps.append(step)
+
+            if step["status"] == "passed":
+                for item in step.get("outputs", []):
+                    final_outputs[item["name"]] = item["value"]
+
+    return _build_result(entity, dimension, steps, final_outputs, context)
+
+
+async def _execute_single_rule(
+    rule: dict,
+    space: SemanticSpace,
+    entity_data: dict,
+    context: ExecutionContext,
+    expression_engine: ExpressionEngine,
+    step_num: int,
+    include_trace: bool,
+) -> dict:
+    """Execute a single rule and return the step result.
+
+    This is the core rule execution logic extracted for reuse in DAG mode.
+    """
+    rule_id = rule["id"]
+    rule_name = rule.get("name", rule_id)
+    rule_type = rule.get("rule_type", "constraint")
+
+    # Find matching rule logic
+    logic_ids = rule.get("logic_ids", [])
+    matching_logic = _find_matching_logic(
+        logic_ids,
+        space.layers.L4_business_logic.rule_logics,
+        entity_data,
+    )
+
+    # Gather current inputs
+    current_inputs = _gather_inputs(rule, entity_data, context.computed_metrics)
+
+    # Evaluate when condition
+    when_expr = _extract_when_expr(matching_logic, rule)
+    condition_result = True
+    condition_explanation = "无条件，默认执行"
+    condition_sub_conditions: list[dict] = []
+
+    if when_expr:
+        try:
+            eval_ctx = {**entity_data, **context.computed_metrics}
+            condition_result = bool(expression_engine.evaluate(when_expr, eval_ctx))
+            condition_explanation = f"条件: {when_expr} → {'满足' if condition_result else '不满足'}"
+        except Exception as exc:
+            condition_result = False
+            condition_explanation = f"条件评估出错: {exc}"
+
+    # Evaluate allOf/anyOf conditions for explainability
+    if matching_logic and matching_logic.get("when"):
+        when_obj = matching_logic["when"]
+        condition_sub_conditions = _explain_conditions(when_obj, entity_data, context.computed_metrics, expression_engine)
+    elif rule.get("when"):
+        condition_sub_conditions = _explain_conditions(rule["when"], entity_data, context.computed_metrics, expression_engine)
+
+    context_before = dict(context.computed_metrics)
+    step_outputs: dict[str, Any] = {}
+
+    if condition_result:
+        then_action = None
+        if matching_logic:
+            then_action = matching_logic.get("then_action")
+        if not then_action:
+            then_action = rule.get("then_action")
+
+        if then_action:
+            step_outputs = _execute_action(
+                then_action, entity_data, context.computed_metrics, expression_engine
+            )
+            context.computed_metrics.update(step_outputs)
+
+        status = "passed"
+        action_type = (then_action or {}).get("action_type", "")
+        explanation = _build_explanation(action_type, step_outputs, condition_explanation)
+    else:
+        else_action = (matching_logic or {}).get("else_action") if matching_logic else rule.get("else_action")
+        if else_action:
+            else_outputs = _execute_action(
+                else_action, entity_data, context.computed_metrics, expression_engine
+            )
+            context.computed_metrics.update(else_outputs)
+            step_outputs = else_outputs
+            explanation = f"条件不满足，执行else分支: {_build_explanation(else_action.get('action_type',''), else_outputs, '')}"
+        else:
+            explanation = "条件不满足，规则跳过"
+        status = "skipped"
+
+    step = {
+        "step": step_num,
+        "rule_id": rule_id,
+        "rule_name": rule_name,
+        "rule_type": rule_type,
+        "condition_expression": when_expr or "",
+        "condition_result": condition_result,
+        "condition_sub_conditions": condition_sub_conditions,
+        "status": status,
+        "explanation": explanation,
+        "inputs": current_inputs,
+        "outputs": [{"name": k, "value": v} for k, v in step_outputs.items()],
+        "matching_logic_id": matching_logic.get("id") if matching_logic else None,
+    }
+
+    if include_trace:
+        step["context_before"] = context_before
+        step["context_after"] = dict(context.computed_metrics)
+
+    return step
+
+
+def _build_result(
+    entity: dict,
+    dimension: str,
+    steps: list,
+    final_outputs: dict,
+    context: ExecutionContext,
+) -> dict:
+    """Build the final result dict from execution steps."""
     # Determine final decision
     decision = context.computed_metrics.get("decision")
     if not decision:

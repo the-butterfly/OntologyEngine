@@ -1,7 +1,7 @@
 # 文档状态总表
 
 > **作用**: `docs/` 下唯一状态页
-> **最后更新**: 2026-04-12
+> **最后更新**: 2026-04-13
 > **使用规则**: 判断文档是否可信、是否过期、是否仍是当前入口时，以本页为准
 
 ## 状态说明
@@ -31,6 +31,7 @@
 | [`03-rfc/`](./03-rfc/) | RFC 历史记录 | accepted | history | 是 | 历史决策背景 |
 | [`architecture/decisions/`](./architecture/decisions/) | ADR / 决策记录 | accepted | now | 是 | 冻结关键取舍 |
 | [`development/`](./development/) | 开发规范 | accepted | now | 是 | 代码 / 测试 / 扩展规则 |
+| [`07-phase1-enhancement/`](./07-phase1-enhancement/README.md) | Phase 1 增强设计 | accepted | phase1 | 是 | 5 篇 GAP 驱动增强设计，已实现对应代码 |
 | [`archive/`](./archive/) | 归档区 | deprecated | history | 否 | 仅保留历史参考 |
 
 ## 热点质量问题

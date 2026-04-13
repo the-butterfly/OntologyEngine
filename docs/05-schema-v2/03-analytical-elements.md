@@ -13,6 +13,8 @@ related_docs:
   - 02-categorization.md
   - 04-business-logic.md
   - 09-canonical-schema-spec.md
+related_adrs:
+  - architecture/decisions/007-l3-l4-computation-boundary.md
 ---
 
 > **Status**: v2.0 (with Declaration/Instance separation)

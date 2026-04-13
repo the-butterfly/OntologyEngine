@@ -154,16 +154,22 @@ class BinningOperator(Operator):
         except (ValueError, TypeError):
             return {"bin": default, "bin_error": "invalid_value"}
 
-        # Check each bin
+        # Check each bin (support inclusive_max)
         for bin_def in bins:
             min_val = bin_def.get("min", float("-inf"))
             max_val = bin_def.get("max", float("inf"))
+            inclusive_max = bin_def.get("inclusive_max", False)
             label = bin_def.get("label", "UNKNOWN")
+            bin_description = bin_def.get("description", "")
 
-            if min_val <= value < max_val:
-                return {"bin": label, "bin_value": value}
+            if inclusive_max:
+                if min_val <= value <= max_val:
+                    return {"bin": label, "bin_value": value, "bin_description": bin_description}
+            else:
+                if min_val <= value < max_val:
+                    return {"bin": label, "bin_value": value, "bin_description": bin_description}
 
-        return {"bin": default, "bin_value": value}
+        return {"bin": default, "bin_value": value, "bin_description": "default"}
 
     def _build_context(self, context: dict[str, Any]) -> dict[str, Any]:
         result = {}
@@ -266,10 +272,50 @@ class ScorecardOperator(Operator):
         # Clip to range
         final_score = max(range_min, min(range_max, normalized_score))
 
-        return {
+        # Grade mapping support
+        grade = None
+        grade_mapping = inputs.get("grade_mapping", [])
+        if grade_mapping:
+            sorted_grades = sorted(grade_mapping, key=lambda g: g.get("min_score", 0), reverse=True)
+            for gm in sorted_grades:
+                if final_score >= gm.get("min_score", 0):
+                    grade = gm.get("grade")
+                    break
+
+        # WOE mode support
+        mode = inputs.get("mode", "simple")
+        if mode == "woe":
+            import math
+
+            base_score = inputs.get("base_score", 600)
+            pdo = inputs.get("pdo", 20)
+            base_odds = inputs.get("base_odds", 1.0)
+            woe_variables = inputs.get("woe_variables", [])
+            woe_values = []
+            for wv in woe_variables:
+                binning_input = wv.get("binning_input", "")
+                woe_bins = wv.get("bins", [])
+                input_val = eval_context.get(binning_input)
+                for b in woe_bins:
+                    if str(b.get("bin", "")) == str(input_val) or b.get("bin") == input_val:
+                        woe_values.append(b.get("woe", 0.0))
+                        break
+            if woe_values:
+                log_odds = math.log(base_odds)
+                for woe_val in woe_values:
+                    log_odds += woe_val
+                final_score = base_score + pdo / math.log(2) * log_odds
+                final_score = max(range_min, min(range_max, final_score))
+
+        result = {
             output_key: round(final_score, 2),
-            f"{output_key}_factors": factor_results
+            f"{output_key}_factors": factor_results,
         }
+        if grade:
+            result[f"{output_key}_grade"] = grade
+        if mode == "woe":
+            result[f"{output_key}_mode"] = "woe"
+        return result
 
     def _build_context(self, context: dict[str, Any]) -> dict[str, Any]:
         result = {}

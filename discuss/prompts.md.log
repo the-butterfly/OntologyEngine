@@ -161,4 +161,25 @@ agent 的接口需要考虑反馈的闭环，如操作的模拟（输出关联�
 
 
 
+# TODO：
+⏺ 基于分析，management.py 有 39 个路由，其中部分为占位符或未使用实现。
+
+  可精简的部分
+
+  1. Authorizations (2路由) - 占位符实现
+
+  # 996-1012 行
+  GET /{space_id}/authorizations     # 返回 []
+  POST /{space_id}/authorizations     # 仅返回假数据
+  建议：删除 - 前端无调用，无实际存储
+
+  2. Datasets (10路由) - 内存存根，无前端使用
+
+  GET/POST  /{space_id}/datasets
+  GET/DELETE /{space_id}/datasets/{dataset_id}
+  GET/POST  /{space_id}/datasets/{dataset_id}/mappings
+  POST      /{space_id}/datasets/{dataset_id}/sync
+  GET       /{space_id}/datasets/{dataset_id}/sync/history
+  建议：删除 - 使用 _DATASETS 内存字典，无持久化，前端无调用
+
 

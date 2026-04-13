@@ -7,11 +7,10 @@ Prefix: /v1/management/{spaceId}/
 from __future__ import annotations
 
 import uuid
-from typing import Any
 from pathlib import Path
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from ontology_engine.api.dto.responses import error_response, success_response
@@ -23,10 +22,10 @@ from ontology_engine.core.semantic_space import (
     SemanticSpaceLayers,
     L4BusinessLogic,
     SpaceInstances,
-    SpaceVersion,
     Authorization,
     SemanticSpaceStorage,
     SemanticSpaceStorageError,
+    SpaceLoader,
 )
 from ontology_engine.core.schema import SchemaLoader
 from ontology_engine.core.instances import InstanceLoader
@@ -149,6 +148,11 @@ class LoadInstancesFromYamlRequest(BaseModel):
     overwrite: bool = False  # Whether to clear existing instances first
 
 
+class LoadSpaceFromJsonRequest(BaseModel):
+    json_path: str  # Path to full space JSON file
+    space_id: str | None = None  # Optional: override space ID
+
+
 # ============================================================================
 # Space Management
 # ============================================================================
@@ -208,8 +212,8 @@ async def create_space(request: CreateManagementSpaceRequest):
             instances=SpaceInstances(),
             versions=[],
         )
-        # Create authorization
-        auth = Authorization(
+        # Create authorization (placeholder for future use)
+        _authorization = Authorization(
             id=f"auth_{uuid.uuid4().hex[:8]}",
             target_view_id=view_id,
             enabled=True,
@@ -475,6 +479,93 @@ async def archive_space(space_id: str):
             await storage.save(view)
 
     return success_response(data={"id": space_id, "status": space.metadata.status.value})
+
+
+# ============================================================================
+# Space JSON Import
+# ============================================================================
+
+@router.post("/spaces/load-from-json", response_model=dict)
+async def load_space_from_json(request: LoadSpaceFromJsonRequest):
+    """Load a complete semantic space from a JSON file.
+
+    Creates a new management space with all L1-L4 layers and instances.
+    Optionally overrides the space ID from the file.
+
+    This is the primary way to import demo_space.json or other full space exports.
+    """
+    json_path = request.json_path
+    full_path = Path(json_path)
+
+    if not full_path.is_absolute():
+        if not full_path.exists():
+            return error_response(code="FILE_NOT_FOUND", message=f"Space file not found: {json_path}")
+    else:
+        if not full_path.exists():
+            return error_response(code="FILE_NOT_FOUND", message=f"Space file not found: {json_path}")
+
+    try:
+        space_loader = SpaceLoader()
+        space = space_loader.load(str(full_path))
+    except Exception as e:
+        return error_response(code="SPACE_LOAD_ERROR", message=f"Failed to load space: {str(e)}")
+
+    # Override space ID if provided
+    if request.space_id:
+        space.metadata.id = request.space_id
+
+    # Ensure it's a management space type
+    space.metadata.space_type = SpaceType.MANAGEMENT
+
+    storage = _get_storage()
+
+    # Check if space already exists
+    existing = await storage.load(space.metadata.id)
+    if existing:
+        return error_response(
+            code="CONFLICT",
+            message=f"Space {space.metadata.id} already exists. Use overwrite or a different space_id."
+        )
+
+    await storage.save(space)
+
+    # Create associated consumption view
+    view_id = space.metadata.view_id
+    if not view_id:
+        view_id = f"view_{uuid.uuid4().hex[:8]}"
+        space.metadata.view_id = view_id
+        await storage.save(space)
+
+        view_metadata = SpaceMetadata(
+            id=view_id,
+            name=f"{space.metadata.name} (消费视图)",
+            space_type=SpaceType.CONSUMPTION,
+            description=f"自动创建的消费视图，授权自 {space.metadata.id}",
+            status=SpaceStatus.ACTIVE,
+        )
+        view_space = SemanticSpace(
+            metadata=view_metadata,
+            layers=SemanticSpaceLayers(),
+            instances=SpaceInstances(),
+            versions=[],
+        )
+        await storage.save(view_space)
+
+    return success_response(data={
+        "id": space.metadata.id,
+        "name": space.metadata.name,
+        "status": space.metadata.status.value,
+        "view_id": view_id,
+        "loaded": {
+            "L1_fact_objects": len(space.layers.L1_fact_objects),
+            "L2_categorizations": len(space.layers.L2_categorizations),
+            "L3_analytical_elements": len(space.layers.L3_analytical_elements),
+            "L4_rule_definitions": len(space.layers.L4_business_logic.rule_definitions),
+            "L4_rule_logics": len(space.layers.L4_business_logic.rule_logics),
+            "entities": len(space.instances.entities),
+            "relations": len(space.instances.relations),
+        },
+    })
 
 
 # ============================================================================
@@ -1124,33 +1215,30 @@ async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYaml
     existing_entity_ids = {e.get("entity_id") for e in space.instances.entities}
     added_entities = 0
     for entity in entities:
+        eid = entity.entity_id
         entity_dict = {
-            "entity_id": entity.id,
+            "entity_id": eid,
             "_concept": entity.concept,
         }
-        # Add all attributes
-        if hasattr(entity, 'attributes') and entity.attributes:
-            entity_dict.update(entity.attributes)
-        elif hasattr(entity, '__dict__'):
-            for k, v in entity.__dict__.items():
-                if k not in ("id", "concept") and not k.startswith("_"):
-                    entity_dict[k] = v
+        # Add all attributes from data dict
+        if hasattr(entity, 'data') and entity.data:
+            entity_dict.update(entity.data)
 
-        if entity.id not in existing_entity_ids:
+        if eid not in existing_entity_ids:
             space.instances.entities.append(entity_dict)
-            existing_entity_ids.add(entity.id)
+            existing_entity_ids.add(eid)
             added_entities += 1
 
     # Convert relations to dict format
     added_relations = 0
     for relation in relations:
         rel_dict = {
-            "from_entity_id": relation.from_id if hasattr(relation, "from_id") else relation.source,
-            "to_entity_id": relation.to_id if hasattr(relation, "to_id") else relation.target,
-            "relation_type": relation.relation_type if hasattr(relation, "relation_type") else relation.type,
+            "from_entity_id": relation.from_entity_id,
+            "to_entity_id": relation.to_entity_id,
+            "relation_type": relation.relation_type,
         }
-        if hasattr(relation, 'attributes') and relation.attributes:
-            rel_dict.update(relation.attributes)
+        if hasattr(relation, 'data') and relation.data:
+            rel_dict.update(relation.data)
         space.instances.relations.append(rel_dict)
         added_relations += 1
 

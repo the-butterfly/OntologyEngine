@@ -95,41 +95,46 @@ async def _load_example_case_as_space(
     space_id = f"space_{case['domain']}"
     view_id = f"view_{case['domain']}"
 
-    # Check if already exists
+    # Check if already exists (with instances loaded)
     existing = await space_storage.load(space_id)
-    if existing:
-        logger.info(f"Space {space_id} already exists, skipping.")
+    if existing and len(existing.instances.entities) > 0:
+        logger.info(f"Space {space_id} already exists with {len(existing.instances.entities)} entities, skipping.")
         return space_id
 
-    # Create management space
-    metadata = SpaceMetadata(
-        id=space_id,
-        name=case["name"],
-        space_type=SpaceType.MANAGEMENT,
-        description=case["description"],
-        domain=case["domain"],
-        status=SpaceStatus.ACTIVE,
-        view_id=view_id,
-    )
-    space = SemanticSpace(
-        metadata=metadata,
-        layers=SemanticSpaceLayers(
-            L1_fact_objects=layers_dict["L1_fact_objects"],
-            L2_categorizations=layers_dict["L2_categorizations"],
-            L3_analytical_elements=layers_dict["L3_analytical_elements"],
-            L4_business_logic=L4BusinessLogic(
-                rule_definitions=layers_dict["L4_business_logic"]["rule_definitions"],
-                rule_logics=layers_dict["L4_business_logic"]["rule_logics"],
+    if existing:
+        # Space exists but has no instances — reload instances into existing space
+        logger.info(f"Space {space_id} exists but has no instances, reloading instances.")
+        space = existing
+    else:
+        # Create fresh management space
+        metadata = SpaceMetadata(
+            id=space_id,
+            name=case["name"],
+            space_type=SpaceType.MANAGEMENT,
+            description=case["description"],
+            domain=case["domain"],
+            status=SpaceStatus.ACTIVE,
+            view_id=view_id,
+        )
+        space = SemanticSpace(
+            metadata=metadata,
+            layers=SemanticSpaceLayers(
+                L1_fact_objects=layers_dict["L1_fact_objects"],
+                L2_categorizations=layers_dict["L2_categorizations"],
+                L3_analytical_elements=layers_dict["L3_analytical_elements"],
+                L4_business_logic=L4BusinessLogic(
+                    rule_definitions=layers_dict["L4_business_logic"]["rule_definitions"],
+                    rule_logics=layers_dict["L4_business_logic"]["rule_logics"],
+                ),
             ),
-        ),
-        instances=SpaceInstances(
-            entities=[],
-            relations=[],
-            category_tags=[],
-            metric_values=[],
-        ),
-        versions=[],
-    )
+            instances=SpaceInstances(
+                entities=[],
+                relations=[],
+                category_tags=[],
+                metric_values=[],
+            ),
+            versions=[],
+        )
 
     # Load instances if available
     if instances_path.exists():
@@ -137,7 +142,7 @@ async def _load_example_case_as_space(
             entities, relations = instance_loader.load(str(instances_path))
             for entity in entities:
                 entity_dict: dict[str, Any] = {
-                    "entity_id": entity.id,
+                    "entity_id": entity.entity_id,
                     "_concept": entity.concept,
                 }
                 # Flatten entity data attributes
@@ -166,7 +171,7 @@ async def _load_example_case_as_space(
 
     await space_storage.save(space)
 
-    # Create consumption view (copy of management space)
+    # Create consumption view (always refresh from management space)
     view_metadata = SpaceMetadata(
         id=view_id,
         name=f"{case['name']} (消费视图)",
@@ -228,6 +233,26 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
             import traceback
             logger.error(f"Failed to load example case {case['name']}: {exc}")
             logger.error(traceback.format_exc())
+
+    # Sync management space instances to corresponding consumption views
+    # (handles cases where management space was loaded before instance sync was implemented)
+    try:
+        all_metadata = await space_storage.list()
+        from ontology_engine.core.semantic_space import SpaceType as ST
+        mgmt_spaces = {m.id: m for m in all_metadata if m.space_type == ST.MANAGEMENT}
+        for meta in all_metadata:
+            if meta.space_type == ST.MANAGEMENT and meta.view_id:
+                view = await space_storage.load(meta.view_id)
+                space = await space_storage.load(meta.id)
+                if view and space and len(view.instances.entities) < len(space.instances.entities):
+                    view.instances.entities = list(space.instances.entities)
+                    view.instances.relations = list(space.instances.relations)
+                    await space_storage.save(view)
+                    logger.info(
+                        f"Synced {len(space.instances.entities)} entities from {meta.id} to {meta.view_id}"
+                    )
+    except Exception as exc:
+        logger.warning(f"Failed to sync management instances to views: {exc}")
 
     # ---- Legacy engine initialization (for backward-compatible routes) ----
     schema = None

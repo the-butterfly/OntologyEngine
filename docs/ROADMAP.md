@@ -1,7 +1,7 @@
 # 文档与架构收敛路线图
 
 > **作用**: `docs/` 下唯一阶段路线图
-> **最后更新**: 2026-04-12
+> **最后更新**: 2026-04-13
 > **使用规则**: 本页只记录阶段目标与收敛顺序，不记录细碎执行项；开放任务请看 [`TODO.md`](./TODO.md)
 
 ## 当前判断
@@ -17,6 +17,21 @@
 | P1 | 收敛术语与模块映射 | 术语表统一、模块设计逐步加上代码核验标记 | [`01-overview/README.md`](./01-overview/README.md)、[`06-module-detailed-design/README.md`](./06-module-detailed-design/README.md) |
 | P2 | 冻结平台化扩展设计 | 语义空间生命周期、版本管理、管理面 / 消费面 API | [`05-schema-v2/`](./05-schema-v2/README.md)、[`10-api-architecture.md`](./10-api-architecture.md) |
 | P3 | 以代码为准回写设计 | 关键模块完成实现后，把 `draft` 转为 `accepted` | `02-design/*`、`06-module-detailed-design/*` |
+
+## Phase 1 实现里程碑
+
+| 里程碑 | 状态 | 内容 |
+|--------|------|------|
+| Phase 1 增强设计 | ✅ 完成 | 5 篇设计文档（`07-phase1-enhancement/`），覆盖图存储、算子、分类、数据集、增量更新 |
+| Schema Models 扩展 | ✅ 完成 | ValueDomain / CategoryValueDomain / DimensionApplicability 等 7 个新模型 |
+| 图存储实现 | ✅ 完成 | GraphStoreBackend ABC + NetworkXGraphStore + DualWriteCoordinator |
+| 算子增强 | ✅ 完成 | BinningOperator(inclusive_max) / ScorecardOperator(WOE+grade) / DecisionTableOperator / LLMJudgeOperator |
+| 值域验证器 | ✅ 完成 | ValueDomainValidator（5 种域类型） |
+| Schema Loader 增强 | ✅ 完成 | value_domain / CategoryValueDomain / RuleApplicability 全链路解析 |
+| DuckDB 扩展表 | ✅ 完成 | 8 张 Phase 1 新增表（datasets / change_batches / entity_versions 等） |
+| 数据集/增量更新服务 | ✅ 完成 | DatasetService + IncrementalUpdateService |
+| 前端验证 | ⏳ 进行中 | Playwright 前端展示验证 |
+| 全链路 API 验收 | ⏳ 进行中 | API 端点注册 + 端到端测试 |
 
 ## 当前收敛重点
 
