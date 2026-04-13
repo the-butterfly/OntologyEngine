@@ -2,15 +2,16 @@
 """Dataset management service.
 
 Provides CRUD operations for datasets, entity membership tracking,
-snapshots, and dataset comparison.
+snapshots, and dataset comparison. Persists to DuckDB storage.
 """
 
 from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
 from typing import Any
+
+from ontology_engine.storage.duckdb.store import DuckDBStorage
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,8 @@ class DatasetService:
     scope definitions, source tracking, and version snapshots.
     """
 
-    def __init__(self):
-        self._datasets: dict[str, dict[str, Any]] = {}
+    def __init__(self, storage: DuckDBStorage):
+        self._storage = storage
 
     async def create_dataset(
         self,
@@ -34,35 +35,43 @@ class DatasetService:
     ) -> dict[str, Any]:
         """Create a new dataset."""
         dataset_id = f"ds_{uuid.uuid4().hex[:10]}"
-        dataset = {
-            "dataset_id": dataset_id,
-            "name": name,
-            "description": description,
-            "scope": scope or {},
-            "source_type": source_type,
-            "version": "1.0.0",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-            "entity_count": 0,
-            "relation_count": 0,
-        }
-        self._datasets[dataset_id] = dataset
-        return dataset
+        await self._storage.create_dataset(
+            dataset_id=dataset_id,
+            name=name,
+            scope=scope,
+            source_type=source_type,
+            description=description,
+        )
+        dataset = await self._storage.get_dataset(dataset_id)
+        return dataset or {"dataset_id": dataset_id, "name": name}
 
     async def get_dataset(self, dataset_id: str) -> dict[str, Any] | None:
         """Get a dataset by ID."""
-        return self._datasets.get(dataset_id)
+        return await self._storage.get_dataset(dataset_id)
 
     async def list_datasets(self) -> list[dict[str, Any]]:
         """List all datasets."""
-        return list(self._datasets.values())
+        return await self._storage.list_datasets()
+
+    async def update_dataset(
+        self,
+        dataset_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        scope: dict[str, Any] | None = None,
+    ) -> bool:
+        """Update a dataset."""
+        return await self._storage.update_dataset(
+            dataset_id=dataset_id,
+            name=name,
+            description=description,
+            scope=scope,
+        )
 
     async def delete_dataset(self, dataset_id: str) -> bool:
-        """Delete a dataset."""
-        if dataset_id in self._datasets:
-            del self._datasets[dataset_id]
-            return True
-        return False
+        """Delete a dataset and its memberships."""
+        await self._storage.delete_dataset(dataset_id)
+        return True
 
     async def add_entities(
         self,
@@ -72,24 +81,27 @@ class DatasetService:
         is_primary: bool = False,
     ) -> int:
         """Add entities to a dataset."""
-        dataset = self._datasets.get(dataset_id)
+        dataset = await self._storage.get_dataset(dataset_id)
         if not dataset:
             return 0
 
-        membership = dataset.setdefault("entity_membership", {})
         count = 0
-        for entity in entities:
+        for idx, entity in enumerate(entities):
             eid = entity.get("entity_id", entity.get("id"))
             if eid:
-                membership[eid] = {
-                    "concept": concept or entity.get("_concept", entity.get("concept", "")),
-                    "is_primary": is_primary,
-                    "added_at": datetime.utcnow().isoformat(),
-                }
+                entity_concept = concept or entity.get("_concept", entity.get("concept", ""))
+                await self._storage.add_entity_to_dataset(
+                    entity_id=eid,
+                    dataset_id=dataset_id,
+                    concept=entity_concept,
+                    is_primary=is_primary,
+                    source_line=entity.get("source_line", idx + 1),
+                )
                 count += 1
 
-        dataset["entity_count"] = len(membership)
-        dataset["updated_at"] = datetime.utcnow().isoformat()
+        # Update entity count in dataset
+        members = await self._storage.get_dataset_entities(dataset_id)
+        await self._storage.update_dataset(dataset_id, scope=dataset.get("scope", {}))
         return count
 
     async def get_dataset_entities(
@@ -98,20 +110,7 @@ class DatasetService:
         concept: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get entities in a dataset."""
-        dataset = self._datasets.get(dataset_id)
-        if not dataset:
-            return []
-
-        membership = dataset.get("entity_membership", {})
-        entities = []
-        for eid, info in membership.items():
-            if concept and info.get("concept") != concept:
-                continue
-            entities.append({
-                "entity_id": eid,
-                **info,
-            })
-        return entities
+        return await self._storage.get_dataset_entities(dataset_id, concept)
 
     async def get_intersection(
         self,
@@ -119,22 +118,20 @@ class DatasetService:
         dataset_b_id: str,
     ) -> dict[str, Any]:
         """Compute intersection of two datasets."""
-        ds_a = self._datasets.get(dataset_a_id)
-        ds_b = self._datasets.get(dataset_b_id)
-        if not ds_a or not ds_b:
-            return {"error": "Dataset not found", "intersection_count": 0}
+        members_a = await self._storage.get_dataset_entities(dataset_a_id)
+        members_b = await self._storage.get_dataset_entities(dataset_b_id)
 
-        membership_a = set(ds_a.get("entity_membership", {}).keys())
-        membership_b = set(ds_b.get("entity_membership", {}).keys())
-        intersection = membership_a & membership_b
+        set_a = {m["entity_id"] for m in members_a}
+        set_b = {m["entity_id"] for m in members_b}
+        intersection = set_a & set_b
 
         return {
             "dataset_a": dataset_a_id,
             "dataset_b": dataset_b_id,
             "intersection_count": len(intersection),
             "intersection_entities": list(intersection),
-            "dataset_a_only": list(membership_a - membership_b),
-            "dataset_b_only": list(membership_b - membership_a),
+            "dataset_a_only": list(set_a - set_b),
+            "dataset_b_only": list(set_b - set_a),
         }
 
     async def get_diff(
@@ -143,24 +140,22 @@ class DatasetService:
         dataset_b_id: str,
     ) -> dict[str, Any]:
         """Compute diff between two datasets."""
-        ds_a = self._datasets.get(dataset_a_id)
-        ds_b = self._datasets.get(dataset_b_id)
-        if not ds_a or not ds_b:
-            return {"error": "Dataset not found"}
+        members_a = await self._storage.get_dataset_entities(dataset_a_id)
+        members_b = await self._storage.get_dataset_entities(dataset_b_id)
 
-        members_a = set(ds_a.get("entity_membership", {}).keys())
-        members_b = set(ds_b.get("entity_membership", {}).keys())
+        set_a = {m["entity_id"] for m in members_a}
+        set_b = {m["entity_id"] for m in members_b}
 
         return {
             "dataset_a": dataset_a_id,
             "dataset_b": dataset_b_id,
-            "only_in_a": list(members_a - members_b),
-            "only_in_b": list(members_b - members_a),
-            "common": list(members_a & members_b),
+            "only_in_a": list(set_a - set_b),
+            "only_in_b": list(set_b - set_a),
+            "common": list(set_a & set_b),
             "stats": {
-                "dataset_a_count": len(members_a),
-                "dataset_b_count": len(members_b),
-                "common_count": len(members_a & members_b),
+                "dataset_a_count": len(set_a),
+                "dataset_b_count": len(set_b),
+                "common_count": len(set_a & set_b),
             },
         }
 
@@ -170,21 +165,19 @@ class DatasetService:
         description: str | None = None,
     ) -> dict[str, Any]:
         """Create a point-in-time snapshot of a dataset."""
-        dataset = self._datasets.get(dataset_id)
+        dataset = await self._storage.get_dataset(dataset_id)
         if not dataset:
             return {"error": "Dataset not found"}
 
         snapshot_id = f"snap_{uuid.uuid4().hex[:10]}"
-        snapshot = {
-            "snapshot_id": snapshot_id,
-            "dataset_id": dataset_id,
-            "description": description,
-            "entity_count": dataset.get("entity_count", 0),
-            "relation_count": dataset.get("relation_count", 0),
-            "membership_snapshot": dict(dataset.get("entity_membership", {})),
-            "created_at": datetime.utcnow().isoformat(),
-        }
+        members = await self._storage.get_dataset_entities(dataset_id)
+        await self._storage.create_snapshot(
+            snapshot_id=snapshot_id,
+            dataset_id=dataset_id,
+            entity_count=len(members),
+            description=description,
+        )
 
-        snapshots = dataset.setdefault("snapshots", [])
-        snapshots.append(snapshot)
-        return snapshot
+        snapshots = await self._storage.get_snapshots(dataset_id)
+        snap = next((s for s in snapshots if s["snapshot_id"] == snapshot_id), None)
+        return snap or {"snapshot_id": snapshot_id, "dataset_id": dataset_id}

@@ -9,6 +9,7 @@ from ontology_engine.storage.base import (
 )
 from ontology_engine.storage.duckdb import DuckDBStorage
 from ontology_engine.storage.dual_write import DualWriteCoordinator
+from ontology_engine.storage.graph import NetworkXGraphStore
 
 __all__ = [
     "DuckDBStorage",
@@ -16,6 +17,7 @@ __all__ = [
     "EntityInstance",
     "GraphQueryError",
     "GraphStoreBackend",
+    "NetworkXGraphStore",
     "RelationInstance",
     "StorageBackend",
     "StorageError",
