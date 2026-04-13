@@ -14,6 +14,9 @@ related_docs:
   - 03-analytical-elements.md
   - 08-version-management.md
   - 09-canonical-schema-spec.md
+related_adrs:
+  - architecture/decisions/007-l3-l4-computation-boundary.md
+  - architecture/decisions/008-rule-model-unification.md
 ---
 
 > **Status**: v2.0 (with Declaration/Instance separation)

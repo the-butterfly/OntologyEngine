@@ -22,6 +22,53 @@
 | 引擎拆分 | 当前代码与旧设计存在 `Vector / Query` 口径差异 | 目标态倾向统一查询能力 | [`06-module-detailed-design/08-query-engine.md`](../06-module-detailed-design/08-query-engine.md) | **[待核对代码]** | 先在模块 README 中标清“当前实现 vs 目标收敛” |
 | 平台化能力 **[待扩展]** | 当前约束仍以本地优先为主 | 目标态引入空间、同步、管理面 | [`05-schema-v2/06-dataset-and-sync.md`](../05-schema-v2/06-dataset-and-sync.md) **[单一事实源]** | **[待扩展]** | 能力矩阵已更新，详见数据集与同步文档第 6 节 |
 
+## Schema Loading 模块核验结论 (2026-04-13)
+
+> 核验文档: [`06-module-detailed-design/01-schema-loading.md`](../06-module-detailed-design/01-schema-loading.md)
+> 核验范围: `ontology_engine/core/schema/`
+
+### 当前态 vs 设计差异
+
+| 主题 | 设计 (v2 canonical) | 当前实现 | 差距 |
+|------|---------------------|----------|------|
+| KGMLSchema 结构 | `entities`, `relations`, `categories`, `rule_dimensions`, `rules` 分离 | `concepts` (含 entity/relation), `rules: RulesDefinition` | **[关键设计点]** v2 分离式模型尚未实现 |
+| CategoryDimension | `categories: list[CategoryDimension]` | 不存在 | 缺失 |
+| RuleDimension | `rule_dimensions: list[RuleDimension]` | `rules.rule_dimensions: list[RuleDimension]` (在 RulesDefinition 内) | 结构差异 |
+| v1 兼容映射 | `v1_compat.py` 完整实现 | 不存在 | 待实现 |
+| 版本管理器 | `version_manager.py` 完整实现 | 不存在 | 待实现 |
+| Schema 差异计算 | `diff.py` 完整实现 | 不存在 | 待实现 |
+
+### 迁移建议
+- 当前 `KGMLSchema` 仍保持 v1 风格 (`concepts` 统一列表)
+- v2 分离式模型需等 canonical grammar 稳定后逐步迁移
+- v1_compat、version_manager、diff 列入 Phase 2
+
+---
+
+## Rule Engine 模块核验结论 (2026-04-13)
+
+> 核验文档: [`06-module-detailed-design/06-rule-engine.md`](../06-module-detailed-design/06-rule-engine.md)
+> 核验范围: `ontology_engine/engine/rule/`
+
+### 当前态 vs 设计差异
+
+| 主题 | 设计 (RuleEngine DAG驱动) | 当前实现 (RuleExecutor) | 差距 |
+|------|-------------------------|----------------------|------|
+| 主类 | `RuleEngine` (engine.py, DAG驱动) | `RuleExecutor` (executor.py, 顺序执行) | **[关键设计点]** 目标态尚未实现 |
+| DAG 构建 | `dag.py` RuleDAG 类 | 不存在 | 待实现 |
+| 动作执行器 | `action_executor.py` 独立模块 | 内联在 executor.py | 结构差异 |
+| GraphTraversalOperator | `operators/graph_ops.py` | `operators/alert_ops.py` | 文件位置差异 |
+| RuleDefinition.else_ | `ActionClause \| None` | `dict \| None` | 类型差异 |
+| execute 方法签名 | `execute(inputs, config, context)` | `execute(inputs, config, context)` | ✅ 一致 |
+| OperatorRegistry | `@register` 装饰器风格 | `@OperatorRegistry.register(name)` | 风格一致 |
+
+### 迁移建议
+- 当前 `RuleExecutor` 是 MVP 实现，顺序执行规则
+- 目标态 `RuleEngine` (DAG驱动) 需等 `dag.py` 实现后升级
+- 建议保留 `RuleExecutor` 别名兼容，待完全迁移后替换
+
+---
+
 ## 本轮收敛结论
 
 - **[关键设计点]** 以后不再让 `README.md` 承担状态页和任务页职责

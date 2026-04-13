@@ -7,6 +7,8 @@ from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.query_service import QueryService
 from ontology_engine.services.ingestion_service import IngestionService
 from ontology_engine.services.visualization_service import VisualizationService
+from ontology_engine.services.incremental_update import IncrementalUpdateService, EntityDiffer
+from ontology_engine.services.dataset_service import DatasetService
 
 __all__ = [
     "SchemaService",
@@ -15,4 +17,7 @@ __all__ = [
     "QueryService",
     "IngestionService",
     "VisualizationService",
+    "IncrementalUpdateService",
+    "EntityDiffer",
+    "DatasetService",
 ]

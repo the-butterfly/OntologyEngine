@@ -35,6 +35,14 @@ from ontology_engine.core.schema.models import (
     RuleAction,
     MetricSource,
     MetricComponent,
+    # Enhanced models
+    CategoryValueDefinition,
+    CategoryValueDomain,
+    DimensionApplicability,
+    RuleOverride,
+    RuleApplicabilityMapping,
+    CategorizationRuleset,
+    ValueDomain,
 )
 
 
@@ -150,6 +158,7 @@ class SchemaLoader:
                     description=a.get("description"),
                     validation=a.get("validation"),
                     enum=a.get("enum"),
+                    value_domain=ValueDomain(**a["value_domain"]) if a.get("value_domain") else None,
                 )
                 for a in e.get("attributes", [])
             ]
@@ -195,17 +204,105 @@ class SchemaLoader:
         )
 
     def _parse_categorizations(self, raw: list) -> Categorizations | None:
-        """Parse categorizations section (L2)."""
+        """Parse categorizations section (L2).
+
+        Supports both simple format (backward compat) and enhanced format
+        with value_domain, multi_select, ruleset, rule_applicability.
+        """
         if not raw:
             return None
 
         dimensions = []
         for d in raw:
+            # Parse value_domain if present
+            value_domain = None
+            if "value_domain" in d and d["value_domain"]:
+                vd_raw = d["value_domain"]
+                vd_type = vd_raw.get("type", "discrete")
+                values = []
+                for v in vd_raw.get("values", []):
+                    children = []
+                    for child in v.get("children", []):
+                        children.append(CategoryValueDefinition(
+                            id=child.get("id", ""),
+                            label=child.get("label", ""),
+                            description=child.get("description"),
+                            synonyms=child.get("synonyms", []),
+                            sort_order=child.get("sort_order", 0),
+                            color=child.get("color"),
+                            metadata=child.get("metadata", {}),
+                            level=child.get("level"),
+                            parent_id=child.get("parent_id"),
+                        ))
+                    values.append(CategoryValueDefinition(
+                        id=v.get("id", ""),
+                        label=v.get("label", ""),
+                        description=v.get("description"),
+                        synonyms=v.get("synonyms", []),
+                        sort_order=v.get("sort_order", 0),
+                        color=v.get("color"),
+                        metadata=v.get("metadata", {}),
+                        level=v.get("level"),
+                        parent_id=v.get("parent_id"),
+                        children=children,
+                    ))
+                value_domain = CategoryValueDomain(
+                    type=vd_type,
+                    values=values,
+                    enum_ref=vd_raw.get("enum_ref"),
+                )
+
+            # Parse applicable_to (can be string list or object list)
+            applicable_to_raw = d.get("applicable_to", [])
+            applicable_to: list[DimensionApplicability | str] = []
+            for item in applicable_to_raw:
+                if isinstance(item, str):
+                    applicable_to.append(item)
+                elif isinstance(item, dict):
+                    applicable_to.append(DimensionApplicability(
+                        object_type=item.get("object_type", ""),
+                        required=item.get("required", False),
+                        auto_categorize=item.get("auto_categorize", True),
+                        auto_dimension=item.get("auto_dimension"),
+                    ))
+
+            # Parse ruleset if present
+            ruleset = None
+            if "ruleset" in d and d["ruleset"]:
+                rs_raw = d["ruleset"]
+                ruleset = CategorizationRuleset(
+                    id=rs_raw.get("id", ""),
+                    name=rs_raw.get("name"),
+                    rules=rs_raw.get("rules", []),
+                )
+
+            # Parse rule_applicability if present
+            rule_applicability = []
+            for ra in d.get("rule_applicability", []):
+                overrides = []
+                for ro in ra.get("rule_overrides", []):
+                    overrides.append(RuleOverride(
+                        rule_id=ro.get("rule_id", ""),
+                        override_field=ro.get("override_field", ""),
+                        override_value=ro.get("override_value"),
+                    ))
+                rule_applicability.append(RuleApplicabilityMapping(
+                    dimension_value=ra.get("dimension_value", ""),
+                    applicable_rule_groups=ra.get("applicable_rule_groups", []),
+                    excluded_rule_groups=ra.get("excluded_rule_groups", []),
+                    rule_overrides=overrides,
+                ))
+
             dimensions.append(CategorizationDimension(
                 id=d["id"],
                 name=d.get("name"),
                 description=d.get("description"),
-                applicable_to=d.get("applicable_to", []),
+                type=d.get("type", "flat"),
+                value_domain=value_domain,
+                multi_select=d.get("multi_select", False),
+                applicable_to=applicable_to if applicable_to else d.get("applicable_to", []),
+                ruleset=ruleset,
+                rule_applicability=rule_applicability,
                 triggers=d.get("triggers", []),
             ))
 
@@ -260,6 +357,8 @@ class SchemaLoader:
                 algorithm=m.get("algorithm"),
                 traversal=m.get("traversal"),
                 neighbor_filter=m.get("neighbor_filter"),
+                value_domain=ValueDomain(**m["value_domain"]) if m.get("value_domain") else None,
+                expression_domain=m.get("expression_domain", []),
             ))
 
         # Parse indicators
@@ -284,6 +383,7 @@ class SchemaLoader:
                 formula=i.get("formula"),
                 output_type=i.get("output_type", "boolean"),
                 overridable=i.get("overridable", False),
+                value_domain=ValueDomain(**i["value_domain"]) if i.get("value_domain") else None,
             ))
 
         # Parse scorecards
@@ -298,6 +398,7 @@ class SchemaLoader:
                 formula=s.get("formula"),
                 output_type=s.get("output_type", "string"),
                 overridable=s.get("overridable", False),
+                value_domain=ValueDomain(**s["value_domain"]) if s.get("value_domain") else None,
             ))
 
         return AnalyticalElements(
@@ -453,6 +554,7 @@ class SchemaLoader:
                     description=a.get("description"),
                     validation=a.get("validation"),
                     enum=a.get("enum"),
+                    value_domain=ValueDomain(**a["value_domain"]) if a.get("value_domain") else None,
                 )
                 for a in c.get("attributes", [])
             ]

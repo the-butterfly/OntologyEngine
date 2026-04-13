@@ -13,6 +13,8 @@ related_docs:
   - 03-analytical-elements.md
   - 04-business-logic.md
   - 09-canonical-schema-spec.md
+related_adrs:
+  - architecture/decisions/010-semantic-space-lifecycle.md
 ---
 
 > **Status**: v2.0 (with Declaration/Instance separation)

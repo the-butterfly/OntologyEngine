@@ -52,6 +52,11 @@ from ontology_engine.core.semantic_space.state_machine import (
     transition_space,
 )
 
+from ontology_engine.core.semantic_space.loader import (
+    SpaceLoader,
+    SpaceLoaderError,
+)
+
 __all__ = [
     # Core models
     "SemanticSpace",
@@ -81,4 +86,7 @@ __all__ = [
     "SemanticSpaceStateMachine",
     "InvalidTransitionError",
     "transition_space",
+    # Loader
+    "SpaceLoader",
+    "SpaceLoaderError",
 ]

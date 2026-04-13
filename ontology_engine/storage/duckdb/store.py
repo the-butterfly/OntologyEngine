@@ -104,6 +104,135 @@ class DuckDBStorage(StorageBackend):
             """,
         )
 
+        # --- Phase 1 Enhancement Tables ---
+
+        # Dataset management tables
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS datasets (
+                dataset_id VARCHAR NOT NULL,
+                name VARCHAR NOT NULL,
+                description VARCHAR,
+                scope JSON,
+                source_type VARCHAR,
+                version VARCHAR DEFAULT '1.0.0',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (dataset_id)
+            )
+            """,
+        )
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS entity_dataset_membership (
+                entity_id VARCHAR NOT NULL,
+                dataset_id VARCHAR NOT NULL,
+                concept VARCHAR NOT NULL,
+                imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source_line INTEGER,
+                is_primary BOOLEAN DEFAULT FALSE,
+                PRIMARY KEY (entity_id, dataset_id)
+            )
+            """,
+        )
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS dataset_snapshots (
+                snapshot_id VARCHAR NOT NULL,
+                dataset_id VARCHAR NOT NULL,
+                entity_count INTEGER,
+                relation_count INTEGER,
+                description VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (snapshot_id)
+            )
+            """,
+        )
+
+        # Dimension applicability table
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS dimension_applicability (
+                dimension_id VARCHAR NOT NULL,
+                object_type VARCHAR NOT NULL,
+                required BOOLEAN DEFAULT FALSE,
+                auto_categorize BOOLEAN DEFAULT TRUE,
+                source_attribute VARCHAR,
+                PRIMARY KEY (dimension_id, object_type)
+            )
+            """,
+        )
+
+        # Category rule mapping table
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS category_rule_mapping (
+                dimension_id VARCHAR NOT NULL,
+                dimension_value VARCHAR NOT NULL,
+                rule_group_id VARCHAR NOT NULL,
+                mapping_type VARCHAR NOT NULL DEFAULT 'applicable',
+                override_rule_id VARCHAR,
+                override_field VARCHAR,
+                override_value JSON,
+                PRIMARY KEY (dimension_id, dimension_value, rule_group_id)
+            )
+            """,
+        )
+
+        # Incremental update tracking tables
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS change_batches (
+                batch_id VARCHAR NOT NULL,
+                dataset_id VARCHAR,
+                status VARCHAR DEFAULT 'pending',
+                entity_count INTEGER,
+                created_count INTEGER DEFAULT 0,
+                updated_count INTEGER DEFAULT 0,
+                deleted_count INTEGER DEFAULT 0,
+                unchanged_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (batch_id)
+            )
+            """,
+        )
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS entity_changes (
+                batch_id VARCHAR NOT NULL,
+                entity_id VARCHAR NOT NULL,
+                concept VARCHAR NOT NULL,
+                change_type VARCHAR NOT NULL,
+                field_changes JSON,
+                old_data JSON,
+                new_data JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (batch_id, entity_id)
+            )
+            """,
+        )
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS entity_versions (
+                entity_id VARCHAR NOT NULL,
+                concept VARCHAR NOT NULL,
+                version INTEGER DEFAULT 1,
+                data JSON NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by VARCHAR DEFAULT 'system',
+                PRIMARY KEY (entity_id, version)
+            )
+            """,
+        )
+
     async def save_entity(self, entity: EntityInstance) -> str:
         self._ensure_initialized()
         assert self._conn is not None

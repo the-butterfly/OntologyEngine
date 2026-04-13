@@ -65,6 +65,7 @@ class AttributeDefinition(BaseModel):
     description: str | None = None
     validation: dict | None = None
     enum: list[str] | None = None  # For enum types
+    value_domain: ValueDomain | None = None
 
 
 class RelationDefinition(BaseModel):
@@ -160,15 +161,97 @@ class FactObjects(BaseModel):
     relations: list[RelationDefinition] = Field(default_factory=list)
 
 
+# ============== Value Domain ==============
+
+
+class ValueDomain(BaseModel):
+    """Value domain declaration for attribute/metric values."""
+    type: str = "continuous"  # continuous, discrete, enum, score_grade, money_range
+    name: str | None = None
+    description: str | None = None
+    # continuous
+    min: Any = None
+    max: Any = None
+    step: float | None = None
+    unit: str | None = None
+    # discrete / tags
+    values: list[dict[str, Any]] = Field(default_factory=list)
+    # enum
+    enum_ref: str | None = None
+    # score_grade
+    grades: list[dict[str, Any]] = Field(default_factory=list)
+    default_grade: str | None = None
+    # money_range
+    currency: str | None = None
+    ranges: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CategoryValueDefinition(BaseModel):
+    """Category value definition."""
+    id: str
+    label: str
+    description: str | None = None
+    synonyms: list[str] = Field(default_factory=list)
+    sort_order: int = 0
+    color: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    # hierarchical extension
+    level: int | None = None
+    parent_id: str | None = None
+    children: list["CategoryValueDefinition"] = Field(default_factory=list)
+
+
+class CategoryValueDomain(BaseModel):
+    """Category value domain definition."""
+    type: Literal["discrete", "enum", "hierarchical", "tags"] = "discrete"
+    values: list[CategoryValueDefinition] = Field(default_factory=list)
+    enum_ref: str | None = None
+
+
+class DimensionApplicability(BaseModel):
+    """Dimension applicability to object types."""
+    object_type: str
+    required: bool = False
+    auto_categorize: bool = True
+    auto_dimension: dict[str, Any] | None = None
+
+
+class RuleOverride(BaseModel):
+    """Rule override by category."""
+    rule_id: str
+    override_field: str
+    override_value: Any
+
+
+class RuleApplicabilityMapping(BaseModel):
+    """Category value to rule applicability mapping."""
+    dimension_value: str
+    applicable_rule_groups: list[str] = Field(default_factory=list)
+    excluded_rule_groups: list[str] = Field(default_factory=list)
+    rule_overrides: list[RuleOverride] = Field(default_factory=list)
+
+
+class CategorizationRuleset(BaseModel):
+    """Ruleset for derived categorization."""
+    id: str
+    name: str | None = None
+    rules: list[dict[str, Any]] = Field(default_factory=list)
+
+
 # ============== V2 Models: Categorization (L2) ==============
 
 
 class CategorizationDimension(BaseModel):
-    """L2 Categorization dimension."""
+    """L2 Categorization dimension (enhanced)."""
     id: str
     name: str | None = None
     description: str | None = None
-    applicable_to: list[str] = Field(default_factory=list)
+    type: str = "flat"  # hierarchical, flat, derived, tags
+    value_domain: CategoryValueDomain | None = None
+    multi_select: bool = False
+    applicable_to: list[DimensionApplicability | str] = Field(default_factory=list)
+    ruleset: CategorizationRuleset | None = None
+    rule_applicability: list[RuleApplicabilityMapping] = Field(default_factory=list)
     triggers: list[dict] = Field(default_factory=list)
 
 
@@ -216,6 +299,8 @@ class MetricDefinitionV2(BaseModel):
     algorithm: str | None = None
     traversal: dict | None = None
     neighbor_filter: str | None = None
+    value_domain: ValueDomain | None = None
+    expression_domain: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class IndicatorDefinition(BaseModel):
@@ -229,6 +314,7 @@ class IndicatorDefinition(BaseModel):
     formula: str | None = None
     output_type: str = "boolean"
     overridable: bool = False
+    value_domain: ValueDomain | None = None
 
 
 class ScorecardDefinition(BaseModel):
@@ -241,6 +327,7 @@ class ScorecardDefinition(BaseModel):
     formula: str | None = None
     output_type: str = "string"
     overridable: bool = False
+    value_domain: ValueDomain | None = None
 
 
 class AnalyticalElements(BaseModel):
@@ -433,13 +520,35 @@ class KGMLSchema(BaseModel):
         l2_categorizations = []
         if self.categorizations and self.categorizations.dimensions:
             for dim in self.categorizations.dimensions:
-                l2_categorizations.append({
+                cat_dict: dict[str, Any] = {
                     "id": dim.id,
                     "name": dim.name,
                     "description": dim.description,
-                    "applicable_to": dim.applicable_to,
+                    "type": dim.type,
+                    "multi_select": dim.multi_select,
                     "triggers": dim.triggers,
-                })
+                }
+                # Serialize applicable_to (can be str or DimensionApplicability)
+                if dim.applicable_to:
+                    serialized_at = []
+                    for item in dim.applicable_to:
+                        if isinstance(item, str):
+                            serialized_at.append(item)
+                        else:
+                            serialized_at.append(item.model_dump())
+                    cat_dict["applicable_to"] = serialized_at
+                # Serialize value_domain
+                if dim.value_domain:
+                    cat_dict["value_domain"] = dim.value_domain.model_dump()
+                # Serialize ruleset
+                if dim.ruleset:
+                    cat_dict["ruleset"] = dim.ruleset.model_dump()
+                # Serialize rule_applicability
+                if dim.rule_applicability:
+                    cat_dict["rule_applicability"] = [
+                        ra.model_dump() for ra in dim.rule_applicability
+                    ]
+                l2_categorizations.append(cat_dict)
 
         # L3: Analytical Elements
         l3_analytical_elements: list[dict[str, Any]] = []
@@ -458,6 +567,8 @@ class KGMLSchema(BaseModel):
                     "default": metric.default,
                     "thresholds": metric.thresholds,
                     "overridable": metric.overridable,
+                    "value_domain": metric.value_domain.model_dump() if metric.value_domain else None,
+                    "expression_domain": metric.expression_domain,
                 }
                 if metric.source:
                     elem["source"] = {

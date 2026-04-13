@@ -14,6 +14,8 @@ related_docs:
   - 04-business-logic.md
   - 06-dataset-and-sync.md
   - 09-canonical-schema-spec.md
+related_adrs:
+  - architecture/decisions/004-kgml-linkml-integration.md
 ---
 
 > **Status**: v2.0 (with Declaration/Instance separation)

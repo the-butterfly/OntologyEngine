@@ -20,9 +20,10 @@
 5. [`02-categorization.md`](./02-categorization.md)
 6. [`03-analytical-elements.md`](./03-analytical-elements.md)
 7. [`04-business-logic.md`](./04-business-logic.md)
-8. [`06-dataset-and-sync.md`](./06-dataset-and-sync.md)
-9. [`08-version-management.md`](./08-version-management.md)
-10. [`05-complete-example.md`](./05-complete-example.md)
+8. [`07-rule-declaration-and-instance.md`](./07-rule-declaration-and-instance.md)
+9. [`06-dataset-and-sync.md`](./06-dataset-and-sync.md)
+10. [`08-version-management.md`](./08-version-management.md)
+11. [`05-complete-example.md`](./05-complete-example.md)
 
 ## 主题级 SoT 划分
 
@@ -32,6 +33,7 @@
 | Schema v2 根语法 | [`09-canonical-schema-spec.md`](./09-canonical-schema-spec.md) | **[单一事实源]** |
 | 语义空间容器 | [`00b-semantic-space-architecture.md`](./00b-semantic-space-architecture.md) | 空间概念、角色、状态 |
 | 分层实体 / 归类 / 分析 / 业务逻辑 | `01` ～ `04` | 各层职责和语义边界 |
+| 规则声明与实例分离 | [`07-rule-declaration-and-instance.md`](./07-rule-declaration-and-instance.md) | Rule Definition 与 Rule Logic 分离 |
 | 数据集 / 同步 / 版本 | `06`、`08` | 目标态扩展能力 |
 | 完整示例 | [`05-complete-example.md`](./05-complete-example.md) | 只作为说明性样例，不是 grammar SoT |
 

@@ -24,6 +24,12 @@ from ontology_engine.engine.rule.operators.alert import (
     TriggerAlertOperator,
     GraphTraversalOperator,
 )
+from ontology_engine.engine.rule.operators.decision_table import (
+    DecisionTableOperator,
+)
+from ontology_engine.engine.rule.operators.llm_judge import (
+    LLMJudgeOperator,
+)
 
 __all__ = [
     "Operator",
@@ -40,4 +46,6 @@ __all__ = [
     "ScorecardOperator",
     "TriggerAlertOperator",
     "GraphTraversalOperator",
+    "DecisionTableOperator",
+    "LLMJudgeOperator",
 ]

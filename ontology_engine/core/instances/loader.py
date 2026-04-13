@@ -34,7 +34,8 @@ class InstanceLoader:
         relations = []
 
         for item in instances:
-            concept = item.get("concept")
+            # Support both 'concept' and 'fact_object' as the concept field name
+            concept = item.get("concept") or item.get("fact_object")
             data_list = item.get("data", [])
 
             if not concept or not data_list:

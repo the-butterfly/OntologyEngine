@@ -97,3 +97,134 @@ class StorageBackend(ABC):
     @abstractmethod
     async def log_rule_execution(self, entity_id: str, rule_id: str, result: str) -> None:
         """Persist rule execution audit records."""
+
+
+class GraphQueryError(StorageError):
+    """Graph query execution error."""
+    pass
+
+
+class GraphStoreBackend(ABC):
+    """Abstract interface for graph-native storage.
+
+    Provides graph topology storage and query capabilities.
+    Orthogonal to StorageBackend: StorageBackend handles entity/relation
+    attribute storage, GraphStoreBackend handles graph topology queries.
+    """
+
+    @abstractmethod
+    async def initialize(self, db_path: str | None = None) -> None:
+        """Initialize graph storage.
+
+        Args:
+            db_path: Graph database file path. None means in-memory.
+        """
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Release resources."""
+
+    # --- Node Management ---
+    @abstractmethod
+    async def upsert_node(
+        self,
+        node_id: str,
+        labels: list[str],
+        properties: dict[str, Any],
+    ) -> None:
+        """Create or update a node."""
+
+    @abstractmethod
+    async def get_node(self, node_id: str) -> dict[str, Any] | None:
+        """Get a single node by ID."""
+
+    @abstractmethod
+    async def delete_node(self, node_id: str) -> None:
+        """Delete a node and all its edges."""
+
+    # --- Edge Management ---
+    @abstractmethod
+    async def upsert_edge(
+        self,
+        edge_id: str,
+        from_node_id: str,
+        to_node_id: str,
+        edge_type: str,
+        properties: dict[str, Any] | None = None,
+    ) -> None:
+        """Create or update an edge."""
+
+    @abstractmethod
+    async def get_edges(
+        self,
+        from_node_id: str | None = None,
+        to_node_id: str | None = None,
+        edge_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query edges."""
+
+    @abstractmethod
+    async def delete_edge(self, edge_id: str) -> None:
+        """Delete an edge."""
+
+    # --- Graph Queries ---
+    @abstractmethod
+    async def get_neighbors(
+        self,
+        node_id: str,
+        edge_type: str | None = None,
+        direction: str = "outgoing",
+        limit: int = 100,
+        filter_props: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get 1-hop neighbors of a node."""
+
+    @abstractmethod
+    async def find_paths(
+        self,
+        source_id: str,
+        target_id: str | None = None,
+        max_depth: int = 3,
+        edge_types: list[str] | None = None,
+    ) -> list[list[dict]]:
+        """Find paths between nodes."""
+
+    @abstractmethod
+    async def detect_cycles(
+        self,
+        center_id: str,
+        edge_types: list[str] | None = None,
+        max_depth: int = 10,
+    ) -> list[list[str]]:
+        """Detect cycles starting from a node."""
+
+    @abstractmethod
+    async def execute_cypher(
+        self,
+        query: str,
+        parameters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Execute a Cypher query (advanced interface)."""
+
+    # --- Graph Algorithms ---
+    @abstractmethod
+    async def compute_graph_metric(
+        self,
+        algorithm: str,
+        node_id: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Execute a graph algorithm (centrality, community, etc.)."""
+
+    # --- Batch Operations ---
+    @abstractmethod
+    async def batch_upsert(
+        self,
+        nodes: list[dict] | None = None,
+        edges: list[dict] | None = None,
+    ) -> dict[str, int]:
+        """Batch write nodes and edges.
+
+        Returns:
+            {"nodes_written": N, "edges_written": M}
+        """
