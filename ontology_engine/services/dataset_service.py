@@ -11,7 +11,7 @@ import logging
 import uuid
 from typing import Any
 
-from ontology_engine.storage.duckdb.store import DuckDBStorage
+from ontology_engine.storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class DatasetService:
     scope definitions, source tracking, and version snapshots.
     """
 
-    def __init__(self, storage: DuckDBStorage):
+    def __init__(self, storage: StorageBackend):
         self._storage = storage
 
     async def create_dataset(
@@ -100,7 +100,6 @@ class DatasetService:
                 count += 1
 
         # Update entity count in dataset
-        members = await self._storage.get_dataset_entities(dataset_id)
         await self._storage.update_dataset(dataset_id, scope=dataset.get("scope", {}))
         return count
 

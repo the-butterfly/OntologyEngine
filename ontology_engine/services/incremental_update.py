@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from ontology_engine.storage.duckdb.store import DuckDBStorage
+from ontology_engine.storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ class EntityChange:
     concept: str
     change_type: ChangeType
     field_changes: list[FieldChange] = field(default_factory=list)
-    old_data: dict | None = None
-    new_data: dict | None = None
+    old_data: dict[str, Any] | None = None
+    new_data: dict[str, Any] | None = None
 
 
 @dataclass
@@ -57,12 +57,12 @@ class ChangeBatch:
         "deleted": 0, "unchanged": 0,
     })
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.created_at:
             self.created_at = datetime.utcnow().isoformat()
         self._update_stats()
 
-    def _update_stats(self):
+    def _update_stats(self) -> None:
         self.stats["total"] = len(self.changes)
         for change in self.changes:
             ct = change.change_type.value if isinstance(change.change_type, ChangeType) else change.change_type
@@ -110,7 +110,7 @@ class IncrementalUpdateService:
     to DuckDB storage.
     """
 
-    def __init__(self, storage: DuckDBStorage):
+    def __init__(self, storage: StorageBackend):
         self._storage = storage
         self._differ = EntityDiffer()
 
@@ -335,7 +335,7 @@ class IncrementalUpdateService:
     @staticmethod
     def get_rollback_actions_from_changes(changes: list[EntityChange]) -> list[dict[str, Any]]:
         """Generate rollback actions from a change batch (non-async, for backward compat)."""
-        actions = []
+        actions: list[dict[str, Any]] = []
         for change in changes:
             if change.change_type == ChangeType.CREATED:
                 actions.append({

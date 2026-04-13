@@ -11,7 +11,7 @@ from ontology_engine.services.dto import (
     AlertResponse,
     EntityNotFoundError,
 )
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.base import StorageBackend
 
 if TYPE_CHECKING:
     from ontology_engine.engine.categorization import CategorizationEngine

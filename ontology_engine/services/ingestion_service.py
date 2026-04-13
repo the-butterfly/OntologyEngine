@@ -11,7 +11,7 @@ from ontology_engine.services.dto import (
     EntityCreateRequest,
 )
 from ontology_engine.services.entity_service import EntityService
-from ontology_engine.storage.duckdb import DuckDBStorage, EntityInstance, RelationInstance
+from ontology_engine.storage.base import StorageBackend, EntityInstance, RelationInstance
 
 
 class IngestionService:
@@ -22,7 +22,7 @@ class IngestionService:
 
     def __init__(
         self,
-        storage: DuckDBStorage,
+        storage: StorageBackend,
         entity_service: EntityService,
     ):
         """Initialize IngestionService.

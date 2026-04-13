@@ -5,154 +5,195 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 
-from ontology_engine.api.dependencies import get_storage
+from ontology_engine.api.dependencies import get_dataset_service, get_storage
+from ontology_engine.api.dto.responses import success_response, error_response
+from ontology_engine.services.dataset_service import DatasetService
 
 router = APIRouter(prefix="/v1/datasets", tags=["Datasets"])
 
 
-@router.post("", response_model=dict)
-async def create_dataset(request: dict[str, Any]):
+@router.post("")
+async def create_dataset(
+    request: dict[str, Any],
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Create a new dataset."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
-
     name = request.get("name")
     if not name:
-        raise HTTPException(status_code=400, detail="Dataset name is required")
+        return error_response(code="INVALID_REQUEST", message="Dataset name is required")
 
-    dataset = await service.create_dataset(
-        name=name,
-        scope=request.get("scope"),
-        source_type=request.get("source_type", "manual"),
-        description=request.get("description"),
-    )
-    return {"status": "ok", "data": dataset}
+    try:
+        dataset = await service.create_dataset(
+            name=name,
+            scope=request.get("scope"),
+            source_type=request.get("source_type", "manual"),
+            description=request.get("description"),
+        )
+        return success_response(data=dataset)
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.get("", response_model=dict)
-async def list_datasets():
+@router.get("")
+async def list_datasets(
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """List all datasets."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
+    try:
+        datasets = await service.list_datasets()
+        return success_response(data=datasets, meta={"total": len(datasets)})
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
-    datasets = await service.list_datasets()
-    return {"status": "ok", "data": datasets, "total": len(datasets)}
 
-
-@router.get("/{dataset_id}", response_model=dict)
-async def get_dataset(dataset_id: str):
+@router.get("/{dataset_id}")
+async def get_dataset(
+    dataset_id: str,
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Get a dataset by ID."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
+    try:
+        dataset = await service.get_dataset(dataset_id)
+        if not dataset:
+            return error_response(
+                code="NOT_FOUND",
+                message=f"Dataset {dataset_id} not found",
+            )
+        return success_response(data=dataset)
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
-    dataset = await service.get_dataset(dataset_id)
-    if not dataset:
-        raise HTTPException(status_code=404, detail=f"Dataset {dataset_id} not found")
-    return {"status": "ok", "data": dataset}
 
-
-@router.put("/{dataset_id}", response_model=dict)
-async def update_dataset(dataset_id: str, request: dict[str, Any]):
+@router.put("/{dataset_id}")
+async def update_dataset(
+    dataset_id: str,
+    request: dict[str, Any],
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Update a dataset."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
+    try:
+        ok = await service.update_dataset(
+            dataset_id=dataset_id,
+            name=request.get("name"),
+            description=request.get("description"),
+            scope=request.get("scope"),
+        )
+        if not ok:
+            return error_response(
+                code="NOT_FOUND",
+                message=f"Dataset {dataset_id} not found or no changes",
+            )
+        dataset = await service.get_dataset(dataset_id)
+        return success_response(data=dataset)
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
-    ok = await service.update_dataset(
-        dataset_id=dataset_id,
-        name=request.get("name"),
-        description=request.get("description"),
-        scope=request.get("scope"),
-    )
-    if not ok:
-        raise HTTPException(status_code=404, detail=f"Dataset {dataset_id} not found or no changes")
-    dataset = await service.get_dataset(dataset_id)
-    return {"status": "ok", "data": dataset}
 
-
-@router.delete("/{dataset_id}", response_model=dict)
-async def delete_dataset(dataset_id: str):
+@router.delete("/{dataset_id}")
+async def delete_dataset(
+    dataset_id: str,
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Delete a dataset."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
+    try:
+        await service.delete_dataset(dataset_id)
+        return success_response(data={"deleted": dataset_id})
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
-    await service.delete_dataset(dataset_id)
-    return {"status": "ok", "deleted": dataset_id}
 
-
-@router.post("/{dataset_id}/entities", response_model=dict)
-async def add_entities_to_dataset(dataset_id: str, request: dict[str, Any]):
+@router.post("/{dataset_id}/entities")
+async def add_entities_to_dataset(
+    dataset_id: str,
+    request: dict[str, Any],
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Add entities to a dataset."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
-
-    entities = request.get("entities", [])
-    concept = request.get("concept")
-    is_primary = request.get("is_primary", False)
-    count = await service.add_entities(
-        dataset_id=dataset_id,
-        entities=entities,
-        concept=concept,
-        is_primary=is_primary,
-    )
-    return {"status": "ok", "added_count": count}
+    try:
+        count = await service.add_entities(
+            dataset_id=dataset_id,
+            entities=request.get("entities", []),
+            concept=request.get("concept"),
+            is_primary=request.get("is_primary", False),
+        )
+        return success_response(data={"added_count": count})
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.get("/{dataset_id}/entities", response_model=dict)
-async def get_dataset_entities(dataset_id: str, concept: str | None = None):
+@router.get("/{dataset_id}/entities")
+async def get_dataset_entities(
+    dataset_id: str,
+    concept: str | None = None,
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Get entities in a dataset."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
+    try:
+        entities = await service.get_dataset_entities(dataset_id, concept)
+        return success_response(data=entities, meta={"total": len(entities)})
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
-    entities = await service.get_dataset_entities(dataset_id, concept)
-    return {"status": "ok", "data": entities, "total": len(entities)}
 
-
-@router.post("/{dataset_id}/snapshots", response_model=dict)
-async def create_snapshot(dataset_id: str, request: dict[str, Any] | None = None):
+@router.post("/{dataset_id}/snapshots")
+async def create_snapshot(
+    dataset_id: str,
+    request: dict[str, Any] | None = None,
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Create a dataset snapshot."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
+    try:
+        description = request.get("description") if request else None
+        snapshot = await service.create_snapshot(
+            dataset_id=dataset_id, description=description
+        )
+        if "error" in snapshot:
+            return error_response(code="NOT_FOUND", message=snapshot["error"])
+        return success_response(data=snapshot)
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
-    description = request.get("description") if request else None
-    snapshot = await service.create_snapshot(dataset_id=dataset_id, description=description)
-    return {"status": "ok", "data": snapshot}
 
-
-@router.get("/{dataset_id}/snapshots", response_model=dict)
-async def get_dataset_snapshots(dataset_id: str):
+@router.get("/{dataset_id}/snapshots")
+async def get_dataset_snapshots(dataset_id: str) -> dict[str, Any]:
     """Get snapshots for a dataset."""
     storage = get_storage()
-    snapshots = await storage.get_snapshots(dataset_id)
-    return {"status": "ok", "data": snapshots}
+    try:
+        snapshots = await storage.get_snapshots(dataset_id)
+        return success_response(data=snapshots, meta={"total": len(snapshots)})
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.post("/compare", response_model=dict)
-async def compare_datasets(request: dict[str, Any]):
+@router.post("/compare")
+async def compare_datasets(
+    request: dict[str, Any],
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Compare two datasets (intersection or diff)."""
-    storage = get_storage()
-    from ontology_engine.services.dataset_service import DatasetService
-    service = DatasetService(storage=storage)
-
     ds_a = request.get("dataset_a")
     ds_b = request.get("dataset_b")
     mode = request.get("mode", "diff")
 
     if not ds_a or not ds_b:
-        raise HTTPException(status_code=400, detail="dataset_a and dataset_b are required")
+        return error_response(
+            code="INVALID_REQUEST",
+            message="dataset_a and dataset_b are required",
+        )
 
-    if mode == "intersection":
-        result = await service.get_intersection(ds_a, ds_b)
-    else:
-        result = await service.get_diff(ds_a, ds_b)
+    if mode not in ("diff", "intersection"):
+        return error_response(
+            code="INVALID_REQUEST",
+            message="mode must be 'diff' or 'intersection'",
+        )
 
-    return {"status": "ok", "mode": mode, "data": result}
+    try:
+        if mode == "intersection":
+            result = await service.get_intersection(ds_a, ds_b)
+        else:
+            result = await service.get_diff(ds_a, ds_b)
+        return success_response(data=result, meta={"mode": mode})
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))

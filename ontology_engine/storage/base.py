@@ -98,6 +98,218 @@ class StorageBackend(ABC):
     async def log_rule_execution(self, entity_id: str, rule_id: str, result: str) -> None:
         """Persist rule execution audit records."""
 
+    # -------------------------------------------------------------------------
+    # Phase 1 Enhancement: Dataset Management
+    # -------------------------------------------------------------------------
+
+    @abstractmethod
+    async def create_dataset(
+        self,
+        dataset_id: str,
+        name: str,
+        scope: dict[str, Any] | None = None,
+        source_type: str = "manual",
+        description: str | None = None,
+    ) -> None:
+        """Create a new dataset."""
+
+    @abstractmethod
+    async def get_dataset(self, dataset_id: str) -> dict[str, Any] | None:
+        """Get a dataset by ID."""
+
+    @abstractmethod
+    async def list_datasets(self) -> list[dict[str, Any]]:
+        """List all datasets."""
+
+    @abstractmethod
+    async def update_dataset(
+        self,
+        dataset_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        scope: dict[str, Any] | None = None,
+    ) -> bool:
+        """Update a dataset."""
+
+    @abstractmethod
+    async def delete_dataset(self, dataset_id: str) -> bool:
+        """Delete a dataset and its memberships."""
+
+    @abstractmethod
+    async def add_entity_to_dataset(
+        self,
+        entity_id: str,
+        dataset_id: str,
+        concept: str,
+        is_primary: bool = False,
+        source_line: int | None = None,
+    ) -> None:
+        """Add an entity to a dataset."""
+
+    @abstractmethod
+    async def get_dataset_entities(
+        self,
+        dataset_id: str,
+        concept: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get entities in a dataset."""
+
+    @abstractmethod
+    async def remove_entity_from_dataset(self, entity_id: str, dataset_id: str) -> None:
+        """Remove an entity from a dataset."""
+
+    @abstractmethod
+    async def create_snapshot(
+        self,
+        snapshot_id: str,
+        dataset_id: str,
+        entity_count: int | None = None,
+        relation_count: int | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Create a dataset snapshot."""
+
+    @abstractmethod
+    async def get_snapshots(self, dataset_id: str) -> list[dict[str, Any]]:
+        """Get snapshots for a dataset."""
+
+    # -------------------------------------------------------------------------
+    # Phase 1 Enhancement: Dimension Applicability & Category Rule Mapping
+    # -------------------------------------------------------------------------
+
+    @abstractmethod
+    async def save_dimension_applicability(
+        self,
+        dimension_id: str,
+        object_type: str,
+        required: bool = False,
+        auto_categorize: bool = True,
+        source_attribute: str | None = None,
+    ) -> None:
+        """Save dimension applicability mapping."""
+
+    @abstractmethod
+    async def get_dimension_applicability(
+        self,
+        dimension_id: str,
+        object_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get dimension applicability entries."""
+
+    @abstractmethod
+    async def delete_dimension_applicability(self, dimension_id: str, object_type: str) -> None:
+        """Delete a dimension applicability entry."""
+
+    @abstractmethod
+    async def save_category_rule_mapping(
+        self,
+        dimension_id: str,
+        dimension_value: str,
+        rule_group_id: str,
+        mapping_type: str = "applicable",
+        override_rule_id: str | None = None,
+        override_field: str | None = None,
+        override_value: Any = None,
+    ) -> None:
+        """Save a category-to-rule mapping."""
+
+    @abstractmethod
+    async def get_category_rule_mappings(
+        self,
+        dimension_id: str | None = None,
+        dimension_value: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get category rule mappings."""
+
+    @abstractmethod
+    async def delete_category_rule_mapping(
+        self,
+        dimension_id: str,
+        dimension_value: str,
+        rule_group_id: str,
+    ) -> None:
+        """Delete a category rule mapping."""
+
+    # -------------------------------------------------------------------------
+    # Phase 1 Enhancement: Incremental Update
+    # -------------------------------------------------------------------------
+
+    @abstractmethod
+    async def create_change_batch(
+        self,
+        batch_id: str,
+        dataset_id: str | None = None,
+        entity_count: int | None = None,
+    ) -> None:
+        """Create a new change batch."""
+
+    @abstractmethod
+    async def update_change_batch(
+        self,
+        batch_id: str,
+        status: str | None = None,
+        created_count: int | None = None,
+        updated_count: int | None = None,
+        deleted_count: int | None = None,
+        unchanged_count: int | None = None,
+    ) -> None:
+        """Update a change batch."""
+
+    @abstractmethod
+    async def get_change_batch(self, batch_id: str) -> dict[str, Any] | None:
+        """Get a change batch by ID."""
+
+    @abstractmethod
+    async def list_change_batches(
+        self,
+        dataset_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List change batches."""
+
+    @abstractmethod
+    async def save_entity_changes(
+        self,
+        batch_id: str,
+        entity_id: str,
+        concept: str,
+        change_type: str,
+        field_changes: list[dict[str, Any]] | None = None,
+        old_data: dict[str, Any] | None = None,
+        new_data: dict[str, Any] | None = None,
+    ) -> None:
+        """Save entity changes for a batch."""
+
+    @abstractmethod
+    async def get_entity_changes(self, batch_id: str) -> list[dict[str, Any]]:
+        """Get entity changes for a batch."""
+
+    @abstractmethod
+    async def save_entity_version(
+        self,
+        entity_id: str,
+        concept: str,
+        version: int,
+        data: dict[str, Any],
+        updated_by: str = "system",
+    ) -> None:
+        """Save an entity version snapshot."""
+
+    @abstractmethod
+    async def get_entity_version(
+        self,
+        entity_id: str,
+        version: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Get entity version(s)."""
+
+    @abstractmethod
+    async def list_entity_versions(self, entity_id: str) -> list[dict[str, Any]]:
+        """List all versions for an entity."""
+
+    @abstractmethod
+    async def delete_entity_version(self, entity_id: str, version: int) -> None:
+        """Delete a specific entity version."""
+
 
 class GraphQueryError(StorageError):
     """Graph query execution error."""
@@ -186,7 +398,7 @@ class GraphStoreBackend(ABC):
         target_id: str | None = None,
         max_depth: int = 3,
         edge_types: list[str] | None = None,
-    ) -> list[list[dict]]:
+    ) -> list[list[dict[str, Any]]]:
         """Find paths between nodes."""
 
     @abstractmethod
@@ -220,8 +432,8 @@ class GraphStoreBackend(ABC):
     @abstractmethod
     async def batch_upsert(
         self,
-        nodes: list[dict] | None = None,
-        edges: list[dict] | None = None,
+        nodes: list[dict[str, Any]] | None = None,
+        edges: list[dict[str, Any]] | None = None,
     ) -> dict[str, int]:
         """Batch write nodes and edges.
 
