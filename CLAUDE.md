@@ -9,6 +9,7 @@
 | 3 | **测试先行** | 实现前必须有测试用例 | `ls tests/unit/$(dirname $file)/test_$(basename $file)` |
 | 4 | **文档同步** | 代码变更必须同步文档 | PR / Session 检查 |
 | 5 | **边界外扩需审批** | 新 API 需先写设计文档 | `docs/api/*.md` 或相关设计文档存在性检查 |
+| 6 | **Phase 2 RFC 先行** | RuleExecutor DAG / kuzu / MCP 工具实现前必须先冻结 RFC | `docs/03-rfc/RFC-010~013` |
 
 ## 模块边界
 
@@ -17,6 +18,9 @@ api/           → services/  (禁止直接调 storage/, engine/)
 services/      → engine/    (禁止直接调 storage/)
 engine/        → storage/base.py  (禁止直接调 local/, adapters/)
 storage/local/ → 仅实现 base.py 接口 (禁止依赖上层)
+
+# Phase 2 扩展
+mcp/           → services/ + storage/  (MCP Server 调用现有 service 层)
 ```
 
 ## 开发流程
@@ -53,6 +57,7 @@ Session 关键决策记录到 discuss/
 | 迁移层 | `docs/04-migration-and-gap/` | 当前态 → 目标态的冲突、缺口、迁移路径 |
 | 目标态 | `docs/05-schema-v2/` | 目标架构与 Schema v2 规范 |
 | 实施层 | `docs/06-module-detailed-design/` | Phase 1 模块设计 |
+| Phase 2 层 | `docs/03-rfc/RFC-010~013` | Phase 2 改进 RFC（RuleExecutor DAG / kuzu / MCP）|
 | 规范层 | `docs/development/` | 开发规范、测试、扩展指南 |
 | 决策层 | `docs/03-rfc/`、`docs/architecture/decisions/` | RFC / ADR / 决策记录 |
 
@@ -65,6 +70,7 @@ Session 关键决策记录到 discuss/
 | 开放任务 / backlog | `docs/TODO.md` |
 | 当前态 → 目标态的映射 | `docs/04-migration-and-gap/README.md` |
 | Schema v2 根级 grammar | `docs/05-schema-v2/09-canonical-schema-spec.md` |
+| Phase 2 路线与 RFC 状态 | `docs/03-rfc/RFC-010-phase2-roadmap.md` |
 
 ### 文档写作硬规则
 
@@ -111,6 +117,8 @@ Session 关键决策记录到 discuss/
 | 文档状态判断 | `docs/STATUS.md` |
 | 架构阶段路线 | `docs/ROADMAP.md` |
 | 当前态 / 目标态映射 | `docs/04-migration-and-gap/README.md` |
+| Phase 2 改进路线 | `docs/03-rfc/RFC-010-phase2-roadmap.md` |
+| Phase 2 子 RFC（DAG/kuzu/MCP） | `docs/03-rfc/RFC-011~013` |
 | Session 退出后记录关键沟通内容 | `discuss/*.md` |
 
 ## 质量门禁
