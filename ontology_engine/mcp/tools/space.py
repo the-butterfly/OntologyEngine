@@ -14,14 +14,6 @@ from ontology_engine.core.semantic_space import (
 )
 
 
-# explain_level 映射: MCP (full|detailed|brief) → API explain level
-_EXPLAIN_MAP = {
-    "full": "full",
-    "detailed": "basic",
-    "brief": "none",
-}
-
-
 async def oe_create_space(
     name: str,
     description: str | None = None,

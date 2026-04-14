@@ -99,8 +99,6 @@ class DatasetService:
                 )
                 count += 1
 
-        # Update entity count in dataset
-        await self._storage.update_dataset(dataset_id, scope=dataset.get("scope", {}))
         return count
 
     async def get_dataset_entities(
@@ -180,3 +178,7 @@ class DatasetService:
         snapshots = await self._storage.get_snapshots(dataset_id)
         snap = next((s for s in snapshots if s["snapshot_id"] == snapshot_id), None)
         return snap or {"snapshot_id": snapshot_id, "dataset_id": dataset_id}
+
+    async def get_snapshots(self, dataset_id: str) -> list[dict[str, Any]]:
+        """Get all snapshots for a dataset."""
+        return await self._storage.get_snapshots(dataset_id)

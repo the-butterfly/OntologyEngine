@@ -25,16 +25,10 @@ async def oe_query(
         await storage.initialize()
         service = QueryService(storage=storage)
 
-        if match_mode == "vector":
-            results = await service.pattern_match(concept="", patterns={"text": query})
-        elif match_mode == "keyword":
-            results = await service.pattern_match(concept="", patterns={"text": query})
-        elif match_mode == "hybrid":
-            results = await service.pattern_match(concept="", patterns={"text": query})
-        elif match_mode == "graph":
-            # graph mode needs entity_id as start node
+        if match_mode == "graph":
+            # graph mode needs entity_id as start node - not yet supported
             results = []
-        elif match_mode == "pattern":
+        elif match_mode in ("vector", "keyword", "hybrid", "pattern"):
             results = await service.pattern_match(concept="", patterns={"text": query})
         else:
             return mcp_response(success=False, error=f"Unknown match_mode: {match_mode}")
