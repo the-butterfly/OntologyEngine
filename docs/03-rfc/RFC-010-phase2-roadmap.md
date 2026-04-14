@@ -35,9 +35,9 @@ Phase 1 未完成 / Phase 2 目标：
 ### Phase 1 文档审视发现（2026-04-14）
 
 详见 [docs/09-examples/REVIEW_REPORT.md](../09-examples/REVIEW_REPORT.md)：
-- `docs/09-examples/supply_chain_finance.md` 使用虚构 Schema（`Company`/`Guarantee`/`steps[]`），与实际 `Supplier`/`supplies_to`/`when/then_action` 完全不符
+- `docs/09-examples/supply_chain_finance.md` 使用虚构 Schema（`Company`/`Guarantee`/`steps[]`），与实际 `Supplier`/`supplies_to`/`when/then_action` 完全不符 → **已标注为 deprecated**
 - Phase 1/2 边界混淆：文档用 Phase 2 目标格式描述 Phase 1 实现
-- `07-agent-interface.md` 定义的 MCP 工具尚未与 `ontology_engine/tools/` 实际代码核验
+- `07-agent-interface.md` 定义的 MCP 工具尚未实现 → **`ontology_engine/mcp/` 从未创建**，详见 [TOOL_AUDIT.md](../09-examples/TOOL_AUDIT.md)
 
 ## 设计原则
 
@@ -63,17 +63,18 @@ Phase 2 改进
 │   └── 支持 Cypher-like 查询语言
 │
 └── 3. MCP 工具实现（RFC-013）
-    ├── oe_create_space / oe_load_schema / oe_register_dataset
-    ├── oe_execute_rule / oe_query / oe_trace_rule / oe_simulate
-    ├── 与 07-agent-interface.md 定义核验对齐
-    └── 支持 Claude Desktop / Cursor MCP 集成
+    ├── 核验完成（docs/09-examples/TOOL_AUDIT.md）
+    ├── P1 核心 5 个工具（execute_rule / query / simulate / create_space / register_dataset）
+    └── Claude Desktop / Cursor MCP 集成
 ```
 
 ## 执行顺序
 
 ```
-Step 0: 修文档（当前 session，优先完成）
-  └── docs/09-examples 重构 / MCP 工具核验
+Step 0: 修文档（已完成）
+  ├── ✅ docs/09-examples 重构 → REVIEW_REPORT.md + supply_chain_finance.md (deprecated)
+  ├── ✅ MCP 工具核验 → TOOL_AUDIT.md（18 个工具逐一对照）
+  └── ✅ RFC-013 修正 → P1/P2/P3 优先级对齐 TOOL_AUDIT
 
 Step 1: RuleExecutor DAG（RFC-011）
   ├── 设计评审 → RFC 冻结
@@ -87,11 +88,11 @@ Step 2: kuzu 图存储（RFC-012）
   ├── DualWriteCoordinator 改造
   └── 性能基准测试
 
-Step 3: MCP 工具（RFC-013）
-  ├── 工具定义与代码核验（与 Step 0 并行）
-  ├── MCP Server 实现
+Step 3: MCP 工具实现（RFC-013）
+  ├── 按 TOOL_AUDIT P1 优先级包装 5 个核心工具
+  ├── MCP Server 入口实现
   ├── Claude Desktop 集成测试
-  └── Cursor / 其他 IDE 适配
+  └── P2 工具逐步落地
 ```
 
 ## 开放问题
@@ -107,6 +108,7 @@ Step 3: MCP 工具（RFC-013）
 - **RFC-011** — [RuleExecutor DAG 引擎](./RFC-011-rule-executor-dag.md)
 - **RFC-012** — [kuzu 图存储升级](./RFC-012-kuzu-storage.md)
 - **RFC-013** — [MCP 工具实现](./RFC-013-mcp-tool-implementation.md)
+- **MCP 工具核验** — [docs/09-examples/TOOL_AUDIT.md](../09-examples/TOOL_AUDIT.md) — **P1/P2/P3 优先级准据**
+- **审视报告** — [docs/09-examples/REVIEW_REPORT.md](../09-examples/REVIEW_REPORT.md) — 文档一致性审查
 - **ADR-008** — [Rule 模型统一](./../architecture/decisions/008-rule-model-unification.md)
-- **审视报告** — [docs/09-examples/REVIEW_REPORT.md](../09-examples/REVIEW_REPORT.md)
 - **CLAUDE.md** — [项目约束](../CLAUDE.md)

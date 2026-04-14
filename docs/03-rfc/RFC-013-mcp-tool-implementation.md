@@ -9,55 +9,39 @@
 
 ## 动机
 
-`docs/07-agent-interface.md` 已定义了完整的 MCP 工具集（`oe_create_space`、`oe_load_schema`、`oe_register_dataset`、`oe_execute_rule`、`oe_query`、`oe_trace_rule`、`oe_simulate`）。
+`docs/07-agent-interface.md` 已定义了完整的 MCP 工具集（18 个）。RFC-013 是实现路线图，按优先级将 REST API 包装为 MCP 工具。
 
-**审视发现（2026-04-14）**: 该文档与 `ontology_engine/tools/` 实际实现代码的一致性**尚未核验**。本 RFC 的第一步是完成核验，然后按核验结论实现缺失工具。
+**审视发现（2026-04-14）**: `ontology_engine/mcp/` 目录从未创建（MCP Server 完全不存在）。`docs/09-examples/TOOL_AUDIT.md` 是逐一核验报告，定义 P1/P2/P3 优先级。本 RFC 执行该优先级计划。
 
-## 第一步：工具一致性核验
-
-### 核验清单
-
-| 工具名 | 文档定义 | 实际代码 | 一致性 | 行动 |
-|--------|----------|----------|--------|------|
-| `oe_create_space` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-| `oe_load_schema` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-| `oe_register_dataset` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-| `oe_execute_rule` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-| `oe_query` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-| `oe_trace_rule` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-| `oe_simulate` | `07-agent-interface.md` | `ontology_engine/tools/` | ? | 核验 |
-
-核验维度：
-1. **工具名**: 文档定义 vs 实际文件名/函数名
-2. **参数**: 参数名 / 类型 / 是否可选 / 默认值
-3. **返回格式**: 文档描述 vs 实际返回 JSON 结构
-4. **HTTP 映射**: 文档声称的 HTTP method + path 是否与实际 API routes 一致
-
-### 核验后发现的问题记录到
+## 工具实现顺序（以 TOOL_AUDIT 为准）
 
 ```
-docs/09-examples/TOOL_AUDIT.md  （新建，工具核验报告）
+P1（消费面核心 — 立即可做）:
+  ├── oe_execute_rule     → POST /v1/consumption/views/{view_id}/execute/analyze
+  ├── oe_query            → POST /v1/query/vector | /hybrid | /graph
+  ├── oe_simulate         → POST /v1/consumption/views/{view_id}/execute/simulate
+  ├── oe_create_space     → POST /v1/management/spaces
+  └── oe_register_dataset → POST /v1/management/{space_id}/datasets
+
+P2（管理面扩展）:
+  ├── oe_load_schema      → GET /v1/management/{space_id}/schema
+  ├── oe_trace_rule       → GET /v1/query/trace/{entity_id}
+  ├── oe_define_rule      → POST /v1/management/{space_id}/schema/L4/rules
+  ├── oe_attach_rule_logic → POST /v1/management/{space_id}/schema/L4/rules/{rule_id}/logics
+  ├── oe_trigger_sync     → POST /v1/management/{space_id}/datasets/{dataset_id}/entities
+  ├── oe_get_sync_status  → GET /v1/management/{space_id}/datasets/{dataset_id}
+  ├── oe_create_view      → POST /v1/management/views
+  ├── oe_activate_space   → POST /v1/management/spaces/{space_id}/activate
+  └── oe_archive_space    → POST /v1/management/spaces/{space_id}/archive
+
+Phase 3（云端依赖 / 授权）:
+  ├── oe_sync_assets      → 无离线等效（云端协议待设计）
+  ├── oe_authorize_view   → 无等效 API
+  ├── oe_snapshot         → 无等效 API
+  └── oe_rollback         → 无等效 API
 ```
 
-## 第二步：按需实现
-
-核验完成后，按以下优先级实现缺失工具：
-
-```
-优先级 1（核心）:
-  ├── oe_create_space     → 管理面 /v1/management/spaces POST
-  ├── oe_load_schema      → 管理面 /v1/management/{spaceId}/schema PUT
-  └── oe_execute_rule     → 消费面 /v1/consumption/views/{viewId}/execute POST
-
-优先级 2（数据）:
-  ├── oe_register_dataset → 管理面 /v1/management/{spaceId}/datasets POST
-  └── oe_trigger_sync     → 管理面 /v1/management/{spaceId}/datasets/{datasetId}/sync POST
-
-优先级 3（查询）:
-  ├── oe_query            → 消费面 /v1/consumption/views/{viewId}/query POST
-  ├── oe_trace_rule       → 消费面 /v1/consumption/views/{viewId}/trace GET
-  └── oe_simulate         → 可视化 /v1/visualize/simulate POST
-```
+> **注**: TOOL_AUDIT.md 中包含完整的 18 个工具逐一对照表和参数差异分析。
 
 ## MCP Server 实现架构
 
@@ -85,18 +69,19 @@ ontology_engine/
 ## 实现范围
 
 ### 包含
-- [ ] 工具核验（第一步）→ 输出 `docs/09-examples/TOOL_AUDIT.md`
+- [✅ 已完成] 工具核验 → `docs/09-examples/TOOL_AUDIT.md`（18 个工具逐一对照）
+- [ ] P1 核心 5 个工具（execute_rule / query / simulate / create_space / register_dataset）
+- [ ] P2 管理面 8 个工具包装
 - [ ] MCP Server 入口（`ontology_engine/mcp/server.py`）
 - [ ] Claude Desktop 集成配置（`claude_desktop_config.json` 模板）
-- [ ] 全部 7 个工具的 MCP 层包装
 
 ### 不包含
-- Phase 3 认证/授权模型
-- 多租户隔离
+- Phase 3 云端资产同步（`oe_sync_assets`）
+- Phase 3 授权/版本管理
 - 流式输出（streaming）
 
 ## 相关文档
 
-- **07-agent-interface.md** — [Agent 接口设计](../07-agent-interface.md)
+- **工具核验报告** — [docs/09-examples/TOOL_AUDIT.md](../09-examples/TOOL_AUDIT.md) — **P1/P2/P3 优先级以此为准**
 - **审视报告** — [docs/09-examples/REVIEW_REPORT.md](../09-examples/REVIEW_REPORT.md)
-- **API 设计规范** — [development/api-design.md](../development/api-design.md)
+- **Agent 接口设计** — [docs/07-agent-interface.md](../07-agent-interface.md) — 18 个工具定义
