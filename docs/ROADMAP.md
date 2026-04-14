@@ -1,7 +1,7 @@
 # 文档与架构收敛路线图
 
 > **作用**: `docs/` 下唯一阶段路线图
-> **最后更新**: 2026-04-13
+> **最后更新**: 2026-04-14
 > **使用规则**: 本页只记录阶段目标与收敛顺序，不记录细碎执行项；开放任务请看 [`TODO.md`](./TODO.md)
 
 ## 当前判断
@@ -32,6 +32,8 @@
 | 数据集/增量更新服务 | ✅ 完成 | DatasetService + IncrementalUpdateService |
 | 前端验证 | ⏳ 进行中 | Playwright 前端展示验证 |
 | 全链路 API 验收 | ⏳ 进行中 | API 端点注册 + 端到端测试 |
+| 文档一致性审视 | ✅ 完成 | docs/09-examples/ 审视报告 + examples/ 文档修复 + examples/consumer_credit/README.md 新建 |
+| 文档与代码 Canonical Grammar 对齐 | ✅ 完成 | 模型层 + API 层 + Schema YAML + JSON 全部对齐 |
 
 ## 当前收敛重点
 
@@ -54,6 +56,17 @@
 - **收敛平台化能力边界**，明确哪些属于 current / optional / future
 - **把关键 ADR 从散落讨论中提炼出来**
 
+## Phase 2 改进里程碑
+
+| 里程碑 | 状态 | 内容 | RFC |
+|--------|------|------|-----|
+| Phase 2 路线规划 | ✅ 已创建 | RFC-010 主路线 + RFC-011/012/013 子 RFC | RFC-010 |
+| docs/09-examples 重构 | ⏳ 待启动 | 重写或标记为 Phase 2 设计，先从 REVIEW_REPORT.md 结论出发 | — |
+| MCP 工具代码核验 | ⏳ 待启动 | 07-agent-interface.md 与 ontology_engine/tools/ 逐一核验 | RFC-013 |
+| RuleExecutor DAG | ⏳ 待实现 | rules[] → steps[] DAG 拓扑排序执行，支撑 Phase 2 Schema 完整表达力 | RFC-011 |
+| kuzu 图存储升级 | ⏳ 待实现 | NetworkX → kuzu，支撑 100K 节点规模 | RFC-012 |
+| MCP 工具实现 | ⏳ 待实现 | 核验后工具定义落地为可执行 MCP 工具 | RFC-013 |
+
 ## 退出标准
 
 当以下条件满足时，文档体系可视为完成本轮收敛：
@@ -63,3 +76,5 @@
 3. 当前态 / 目标态 / 实施层之间都有明确映射关系
 4. 高风险文档均带有 **[待扩展]** 或 **[待核对代码]** 标记
 5. `CLAUDE.md` 已同步文档治理约定，后续 Agent 能按同一规则持续演进
+6. Phase 2 RFC 已创建并评审通过（RFC-010/011/012/013）
+7. docs/09-examples 与实现一致性已完成核对或标记为 Phase 2 过期
