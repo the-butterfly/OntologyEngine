@@ -42,8 +42,8 @@
 
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
-| P1 | 重构 docs/09-examples/supply_chain_finance.md | `docs/09-examples/` | 标记为 Phase 2 设计或按实际 schema 重写；先从 REVIEW_REPORT.md 结论出发 |
-| P1 | 核验 MCP 工具定义与实际代码一致性 | `07-agent-interface.md` vs `ontology_engine/tools/` | 工具名/参数/返回格式逐一核验 |
+| P1 | docs/09-examples/supply_chain_finance.md 重构完成 | ✅ 标记为 deprecated（Phase 2 设计参考） | 文档已更新为 Phase 2 目标设计参考，含完整不符点和当前实现对照 |
+| P1 | MCP 工具实现（P1 核心 5 个）| RFC-013 | `oe_create_space/execute_rule/query/register_dataset/simulate` — 包装现有 API 为 MCP 工具 |
 | P1 | 前端 Playwright 验证 | `ontology-engine-ui/` | 验证前端页面展示 Phase 1 新功能 |
 | P1 | 全链路 API 验收 | API routes | 端到端测试新增功能（数据集/增量更新/分类） |
 | P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 graph.networkx_store |
@@ -56,7 +56,7 @@
 |--------|------|----------|------|
 | P2 | Phase 2 RuleExecutor DAG 实现 | RFC-011 | 顺序执行 → steps[] DAG 拓扑排序（Phase 2 最高优先级） |
 | P2 | Phase 2 kuzu 图存储升级 | RFC-012 | NetworkX → kuzu，支撑 100K 节点规模 |
-| P2 | Phase 2 MCP 工具实现 | RFC-013 | 核验后的工具定义落地为可执行 MCP 工具 |
+| P2 | Phase 2 MCP 工具实现 | RFC-013 | P2/P3 工具（trace/define_rule/dataset_ops 等）；P1 核心 5 个已完成 |
 | P2 | DuckDB 新增表 CRUD 方法 | `ontology_engine/storage/duckdb/store.py` | datasets/change_batches/entity_versions 等表的完整 CRUD |
 | P3 | KuzuGraphStore 实现（Phase 2 存储） | RFC-012 | 现有 `07-phase1-enhancement/01-graph-storage-extension.md` 中的 kuzu 规划 |
 | P3 | ValueDomainValidator enum 类型集成 Schema | `ontology_engine/engine/validation/value_domain_validator.py` | 当前 enum 验证为占位 |
