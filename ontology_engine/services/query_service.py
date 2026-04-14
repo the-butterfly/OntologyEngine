@@ -130,37 +130,7 @@ class QueryService:
         Returns:
             List of rule execution records
         """
-        # This would query the rule_execution_log table
-        # For now, return empty list as log_rule_execution is the write side
-        self.storage._ensure_initialized()
-
-        if rule_id:
-            cursor = await self.storage._conn.execute(
-                """SELECT entity_id, rule_id, result, executed_at
-                   FROM rule_execution_log
-                   WHERE entity_id = ? AND rule_id = ?
-                   ORDER BY executed_at DESC""",
-                [entity_id, rule_id]
-            )
-        else:
-            cursor = await self.storage._conn.execute(
-                """SELECT entity_id, rule_id, result, executed_at
-                   FROM rule_execution_log
-                   WHERE entity_id = ?
-                   ORDER BY executed_at DESC""",
-                [entity_id]
-            )
-
-        results = cursor.fetchall()
-        return [
-            {
-                "entity_id": row[0],
-                "rule_id": row[1],
-                "result": row[2],
-                "executed_at": str(row[3])
-            }
-            for row in results
-        ]
+        return await self.storage.get_rule_execution_log(entity_id, rule_id)
 
     async def find_path(
         self,

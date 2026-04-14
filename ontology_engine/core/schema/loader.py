@@ -33,6 +33,7 @@ from ontology_engine.core.schema.models import (
     RuleDefinitionV2,
     RuleLogic,
     RuleAction,
+    RuleStep,
     MetricSource,
     MetricComponent,
     # Enhanced models
@@ -408,7 +409,13 @@ class SchemaLoader:
         )
 
     def _parse_business_logic(self, raw: dict) -> BusinessLogic | None:
-        """Parse business_logic section (L4)."""
+        """Parse business_logic section (L4).
+
+        Canonical field names: applies_to (not target_objects),
+        inputs/outputs (not input_elements/output_elements),
+        preconditions, steps[] with depends_on.
+        Supports both canonical and legacy field names via model validators.
+        """
         if not raw:
             return None
 
@@ -421,10 +428,11 @@ class SchemaLoader:
                 description=rd.get("description"),
                 rule_type=rd.get("rule_type", "constraint"),
                 priority=rd.get("priority", 100),
-                target_objects=rd.get("target_objects", []),
+                applies_to=rd.get("applies_to", []),
                 applicable_categorizations=rd.get("applicable_categorizations", []),
-                input_elements=rd.get("input_elements", []),
-                output_elements=rd.get("output_elements", []),
+                inputs=rd.get("inputs", []),
+                outputs=rd.get("outputs", []),
+                preconditions=rd.get("preconditions", []),
                 enabled=rd.get("enabled", True),
                 logic_ids=rd.get("logic_ids", []),
             ))
@@ -459,6 +467,31 @@ class SchemaLoader:
                     computation=ea.get("computation"),
                 )
 
+            # Parse canonical DAG steps[]
+            steps = []
+            for s in rl.get("steps", []):
+                condition = None
+                if "condition" in s and s["condition"]:
+                    cond_raw = s["condition"]
+                    condition = RuleWhen(
+                        expression=cond_raw.get("expression"),
+                        allOf=cond_raw.get("allOf"),
+                        anyOf=cond_raw.get("anyOf"),
+                    )
+                steps.append(RuleStep(
+                    id=s["id"],
+                    name=s.get("name"),
+                    description=s.get("description"),
+                    priority=s.get("priority", 100),
+                    depends_on=s.get("depends_on", []),
+                    condition=condition,
+                    action=s.get("action"),
+                    operator=s.get("operator"),
+                    computation=s.get("computation"),
+                    output_field=s.get("output_field"),
+                    enabled=s.get("enabled", True),
+                ))
+
             rule_logics.append(RuleLogic(
                 id=rl["id"],
                 name=rl.get("name"),
@@ -467,6 +500,7 @@ class SchemaLoader:
                 when=when,
                 then_action=then_action,
                 else_action=else_action,
+                steps=steps,
                 priority=rl.get("priority", 100),
                 version=rl.get("version", 1),
                 environment=rl.get("environment", "default"),

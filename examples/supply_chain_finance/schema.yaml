@@ -338,7 +338,7 @@ analytical_elements:
 
     - id: total_invoice_amount_90d
       name: "近90天发票总金额"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Supplier
@@ -350,7 +350,7 @@ analytical_elements:
 
     - id: invoice_count_90d
       name: "近90天发票数量"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Supplier
@@ -361,7 +361,7 @@ analytical_elements:
 
     - id: overdue_invoice_amount
       name: "逾期发票金额"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Supplier
@@ -373,7 +373,7 @@ analytical_elements:
 
     - id: total_contract_amount
       name: "在执行合同总金额"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Supplier
@@ -385,7 +385,7 @@ analytical_elements:
 
     - id: core_enterprise_count
       name: "合作核心企业数量"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Supplier
@@ -395,7 +395,7 @@ analytical_elements:
 
     - id: tax_compliance_score
       name: "税务合规评分"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Supplier
@@ -405,7 +405,7 @@ analytical_elements:
 
     - id: negative_news_count_90d
       name: "近90天负面新闻数量"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Supplier
@@ -417,7 +417,7 @@ analytical_elements:
 
     - id: overdue_invoice_ratio
       name: "逾期发票占比"
-      element_type: derived
+      type: derived
       dependencies: [overdue_invoice_amount, total_invoice_amount_90d]
       formula: "overdue_invoice_amount / total_invoice_amount_90d * 100"
       unit: "%"
@@ -430,7 +430,7 @@ analytical_elements:
     - id: contract_fulfillment_rate
       name: "合同履约率"
       description: "近90天发票额与在执行合同额之比，衡量供货兑现度"
-      element_type: derived
+      type: derived
       dependencies: [total_invoice_amount_90d, total_contract_amount]
       formula: "total_invoice_amount_90d / total_contract_amount * 100"
       unit: "%"
@@ -440,7 +440,7 @@ analytical_elements:
     - id: business_stability_score
       name: "业务稳定性评分"
       description: "综合合同履约率、买家多样性、逾期率的稳定性评估"
-      element_type: derived
+      type: derived
       dependencies:
         - contract_fulfillment_rate
         - core_enterprise_count
@@ -466,7 +466,7 @@ analytical_elements:
     - id: reputation_score
       name: "声誉风险评分"
       description: "基于负面舆情与逾期记录综合评估的声誉分"
-      element_type: derived
+      type: derived
       dependencies: [negative_news_count_90d, overdue_invoice_ratio]
       formula: "max(0, 100 - negative_news_count_90d * 10 - overdue_invoice_ratio * 2)"
       range: [0, 100]
@@ -477,7 +477,7 @@ analytical_elements:
     - id: guarantee_chain_depth
       name: "担保链深度"
       description: "从当前供应商出发的最长担保链条长度，深度越大风险越高"
-      element_type: graph
+      type: graph
       algorithm: longest_path
       traversal:
         entity: Supplier
@@ -491,7 +491,7 @@ analytical_elements:
     - id: has_guarantee_cycle
       name: "是否存在担保圈"
       description: "检测当前供应商是否处于循环担保圈中"
-      element_type: graph
+      type: graph
       algorithm: cycle_detection
       traversal:
         entity: Supplier
@@ -514,7 +514,7 @@ analytical_elements:
         - 声誉风险（20%）：舆情与逾期声誉
         - 担保风险（15%）：担保链深度调整
         - 图网络（10%）：供应链网络地位
-      element_type: composite
+      type: composite
       overridable: true            # 支持 L4 按行业类型覆盖权重
       components:
         - metric: business_stability_score
@@ -550,13 +550,13 @@ analytical_elements:
 
     - id: is_eligible
       name: "是否满足准入条件"
-      element_type: variable     # 由 L4 规则写入，不自行计算
+      type: variable     # 由 L4 规则写入，不自行计算
       output_type: boolean
       default: false
 
     - id: risk_level
       name: "风险等级"
-      element_type: variable
+      type: variable
       output_type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]
 
@@ -566,7 +566,7 @@ analytical_elements:
     - id: credit_grade
       name: "信用等级"
       description: "credit_score 映射至标准等级，供决策规则引用"
-      element_type: derived
+      type: derived
       dependencies: [credit_score]
       formula: |
         if credit_score >= 90:   "AAA"
@@ -599,14 +599,14 @@ business_logic:
       description: "供应商融资申请的基础资质门槛校验，不满足则直接拒绝，不进入后续流程"
       rule_type: constraint
       priority: 100
-      target_objects: [Supplier]
+      applies_to: [Supplier]
       applicable_categorizations: [credit_assessment]
-      input_elements:
+      inputs:
         - { id: status,                    name: "经营状态",       type: attribute }
         - { id: registered_capital,        name: "注册资本",       type: attribute }
         - { id: establishment_date,        name: "成立日期",       type: attribute }
         - { id: total_invoice_amount_90d,  name: "近90天交易额",   type: metric }
-      output_elements:
+      outputs:
         - { id: is_eligible,               name: "是否准入",       type: flag }
         - { id: rejection_reason,          name: "拒绝原因",       type: computed_value }
       logic_ids: [RL001_eligibility_standard]
@@ -617,11 +617,11 @@ business_logic:
       description: "驱动 L3 credit_score 指标体系计算，将结果写入上下文供后续规则使用"
       rule_type: inference
       priority: 90
-      target_objects: [Supplier]
+      applies_to: [Supplier]
       applicable_categorizations: [credit_assessment]
-      input_elements:
+      inputs:
         - { id: is_eligible, name: "是否准入", type: flag }
-      output_elements:
+      outputs:
         - { id: credit_score, name: "综合信用评分", type: computed_value }
         - { id: credit_grade, name: "信用等级",     type: computed_value }
       logic_ids: [RL002_score_standard, RL002_score_manufacturing_boost]
@@ -632,12 +632,12 @@ business_logic:
       description: "利用图算法检测循环担保圈，为预警和额度计算提供风险输入"
       rule_type: alert
       priority: 95
-      target_objects: [Supplier]
+      applies_to: [Supplier]
       applicable_categorizations: [credit_assessment, risk_early_warning]
-      input_elements:
+      inputs:
         - { id: has_guarantee_cycle,    name: "是否存在担保圈", type: metric }
         - { id: guarantee_chain_depth,  name: "担保链深度",     type: metric }
-      output_elements:
+      outputs:
         - { id: guarantee_alert,        name: "担保风险预警",   type: alert }
       logic_ids: [RL003_guarantee_alert]
       enabled: true
@@ -647,14 +647,14 @@ business_logic:
       description: "基于信用评分和担保风险计算推荐授信额度（万元）"
       rule_type: inference
       priority: 80
-      target_objects: [Supplier]
+      applies_to: [Supplier]
       applicable_categorizations: [credit_assessment]
-      input_elements:
+      inputs:
         - { id: credit_score,          name: "信用评分",   type: metric }
         - { id: credit_grade,          name: "信用等级",   type: metric }
         - { id: registered_capital,    name: "注册资本",   type: attribute }
         - { id: guarantee_chain_depth, name: "担保链深度", type: metric }
-      output_elements:
+      outputs:
         - { id: recommended_credit_limit, name: "推荐授信额度（万元）", type: computed_value }
       logic_ids: [RL004_limit_formula]
       enabled: true
@@ -664,14 +664,14 @@ business_logic:
       description: "多维风险信号阈值触发预警，覆盖逾期率、舆情、信用分、担保链"
       rule_type: alert
       priority: 70
-      target_objects: [Supplier]
+      applies_to: [Supplier]
       applicable_categorizations: [risk_early_warning, transaction_monitoring]
-      input_elements:
+      inputs:
         - { id: overdue_invoice_ratio,   name: "逾期率",       type: metric }
         - { id: negative_news_count_90d, name: "负面新闻数",   type: metric }
         - { id: credit_score,            name: "信用评分",     type: metric }
         - { id: guarantee_chain_depth,   name: "担保链深度",   type: metric }
-      output_elements:
+      outputs:
         - { id: risk_warning_list, name: "风险预警列表", type: alert }
       logic_ids: [RL005_warning_thresholds]
       enabled: true
@@ -681,14 +681,14 @@ business_logic:
       description: "综合信用评分、担保风险、预警状态生成最终授信决策"
       rule_type: decision
       priority: 50
-      target_objects: [Supplier]
+      applies_to: [Supplier]
       applicable_categorizations: [credit_assessment]
-      input_elements:
+      inputs:
         - { id: credit_score,             name: "信用评分",       type: metric }
         - { id: guarantee_chain_depth,    name: "担保链深度",     type: metric }
         - { id: has_guarantee_cycle,      name: "是否担保圈",     type: metric }
         - { id: recommended_credit_limit, name: "推荐额度",       type: computed_value }
-      output_elements:
+      outputs:
         - { id: final_decision,         name: "授信决策",         type: flag }
         - { id: approved_credit_limit,  name: "批准授信额度（万元）", type: computed_value }
         - { id: decision_reason,        name: "决策理由",         type: computed_value }

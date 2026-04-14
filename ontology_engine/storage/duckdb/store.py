@@ -518,6 +518,51 @@ class DuckDBStorage(StorageBackend):
                 [entity_id, rule_id, result],
             )
 
+    async def get_rule_execution_log(
+        self,
+        entity_id: str,
+        rule_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query rule execution log for an entity."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+
+        if rule_id:
+            query = """
+                SELECT entity_id, rule_id, result, executed_at
+                FROM rule_execution_log
+                WHERE entity_id = ? AND rule_id = ?
+                ORDER BY executed_at DESC
+            """
+            params: tuple[str, ...] = (entity_id, rule_id)
+        else:
+            query = """
+                SELECT entity_id, rule_id, result, executed_at
+                FROM rule_execution_log
+                WHERE entity_id = ?
+                ORDER BY executed_at DESC
+            """
+            params = (entity_id,)
+
+        async with self._lock:
+            rows = await asyncio.to_thread(
+                self._conn.execute,
+                query,
+                list(params),
+            )
+            results = rows.fetchall()
+
+        return [
+            {
+                "entity_id": row[0],
+                "rule_id": row[1],
+                "result": row[2],
+                "executed_at": str(row[3]),
+            }
+            for row in results
+        ]
+
     # =========================================================================
     # Phase 1 Enhancement: Dataset CRUD
     # =========================================================================

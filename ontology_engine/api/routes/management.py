@@ -11,7 +11,7 @@ from pathlib import Path
 import logging
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 
 from ontology_engine.api.dto.responses import error_response, success_response
 from ontology_engine.core.semantic_space import (
@@ -91,9 +91,17 @@ class AddCategorizationRequest(BaseModel):
 
 
 class AddAnalyticalElementRequest(BaseModel):
+    """Request to add an analytical element (metric/indicator/scorecard).
+
+    Canonical field name is 'type' (not element_type).
+    Accepts both canonical and legacy field names for backward compatibility.
+    """
     id: str
     name: str
-    element_type: str = "derived"
+    type: str = Field(
+        default="derived",
+        validation_alias=AliasChoices("type", "element_type"),
+    )
     description: str | None = None
     source: dict | None = None
     dependencies: list[str] | None = None
@@ -101,14 +109,30 @@ class AddAnalyticalElementRequest(BaseModel):
 
 
 class AddRuleDefinitionRequest(BaseModel):
+    """Request to add a rule definition.
+
+    Canonical field names: applies_to (not target_objects),
+    inputs/outputs (not input_elements/output_elements), preconditions.
+    Accepts both canonical and legacy field names for backward compatibility.
+    """
     id: str
     name: str | None = None
     description: str | None = None
     rule_type: str = "constraint"
     priority: int = 100
-    target_objects: list[str] | None = None
-    input_elements: list[dict] | None = None
-    output_elements: list[dict] | None = None
+    applies_to: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("applies_to", "target_objects"),
+    )
+    inputs: list[dict] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("inputs", "input_elements"),
+    )
+    outputs: list[dict] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("outputs", "output_elements"),
+    )
+    preconditions: list[dict] = Field(default_factory=list)
     enabled: bool = True
     logic_ids: list[str] | None = None
 
@@ -688,7 +712,7 @@ async def add_analytical_element(space_id: str, request: AddAnalyticalElementReq
     element = {
         "id": request.id,
         "name": request.name,
-        "element_type": request.element_type,
+        "type": request.type,  # canonical field name
         "description": request.description,
         "source": request.source,
         "dependencies": request.dependencies or [],
@@ -736,9 +760,10 @@ async def add_rule_definition(space_id: str, request: AddRuleDefinitionRequest):
         "description": request.description,
         "rule_type": request.rule_type,
         "priority": request.priority,
-        "target_objects": request.target_objects or [],
-        "input_elements": request.input_elements or [],
-        "output_elements": request.output_elements or [],
+        "applies_to": request.applies_to,  # canonical field name
+        "inputs": request.inputs,  # canonical field name
+        "outputs": request.outputs,  # canonical field name
+        "preconditions": request.preconditions,  # canonical field name
         "enabled": request.enabled,
         "logic_ids": request.logic_ids or [],
     }
@@ -792,9 +817,10 @@ async def update_rule_definition(space_id: str, rule_id: str, request: AddRuleDe
         "description": request.description,
         "rule_type": request.rule_type,
         "priority": request.priority,
-        "target_objects": request.target_objects or [],
-        "input_elements": request.input_elements or [],
-        "output_elements": request.output_elements or [],
+        "applies_to": request.applies_to,
+        "inputs": request.inputs,
+        "outputs": request.outputs,
+        "preconditions": request.preconditions,
         "enabled": request.enabled,
         "logic_ids": request.logic_ids or [],
     }
@@ -1340,6 +1366,21 @@ async def list_analytical_elements_v2(space_id: str):
 # Rule Dependency Analysis
 # ============================================================================
 
+def _rule_inputs(rule: dict) -> list[dict]:
+    """Get rule inputs, supporting both canonical and legacy field names."""
+    return rule.get("inputs") or rule.get("input_elements") or []
+
+
+def _rule_outputs(rule: dict) -> list[dict]:
+    """Get rule outputs, supporting both canonical and legacy field names."""
+    return rule.get("outputs") or rule.get("output_elements") or []
+
+
+def _rule_applies_to(rule: dict) -> list[str]:
+    """Get rule applies_to, supporting both canonical and legacy field names."""
+    return rule.get("applies_to") or rule.get("target_objects") or []
+
+
 @router.get("/{space_id}/schema/L4/rules/dependency-graph", response_model=dict)
 async def get_rule_dependency_graph(space_id: str):
     """Analyze rule dependencies based on input/output element connections.
@@ -1372,24 +1413,24 @@ async def get_rule_dependency_graph(space_id: str):
             "rule_type": rule.get("rule_type", "constraint"),
             "priority": rule.get("priority", 100),
             "enabled": rule.get("enabled", True),
-            "target_objects": rule.get("target_objects", []),
+            "applies_to": _rule_applies_to(rule),
             "applicable_categorizations": rule.get("applicable_categorizations", []),
-            "input_elements": rule.get("input_elements", []),
-            "output_elements": rule.get("output_elements", []),
+            "inputs": _rule_inputs(rule),
+            "outputs": _rule_outputs(rule),
             "logic_count": len(logics),
         })
 
-    # Build dependency edges: rule A → rule B if A's output_elements overlap with B's input_elements
+    # Build dependency edges: rule A → rule B if A's outputs overlap with B's inputs
     edges = []
     output_map: dict[str, list[str]] = {}  # element_name -> [rule_id that produces it]
     for rule in rules:
-        for out_elem in rule.get("output_elements", []):
+        for out_elem in _rule_outputs(rule):
             elem_name = out_elem.get("name") or out_elem.get("id", "")
             if elem_name:
                 output_map.setdefault(elem_name, []).append(rule["id"])
 
     for rule in rules:
-        for in_elem in rule.get("input_elements", []):
+        for in_elem in _rule_inputs(rule):
             elem_name = in_elem.get("name") or in_elem.get("id", "")
             producers = output_map.get(elem_name, [])
             for producer_id in producers:
@@ -1409,8 +1450,8 @@ async def get_rule_dependency_graph(space_id: str):
     for i, rule_a in enumerate(rules):
         for rule_b in rules[i + 1:]:
             # Same target objects?
-            targets_a = set(rule_a.get("target_objects", []))
-            targets_b = set(rule_b.get("target_objects", []))
+            targets_a = set(_rule_applies_to(rule_a))
+            targets_b = set(_rule_applies_to(rule_b))
             if not (targets_a & targets_b) and targets_a and targets_b:
                 continue
             # Different applicable_categorizations?
@@ -1424,8 +1465,8 @@ async def get_rule_dependency_graph(space_id: str):
                     "type": "categorization_exclusive",
                 })
             # Rules that produce the same output element are also mutually exclusive
-            outputs_a = {(e.get("name") or e.get("id", "")) for e in rule_a.get("output_elements", [])}
-            outputs_b = {(e.get("name") or e.get("id", "")) for e in rule_b.get("output_elements", [])}
+            outputs_a = {(e.get("name") or e.get("id", "")) for e in _rule_outputs(rule_a)}
+            outputs_b = {(e.get("name") or e.get("id", "")) for e in _rule_outputs(rule_b)}
             shared_outputs = outputs_a & outputs_b - {""}
             if shared_outputs:
                 exclusion_pairs.append({

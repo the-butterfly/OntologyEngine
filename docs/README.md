@@ -72,10 +72,16 @@
 
 ### `05-schema-v2/`
 
-目标架构与目标 Schema 规范，回答“未来需要收敛到什么结构与语义”。
+目标架构与目标 Schema 规范，回答”未来需要收敛到什么结构与语义”。
 
 - 入口: [`05-schema-v2/README.md`](./05-schema-v2/README.md)
-- **[单一事实源]**: [`09-canonical-schema-spec.md`](./05-schema-v2/09-canonical-schema-spec.md)
+- **[单一事实源]**: [`09-canonical-schema-spec.md`](./05-schema-v2/09-canonical-schema-spec.md)（根级 + L1-L4 内层 grammar 已冻结）
+
+### `09-examples/`
+
+端到端用户案例，验证设计完整性。
+
+- 入口: [`09-examples/README.md`](./09-examples/README.md)
 
 ### `06-module-detailed-design/`
 

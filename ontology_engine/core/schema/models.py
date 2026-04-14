@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ============== Metadata ==============
@@ -85,6 +85,30 @@ class ConceptDefinition(BaseModel):
 
 
 # ============== Rules ==============
+
+
+# ============== Canonical Rule Step (L4 DAG execution) ==============
+
+
+class RuleStep(BaseModel):
+    """L4 Rule execution step for DAG-based rule logic (canonical grammar).
+
+    Canonical: steps[]. Each step has id/priority/depends_on/condition/action/operator.
+    """
+    id: str
+    name: str | None = None
+    description: str | None = None
+    priority: int = 100  # execution order when no depends_on
+    depends_on: list[str] = Field(default_factory=list)  # step IDs this depends on
+    condition: RuleWhen | None = None  # step-level precondition
+    action: str | None = None  # operator name to invoke
+    operator: str | None = None  # operator name (canonical alias for action)
+    computation: dict | None = None  # formula to compute
+    output_field: str | None = None  # which computed_metrics key this step produces
+    enabled: bool = True
+
+
+# ============== Rule Models (v1 + canonical v2) ==============
 
 
 class RuleDimension(BaseModel):
@@ -282,11 +306,18 @@ class MetricComponent(BaseModel):
 
 
 class MetricDefinitionV2(BaseModel):
-    """L3 Metric definition in v2 format."""
+    """L3 Metric definition in v2 format.
+
+    Canonical field names: id, name, type (not element_type), source,
+    dependencies, formula, unit, range, default, thresholds,
+    overridable, components, algorithm, traversal, neighbor_filter,
+    value_domain, expression_domain.
+    """
     id: str
     name: str | None = None
     description: str | None = None
-    element_type: str  # "atomic", "derived", "composite", "graph"
+    # Canonical field name is 'type'; 'element_type' accepted for backward compat
+    type: str = "atomic"  # "atomic", "derived", "composite", "graph"
     source: MetricSource | None = None
     dependencies: list[str] = Field(default_factory=list)
     formula: str | None = None
@@ -302,13 +333,26 @@ class MetricDefinitionV2(BaseModel):
     value_domain: ValueDomain | None = None
     expression_domain: list[dict[str, Any]] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_element_type(cls, data):
+        """Normalize 'element_type' → 'type' for backward compatibility."""
+        if isinstance(data, dict):
+            if "element_type" in data and "type" not in data:
+                data = dict(data)
+                data["type"] = data.pop("element_type")
+        return data
+
 
 class IndicatorDefinition(BaseModel):
-    """L3 Indicator definition."""
+    """L3 Indicator definition.
+
+    Canonical field name is 'type' (not element_type).
+    """
     id: str
     name: str | None = None
     description: str | None = None
-    element_type: str  # "atomic", "derived"
+    type: str = "atomic"  # canonical: "atomic", "derived"
     source: MetricSource | None = None
     dependencies: list[str] = Field(default_factory=list)
     formula: str | None = None
@@ -316,18 +360,39 @@ class IndicatorDefinition(BaseModel):
     overridable: bool = False
     value_domain: ValueDomain | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_element_type(cls, data):
+        if isinstance(data, dict):
+            if "element_type" in data and "type" not in data:
+                data = dict(data)
+                data["type"] = data.pop("element_type")
+        return data
+
 
 class ScorecardDefinition(BaseModel):
-    """L3 Scorecard definition."""
+    """L3 Scorecard definition.
+
+    Canonical field name is 'type' (not element_type).
+    """
     id: str
     name: str | None = None
     description: str | None = None
-    element_type: str = "derived"
+    type: str = "derived"  # canonical field name
     dependencies: list[str] = Field(default_factory=list)
     formula: str | None = None
     output_type: str = "string"
     overridable: bool = False
     value_domain: ValueDomain | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_element_type(cls, data):
+        if isinstance(data, dict):
+            if "element_type" in data and "type" not in data:
+                data = dict(data)
+                data["type"] = data.pop("element_type")
+        return data
 
 
 class AnalyticalElements(BaseModel):
@@ -341,29 +406,66 @@ class AnalyticalElements(BaseModel):
 
 
 class RuleDefinitionV2(BaseModel):
-    """L4 Rule definition in v2 format."""
+    """L4 Rule definition in v2 format.
+
+    Canonical field names: id, name, description, rule_type, priority,
+    applies_to (not target_objects), inputs/outputs (not input/output_elements),
+    preconditions, logic_ids, enabled.
+
+    L4 canonical structure uses rule_definitions + rule_logics separation
+    (ADR-008). rule_definitions provides applies_to + preconditions contract,
+    rule_logics provides the actual execution steps (steps[] with depends_on).
+    """
     id: str
     name: str | None = None
     description: str | None = None
     rule_type: str = "constraint"  # "constraint", "inference", "alert", "decision"
     priority: int = 100
-    target_objects: list[str] = Field(default_factory=list)
+    applies_to: list[str] = Field(default_factory=list)  # canonical: entity ids this applies to
     applicable_categorizations: list[str] = Field(default_factory=list)
-    input_elements: list[dict] = Field(default_factory=list)
-    output_elements: list[dict] = Field(default_factory=list)
+    inputs: list[dict] = Field(default_factory=list)  # canonical field name
+    outputs: list[dict] = Field(default_factory=list)  # canonical field name
+    preconditions: list[dict] = Field(default_factory=list)  # canonical: rule-level preconditions
     enabled: bool = True
-    logic_ids: list[str] = Field(default_factory=list)
+    logic_ids: list[str] = Field(default_factory=list)  # references to RuleLogic instances
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_fields(cls, data):
+        """Normalize legacy field names to canonical."""
+        if isinstance(data, dict):
+            if "target_objects" in data and "applies_to" not in data:
+                data = dict(data)
+                data["applies_to"] = data.pop("target_objects")
+            if "input_elements" in data and "inputs" not in data:
+                data = dict(data)
+                data["inputs"] = data.pop("input_elements")
+            if "output_elements" in data and "outputs" not in data:
+                data = dict(data)
+                data["outputs"] = data.pop("output_elements")
+        return data
 
 
 class RuleLogic(BaseModel):
-    """L4 Rule logic instance."""
+    """L4 Rule logic instance.
+
+    Canonical grammar supports two execution models:
+    1. Legacy: when + then_action + else_action (simple conditional)
+    2. DAG: steps[] with depends_on for complex rule chains
+
+    When steps[] is non-empty, executor should use DAG-based execution.
+    Each step has: id/priority/depends_on/condition/action/operator/computation.
+    """
     id: str
     name: str | None = None
     definition_id: str
     applicable_conditions: list[dict] = Field(default_factory=list)
+    # Legacy simple execution model
     when: RuleWhen | None = None
     then_action: RuleAction | None = None
     else_action: RuleAction | None = None
+    # Canonical DAG execution model
+    steps: list[RuleStep] = Field(default_factory=list)
     priority: int = 100
     version: int = 1
     environment: str = "default"
@@ -559,7 +661,7 @@ class KGMLSchema(BaseModel):
                     "id": metric.id,
                     "name": metric.name,
                     "description": metric.description,
-                    "element_type": metric.element_type,
+                    "type": metric.type,  # canonical field name
                     "dependencies": metric.dependencies,
                     "formula": metric.formula,
                     "unit": metric.unit,
@@ -592,7 +694,7 @@ class KGMLSchema(BaseModel):
                     "id": indicator.id,
                     "name": indicator.name,
                     "description": indicator.description,
-                    "element_type": indicator.element_type,
+                    "type": indicator.type,  # canonical field name
                     "output_type": indicator.output_type,
                     "overridable": indicator.overridable,
                 }
@@ -609,7 +711,7 @@ class KGMLSchema(BaseModel):
                     "id": scorecard.id,
                     "name": scorecard.name,
                     "description": scorecard.description,
-                    "element_type": scorecard.element_type,
+                    "type": scorecard.type,  # canonical field name
                     "dependencies": scorecard.dependencies,
                     "formula": scorecard.formula,
                     "output_type": scorecard.output_type,
@@ -622,7 +724,7 @@ class KGMLSchema(BaseModel):
                     "id": metric_v1.name,
                     "name": metric_v1.name,
                     "description": metric_v1.description,
-                    "element_type": "derived" if metric_v1.formula else "atomic",
+                    "type": "derived" if metric_v1.formula else "atomic",
                     "formula": metric_v1.formula,
                     "dependencies": metric_v1.dependencies,
                 })
@@ -638,10 +740,11 @@ class KGMLSchema(BaseModel):
                     "description": rd.description,
                     "rule_type": rd.rule_type,
                     "priority": rd.priority,
-                    "target_objects": rd.target_objects,
+                    "applies_to": rd.applies_to,  # canonical field name
                     "applicable_categorizations": rd.applicable_categorizations,
-                    "input_elements": rd.input_elements,
-                    "output_elements": rd.output_elements,
+                    "inputs": rd.inputs,  # canonical field name
+                    "outputs": rd.outputs,  # canonical field name
+                    "preconditions": rd.preconditions,  # canonical field name
                     "enabled": rd.enabled,
                     "logic_ids": rd.logic_ids,
                 })
@@ -673,6 +776,27 @@ class KGMLSchema(BaseModel):
                         "output": rl.else_action.output,
                         "computation": rl.else_action.computation,
                     }
+                # Canonical DAG steps[]
+                if rl.steps:
+                    logic_dict["steps"] = [
+                        {
+                            "id": s.id,
+                            "name": s.name,
+                            "description": s.description,
+                            "priority": s.priority,
+                            "depends_on": s.depends_on,
+                            "condition": {
+                                "expression": s.condition.expression if s.condition else None,
+                                "allOf": s.condition.allOf if s.condition else None,
+                                "anyOf": s.condition.anyOf if s.condition else None,
+                            } if s.condition else None,
+                            "action": s.action or s.operator,
+                            "computation": s.computation,
+                            "output_field": s.output_field,
+                            "enabled": s.enabled,
+                        }
+                        for s in rl.steps
+                    ]
                 l4_rule_logics.append(logic_dict)
 
         return {

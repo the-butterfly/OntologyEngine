@@ -563,3 +563,19 @@ ontology_engine/storage/
     ├── neo4j_store.py
     └── pgvector_store.py
 ```
+
+---
+
+## 7. Repository 接口分离
+
+详见 [`docs/development/storage-repository-pattern.md`](../development/storage-repository-pattern.md)
+
+## 8. Transaction 方法状态
+
+> **[待降级]**
+
+`begin_transaction`、`commit_transaction`、`rollback_transaction` 方法在 Phase 2 移除或内部化。
+
+## 9. Phase 2 kuzu 集成
+
+详见 [`docs/development/storage-repository-pattern.md`](../development/storage-repository-pattern.md)

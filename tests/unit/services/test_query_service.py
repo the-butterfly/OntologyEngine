@@ -18,7 +18,7 @@ class TestQueryService:
         storage.query_entities = AsyncMock(return_value=[])
         storage.get_neighbors = AsyncMock(return_value=[])
         storage._ensure_initialized = MagicMock()
-        storage._conn = MagicMock()
+        storage.get_rule_execution_log = AsyncMock(return_value=[])
         return storage
 
     @pytest.fixture
@@ -59,7 +59,7 @@ class TestQueryService:
     @pytest.mark.asyncio
     async def test_pattern_match_with_filters(self, service, storage):
         """Test pattern match with attribute filters."""
-        result = await service.pattern_match("Supplier", patterns={"status": "active"})
+        await service.pattern_match("Supplier", patterns={"status": "active"})
 
         storage.query_entities.assert_called_once_with(
             concept="Supplier",
@@ -100,31 +100,29 @@ class TestQueryService:
     @pytest.mark.asyncio
     async def test_trace_rule(self, service, storage):
         """Test rule tracing."""
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
-            ("SUP_001", "R001", "PASSED", "2024-01-01 10:00:00"),
-            ("SUP_001", "R002", "FAILED", "2024-01-01 11:00:00"),
-        ]
-        storage._conn.execute = AsyncMock(return_value=mock_cursor)
+        storage.get_rule_execution_log = AsyncMock(return_value=[
+            {"entity_id": "SUP_001", "rule_id": "R001", "result": "passed", "executed_at": "2024-01-01 10:00:00"},
+            {"entity_id": "SUP_001", "rule_id": "R002", "result": "failed", "executed_at": "2024-01-01 11:00:00"},
+        ])
 
         result = await service.trace_rule("SUP_001")
 
         assert len(result) == 2
         assert result[0]["rule_id"] == "R001"
+        storage.get_rule_execution_log.assert_called_once_with("SUP_001", None)
 
     @pytest.mark.asyncio
     async def test_trace_rule_with_specific_rule(self, service, storage):
         """Test tracing specific rule."""
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
-            ("SUP_001", "R001", "PASSED", "2024-01-01 10:00:00"),
-        ]
-        storage._conn.execute = AsyncMock(return_value=mock_cursor)
+        storage.get_rule_execution_log = AsyncMock(return_value=[
+            {"entity_id": "SUP_001", "rule_id": "R001", "result": "passed", "executed_at": "2024-01-01 10:00:00"},
+        ])
 
         result = await service.trace_rule("SUP_001", rule_id="R001")
 
         assert len(result) == 1
         assert result[0]["rule_id"] == "R001"
+        storage.get_rule_execution_log.assert_called_once_with("SUP_001", "R001")
 
     @pytest.mark.asyncio
     async def test_find_path(self, service, storage):

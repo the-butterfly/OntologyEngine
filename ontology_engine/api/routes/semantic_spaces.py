@@ -4,11 +4,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Query
+from pydantic import BaseModel, AliasChoices, Field
 
 from ontology_engine.api.dto.responses import error_response, success_response
 from ontology_engine.core.semantic_space import (
@@ -18,18 +17,8 @@ from ontology_engine.core.semantic_space import (
     SemanticSpaceLayers,
     L4BusinessLogic,
     SpaceInstances,
-    SpaceVersion,
     SemanticSpaceStorage,
     SemanticSpaceStorageError,
-    RuleDefinition,
-    RuleLogic,
-    ApplicableScope,
-    TargetObject,
-    InputElement,
-    OutputElement,
-    RuleWhen,
-    RuleAction,
-    ApplicableCondition,
 )
 
 router = APIRouter(prefix="/v1/spaces", tags=["SemanticSpaces"])
@@ -49,16 +38,44 @@ class UpdateSpaceMetadataRequest(BaseModel):
     status: SpaceStatus | None = None
 
 
+# ============================================================================
+# Canonical Field Helpers (support both legacy and canonical names)
+# ============================================================================
+
+def _rule_inputs(rule: dict) -> list[dict]:
+    """Get rule inputs, supporting both canonical and legacy field names."""
+    return rule.get("inputs") or rule.get("input_elements") or []
+
+
+def _rule_outputs(rule: dict) -> list[dict]:
+    """Get rule outputs, supporting both canonical and legacy field names."""
+    return rule.get("outputs") or rule.get("output_elements") or []
+
+
 class CreateRuleDefinitionRequest(BaseModel):
+    """Request to create a rule definition.
+
+    Canonical field names: applies_to, inputs/outputs.
+    Accepts both canonical and legacy field names for backward compatibility.
+    """
     id: str
     name: str | None = None
     description: str | None = None
     rule_type: str = "constraint"
     priority: int = 100
     applicable_scope: dict | None = None
-    target_objects: list[dict] | None = None
-    input_elements: list[dict] | None = None
-    output_elements: list[dict] | None = None
+    applies_to: list[dict] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("applies_to", "target_objects"),
+    )
+    inputs: list[dict] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("inputs", "input_elements"),
+    )
+    outputs: list[dict] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("outputs", "output_elements"),
+    )
     enabled: bool = True
     logic_ids: list[str] | None = None
     # Backward compatibility fields
@@ -254,9 +271,9 @@ async def create_rule_definition(space_id: str, request: CreateRuleDefinitionReq
         "rule_type": request.rule_type,
         "priority": request.priority,
         "applicable_scope": request.applicable_scope or {"scope_type": "global"},
-        "target_objects": request.target_objects or [],
-        "input_elements": request.input_elements or [],
-        "output_elements": request.output_elements or [],
+        "applies_to": request.applies_to,
+        "inputs": request.inputs,
+        "outputs": request.outputs,
         "enabled": request.enabled,
         "logic_ids": request.logic_ids or [],
         # Backward compatibility
@@ -316,9 +333,9 @@ async def update_rule_definition(space_id: str, rule_id: str, request: CreateRul
         "rule_type": request.rule_type,
         "priority": request.priority,
         "applicable_scope": request.applicable_scope or {"scope_type": "global"},
-        "target_objects": request.target_objects or [],
-        "input_elements": request.input_elements or [],
-        "output_elements": request.output_elements or [],
+        "applies_to": request.applies_to,
+        "inputs": request.inputs,
+        "outputs": request.outputs,
         "enabled": request.enabled,
         "logic_ids": request.logic_ids or [],
         "when": request.when,
@@ -715,7 +732,7 @@ async def get_schema_graph(
             "data": {
                 "label": element.get("display_name") or element.get("name", elem_id),
                 "category": "element",
-                "element_type": element.get("element_type", "metric"),
+                "type": element.get("type") or element.get("element_type") or "metric",
                 "formula": element.get("formula"),
             }
         })
@@ -740,16 +757,16 @@ async def get_schema_graph(
                 "label": rule.get("name", rule_id),
                 "category": "rule_definition",
                 "rule_type": rule.get("rule_type", "constraint"),
-                "target_objects": rule.get("target_objects", []),
-                "input_elements": rule.get("input_elements", []),
-                "output_elements": rule.get("output_elements", []),
+                "applies_to": rule.get("applies_to") or rule.get("target_objects") or [],
+                "inputs": _rule_inputs(rule),
+                "outputs": _rule_outputs(rule),
             }
         })
 
     # Add rule → output element edges
     for rule in space.layers.L4_business_logic.rule_definitions:
         rule_id = rule.get("id", "unknown")
-        for output in rule.get("output_elements", []):
+        for output in _rule_outputs(rule):
             output_name = output.get("name", output) if isinstance(output, dict) else output
             edge_id = f"{rule_id}__{output_name}"
             edges.append({
@@ -1013,8 +1030,8 @@ async def execute_analyze(space_id: str, request: ExecuteAnalyzeRequest):
             "condition_result": condition_result,
             "context_before": context_before if request.include_trace else {},
             "context_after": entity_data if request.include_trace else {},
-            "inputs": rule.get("input_elements", []),
-            "outputs": rule.get("output_elements", []),
+            "inputs": _rule_inputs(rule),
+            "outputs": _rule_outputs(rule),
             "status": "passed" if condition_result else "skipped",
             "duration_ms": 0.0,
             "explanation": explanation,

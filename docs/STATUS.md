@@ -26,12 +26,16 @@
 | [`02-design/`](./02-design/README.md) | 当前实现基线 | transitional | mvp | 主题级 | 表达当前实现口径，需持续与代码核验 |
 | [`04-migration-and-gap/`](./04-migration-and-gap/README.md) | 迁移层 | accepted | phase1 | 是 | 统一记录冲突点与迁移路径 |
 | [`05-schema-v2/`](./05-schema-v2/README.md) | 目标架构 | draft | phase1+future | 主题级 | 目标态规范，部分专题仍待冻结 |
-| [`05-schema-v2/09-canonical-schema-spec.md`](./05-schema-v2/09-canonical-schema-spec.md) | Schema v2 根语法 | accepted | phase1 | 是 | **[单一事实源]** 根 grammar 以后以此为准 |
-| [`06-module-detailed-design/`](./06-module-detailed-design/README.md) | 实施设计 | draft | phase1 | 主题级 | 模块职责与实现拆解，但部分章节需核对代码 |
+| [`05-schema-v2/09-canonical-schema-spec.md`](./05-schema-v2/09-canonical-schema-spec.md) | Schema v2 根语法 + 内层 grammar | accepted | phase1 | 是 | **[单一事实源]** 根 grammar + L1-L4 内层 grammar 已冻结 |
+| [`06-module-detailed-design/`](./06-module-detailed-design/README.md) | 实施设计 | draft | phase1 | 主题级 | 模块职责与实现拆解，08-query-engine.md 已拆分为当前/目标两部分 |
 | [`03-rfc/`](./03-rfc/) | RFC 历史记录 | accepted | history | 是 | 历史决策背景 |
 | [`architecture/decisions/`](./architecture/decisions/) | ADR / 决策记录 | accepted | now | 是 | 冻结关键取舍 |
 | [`development/`](./development/) | 开发规范 | accepted | now | 是 | 代码 / 测试 / 扩展规则 |
 | [`07-phase1-enhancement/`](./07-phase1-enhancement/README.md) | Phase 1 增强设计 | accepted | phase1 | 是 | 5 篇 GAP 驱动增强设计，已实现对应代码 |
+| [`07-agent-interface.md`](./07-agent-interface.md) | Agent 接口设计 | accepted | phase2 | 是 | MCP + CLI + 管理/消费面工具完整，含 API 映射表 |
+| [`08-visualization-system.md`](./08-visualization-system.md) | 可视化系统设计 | accepted | phase1 | 是 | **[已核对代码]** 后端全实现，前端 UI 进行中 |
+| [`09-examples/`](./09-examples/) | 端到端用户案例 | accepted | now | 是 | 供应链金融完整用户故事，覆盖管理面到消费面 |
+| [`development/storage-repository-pattern.md`](./development/storage-repository-pattern.md) | Repository 接口分离设计 | draft | phase1-2 | 否 | Phase 2 kuzu 协同架构 |
 | [`archive/`](./archive/) | 归档区 | deprecated | history | 否 | 仅保留历史参考 |
 
 ## 热点质量问题

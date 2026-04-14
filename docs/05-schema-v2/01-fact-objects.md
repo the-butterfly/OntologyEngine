@@ -4,8 +4,8 @@
 status: draft
 phase: phase1
 source_of_truth: false
-last_verified: 2026-04-12
-verified_against: docs-only
+last_verified: 2026-04-14
+verified_against: docs/05-schema-v2/09-canonical-schema-spec.md
 related_docs:
   - 00-overview.md
   - 00b-semantic-space-architecture.md
@@ -18,8 +18,9 @@ related_adrs:
   - architecture/decisions/004-kgml-linkml-integration.md
 ---
 
-> **Status**: v2.0 (with Declaration/Instance separation)
-> **Date**: 2026-04-12
+> **Status**: v2.0 (aligned with Canonical Grammar)
+> **Last Verified**: 2026-04-14
+> **verified_against**: docs/05-schema-v2/09-canonical-schema-spec.md
 
 ## 核心概念
 
@@ -36,72 +37,92 @@ L1 事实对象包含**声明**和**实例**两个层面：
 
 ### 1.1 结构
 
+在 Schema v2 中，实体类型通过 `fact_objects.entities[]` 声明：
+
 ```yaml
-fact_object_declaration:
-  id: string                    # 全局唯一标识
-  name: string                  # 类型名称 (如 Company, Supplier)
-  description: string | null    # 描述
+fact_objects:
+  entities:
+    - name: string                    # 实体类型名称，全局唯一
+      description: string?           # 描述
+      attributes: [AttributeDef]      # 属性定义列表
+      key_attributes: [string]?       # 关键属性名列表，用于快速识别
+```
 
-  # 事实属性定义
-  properties:
-    - name: string
-      type: string | custom_type
-      required: boolean
-      unique: boolean
-      default: any
-      description: string
+### AttributeDef
 
-  # 关系定义
-  relations:
-    - name: string
-      target: string            # 目标实体类型
-      description: string
-      attributes: [...]         # 关系的属性
-
-  # 约束
-  constraints:
-    - type: unique
-      fields: [string]
-    - type: referential_integrity
-      relation: string
-      target: string
+```yaml
+- name: string                    # 属性名
+  type: enum                      # string | integer | decimal | boolean | date | datetime | enum | Money | JSON
+  required: boolean = false       # 是否必填
+  unique: boolean = false         # 是否唯一
+  description: string?
+  enum_type: string?              # 当 type=enum 时，引用枚举类型名
+  currency: string?               # 当 type=Money 时，货币代码（如 CNY）
+  default: any?                   # 默认值
+  pattern: string?                # 当 type=string 时，Regex 校验
+  min: number?                    # 数值类属性下界
+  max: number?                    # 数值类属性上界
 ```
 
 ### 1.2 示例
 
 ```yaml
-fact_object_declaration:
-  id: Company
-  name: 企业
-  description: 企业法人主体
+fact_objects:
+  entities:
+    - name: Company
+      description: 企业法人主体
+      attributes:
+        - name: unified_social_code
+          type: string
+          required: true
+          unique: true
+          description: 统一社会信用代码
 
-  properties:
-    - name: unified_social_code
-      type: string
-      required: true
-      unique: true
-      description: 统一社会信用代码
+        - name: company_name
+          type: string
+          required: true
+          description: 企业名称
 
-    - name: company_name
-      type: string
-      required: true
-      description: 企业名称
+        - name: registered_capital
+          type: Money
+          description: 注册资本
 
-    - name: registered_capital
-      type: Money
-      description: 注册资本
+        - name: establishment_date
+          type: date
+          description: 成立日期
 
-    - name: establishment_date
-      type: date
-      description: 成立日期
+        - name: legal_representative
+          type: string
+          description: 法定代表人
+```
 
-    - name: legal_representative
-      type: string
-      description: 法定代表人
+---
 
+## 2. 声明：关系类型定义
+
+### 2.1 结构
+
+在 Schema v2 中，关系类型通过 `fact_objects.relations[]` 声明：
+
+```yaml
+fact_objects:
+  relations:
+    - name: string                    # 关系类型名，全局唯一
+      from: string                    # 源实体类型（Entity.name）
+      to: string                      # 目标实体类型
+      description: string?
+      attributes: [AttributeDef]?      # 可选关系属性
+      cardinality: enum?              # one_to_one | one_to_many | many_to_many
+```
+
+### 2.2 示例
+
+```yaml
+fact_objects:
   relations:
     - name: Guarantee
-      target: Company
+      from: Company  # 担保方
+      to: Company    # 被担保方
       description: 担保关系
       attributes:
         - name: guarantee_amount
@@ -112,55 +133,14 @@ fact_object_declaration:
           enum_type: GuaranteeType
 
     - name: Transaction
-      target: Company
+      from: Company
+      to: Company
       description: 交易关系
       attributes:
         - name: transaction_amount
           type: Money
         - name: transaction_date
           type: date
-```
-
----
-
-## 2. 声明：关系类型定义
-
-### 2.1 结构
-
-```yaml
-relation_declaration:
-  id: string                    # 全局唯一标识
-  name: string                  # 关系名称
-  source: string               # 源实体类型
-  target: string               # 目标实体类型
-
-  attributes: [...]             # 关系属性
-
-  constraints:
-    - type: cascade | restrict
-      on_delete: ...
-```
-
-### 2.2 示例
-
-```yaml
-relation_declaration:
-  id: Guarantee
-  name: 担保
-  source: Company  # 担保方
-  target: Company  # 被担保方
-
-  attributes:
-    - name: guarantee_amount
-      type: Money
-      required: true
-    - name: guarantee_type
-      type: enum
-      enum_type: GuaranteeType
-    - name: start_date
-      type: date
-    - name: end_date
-      type: date
 ```
 
 ---
@@ -175,8 +155,8 @@ entity_instance:
   _concept: string              # 实体类型 (关联声明)
   _concept_type: string         # 同上，兼容旧字段
 
-  # 事实属性
-  properties:
+  # 事实属性（与声明中的 attributes 对应）
+  attributes:
     unified_social_code: "91110000XXXXXXXX"
     company_name: "XX 科技有限公司"
     registered_capital:
@@ -246,7 +226,7 @@ entity_instance:
 ```yaml
 custom_types:
   - name: Money
-    properties:
+    attributes:
       value:
         type: decimal
       currency:
@@ -254,7 +234,7 @@ custom_types:
         default: "CNY"
 
   - name: Address
-    properties:
+    attributes:
       province: string
       city: string
       district: string
@@ -262,16 +242,15 @@ custom_types:
 
 ### 4.3 枚举类型
 
+枚举类型无需独立声明节，直接在 `AttributeDef.type=enum` 时通过 `enum_type` 引用：
+
 ```yaml
-enums:
-  - name: GuaranteeType
-    values:
-      - id: MORTGAGE
-        label: "抵押担保"
-      - id: PLEDGE
-        label: "质押担保"
-      - id: GUARANTEE
-        label: "保证担保"
+# 在 entities 中引用
+- name: status
+  type: enum
+  enum_type: CompanyStatus
+
+# 枚举值在 Instance 层定义
 ```
 
 ---
@@ -337,13 +316,19 @@ GET    /v1/management/{spaceId}/instances/entities/{entityId}/versions
 
 ## 8. 与 v1 的区别
 
-| v1 | v2 |
-|-----|-----|
+| v1 | v2 (Canonical) |
+|-----|----------------|
 | concepts 混杂实体/关系 | 明确分为 entities/relations |
+| `properties` | `attributes` |
+| `source/target` | `from/to` |
 | 可含派生属性 | 只含事实属性 |
 | 无类型/实例分离 | Declaration/Instance 分离 |
 | dimension_attributes 误用 | 已移除 |
 
 ---
+
+## 9. 完整结构参考
+
+完整 Schema v2 语法结构参见 [09-canonical-schema-spec.md](./09-canonical-schema-spec.md) 的 **L1: fact_objects** 节。
 
 *文档结束*
