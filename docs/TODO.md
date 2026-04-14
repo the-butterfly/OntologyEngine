@@ -1,7 +1,7 @@
 # 实施 Backlog
 
 > **作用**: `docs/` 下唯一开放事项列表
-> **最后更新**: 2026-04-13
+> **最后更新**: 2026-04-14
 > **说明**: 本文件只保留进行中 / 未完成事项；文档状态看 [`STATUS.md`](./STATUS.md)，阶段路线看 [`ROADMAP.md`](./ROADMAP.md)
 
 ## 已完成事项归档
@@ -21,6 +21,8 @@
 - ✅ 为关键目标态设计补 `last_verified` / `verified_against` 元数据
 - ✅ 核验 Schema Loading 模块设计与代码差异（`06-module-detailed-design/01-schema-loading.md`）→ 差距已记录到 `04-migration-and-gap/README.md`
 - ✅ 核验 Rule Engine 模块设计与代码差异（`06-module-detailed-design/06-rule-engine.md`）→ 差距已记录到 `04-migration-and-gap/README.md`
+- ✅ 文档与实现一致性审视（docs/09-examples/），发现系统性断裂，详见 `REVIEW_REPORT.md`
+- ✅ Canonical grammar 字段名对齐（element_type→type, target_objects→applies_to 等），代码/schema/example 全部更新
 
 ### P2 完成项
 - ✅ 冻结空间状态机与版本管理的正式口径（ADR-010）
@@ -40,20 +42,23 @@
 
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
+| P1 | 重构 docs/09-examples/supply_chain_finance.md | `docs/09-examples/` | 标记为 Phase 2 设计或按实际 schema 重写；先从 REVIEW_REPORT.md 结论出发 |
+| P1 | 核验 MCP 工具定义与实际代码一致性 | `07-agent-interface.md` vs `ontology_engine/tools/` | 工具名/参数/返回格式逐一核验 |
 | P1 | 前端 Playwright 验证 | `ontology-engine-ui/` | 验证前端页面展示 Phase 1 新功能 |
-| P1 | 全链路 API 验收 | `docs/10-api-architecture.md` | 端到端测试新增功能（数据集/增量更新/分类） |
+| P1 | 全链路 API 验收 | API routes | 端到端测试新增功能（数据集/增量更新/分类） |
 | P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 graph.networkx_store |
 | P2 | LLMJudgeOperator._call_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
-| P2 | 新增 API 路由注册（dataset/incremental/category） | `ontology_engine/api/server.py` | 新增服务尚未注册 API 路由 |
-| P2 | DuckDB 新增表的实际数据操作方法 | `ontology_engine/storage/duckdb/store.py` | DDL 已就位，CRUD 方法待实现 |
+| P2 | DuckDB 新增 API 路由注册 | `ontology_engine/api/server.py` | dataset/incremental/category 路由待注册 |
 
 ## Next
 
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
-| P2 | 补全分层设计文档元数据（L1-L4 专题） | `05-schema-v2/01-*.md` ~ `04-*.md` | 补充相关 ADR 链接 |
-| P2 | 更新 `05-schema-v2/README.md` 导航 | [`05-schema-v2/README.md`](./05-schema-v2/README.md) | 反映新增文档结构 |
-| P3 | KuzuGraphStore 实现 | `docs/07-phase1-enhancement/01-graph-storage-extension.md` | Phase 1 使用 NetworkX，Kuzu 作为下一阶段 |
+| P2 | Phase 2 RuleExecutor DAG 实现 | RFC-011 | 顺序执行 → steps[] DAG 拓扑排序（Phase 2 最高优先级） |
+| P2 | Phase 2 kuzu 图存储升级 | RFC-012 | NetworkX → kuzu，支撑 100K 节点规模 |
+| P2 | Phase 2 MCP 工具实现 | RFC-013 | 核验后的工具定义落地为可执行 MCP 工具 |
+| P2 | DuckDB 新增表 CRUD 方法 | `ontology_engine/storage/duckdb/store.py` | datasets/change_batches/entity_versions 等表的完整 CRUD |
+| P3 | KuzuGraphStore 实现（Phase 2 存储） | RFC-012 | 现有 `07-phase1-enhancement/01-graph-storage-extension.md` 中的 kuzu 规划 |
 | P3 | ValueDomainValidator enum 类型集成 Schema | `ontology_engine/engine/validation/value_domain_validator.py` | 当前 enum 验证为占位 |
 
 ## Later
