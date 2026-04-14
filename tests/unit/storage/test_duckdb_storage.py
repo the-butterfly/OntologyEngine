@@ -97,3 +97,37 @@ class TestDuckDBStorage:
 
         count = await asyncio.to_thread(_fetch_count)
         assert count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_rule_execution_log_returns_all(self, storage: DuckDBStorage) -> None:
+        """Test get_rule_execution_log returns all records for an entity."""
+        await storage.log_rule_execution("SUP_001", "R001", "passed")
+        await storage.log_rule_execution("SUP_001", "R002", "failed")
+        await storage.log_rule_execution("SUP_002", "R001", "passed")
+
+        result = await storage.get_rule_execution_log("SUP_001")
+
+        assert len(result) == 2
+        rule_ids = {r["rule_id"] for r in result}
+        assert rule_ids == {"R001", "R002"}
+        results = {r["result"] for r in result}
+        assert results == {"passed", "failed"}
+
+    @pytest.mark.asyncio
+    async def test_get_rule_execution_log_filter_by_rule_id(self, storage: DuckDBStorage) -> None:
+        """Test get_rule_execution_log filters by rule_id."""
+        await storage.log_rule_execution("SUP_001", "R001", "passed")
+        await storage.log_rule_execution("SUP_001", "R002", "failed")
+        await storage.log_rule_execution("SUP_001", "R001", "passed_again")
+
+        result = await storage.get_rule_execution_log("SUP_001", rule_id="R001")
+
+        assert len(result) == 2
+        assert all(r["rule_id"] == "R001" for r in result)
+
+    @pytest.mark.asyncio
+    async def test_get_rule_execution_log_empty(self, storage: DuckDBStorage) -> None:
+        """Test get_rule_execution_log returns empty list when no records."""
+        result = await storage.get_rule_execution_log("NONEXISTENT")
+
+        assert result == []

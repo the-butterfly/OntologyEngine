@@ -1,71 +1,439 @@
-# Schema v2 Canonical Grammar Spec
+# Schema v2 Canonical Grammar Specification
 
 > **状态**: accepted
 > **Phase**: phase1
-> **Source of Truth**: true（仅针对 Schema v2 根级 grammar）
-> **Last Verified**: 2026-04-12 (`docs-only`)
+> **Source of Truth**: true（Schema v2 根级与内层 grammar 唯一规范）
+> **Last Verified**: 2026-04-14
+> **Supersedes**: 05-complete-example.md（内层方言）、01-04 分层文档（局部片段）
+
+---
 
 ## 作用范围
 
-本文件只负责冻结一件事：**Schema v2 完整文档的根级组织方式与命名约定。**
+本文档是 Schema v2 的**唯一完整 grammar 规范**，包含：
+1. 根级组织方式与命名约定（已冻结）
+2. **L1-L4 每层的内层结构定义**（本次冻结）
+3. 四层之间的语义关系与数据流
 
-它不试图一次性冻结所有字段细节，也不替代各层专题文档。今后如果 `00-overview.md`、分层专题、完整示例之间出现根级结构不一致，以本文件为准。
+其他文档（01-fact-objects.md、02-categorization.md、03-analytical-elements.md、04-business-logic.md）只负责**设计意图解释**，不得重新定义 grammar。完整示例参考 `05-complete-example.md`。
+
+---
 
 ## Canonical 根级结构
 
 ```yaml
 schema_version: "2.0"
-semantic_space:
-  id: "space.supply_chain_finance"
-  name: "供应链金融语义空间"
-  type: management
-  status: DRAFT
 
-fact_objects:
-  # L1 声明集合；内部可继续细分为 entities / relations / shared_types
+semantic_space:           # Schema 元数据与版本信息
+  id: string             # 唯一标识，格式: space.{name}
+  name: string           # 人类可读名称
+  type: enum             # management | consumption
+  status: enum           # DRAFT | ACTIVE | ARCHIVED | PUBLISHED
+  version: string        # 语义版本（SemVer），格式: X.Y.Z
+  description: string?   # 可选描述
+  created_at: string?    # ISO 8601 时间戳
+  updated_at: string?    # ISO 8601 时间戳
 
-categorizations:
-  # L2 声明集合；内部可继续细分为 dimensions / tag_sets / mappings
+fact_objects:            # L1: 事实对象声明
+  entities: [EntityDeclaration]
+  relations: [RelationDeclaration]
 
-analytical_elements:
-  # L3 声明集合；内部可继续细分为 metrics / indicators / scorecards
+categorizations:         # L2: 分类声明
+  dimensions: [DimensionDeclaration]
 
-business_logic:
-  rule_definitions: []
-  rule_logics: []
+analytical_elements:     # L3: 分析要素声明
+  metrics: [MetricDeclaration]
+
+business_logic:          # L4: 业务逻辑声明
+  rule_definitions: [RuleDefinitionDeclaration]
+  rule_logics: [RuleLogicDeclaration]
 ```
 
-## Canonical 命名约定
+---
 
-1. `semantic_space` 是完整 Schema v2 文档的顶层容器元数据
-2. `fact_objects`、`categorizations`、`analytical_elements`、`business_logic` 是四层主容器
-3. `business_logic.rule_definitions` 与 `business_logic.rule_logics` 是当前推荐的规范化规则组织方式
-4. 单篇主题文档中出现的 `fact_object_declaration`、`analytical_element_declaration` 等名字，只是**局部片段示意**，不是完整文件的根级键名
+## L1: fact_objects
 
-## 非 Canonical 写法与迁移建议
+### entities: [EntityDeclaration]
 
-| 历史 / 示例写法 | 当前判断 | 迁移建议 |
-|----------------|----------|----------|
-| `categorization` | 非 canonical | 统一改为 `categorizations` |
-| `business_logic.rule_groups` | 非 canonical | 拆分为 `rule_definitions + rule_logics` |
-| `fact_object_declaration` | 片段示例 | 仅在局部文档中保留，不作为完整文件根键 |
-| `analytical_element_declaration` | 片段示例 | 仅在局部文档中保留，不作为完整文件根键 |
+```yaml
+- name: string                    # 实体类型名称，全局唯一
+  description: string?
+  attributes: [AttributeDef]      # 属性定义列表
+  key_attributes: [string]?      # 关键属性名列表，用于快速识别
+```
 
-## 与其他文档的关系
+### AttributeDef
 
-- [`00-overview.md`](./00-overview.md): 负责讲设计意图，不再定义根级 grammar 真相
-- [`05-complete-example.md`](./05-complete-example.md): 负责展示可读样例，后续需要继续向本文件同步
-- [`01-fact-objects.md`](./01-fact-objects.md) ～ [`04-business-logic.md`](./04-business-logic.md): 负责定义各层语义，不重复定义根级组织方式
+```yaml
+- name: string                    # 属性名
+  type: enum                      # string | integer | decimal | boolean | date | datetime | enum | Money | JSON
+  required: boolean = false       # 是否必填
+  unique: boolean = false        # 是否唯一
+  description: string?
+  # 以下为可选字段，按 type 启用
+  enum_type: string?              # 当 type=enum 时，引用枚举类型名
+  currency: string?               # 当 type=Money 时，货币代码（如 CNY）
+  default: any?                   # 默认值
+  pattern: string?                # 当 type=string 时，Regex 校验
+  min: number?                    # 数值类属性下界
+  max: number?                    # 数值类属性上界
+```
 
-## 当前仍未冻结的内容
+### relations: [RelationDeclaration]
 
-- **[待扩展]** `fact_objects`、`categorizations`、`analytical_elements` 容器内部的最终子键命名
-- **[待扩展]** L3 是否允许保留标准 `formula` 以及与 L4 的覆盖关系
-- **[待扩展]** `rule_group` 是否允许作为 authoring sugar 存在，并在加载阶段编译为 canonical model
-- **[待扩展]** `semantic_space.status` 中 `PUBLISHED` 应表达为状态还是快照事件
+```yaml
+- name: string                    # 关系类型名，全局唯一
+  from: string                    # 源实体类型（Entity.name）
+  to: string                      # 目标实体类型
+  description: string?
+  attributes: [AttributeDef]?      # 可选关系属性
+  cardinality: enum?              # one_to_one | one_to_many | many_to_many
+```
+
+### 枚举类型（隐式声明）
+
+枚举类型无需独立声明节，直接在 `AttributeDef.type=enum` 时通过 `enum_type` 引用：
+
+```yaml
+# 在 entities 中引用
+- name: status
+  type: enum
+  enum_type: CompanyStatus
+
+# 枚举值在 Instance 层定义
+```
+
+---
+
+## L2: categorizations
+
+### dimensions: [DimensionDeclaration]
+
+```yaml
+- name: string                    # 维度名，全局唯一
+  description: string?
+  type: enum                      # hierarchical | derived | tag_based
+  values: [ValueDefinition]?      # 当 type=hierarchical 或 tag_based 时
+  rule_logic: string?             # 当 type=derived 时，引用 RuleLogicDeclaration.name
+  color: string?                  # 可选，hex 色值，用于可视化（如 "#FF4D4F"）
+```
+
+### ValueDefinition
+
+```yaml
+- code: string | integer          # 分类编码
+  name: string                    # 人类可读名称
+  description: string?
+  color: string?                  # 可选色值
+```
+
+### L2 → L4 关系语义
+
+`type=derived` 的维度**复用 L4 rule_logics**：规则逻辑（`steps` 中的 `condition/result`）输出即为维度值。维度声明本身仅引用已有的 rule_logic name，不重复定义计算逻辑。
+
+```yaml
+# 示例：company_scale 维度引用 determine_scale 规则逻辑
+dimensions:
+  - name: company_scale
+    type: derived
+    rule_logic: determine_scale    # 引用 business_logic.rule_logics[].name
+    values: [LARGE, MEDIUM, SMALL, MICRO]
+```
+
+---
+
+## L3: analytical_elements
+
+### metrics: [MetricDeclaration]
+
+```yaml
+- name: string                    # 指标名，全局唯一
+  description: string?
+  type: enum                      # atomic | derived | graph | composite | variable
+  value_type: enum                # integer | decimal | percentage | currency | score | flag
+
+  # atomic: 从 L1 事实直接获取或简单转换
+  # derived: 依赖 L1 属性或 L3 原子指标
+  # graph: 依赖图计算（通过图数据库）
+  # composite: 多维度加权聚合
+  # variable: 外部可注入的变量
+
+  source: string?                 # atomic 专用：属性路径（如 "registered_capital.value"）
+  formula: string?                # atomic 专用：简单表达式（当 source 不够时）
+  dependencies: [string]?         # derived/graph/composite 专用：依赖指标名列表
+  components: [ComponentDef]?     # composite 专用：聚合分量定义
+  overridable: boolean = false    # 是否允许 L4 规则实例覆盖计算逻辑
+  overridable_by: string?         # 当 overridable=true 时，引用的 rule_definition.name
+
+  color: string?                  # 可选，hex 色值，用于可视化
+  unit: string?                   # 可选，单位（如 "%", "万"）
+  thresholds: [ThresholdDef]?     # 可选，阈值定义（用于 traffic-light 可视化）
+```
+
+### ComponentDef（composite 指标分量）
+
+```yaml
+- metric: string                  # 依赖的指标名（L3 指标名）
+  weight: decimal?                # 加权系数
+  aggregation: enum?              # sum | avg | max | min（当依赖为列表时）
+```
+
+### ThresholdDef（可视化阈值）
+
+```yaml
+- label: string                   # 阈值标签（如 "高"、"中"、"低"）
+  operator: enum                  # gt | gte | lt | lte | eq | between
+  value: any                      # 阈值
+  color: string                   # 该区间色值
+```
+
+### L3 → L4 override 语义
+
+当 `overridable=true` 时，在 `business_logic.rule_definitions` 中通过 `overrides` 字段声明覆盖：
+
+```yaml
+# 示例：credit_limit 指标声明为 overridable
+metrics:
+  - name: credit_limit
+    type: derived
+    overridable: true
+
+# 在 L4 规则声明中覆盖
+rule_definitions:
+  - name: credit_limit_override
+    overrides: credit_limit
+    inputs: [{metric: credit_score}, {metric: guarantee_exposure}]
+    outputs: [{name: credit_limit, type: Money}]
+```
+
+---
+
+## L4: business_logic
+
+### rule_definitions: [RuleDefinitionDeclaration]
+
+```yaml
+- name: string                    # 规则定义名，全局唯一
+  description: string?
+  type: enum                      # constraint | inference | alert | decision
+  priority: integer?              # 执行优先级，数字越大越先执行，默认 100
+
+  applies_to:                     # 规则适用对象
+    fact_objects: [string]?       # 实体类型名列表；空数组 [] 表示 GLOBAL（所有实体）
+    categories: dict?              # 分类过滤，格式: {dimension_name: [value_codes]}
+
+  preconditions: [Precondition]? # 前置条件，不满足则跳过整个规则组
+  inputs: [IOElement]?            # 输入要素
+  outputs: [IOElement]?           # 输出要素
+
+  overrides: string?              # 可选，覆盖 L3 overridable 指标（引用 metric.name）
+```
+
+### Precondition
+
+```yaml
+- expression: string              # 布尔表达式
+  fail:                           # 不满足时的动作
+    reject: boolean?               # 是否拒绝
+    reason: string?                # 拒绝原因
+    action: string?                # 其他动作
+```
+
+### IOElement（输入/输出要素）
+
+```yaml
+- metric: string?                 # 引用 L3 指标名
+  attribute: string?               # 引用 L1 属性路径
+  rule_output: string?             # 引用其他规则的输出名
+  name: string?                   # 要素名称
+  type: enum                       # boolean | integer | decimal | Money | string | flag
+```
+
+> **设计原则**：优先使用 `metric` 引用 L3 指标；`attribute` 直接引用 L1 属性；两者都指定时，`metric` 优先。
+
+### rule_logics: [RuleLogicDeclaration]
+
+```yaml
+- name: string                    # 规则逻辑名，全局唯一
+  description: string?
+  type: enum                      # decision_table | scorecard | switch | binning | graph_op | custom
+  steps: [Step]                   # 步骤序列，支持 DAG 依赖
+```
+
+### Step（步骤定义）
+
+```yaml
+- id: string                      # 步骤 ID，唯一
+  name: string                    # 步骤名称
+  description: string?
+  priority: integer?              # 执行优先级，默认 100
+  depends_on: [string]?           # 依赖的前置步骤 ID 列表（形成 DAG）
+
+  condition:                      # 触发条件（支持复杂表达式）
+    expression: string?            # 布尔表达式（当 type!=graph_op 时）
+    and: [string]?                 # 复合 AND 条件
+    or: [string]?                 # 复合 OR 条件
+    not: string?                  # 取反条件
+    # 条件表达式中可用变量：
+    #   - L1 属性：attribute_name（如 status, registered_capital.value）
+    #   - L3 指标：metric_name（如 credit_score, guarantee_exposure）
+    #   - 规则输出：step_id.output（如 R001.eligible）
+    #   - L2 维度：dimension_name（如 company_scale, risk_level）
+
+  action:                         # 触发动作
+    type: enum                    # set_flag | compute | reject | emit_alert | assign_category
+    flag: string?                 # type=set_flag 时：flag 名称
+    value: any?                   # type=set_flag 时：flag 值
+    output: string?               # type=compute 时：输出变量名
+    operator: enum?                # type=compute 时：算子类型
+    # 算子类型（operator）：
+    #   - GRAPH: 图遍历算子
+    #   - BINNING: 分箱算子
+    #   - SWITCH: 分支算子
+    #   - SCORECARD: 评分卡算子
+    #   - WEIGHTED_SUM: 加权求和算子
+    query: object?                # operator=GRAPH 时：图遍历查询定义
+    aggregation: [AggDef]?        # operator=GRAPH 时：聚合定义
+    bins: [BinDef]?               # operator=BINNING 时：分箱定义
+    branches: [BranchDef]?        # operator=SWITCH 时：分支定义
+    variables: [VariableDef]?     # operator=SCORECARD 时：变量评分卡
+    formula: string?               # 通用计算公式
+    category: string?              # type=assign_category 时：分类维度值
+    reason: string?               # type=reject/emit_alert 时：原因
+    severity: enum?                # type=emit_alert 时：INFO | WARNING | CRITICAL
+
+  else:                           # 条件不满足时的备选动作（同 action 结构）
+```
+
+### GraphOp（operator=GRAPH 时）
+
+```yaml
+query:
+  type: enum                      # traversal | neighbors | path | cycle_detection
+  relation: string?               # 关系类型名
+  from: string?                   # 起点实体 ID
+  depth: integer?                 # 遍历深度
+  direction: enum?                # outgoing | incoming | undirected
+aggregation:
+  - type: enum                    # sum | avg | max | min | count
+    field: string                 # 聚合字段
+    output: string                # 输出变量名
+post_process:                     # 后处理公式
+  formula: string
+```
+
+### BinDef（operator=BINNING 时）
+
+```yaml
+- range: [any, any]              # 左闭右闭区间
+  result: any                     # 该区间对应值
+```
+
+### BranchDef（operator=SWITCH 时）
+
+```yaml
+- condition: string               # 分支条件（精确匹配或表达式）
+  formula: string?                # 该分支的计算公式
+```
+
+### VariableDef（operator=SCORECARD 时）
+
+```yaml
+- name: string                    # 变量名
+  points:                         # 评分点列表
+    - condition: string           # 条件表达式
+      score: decimal              # 得分
+  baseline: decimal?              # 基准分
+post_formula: string?             # 后处理公式
+```
+
+---
+
+## 全局数据类型约定
+
+### Money
+
+```yaml
+value: decimal
+currency: string   # ISO 4217 货币代码（如 CNY, USD, EUR）
+```
+
+### Percentage
+
+```yaml
+value: decimal   # 0-100 或 0-1，约定 0-100
+```
+
+---
+
+## 层间数据流
+
+```
+L1 fact_objects
+  │
+  ├── 属性 ──────────────► L3 atomic metrics（source/formula）
+  │                           │
+  │                           ├── dependencies ──► L3 derived metrics
+  │                           │
+  │                           └── components ────► L3 composite metrics
+  │
+  ├── 属性 ──────────────► L4 inputs（via attribute 引用）
+  │
+  └── 关系 ──────────────► L3 graph metrics（via 图数据库）
+                              │
+                              ▼
+                          L4 graph_op 算子
+
+L2 categorizations
+  │
+  ├── hierarchical ──► L4 applicable_conditions 过滤
+  │
+  └── derived (rule_logic) ──► L4 rule_logic 复用
+
+L3 metrics
+  │
+  ├── overridable ──► L4 rule_definitions.overrides
+  │
+  └── dependencies ──► L4 inputs（via metric 引用）
+
+L4 rule_logics.steps
+  │
+  ├── condition 引用：L1 属性 / L3 指标 / L2 维度 / 其他 step 输出
+  │
+  └── action 输出 ──► L4 rule_outputs / 触发 L2 derived 维度值
+```
+
+---
+
+## 与历史写法的迁移对照
+
+| 历史 / 示例写法 | Canonical 写法 | 说明 |
+|----------------|---------------|------|
+| `properties` | `attributes` | 实体属性定义 |
+| `source` / `target` | `from` / `to` | 关系端点 |
+| `element_type` | `type` | 指标类型 |
+| `input_elements` / `output_elements` | `inputs` / `outputs` | 规则 I/O |
+| `ruleset` | `rule_logic` (type=derived) | L2 derived 维度引用 |
+| Flat `when/then_action` | `steps[].condition/action` | L4 规则逻辑 |
+| `rule_group` | `rule_definitions[].name` + `rule_logics[].name` | 规则分组 |
+| `categorization` | `categorizations`（复数容器） | L2 容器 |
+| `fact_object_declaration` | `fact_objects.entities[]` | L1 实体声明 |
+
+---
 
 ## 使用规则
 
-1. 新增或重写 Schema v2 文档时，不得再次自定义另一套完整根级 grammar
-2. 完整 YAML 示例若与本文件不一致，应标记 **[待扩展]** 或直接修正
-3. 若要变更本文件，需要同步更新 [`../STATUS.md`](../STATUS.md) 与迁移层文档
+1. **唯一事实源**：Schema v2 所有 grammar 定义以本文档为准
+2. **禁止重复定义**：01-04 分层文档只解释设计意图，不重新定义字段名或结构
+3. **完整示例**：`05-complete-example.md` 是 grammar 的完整可执行示例，与本文档严格一致
+4. **变更新规则**：任何 grammar 变更必须先更新本文档，再同步 `05-complete-example.md`，最后更新 `STATUS.md`
+5. **代码核验**：实现 Schema Loader 时，以本文档作为解析器 schema 的规范
+
+---
+
+## 当前仍未冻结的内容
+
+- **[待扩展]** Expression/Formula 的 BNF grammar（条件表达式的操作符集和优先级规则）
+- **[待扩展]** `semantic_space.status` 中 `PUBLISHED` 是状态还是快照事件的语义
+- **[待扩展]** `semantic_space.type=consumption` 时 View 与 Space 的关系建模
+- **[待扩展]** 规则 `preconditions` 与 L2 分类前置条件的优先级关系

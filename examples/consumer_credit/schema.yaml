@@ -330,7 +330,7 @@ analytical_elements:
 
     - id: monthly_income_value
       name: "月收入（元）"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -340,7 +340,7 @@ analytical_elements:
 
     - id: monthly_obligations_value
       name: "月还款义务（元）"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -351,7 +351,7 @@ analytical_elements:
 
     - id: total_assets_value
       name: "总资产（元）"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -361,7 +361,7 @@ analytical_elements:
 
     - id: total_liabilities_value
       name: "总负债（元）"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -372,7 +372,7 @@ analytical_elements:
 
     - id: credit_bureau_score
       name: "征信评分"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -382,7 +382,7 @@ analytical_elements:
 
     - id: overdue_count_24m
       name: "近24个月逾期次数"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -392,7 +392,7 @@ analytical_elements:
 
     - id: online_behavior_score
       name: "线上行为评分"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -402,7 +402,7 @@ analytical_elements:
 
     - id: repayment_on_time_count
       name: "近24月按时还款次数"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Borrower
@@ -414,7 +414,7 @@ analytical_elements:
 
     - id: total_repayment_count
       name: "近24月总还款次数"
-      element_type: atomic
+      type: atomic
       source:
         type: graph_traversal
         entity: Borrower
@@ -429,7 +429,7 @@ analytical_elements:
     - id: debt_to_income_ratio
       name: "债务收入比（DTI）"
       description: "月还款义务 / 月收入，衡量偿债压力"
-      element_type: derived
+      type: derived
       dependencies: [monthly_obligations_value, monthly_income_value]
       formula: "monthly_obligations_value / monthly_income_value"
       unit: "ratio"
@@ -442,7 +442,7 @@ analytical_elements:
     - id: net_asset_ratio
       name: "净资产比率"
       description: "(总资产 - 总负债) / 总资产，衡量资产质量"
-      element_type: derived
+      type: derived
       dependencies: [total_assets_value, total_liabilities_value]
       formula: |
         if total_assets_value > 0:
@@ -455,7 +455,7 @@ analytical_elements:
     - id: repayment_rate_24m
       name: "近24月按时还款率"
       description: "按时还款次数 / 总还款次数，衡量历史还款表现"
-      element_type: derived
+      type: derived
       dependencies: [repayment_on_time_count, total_repayment_count]
       formula: |
         if total_repayment_count > 0:
@@ -468,7 +468,7 @@ analytical_elements:
     - id: new_loan_monthly_burden
       name: "新增贷款月供（元）"
       description: "若批准申请，每月新增还款额（等额还款估算）"
-      element_type: derived
+      type: derived
       dependencies: []
       parameters:
         - name: loan_amount
@@ -487,7 +487,7 @@ analytical_elements:
     - id: post_loan_dti
       name: "贷后DTI（含新增贷款）"
       description: "批准后的月还款负担 / 月收入，用于压力测试"
-      element_type: derived
+      type: derived
       dependencies: [monthly_obligations_value, new_loan_monthly_burden, monthly_income_value]
       formula: "(monthly_obligations_value + new_loan_monthly_burden) / monthly_income_value"
       thresholds:
@@ -500,7 +500,7 @@ analytical_elements:
     - id: co_borrower_risk_count
       name: "关联共借人逾期人数"
       description: "与当前借款人共同借款/担保关系中，存在当前逾期的人数"
-      element_type: graph
+      type: graph
       algorithm: neighbor_attribute_count
       traversal:
         entity: Borrower
@@ -515,7 +515,7 @@ analytical_elements:
     - id: network_risk_score
       name: "关系网络风险评分"
       description: "借款人关系网络中的整体风险程度（0=无风险，100=极高风险）"
-      element_type: graph
+      type: graph
       algorithm: weighted_neighbor_risk
       traversal:
         entity: Borrower
@@ -539,7 +539,7 @@ analytical_elements:
         - 稳定性（20%）：就业稳定、居住稳定
         - 行为风控（15%）：线上行为模式
         - 关系网络（10%）：共借人/担保人风险
-      element_type: composite
+      type: composite
       overridable: true
       components:
         - metric: debt_to_income_ratio
@@ -575,7 +575,7 @@ analytical_elements:
     - id: has_stable_income
       name: "是否有稳定收入来源"
       description: "全职就业≥1年 OR 自雇年收入≥12万 → true"
-      element_type: derived
+      type: derived
       dependencies: []
       formula: |
         employment.employment_type == 'FULL_TIME' and employment.years_employed >= 1
@@ -585,7 +585,7 @@ analytical_elements:
 
     - id: is_blacklisted
       name: "是否黑名单"
-      element_type: atomic
+      type: atomic
       source:
         type: fact_attribute
         entity: Borrower
@@ -595,7 +595,7 @@ analytical_elements:
 
     - id: has_current_overdue
       name: "是否存在当前逾期"
-      element_type: derived
+      type: derived
       dependencies: []
       formula: "current_overdue_amount.value > 0"
       output_type: boolean
@@ -605,7 +605,7 @@ analytical_elements:
     - id: risk_grade
       name: "风险等级"
       description: "credit_risk_score 映射至风险等级"
-      element_type: derived
+      type: derived
       dependencies: [credit_risk_score]
       formula: |
         if credit_risk_score >= 85:   "R1"   # 极低风险
@@ -630,12 +630,12 @@ business_logic:
       description: "黑名单或存在当前逾期 → 直接拒绝，不进入评分"
       rule_type: constraint
       priority: 200           # 最高优先级，最先执行
-      target_objects: [Borrower]
+      applies_to: [Borrower]
       applicable_categorizations: [loan_risk_assessment]
-      input_elements:
+      inputs:
         - { id: is_blacklisted,      name: "黑名单",       type: attribute }
         - { id: has_current_overdue, name: "当前逾期",     type: indicator }
-      output_elements:
+      outputs:
         - { id: veto_triggered,      name: "一票否决触发", type: flag }
         - { id: veto_reason,         name: "否决原因",     type: computed_value }
       logic_ids: [RL101_veto_standard]
@@ -647,14 +647,14 @@ business_logic:
       description: "年龄、收入、就业稳定性基础门槛校验"
       rule_type: constraint
       priority: 180
-      target_objects: [Borrower, LoanApplication]
+      applies_to: [Borrower, LoanApplication]
       applicable_categorizations: [loan_risk_assessment]
-      input_elements:
+      inputs:
         - { id: age,                  name: "年龄",           type: attribute }
         - { id: monthly_income_value, name: "月收入",         type: metric }
         - { id: has_stable_income,    name: "收入稳定性",     type: indicator }
         - { id: loan_amount,          name: "申请金额",       type: attribute }
-      output_elements:
+      outputs:
         - { id: is_eligible,          name: "是否准入",       type: flag }
         - { id: rejection_reason,     name: "拒绝原因",       type: computed_value }
       logic_ids: [RL102_eligibility_base]
@@ -666,12 +666,12 @@ business_logic:
       description: "评估贷后 DTI 是否超过可承受上限，并产生偿债预警"
       rule_type: inference
       priority: 160
-      target_objects: [Borrower, LoanApplication]
+      applies_to: [Borrower, LoanApplication]
       applicable_categorizations: [loan_risk_assessment]
-      input_elements:
+      inputs:
         - { id: post_loan_dti,        name: "贷后DTI",   type: metric }
         - { id: monthly_income_value, name: "月收入",    type: metric }
-      output_elements:
+      outputs:
         - { id: capacity_warning,     name: "偿债预警",  type: alert }
         - { id: capacity_level,       name: "偿债能力等级", type: computed_value }
       logic_ids: [RL103_capacity_check]
@@ -683,11 +683,11 @@ business_logic:
       description: "驱动五维评分卡计算，产出风险等级"
       rule_type: inference
       priority: 140
-      target_objects: [Borrower]
+      applies_to: [Borrower]
       applicable_categorizations: [loan_risk_assessment]
-      input_elements:
+      inputs:
         - { id: is_eligible,    name: "是否准入", type: flag }
-      output_elements:
+      outputs:
         - { id: credit_risk_score, name: "信用风险评分", type: computed_value }
         - { id: risk_grade,        name: "风险等级",     type: computed_value }
       logic_ids:
@@ -702,12 +702,12 @@ business_logic:
       description: "检查共借人/担保人中是否存在逾期风险传导"
       rule_type: alert
       priority: 130
-      target_objects: [Borrower]
+      applies_to: [Borrower]
       applicable_categorizations: [loan_risk_assessment, relationship_risk]
-      input_elements:
+      inputs:
         - { id: co_borrower_risk_count, name: "关联逾期人数", type: metric }
         - { id: network_risk_score,     name: "网络风险评分", type: metric }
-      output_elements:
+      outputs:
         - { id: network_alert, name: "网络风险预警", type: alert }
       logic_ids: [RL105_network_alert]
       enabled: true
@@ -718,12 +718,12 @@ business_logic:
       description: "根据风险等级和贷款产品类型确定利率区间"
       rule_type: decision
       priority: 80
-      target_objects: [LoanApplication]
+      applies_to: [LoanApplication]
       applicable_categorizations: [loan_risk_assessment]
-      input_elements:
+      inputs:
         - { id: risk_grade, name: "风险等级", type: metric }
         - { id: loan_type,  name: "贷款类型", type: attribute }
-      output_elements:
+      outputs:
         - { id: base_annual_rate,  name: "基础年化利率",   type: computed_value }
         - { id: rate_band,         name: "利率区间",       type: computed_value }
       logic_ids:
@@ -738,15 +738,15 @@ business_logic:
       description: "综合所有维度输出最终审批结果和批准额度"
       rule_type: decision
       priority: 50
-      target_objects: [Borrower, LoanApplication]
+      applies_to: [Borrower, LoanApplication]
       applicable_categorizations: [loan_risk_assessment]
-      input_elements:
+      inputs:
         - { id: credit_risk_score,  name: "信用评分",   type: metric }
         - { id: risk_grade,         name: "风险等级",   type: metric }
         - { id: post_loan_dti,      name: "贷后DTI",    type: metric }
         - { id: capacity_level,     name: "偿债能力",   type: computed_value }
         - { id: overdue_count_24m,  name: "逾期次数",   type: metric }
-      output_elements:
+      outputs:
         - { id: approval_decision,     name: "审批决策",       type: flag }
         - { id: approved_amount,       name: "批准金额",       type: computed_value }
         - { id: required_conditions,   name: "附加条件",       type: computed_value }

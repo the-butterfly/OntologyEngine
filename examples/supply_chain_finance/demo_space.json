@@ -137,42 +137,42 @@
       {
         "id": "registered_capital_value",
         "name": "注册资本值",
-        "element_type": "atomic",
+        "type": "atomic",
         "source": {"type": "fact_attribute", "attribute": "registered_capital.value"},
         "dependencies": []
       },
       {
         "id": "annual_revenue_value",
         "name": "年营业收入值",
-        "element_type": "atomic",
+        "type": "atomic",
         "source": {"type": "fact_attribute", "attribute": "annual_revenue.value"},
         "dependencies": []
       },
       {
         "id": "asset_liability_ratio",
         "name": "资产负债率",
-        "element_type": "derived",
+        "type": "derived",
         "dependencies": ["total_liabilities_value", "total_assets_value"],
         "overridable": true
       },
       {
         "id": "current_ratio",
         "name": "流动比率",
-        "element_type": "derived",
+        "type": "derived",
         "dependencies": ["current_assets_value", "current_liabilities_value"],
         "overridable": true
       },
       {
         "id": "credit_score",
         "name": "信用评分",
-        "element_type": "composite",
+        "type": "composite",
         "dependencies": ["financial_health_score", "business_stability_score"],
         "overridable": true
       },
       {
         "id": "guarantee_exposure",
         "name": "担保敞口",
-        "element_type": "graph",
+        "type": "graph",
         "dependencies": [],
         "overridable": true
       }
@@ -185,11 +185,11 @@
           "description": "基础准入资格检查",
           "rule_type": "constraint",
           "priority": 100,
-          "target_objects": ["Supplier", "CoreEnterprise"],
-          "input_elements": [
+          "applies_to": ["Supplier", "CoreEnterprise"],
+          "inputs": [
             {"id": "credit_score", "name": "信用评分", "type": "metric"}
           ],
-          "output_elements": [
+          "outputs": [
             {"id": "eligible", "name": "是否合格", "type": "flag"}
           ],
           "enabled": true,
@@ -201,12 +201,12 @@
           "description": "计算综合信用评分",
           "rule_type": "decision",
           "priority": 90,
-          "target_objects": ["Supplier"],
-          "input_elements": [
+          "applies_to": ["Supplier"],
+          "inputs": [
             {"id": "annual_revenue", "name": "年营收", "type": "metric"},
             {"id": "registered_capital", "name": "注册资本", "type": "attribute"}
           ],
-          "output_elements": [
+          "outputs": [
             {"id": "credit_score", "name": "信用评分", "type": "computed_value"}
           ],
           "enabled": true,
@@ -218,12 +218,12 @@
           "description": "根据信用评分计算授信额度",
           "rule_type": "decision",
           "priority": 80,
-          "target_objects": ["Supplier"],
-          "input_elements": [
+          "applies_to": ["Supplier"],
+          "inputs": [
             {"id": "credit_score", "name": "信用评分", "type": "metric"},
             {"id": "registered_capital", "name": "注册资本", "type": "attribute"}
           ],
-          "output_elements": [
+          "outputs": [
             {"id": "credit_limit", "name": "授信额度", "type": "computed_value"}
           ],
           "enabled": true,

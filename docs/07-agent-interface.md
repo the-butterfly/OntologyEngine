@@ -45,7 +45,7 @@
 | 资产类型 | 云端权威 | 本地可编辑 | 同步方向 | 冲突策略 |
 |----------|----------|------------|----------|----------|
 | Schema 模板 | ✅ | ❌ | 云→本地 | 云端优先 |
-| 规则定义 | ✅ | 可覆盖 | 云→本地 | 覆盖/保留 |
+| 规则定义 | ✅ | 可覆盖（本地可实例化覆盖） | 云→本地 | 覆盖/保留 |
 | 实例数据 | ❌ | ✅ | 本地私有 | - |
 | 个人配置 | ❌ | ✅ | 本地私有 | - |
 | 向量索引 | ❌ | 本地构建 | - | - |
@@ -75,6 +75,7 @@ class OntologyEngineMCPServer:
 
     def _register_tools(self) -> list[Tool]:
         return [
+            # === 消费面工具 ===
             # Schema 操作
             Tool(
                 name="oe_load_schema",
@@ -119,6 +120,109 @@ class OntologyEngineMCPServer:
                 description="从实例追溯到完整计算树",
                 input_schema=TraceRuleInput,
                 handler=self.trace_rule
+            ),
+
+            # === 管理面工具 ===
+            # Space 管理
+            Tool(
+                name="oe_create_space",
+                description="创建管理空间",
+                input_schema=CreateSpaceInput,
+                handler=self.create_space
+            ),
+            Tool(
+                name="oe_activate_space",
+                description="激活管理空间",
+                input_schema=SpaceIdInput,
+                handler=self.activate_space
+            ),
+            Tool(
+                name="oe_archive_space",
+                description="归档管理空间",
+                input_schema=SpaceIdInput,
+                handler=self.archive_space
+            ),
+
+            # Schema 管理
+            Tool(
+                name="oe_create_schema",
+                description="在 Space 中创建/更新完整 Schema",
+                input_schema=CreateSchemaInput,
+                handler=self.create_schema
+            ),
+            Tool(
+                name="oe_update_schema",
+                description="部分更新 Schema",
+                input_schema=UpdateSchemaInput,
+                handler=self.update_schema
+            ),
+            Tool(
+                name="oe_publish_schema",
+                description="发布 Schema 版本快照",
+                input_schema=PublishSchemaInput,
+                handler=self.publish_schema
+            ),
+
+            # 规则创作
+            Tool(
+                name="oe_define_rule",
+                description="在 Schema 中新增规则声明",
+                input_schema=DefineRuleInput,
+                handler=self.define_rule
+            ),
+            Tool(
+                name="oe_attach_rule_logic",
+                description="为规则添加实例逻辑（steps/算子）",
+                input_schema=AttachRuleLogicInput,
+                handler=self.attach_rule_logic
+            ),
+
+            # 数据集管理
+            Tool(
+                name="oe_register_dataset",
+                description="注册外部数据集",
+                input_schema=RegisterDatasetInput,
+                handler=self.register_dataset
+            ),
+            Tool(
+                name="oe_trigger_sync",
+                description="触发数据同步",
+                input_schema=TriggerSyncInput,
+                handler=self.trigger_sync
+            ),
+            Tool(
+                name="oe_get_sync_status",
+                description="获取同步状态",
+                input_schema=DatasetIdInput,
+                handler=self.get_sync_status
+            ),
+
+            # 视图管理
+            Tool(
+                name="oe_create_view",
+                description="创建消费视图",
+                input_schema=CreateViewInput,
+                handler=self.create_view
+            ),
+            Tool(
+                name="oe_authorize_view",
+                description="配置视图授权",
+                input_schema=AuthorizeViewInput,
+                handler=self.authorize_view
+            ),
+
+            # 版本管理
+            Tool(
+                name="oe_snapshot",
+                description="创建版本快照",
+                input_schema=SnapshotInput,
+                handler=self.snapshot
+            ),
+            Tool(
+                name="oe_rollback",
+                description="回滚到指定版本",
+                input_schema=RollbackInput,
+                handler=self.rollback
             ),
         ]
 ```
@@ -617,7 +721,189 @@ class SyncRecord:
 
 ---
 
-## 六、安全与权限
+## 六、管理面工具输入 Schema
+
+### 6.1 Space 管理工具
+
+```yaml
+tool: oe_create_space
+description: "创建管理空间"
+input:
+  space_id: string              # 格式: space.{name}
+  name: string                  # 人类可读名称
+  description: string?
+output:
+  space_id: string
+  status: DRAFT
+
+tool: oe_activate_space
+description: "激活管理空间"
+input:
+  space_id: string
+output:
+  space_id: string
+  status: ACTIVE
+
+tool: oe_archive_space
+description: "归档管理空间"
+input:
+  space_id: string
+output:
+  space_id: string
+  status: ARCHIVED
+```
+
+### 6.2 Schema 管理工具
+
+```yaml
+tool: oe_create_schema
+description: "在 Space 中创建/更新完整 Schema"
+input:
+  space_id: string
+  schema: object               # 完整 schema 对象（schema_version/semantic_space/L1-L4）
+output:
+  schema_id: string
+  version: string
+  loaded_at: timestamp
+
+tool: oe_update_schema
+description: "部分更新 Schema（增量修改）"
+input:
+  space_id: string
+  layer: enum[L1,L2,L3,L4]
+  operations: list             # [{op: add|update|delete, path, value}]
+output:
+  schema_id: string
+  version: string
+
+tool: oe_publish_schema
+description: "发布 Schema 版本快照"
+input:
+  space_id: string
+output:
+  version: string
+  snapshot_id: string
+```
+
+### 6.3 规则创作工具
+
+```yaml
+tool: oe_define_rule
+description: "在 Schema 中新增规则声明"
+input:
+  space_id: string
+  rule_definition: object      # applies_to, inputs, outputs, preconditions
+output:
+  rule_id: string
+  status: draft
+
+tool: oe_attach_rule_logic
+description: "为规则添加实例逻辑（steps / 算子）"
+input:
+  space_id: string
+  rule_name: string            # 规则定义名
+  rule_logic: object           # steps[], type, description
+output:
+  rule_logic_id: string
+  rule_logic_name: string
+```
+
+### 6.4 数据集与视图管理工具
+
+```yaml
+tool: oe_register_dataset
+description: "注册外部数据集"
+input:
+  space_id: string
+  name: string
+  type: enum[PostgreSQL,MySQL,CSV,JSON]
+  connection: object           # 连接配置
+output:
+  dataset_id: string
+  status: REGISTERED
+
+tool: oe_trigger_sync
+description: "触发数据同步"
+input:
+  space_id: string
+  dataset_id: string
+  mode: enum[full, incremental]
+output:
+  sync_id: string
+  status: RUNNING
+
+tool: oe_create_view
+description: "创建消费视图"
+input:
+  space_id: string
+  name: string
+  description: string?
+output:
+  view_id: string
+  status: draft
+
+tool: oe_snapshot
+description: "创建版本快照"
+input:
+  space_id: string
+  layer: enum[L1,L2,L3,L4,ALL]
+output:
+  version: integer
+  snapshot_id: string
+
+tool: oe_rollback
+description: "回滚到指定版本"
+input:
+  space_id: string
+  layer: string
+  version: integer
+output:
+  success: boolean
+  rollback_to: integer
+```
+
+---
+
+## 七、工具 → API 端点映射
+
+| MCP Tool | Target API Endpoint | 权限 | 说明 |
+|----------|-------------------|------|------|
+| **消费面工具** | | | |
+| `oe_load_schema` | `GET /v1/management/{spaceId}/schema` | `management:read` | 获取完整 Schema |
+| `oe_sync_assets` | `POST /v1/management/{spaceId}/datasets/{id}/sync` | `management:write` | 触发资产同步 |
+| `oe_create_entity` | `POST /v1/management/{spaceId}/instances/entities` | `management:write` | 创建实体 |
+| `oe_query` | `GET /v1/consumption/views/{viewId}/entities` | `consumption:read` | 查询实体 |
+| `oe_execute_rule` | `POST /v1/consumption/views/{viewId}/execute/analyze` | `consumption:execute` | 执行规则分析 |
+| `oe_trace_rule` | `GET /v1/consumption/views/{viewId}/execute/history` | `consumption:read` | 查询执行历史 |
+| **管理面工具** | | | |
+| `oe_create_space` | `POST /v1/management/spaces` | `management:write` | 创建空间 |
+| `oe_activate_space` | `POST /v1/management/spaces/{spaceId}/activate` | `management:write` | 激活空间 |
+| `oe_archive_space` | `POST /v1/management/spaces/{spaceId}/archive` | `management:write` | 归档空间 |
+| `oe_create_schema` | `PUT /v1/management/{spaceId}/schema` | `management:write` | 上传/替换 Schema |
+| `oe_update_schema` | `PATCH /v1/management/{spaceId}/schema` | `management:write` | 部分更新 Schema |
+| `oe_publish_schema` | `POST /v1/management/{spaceId}/publish` | `management:write` | 发布版本快照 |
+| `oe_define_rule` | `POST /v1/management/{spaceId}/schema/L4/rules/definitions` | `management:write` | 新增规则声明 |
+| `oe_attach_rule_logic` | `POST /v1/management/{spaceId}/schema/L4/rules/logics` | `management:write` | 添加规则实例 |
+| `oe_register_dataset` | `POST /v1/management/{spaceId}/datasets` | `management:write` | 注册数据集 |
+| `oe_trigger_sync` | `POST /v1/management/{spaceId}/datasets/{id}/sync` | `management:write` | 触发同步 |
+| `oe_get_sync_status` | `GET /v1/management/{spaceId}/datasets/{id}/sync/history` | `management:read` | 查询同步状态 |
+| `oe_create_view` | `POST /v1/consumption/views` | `management:write` | 创建消费视图 |
+| `oe_authorize_view` | `POST /v1/management/{spaceId}/authorizations` | `management:write` | 授权视图 |
+| `oe_snapshot` | `POST /v1/management/{spaceId}/versions/{layer}/snapshot` | `management:write` | 创建快照 |
+| `oe_rollback` | `POST /v1/management/{spaceId}/versions/{layer}/{v}/rollback` | `management:write` | 版本回滚 |
+
+### 权限层级说明
+
+| 权限 | 可操作范围 |
+|------|-----------|
+| `management:read` | 读取 Space、Schema、Dataset、Version |
+| `management:write` | 创建/修改/删除 Space、Schema、Dataset、Rule、View |
+| `consumption:read` | 读取 View、查询 Entity |
+| `consumption:execute` | 执行规则、模拟 What-if |
+
+---
+
+## 八、安全与权限
 
 ### 6.1 权限模型
 
@@ -654,9 +940,9 @@ schema_access:
 
 ---
 
-## 七、错误处理
+## 九、错误处理
 
-### 7.1 错误码
+### 9.1 错误码
 
 | Code | HTTP | 说明 |
 |------|------|------|
@@ -668,7 +954,7 @@ schema_access:
 | RULE_EXECUTION_ERROR | 500 | 规则执行失败 |
 | NETWORK_ERROR | 503 | 云端连接失败 |
 
-### 7.2 降级策略
+### 9.2 降级策略
 
 ```python
 class CloudClient:

@@ -111,22 +111,23 @@ examples/supply_chain_finance/
 
 ## Schema 详解
 
-### 1. 概念定义 (Concepts)
+### 1. 概念定义 (Fact Objects)
 
 ```yaml
-concepts:
-  - name: "Supplier"
-    attributes:
-      - supplier_id          # 供应商ID
-      - company_name         # 企业名称
-      - registered_capital   # 注册资本
-      - establishment_date   # 成立日期
-      - ...
-    relations:
-      - supplies_to          # 为核心企业供货
-      - has_invoice          # 持有的发票
-      - has_contract         # 持有的合同
-      - guaranteed_by        # 被担保
+fact_objects:
+  entities:
+    - id: "Supplier"
+      name: "供应商"
+      properties:
+        - name: "entity_id"         # 供应商ID
+        - name: "company_name"      # 企业名称
+        - name: "registered_capital" # 注册资本
+        - name: "establishment_date" # 成立日期
+      relations:
+        - name: "supplies_to"        # 为核心企业供货
+        - name: "has_invoice"        # 持有的发票
+        - name: "has_contract"       # 持有的合同
+        - name: "guarantees"        # 担保其他供应商
 ```
 
 ### 2. 指标定义 (Metrics)

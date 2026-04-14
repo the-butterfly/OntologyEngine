@@ -98,6 +98,14 @@ class StorageBackend(ABC):
     async def log_rule_execution(self, entity_id: str, rule_id: str, result: str) -> None:
         """Persist rule execution audit records."""
 
+    @abstractmethod
+    async def get_rule_execution_log(
+        self,
+        entity_id: str,
+        rule_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query rule execution audit records for an entity."""
+
     # -------------------------------------------------------------------------
     # Phase 1 Enhancement: Dataset Management
     # -------------------------------------------------------------------------

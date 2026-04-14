@@ -25,6 +25,25 @@ router = APIRouter(prefix="/v1/consumption", tags=["Consumption"])
 
 
 # ============================================================================
+# Canonical Field Helpers (support both legacy and canonical names)
+# ============================================================================
+
+def _metric_type(element: dict) -> str:
+    """Get metric type, supporting both canonical and legacy field names."""
+    return element.get("type") or element.get("element_type") or "derived"
+
+
+def _rule_inputs(rule: dict) -> list[dict]:
+    """Get rule inputs, supporting both canonical and legacy field names."""
+    return rule.get("inputs") or rule.get("input_elements") or []
+
+
+def _rule_outputs(rule: dict) -> list[dict]:
+    """Get rule outputs, supporting both canonical and legacy field names."""
+    return rule.get("outputs") or rule.get("output_elements") or []
+
+
+# ============================================================================
 # Storage Helper
 # ============================================================================
 
@@ -195,7 +214,7 @@ async def get_schema_graph(
     # L3: Analytical Elements
     for element in space.layers.L3_analytical_elements:
         elem_id = element.get("id", element.get("name", "unknown"))
-        elem_type = element.get("element_type", "derived")
+        elem_type = _metric_type(element)
         nodes.append({
             "id": elem_id,
             "type": "metric",
@@ -203,7 +222,7 @@ async def get_schema_graph(
                 "label": element.get("name", elem_id),
                 "category": "element",
                 "layer": "L3",
-                "element_type": elem_type,
+                "type": elem_type,  # canonical field name
                 "formula": element.get("formula", ""),
                 "dependencies": element.get("dependencies", []),
                 "overridable": element.get("overridable", False),
@@ -247,19 +266,19 @@ async def get_schema_graph(
                 "rule_type": rule.get("rule_type", "constraint"),
                 "priority": rule.get("priority", 100),
                 "enabled": rule.get("enabled", True),
-                "target_objects": rule.get("target_objects", []),
-                "input_elements": [
-                    e.get("name") or e.get("id", "") for e in rule.get("input_elements", [])
+                "applies_to": rule.get("applies_to") or rule.get("target_objects") or [],
+                "inputs": [
+                    e.get("name") or e.get("id", "") for e in _rule_inputs(rule)
                 ],
-                "output_elements": [
-                    e.get("name") or e.get("id", "") for e in rule.get("output_elements", [])
+                "outputs": [
+                    e.get("name") or e.get("id", "") for e in _rule_outputs(rule)
                 ],
                 "logic_count": len(rule.get("logic_ids", [])),
                 "description": rule.get("description", ""),
             }
         })
         # Add edges from L3 elements to L4 rules (input relationship)
-        for in_elem in rule.get("input_elements", []):
+        for in_elem in _rule_inputs(rule):
             elem_name = in_elem.get("name") or in_elem.get("id", "")
             if elem_name:
                 edges.append({
@@ -329,10 +348,10 @@ async def get_rule_dependency_graph(view_id: str):
             "rule_type": rule.get("rule_type", "constraint"),
             "priority": rule.get("priority", 100),
             "enabled": rule.get("enabled", True),
-            "target_objects": rule.get("target_objects", []),
+            "applies_to": rule.get("applies_to") or rule.get("target_objects") or [],
             "applicable_categorizations": rule.get("applicable_categorizations", []),
-            "input_elements": rule.get("input_elements", []),
-            "output_elements": rule.get("output_elements", []),
+            "inputs": _rule_inputs(rule),
+            "outputs": _rule_outputs(rule),
             "logic_count": len(logics),
             "logics": [
                 {
@@ -350,13 +369,13 @@ async def get_rule_dependency_graph(view_id: str):
     edges = []
     output_map: dict[str, list[str]] = {}
     for rule in rules:
-        for out_elem in rule.get("output_elements", []):
+        for out_elem in _rule_outputs(rule):
             elem_name = out_elem.get("name") or out_elem.get("id", "")
             if elem_name:
                 output_map.setdefault(elem_name, []).append(rule["id"])
 
     for rule in rules:
-        for in_elem in rule.get("input_elements", []):
+        for in_elem in _rule_inputs(rule):
             elem_name = in_elem.get("name") or in_elem.get("id", "")
             producers = output_map.get(elem_name, [])
             for producer_id in producers:
@@ -384,8 +403,8 @@ async def get_rule_dependency_graph(view_id: str):
                     "type": "categorization_exclusive",
                 })
             # Output conflict
-            outputs_a = {(e.get("name") or e.get("id", "")) for e in rule_a.get("output_elements", [])}
-            outputs_b = {(e.get("name") or e.get("id", "")) for e in rule_b.get("output_elements", [])}
+            outputs_a = {(e.get("name") or e.get("id", "")) for e in _rule_outputs(rule_a)}
+            outputs_b = {(e.get("name") or e.get("id", "")) for e in _rule_outputs(rule_b)}
             shared = outputs_a & outputs_b - {""}
             if shared:
                 exclusion_pairs.append({
@@ -517,9 +536,9 @@ async def get_rules_for_entity(
             "name": rule.get("name") or rule["id"],
             "rule_type": rule.get("rule_type", "constraint"),
             "priority": rule.get("priority", 100),
-            "target_objects": target_objects,
-            "input_elements": rule.get("input_elements", []),
-            "output_elements": rule.get("output_elements", []),
+            "applies_to": target_objects,
+            "inputs": _rule_inputs(rule),
+            "outputs": _rule_outputs(rule),
             "matching_logics": matching_logics,
             "applicable_logics_count": len(matching_logics),
         })
@@ -530,14 +549,14 @@ async def get_rules_for_entity(
     # Build execution order
     output_map: dict[str, list[str]] = {}
     for rule in applicable_rules:
-        for out_elem in rule.get("output_elements", []):
+        for out_elem in _rule_outputs(rule):
             elem_name = out_elem.get("name") or out_elem.get("id", "")
             if elem_name:
                 output_map.setdefault(elem_name, []).append(rule["id"])
 
     dependency_edges = []
     for rule in applicable_rules:
-        for in_elem in rule.get("input_elements", []):
+        for in_elem in _rule_inputs(rule):
             elem_name = in_elem.get("name") or in_elem.get("id", "")
             for producer_id in output_map.get(elem_name, []):
                 if producer_id != rule["id"]:
@@ -663,9 +682,9 @@ async def execute_simulate(view_id: str, request: ExecuteSimulateRequest):
 def _build_rule_dependency_graph(
     rules: list[dict],
 ) -> tuple[dict[str, list[str]], dict[str, int], list[dict]]:
-    """Build rule dependency graph based on input/output element matching.
+    """Build rule dependency graph based on inputs/outputs element matching.
 
-    Rule A depends on Rule B if A's input_elements overlap with B's output_elements.
+    Rule A depends on Rule B if A's inputs overlap with B's outputs.
 
     Returns:
         Tuple of (adjacency_list, in_degree_map, edges)
@@ -673,7 +692,7 @@ def _build_rule_dependency_graph(
     # Build output_map: element_name -> [rule_ids that produce it]
     output_map: dict[str, list[str]] = defaultdict(list)
     for rule in rules:
-        for out_elem in rule.get("output_elements", []):
+        for out_elem in _rule_outputs(rule):
             elem_name = out_elem.get("name") or out_elem.get("id", "")
             if elem_name:
                 output_map[elem_name].append(rule["id"])
@@ -685,7 +704,7 @@ def _build_rule_dependency_graph(
 
     for rule in rules:
         rule_id = rule["id"]
-        for in_elem in rule.get("input_elements", []):
+        for in_elem in _rule_inputs(rule):
             elem_name = in_elem.get("name") or in_elem.get("id", "")
             producers = output_map.get(elem_name, [])
             for producer_id in producers:
@@ -805,7 +824,7 @@ def _precompute_l3_elements(
 
     for elem in space.layers.L3_analytical_elements:
         elem_id = elem.get("id", "")
-        elem_type = elem.get("element_type", "atomic")
+        elem_type = _metric_type(elem)
         source = elem.get("source", {})
         dependencies = elem.get("dependencies", [])
 
@@ -1246,11 +1265,11 @@ def _explain_conditions(
 def _gather_inputs(rule: dict, entity_data: dict, computed: dict) -> list[dict]:
     """Gather current input element values for a rule."""
     inputs = []
-    for in_elem in rule.get("input_elements", []):
+    for in_elem in _rule_inputs(rule):
         name = in_elem.get("name") or in_elem.get("id", "")
         if name:
             value = computed.get(name, entity_data.get(name))
-            inputs.append({"name": name, "value": value, "element_type": in_elem.get("element_type", "")})
+            inputs.append({"name": name, "value": value, "type": in_elem.get("type", "")})
     return inputs
 
 
@@ -1350,9 +1369,9 @@ def _compute_impact_chains(
 
     for rule in space.layers.L4_business_logic.rule_definitions:
         rule_id = rule["id"]
-        out_names = [e.get("name") or e.get("id", "") for e in rule.get("output_elements", [])]
+        out_names = [e.get("name") or e.get("id", "") for e in _rule_outputs(rule)]
         rule_outputs[rule_id] = [n for n in out_names if n]
-        for in_elem in rule.get("input_elements", []):
+        for in_elem in _rule_inputs(rule):
             name = in_elem.get("name") or in_elem.get("id", "")
             if name:
                 elem_to_rules[name].append(rule_id)

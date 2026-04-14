@@ -4,8 +4,8 @@
 status: draft
 phase: phase1
 source_of_truth: false
-last_verified: 2026-04-12
-verified_against: docs-only
+last_verified: 2026-04-14
+verified_against: docs/05-schema-v2/09-canonical-schema-spec.md
 related_docs:
   - 00-overview.md
   - 00b-semantic-space-architecture.md
@@ -19,8 +19,9 @@ related_adrs:
   - architecture/decisions/008-rule-model-unification.md
 ---
 
-> **Status**: v2.0 (with Declaration/Instance separation)
-> **Date**: 2026-04-12
+> **Status**: v2.0 (aligned with Canonical Grammar)
+> **Last Verified**: 2026-04-14
+> **verified_against**: docs/05-schema-v2/09-canonical-schema-spec.md
 
 ## 核心概念
 
@@ -37,37 +38,67 @@ L4 业务逻辑包含**声明**和**实例**两个层面：
 
 ### 1.1 结构
 
+在 Schema v2 中，规则定义通过 `business_logic.rule_definitions[]` 声明：
+
 ```yaml
-rule_definition:
-  id: string                    # 全局唯一标识 (如 R001)
-  name: string                  # 显示名称
-  description: string | null    # 描述
+business_logic:
+  rule_definitions:
+    - name: string                    # 规则定义名，全局唯一
+      description: string?
+      type: enum                      # constraint | inference | alert | decision
+      priority: integer?             # 执行优先级，数字越大越先执行，默认 100
 
-  rule_type: constraint | inference | alert | decision
+      applies_to:                     # 规则适用对象
+        fact_objects: [string]?       # 实体类型名列表；空数组 [] 表示 GLOBAL（所有实体）
+        categories: dict?              # 分类过滤，格式: {dimension_name: [value_codes]}
 
-  # 作用域声明: 哪些实体类型适用
-  target_objects:
-    - string  # 如 "Supplier", "Company"
+      preconditions: [Precondition]? # 前置条件，不满足则跳过整个规则组
+      inputs: [IOElement]?            # 输入要素
+      outputs: [IOElement]?           # 输出要素
 
-  # 输入要素 - 声明此规则需要哪些输入
-  input_elements:
-    - id: string
-      name: string
-      type: metric | attribute | category_tag
+      overrides: string?              # 可选，覆盖 L3 overridable 指标（引用 metric.name）
+```
 
-  # 输出要素 - 声明此规则会产生哪些输出
-  output_elements:
-    - id: string
-      name: string
-      type: flag | computed_value | alert
+### Precondition（前置条件）
 
-  priority: integer             # 优先级 (数字越大越优先)
+```yaml
+- expression: string              # 布尔表达式
+  fail:                           # 不满足时的动作
+    reject: boolean?               # 是否拒绝
+    reason: string?                # 拒绝原因
+    action: string?                # 其他动作
+```
 
-  # 关联的规则实例
-  logic_ids:
-    - string  # 关联的 rule_logic.id
+### IOElement（输入/输出要素）
 
-  enabled: boolean              # 是否启用
+```yaml
+- metric: string?                 # 引用 L3 指标名
+  attribute: string?              # 引用 L1 属性路径
+  rule_output: string?            # 引用其他规则的输出名
+  name: string?                    # 要素名称
+  type: enum                       # boolean | integer | decimal | Money | string | flag
+```
+
+> **设计原则**：优先使用 `metric` 引用 L3 指标；`attribute` 直接引用 L1 属性；两者都指定时，`metric` 优先。
+
+### applies_to 结构详解
+
+`applies_to` 定义规则的适用范围：
+
+```yaml
+applies_to:
+  # 实体类型过滤
+  fact_objects:
+    - Supplier          # 仅适用于 Supplier 实体
+    - CoreEnterprise    # 仅适用于核心企业
+
+  # 或全局规则（空数组表示所有实体）
+  fact_objects: []
+
+  # 分类维度过滤（可选）
+  categories:
+    industry_category: ["C", "F"]   # 仅当行业分类为制造业或批发零售时生效
+    company_scale: ["LARGE", "MEDIUM"]  # 仅当规模为大型或中型时生效
 ```
 
 ### 1.2 规则类型
@@ -82,40 +113,53 @@ rule_definition:
 ### 1.3 示例
 
 ```yaml
-rule_definition:
-  id: R001_credit_check
-  name: 信用检查
-  description: 根据信用评分和资产情况判断授信资格
-  rule_type: constraint
+business_logic:
+  rule_definitions:
+    - name: credit_check
+      description: 信用检查 - 根据信用评分和资产情况判断授信资格
+      type: constraint
 
-  target_objects:
-    - Supplier
-    - CoreEnterprise
+      applies_to:
+        fact_objects:
+          - Supplier
+          - CoreEnterprise
 
-  input_elements:
-    - id: credit_score
-      name: 信用评分
-      type: metric
-    - id: overdue_ratio
-      name: 逾期比例
-      type: metric
-    - id: registered_capital
-      name: 注册资本
-      type: attribute
+      preconditions:
+        - expression: "credit_score > 0"
+          fail:
+            reject: true
+            reason: "无有效信用评分"
 
-  output_elements:
-    - id: eligible
-      name: 是否合格
-      type: flag
-    - id: risk_level
-      name: 风险等级
-      type: flag
+      inputs:
+        - metric: credit_score
+          type: score
+        - metric: overdue_ratio
+          type: percentage
+        - attribute: registered_capital.value
+          type: decimal
 
-  priority: 100
-  logic_ids:
-    - R001_logic_manufacturing
-    - R001_logic_retail
-  enabled: true
+      outputs:
+        - name: eligible
+          type: flag
+        - name: risk_level
+          type: flag
+        - name: credit_limit
+          type: Money
+
+      priority: 100
+
+    - name: credit_limit_override
+      description: 自定义授信额度计算
+      type: decision
+      overrides: credit_limit           # 覆盖 L3 的 credit_limit 指标
+      inputs:
+        - metric: credit_score
+          type: score
+        - metric: guarantee_exposure
+          type: Money
+      outputs:
+        - name: credit_limit
+          type: Money
 ```
 
 ---
@@ -124,106 +168,174 @@ rule_definition:
 
 ### 2.1 结构
 
+在 Schema v2 中，规则逻辑通过 `business_logic.rule_logics[]` 声明：
+
 ```yaml
-rule_logic:
-  id: string                    # 全局唯一标识
-  definition_id: string          # 关联的规则声明 ID
-
-  name: string | null
-  description: string | null
-
-  # 适用条件 - 此实例在什么条件下生效
-  applicable_conditions:
-    - classification: string    # 分类维度
-      operator: string          # eq | in | contains
-      value: any               # 匹配值
-
-  # 前置条件
-  when:
-    expression: string          # 条件表达式
-
-  # 满足条件时的动作
-  then_action:
-    action_type: set_flag | compute | alert | approve | reject
-    output:
-      # action_type-specific fields
-
-  # 不满足条件时的动作 (可选)
-  else_action:
-    action_type: set_flag | compute | reject
-    output: {...}
-
-  priority: integer             # 实例优先级
-  version: integer             # 版本号
-  environment: string          # default | test | production
+business_logic:
+  rule_logics:
+    - name: string                    # 规则逻辑名，全局唯一
+      description: string?
+      type: enum                      # decision_table | scorecard | switch | binning | graph_op | custom
+      steps: [Step]                   # 步骤序列，支持 DAG 依赖
 ```
 
-### 2.2 动作类型
-
-| 动作类型 | 说明 | 输出结构 |
-|----------|------|----------|
-| `set_flag` | 设置标志 | `{ flag_name: value }` |
-| `compute` | 计算值 | `{ result_name: expression }` |
-| `alert` | 触发预警 | `{ alert_level, message }` |
-| `approve` | 批准通过 | `{ decision: APPROVED }` |
-| `reject` | 拒绝 | `{ decision: REJECTED, reason }` |
-
-### 2.3 示例
+### Step（步骤定义）
 
 ```yaml
-# 制造业场景
-rule_logic:
-  id: R001_logic_manufacturing
-  definition_id: R001_credit_check
-  name: 制造业信用检查
+- id: string                      # 步骤 ID，唯一
+  name: string                    # 步骤名称
+  description: string?
+  priority: integer?              # 执行优先级，默认 100
+  depends_on: [string]?           # 依赖的前置步骤 ID 列表（形成 DAG）
 
-  applicable_conditions:
-    - classification: industry_category
-      operator: eq
-      value: "C"  # 制造业
+  condition:                      # 触发条件（支持复杂表达式）
+    expression: string?            # 布尔表达式（当 type!=graph_op 时）
+    and: [string]?                 # 复合 AND 条件
+    or: [string]?                 # 复合 OR 条件
+    not: string?                  # 取反条件
+    # 条件表达式中可用变量：
+    #   - L1 属性：attribute_name（如 status, registered_capital.value）
+    #   - L3 指标：metric_name（如 credit_score, guarantee_exposure）
+    #   - 规则输出：step_id.output（如 R001.eligible）
+    #   - L2 维度：dimension_name（如 company_scale, risk_level）
 
-  when:
-    expression: "credit_score >= 60 AND overdue_ratio <= 0.05"
+  action:                         # 触发动作
+    type: enum                    # set_flag | compute | reject | emit_alert | assign_category
+    flag: string?                 # type=set_flag 时：flag 名称
+    value: any?                   # type=set_flag 时：flag 值
+    output: string?               # type=compute 时：输出变量名
+    operator: enum?                # type=compute 时：算子类型
+    formula: string?               # 通用计算公式
+    category: string?              # type=assign_category 时：分类维度值
+    reason: string?               # type=reject/emit_alert 时：原因
+    severity: enum?                # type=emit_alert 时：INFO | WARNING | CRITICAL
 
-  then_action:
-    action_type: set_flag
-    output:
-      eligible: true
-      risk_level: "LOW"
+  else:                           # 条件不满足时的备选动作（同 action 结构）
+```
 
-  else_action:
-    action_type: set_flag
-    output:
-      eligible: false
-      reason: "不满足制造业信用条件"
+### 2.2 算子类型
 
-  priority: 100
-  version: 1
-  environment: default
----
-# 批发零售场景
-rule_logic:
-  id: R001_logic_retail
-  definition_id: R001_credit_check
-  name: 批发零售信用检查
+| 算子 | 说明 | 使用场景 |
+|------|------|----------|
+| `GRAPH` | 图遍历算子 | 遍历关系网络计算担保敞口等 |
+| `BINNING` | 分箱算子 | 将连续值分段映射 |
+| `SWITCH` | 分支算子 | 根据值匹配不同计算分支 |
+| `SCORECARD` | 评分卡算子 | 加权打分模型 |
+| `WEIGHTED_SUM` | 加权求和算子 | 多因素加权求和 |
+| `FORMULA` | 通用公式 | 任意表达式计算 |
 
-  applicable_conditions:
-    - classification: industry_category
-      operator: eq
-      value: "F"  # 批发零售
+### 2.3 规则逻辑类型
 
-  when:
-    expression: "credit_score >= 70 AND overdue_ratio <= 0.03"
+| 类型 | 说明 | 适用场景 |
+|------|------|----------|
+| `decision_table` | 决策表 | 多条件组合查表 |
+| `scorecard` | 评分卡 | 加权打分 |
+| `switch` | 多分支 | 根据条件匹配不同分支 |
+| `binning` | 分箱 | 连续值分段 |
+| `graph_op` | 图操作 | 图遍历计算 |
+| `custom` | 自定义 | 复杂自定义逻辑 |
 
-  then_action:
-    action_type: set_flag
-    output:
-      eligible: true
-      risk_level: "MEDIUM"
+### 2.4 示例
 
-  priority: 100
-  version: 1
-  environment: default
+```yaml
+business_logic:
+  rule_logics:
+    # 制造业信用检查
+    - name: credit_check_manufacturing
+      description: 制造业信用检查
+      type: switch
+      steps:
+        - id: check_eligible
+          priority: 100
+          condition:
+            and:
+              - "credit_score >= 60"
+              - "overdue_ratio <= 0.05"
+          action:
+            type: set_flag
+            flag: eligible
+            value: true
+          else:
+            type: set_flag
+            flag: eligible
+            value: false
+
+        - id: assess_risk
+          priority: 90
+          depends_on: [check_eligible]
+          condition:
+            expression: "eligible == true"
+          action:
+            type: set_flag
+            flag: risk_level
+            value: "LOW"
+          else:
+            type: emit_alert
+            severity: WARNING
+            reason: "不满足制造业信用条件"
+
+    # 批发零售信用检查
+    - name: credit_check_retail
+      description: 批发零售信用检查
+      type: switch
+      steps:
+        - id: check
+          condition:
+            and:
+              - "credit_score >= 70"
+              - "overdue_ratio <= 0.03"
+          action:
+            type: set_flag
+            flag: eligible
+            value: true
+          else:
+            type: set_flag
+            flag: eligible
+            value: false
+
+        - id: set_risk
+          condition:
+            expression: "eligible == true"
+          action:
+            type: set_flag
+            flag: risk_level
+            value: "MEDIUM"
+
+    # 授信额度计算（评分卡）
+    - name: credit_limit_scoring
+      type: scorecard
+      steps:
+        - id: calculate
+          action:
+            type: compute
+            output: credit_limit
+            operator: SCORECARD
+            variables:
+              - name: credit_score_points
+                points:
+                  - condition: "credit_score >= 800"
+                    score: 50
+                  - condition: "credit_score >= 600"
+                    score: 30
+                  - condition: "credit_score >= 400"
+                    score: 10
+                  - condition: "credit_score < 400"
+                    score: 0
+                baseline: 0
+
+              - name: capital_points
+                points:
+                  - condition: "registered_capital.value >= 100000000"
+                    score: 30
+                  - condition: "registered_capital.value >= 10000000"
+                    score: 20
+                  - condition: "registered_capital.value >= 1000000"
+                    score: 10
+                  - condition: "registered_capital.value < 1000000"
+                    score: 0
+                baseline: 0
+
+            post_formula: "base_amount * (credit_score_points + capital_points) / 100"
 ```
 
 ---
@@ -244,9 +356,9 @@ Formula 按复杂度自动选择执行器：
 ```yaml
 # 单行 formula，自动使用 simpleeval
 action:
-  action_type: compute
-  output:
-    credit_limit: "registered_capital * 0.5"
+  type: compute
+  output: credit_limit
+  formula: "registered_capital.value * 0.5"
 ```
 
 ### 3.3 L1: 复杂逻辑
@@ -254,31 +366,132 @@ action:
 ```yaml
 # 含控制流，切换 AST 沙箱
 action:
-  action_type: compute
-  output:
-    discount_rate: |
-      if credit_score >= 90:
-          rate = 0.15
-      elif credit_score >= 80:
-          rate = 0.10
-      else:
-          rate = 0.05
-      rate
+  type: compute
+  output: discount_rate
+  formula: |
+    if credit_score >= 90:
+        rate = 0.15
+    elif credit_score >= 80:
+        rate = 0.10
+    else:
+        rate = 0.05
+    rate
 ```
 
 ---
 
-## 4. 算子类型
+## 4. 算子详解
 
-| 算子 | 用途 | 说明 |
-|------|------|------|
-| `FORMULA` | 简单表达式 | 直接计算 |
-| `SWITCH` | 多分支条件 | 根据值匹配不同计算 |
-| `SCORECARD` | 评分卡模型 | 加权打分 |
-| `DECISION_TABLE` | 决策表 | 多条件组合查表 |
-| `GRAPH` | 图检索计算 | 遍历关系网络 |
-| `MODEL_INFERENCE` | 外部模型 | 调用 ML 模型 |
-| `LLM_INFERENCE` | 大模型推理 | 调用 LLM |
+### GRAPH（图遍历算子）
+
+```yaml
+action:
+  type: compute
+  output: guarantee_exposure
+  operator: GRAPH
+  query:
+    type: traversal
+    relation: Guarantee
+    direction: outgoing
+    depth: 2
+  aggregation:
+    - type: sum
+      field: guarantee_amount.value
+      output: total_exposure
+  post_process:
+    formula: "total_exposure"
+```
+
+### BINNING（分箱算子）
+
+```yaml
+action:
+  type: compute
+  output: risk_band
+  operator: BINNING
+  bins:
+    - range: [0, 30]
+      result: LOW
+    - range: [30, 70]
+      result: MEDIUM
+    - range: [70, 100]
+      result: HIGH
+```
+
+### SWITCH（分支算子）
+
+```yaml
+action:
+  type: compute
+  output: grade
+  operator: SWITCH
+  branches:
+    - condition: "credit_score >= 800"
+      formula: "AAA"
+    - condition: "credit_score >= 700"
+      formula: "AA"
+    - condition: "credit_score >= 600"
+      formula: "A"
+    - condition: "credit_score >= 400"
+      formula: "B"
+    - condition: "true"
+      formula: "C"
+```
+
+### SCORECARD（评分卡算子）
+
+```yaml
+action:
+  type: compute
+  output: total_score
+  operator: SCORECARD
+  variables:
+    - name: financial_score
+      points:
+        - condition: "current_ratio >= 2.0"
+          score: 30
+        - condition: "current_ratio >= 1.5"
+          score: 20
+        - condition: "current_ratio >= 1.0"
+          score: 10
+        - condition: "current_ratio < 1.0"
+          score: 0
+      baseline: 0
+
+    - name: operation_score
+      points:
+        - condition: "business_stability >= 80"
+          score: 30
+        - condition: "business_stability >= 60"
+          score: 20
+        - condition: "business_stability >= 40"
+          score: 10
+        - condition: "business_stability < 40"
+          score: 0
+      baseline: 0
+
+  post_formula: "financial_score + operation_score"
+```
+
+### WEIGHTED_SUM（加权求和算子）
+
+```yaml
+action:
+  type: compute
+  output: credit_limit
+  operator: WEIGHTED_SUM
+  variables:
+    - name: score_factor
+      points:
+        - condition: "credit_score >= 800"
+          score: 0.5
+        - condition: "credit_score >= 600"
+          score: 0.3
+        - condition: "credit_score >= 400"
+          score: 0.2
+      baseline: 0.1
+  formula: "registered_capital.value * score_factor"
+```
 
 ---
 
@@ -287,24 +500,25 @@ action:
 ### 5.1 规则选择流程
 
 ```
-1. 根据 entity.concept_type 筛选 target_objects 包含该类型的规则声明
+1. 根据 entity._concept 筛选 applies_to.fact_objects 包含该类型的规则声明
 2. 对筛选后的规则声明，按 priority 降序排序
-3. 对于每个规则声明，遍历其关联的 rule_logics：
-   a. 检查 applicable_conditions 是否满足
-   b. 满足则选中
-   c. 执行 then_action
+3. 检查 applies_to.categories 分类过滤条件
+4. 检查 preconditions 前置条件
+5. 对于每个规则声明，遍历其关联的 rule_logics：
+   a. 执行 steps 序列（支持 DAG 依赖排序）
+   b. 执行 then_action 或 else_action
 ```
 
 ### 5.2 依赖解析与 DAG
 
-规则实例之间可能存在依赖，通过 `input_elements` 引用：
+规则步骤之间可能存在依赖，通过 `depends_on` 引用：
 
 ```python
 class RuleExecutor:
-    def execute(self, entity_id, dimension, context):
+    def execute(self, entity_id, context):
         # 1. 构建 DAG
         dag = self.build_dag(
-            rules=self.get_applicable_rules(entity_id, dimension),
+            steps=self.rule_logic.steps,
             context=context
         )
 
@@ -312,8 +526,8 @@ class RuleExecutor:
         execution_order = list(nx.topological_sort(dag))
 
         # 3. 按序执行
-        for rule_id in execution_order:
-            self.execute_rule(rule_id, context)
+        for step_id in execution_order:
+            self.execute_step(step_id, context)
 ```
 
 ---
@@ -322,29 +536,40 @@ class RuleExecutor:
 
 ### 6.1 指标覆盖
 
-L3 指标可声明 `overridable: true`（默认），允许 L4 提供覆盖计算：
+L3 指标可声明 `overridable=true`（默认 false），允许 L4 提供覆盖计算：
 
 ```yaml
 # L3: 声明指标
-analytical_element_declaration:
-  id: credit_score
-  name: 信用评分
-  element_type: derived
-  overridable: true
-  dependencies:
-    - financial_health_score
-    - external_credit_score
+analytical_elements:
+  metrics:
+    - name: credit_limit
+      type: derived
+      overridable: true
+      dependencies:
+        - credit_score
+        - guarantee_exposure
 
 # L4: 覆盖计算逻辑
-rule_logic:
-  id: R002_logic
-  definition_id: R002_custom_scoring
-  when:
-    expression: "has_external_score == true"
-  then_action:
-    action_type: compute
-    output:
-      credit_score: "external_credit_score"  # 直接使用外部评分
+business_logic:
+  rule_definitions:
+    - name: credit_limit_override
+      overrides: credit_limit           # ← 引用 L3 指标名
+      inputs:
+        - metric: credit_score
+        - attribute: registered_capital.value
+      outputs:
+        - name: credit_limit
+          type: Money
+
+  rule_logics:
+    - name: custom_credit_limit
+      steps:
+        - id: calc
+          action:
+            type: compute
+            output: credit_limit
+            operator: WEIGHTED_SUM
+            formula: "registered_capital.value * credit_score_factor"
 ```
 
 ### 6.2 跨引擎调用
@@ -383,14 +608,22 @@ DELETE /v1/management/{spaceId}/schema/L4/rules/logics/{id}
 
 ## 8. 与 v1 的区别
 
-| v1 | v2 |
-|-----|-----|
-| 规则硬编码 entity_types | 规则声明 + 作用对象分离 |
-| 规则逻辑散落各处 | 规则声明 + 规则实例分离 |
+| v1 | v2 (Canonical) |
+|-----|----------------|
+| 规则硬编码 entity_types | `applies_to` 结构化定义 |
+| 规则逻辑散落各处 | `rule_definitions` + `rule_logics` 分离 |
+| `input_elements` / `output_elements` | `inputs` / `outputs` |
+| Flat `when/then_action` | `steps[].condition/action` |
 | 无多实例支持 | 一声声明 + 多逻辑实例 |
-| 无条件分支 | applicable_conditions 支持场景分支 |
+| 无条件分支 | `applies_to.categories` 支持场景分支 |
 | 无版本管理 | 声明/实例独立版本 |
+| 无算子类型 | 明确 GRAPH/BINNING/SWITCH/SCORECARD/WEIGHTED_SUM |
+| 无 `overrides` | 支持覆盖 L3 overridable 指标 |
 
 ---
+
+## 9. 完整结构参考
+
+完整 Schema v2 语法结构参见 [09-canonical-schema-spec.md](./09-canonical-schema-spec.md) 的 **L4: business_logic** 节。
 
 *文档结束*

@@ -25,7 +25,9 @@
 | `00-overview.md` | 全链路、依赖方向、阶段目标 | 作为总览入口 |
 | `01` ~ `03` | 数据进入系统前后的加载、实例、存储 | 与 Schema / 当前代码关系最紧密 |
 | `04` ~ `07` | 核心计算引擎 | 是实现风险最高的部分 |
-| `08` ~ `10` | 查询、服务、API | 需要持续与当前代码核验 |
+| `08` | 查询、服务、API | 需要持续与当前代码核验 |
+| `02-design/query-engine-current.md` | Query Engine 当前实现 | accepted | phase1 | |
+| `05-schema-v2/query-engine-target.md` | Query Engine Phase 2 目标 | draft | phase2 | |
 
 ## 重点提示
 
