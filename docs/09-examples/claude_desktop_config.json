@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ontology-engine": {
+      "command": "python",
+      "args": ["-m", "ontology_engine.mcp.server"],
+      "cwd": "/path/to/OntologyEngine",
+      "env": {
+        "PYTHONPATH": "/path/to/OntologyEngine"
+      }
+    }
+  }
+}
