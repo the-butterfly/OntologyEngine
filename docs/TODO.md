@@ -44,11 +44,23 @@
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
 | P1 | docs/09-examples/supply_chain_finance.md 重构完成 | ✅ 文档已有完整 deprecated 标注 + 不符点清单，无需重写 |
-| P1 | MCP 工具实现（P1 核心 5 个）| RFC-013 | `oe_create_space/execute_rule/query/register_dataset/simulate` — 包装现有 API 为 MCP 工具 |
-| P1 | 前端 Playwright 验证 | `ontology-engine-ui/` | 验证前端页面展示 Phase 1 新功能 |
-| P1 | 全链路 API 验收 | API routes | 端到端测试新增功能（数据集/增量更新/分类） |
+| P1 | MCP 工具实现（P1 核心 5 个）| RFC-013 | ✅ `oe_create_space/execute_rule/query/register_dataset/simulate` 已实现；`oe_load_schema`、`oe_trigger_sync` 为 P2 工具一并实现 |
+| P1 | 前端 Playwright 验证 | `ontology-engine-ui/` | ✅ 10 个测试全部通过（space-management 4 / schema-editor 3 / rule-execution 3） |
+| P1 | 全链路 API 验收 | API routes | ✅ 13 个集成测试全部通过（dataset 3 / incremental 3 / category 2 / consumption 5） |
 | P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 graph.networkx_store |
 | P2 | LLMJudgeOperator._call_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
+
+### 代码 Review 遗留（低优先级）
+
+| 优先级 | 事项 | 关联文件 | 备注 |
+|--------|------|----------|------|
+| Low | categories.py 绕过 DI | `api/routes/categories.py` | 无 CategoryService，需新建服务层 |
+| Low | consumption.py:50 `_get_storage()` 重复创建实例 | `api/routes/consumption.py` | 仅影响非分析路由 |
+| Low | MCP 7 工具（含 2 个 P2） | `mcp/server.py` | P2 工具提前实现，非阻塞 |
+| Low | MCP `explain_level` 信息丢失 | `mcp/tools/execution.py` | full/detailed → True 丢失区分度 |
+| Low | 4× `_get_nested_value` 重复实现 | 多文件 | 可提取为 shared util |
+| Low | MCP 每调用创建新 `:memory:` DB | `mcp/tools/*.py` | 隔离执行是故意的 |
+| Low | N+1 查询 in incremental_update.py | `services/incremental_update.py` | 可批量化版本查找 |
 
 ## Next
 
@@ -56,7 +68,6 @@
 |--------|------|----------|------|
 | P2 | Phase 2 RuleExecutor DAG 实现 | RFC-011 | 顺序执行 → steps[] DAG 拓扑排序（Phase 2 最高优先级） |
 | P2 | Phase 2 kuzu 图存储升级 | RFC-012 | NetworkX → kuzu，支撑 100K 节点规模 |
-| P2 | Phase 2 MCP 工具实现 | RFC-013 | P2/P3 工具（trace/define_rule/dataset_ops 等）；P1 核心 5 个已完成 |
 | P2 | DuckDB 新增表 CRUD 方法 | `ontology_engine/storage/duckdb/store.py` | datasets/change_batches/entity_versions 等表的完整 CRUD |
 | P3 | KuzuGraphStore 实现（Phase 2 存储） | RFC-012 | 现有 `07-phase1-enhancement/01-graph-storage-extension.md` 中的 kuzu 规划 |
 | P3 | ValueDomainValidator enum 类型集成 Schema | `ontology_engine/engine/validation/value_domain_validator.py` | 当前 enum 验证为占位 |
