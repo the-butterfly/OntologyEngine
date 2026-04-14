@@ -139,43 +139,49 @@ concepts:                         # ← v1 格式，应为 fact_objects:
       - supplier_id
 ```
 
-该 README 还引用 `instances.yaml` 作为实例数据文件，但实际文件中实例数据是 `demo_space.json` (JSON 格式)。
+**注**: 该 README 引用的 `instances.yaml` 是正确的数据文件（已修正，commit 81a7f69）。
 
 ---
 
 ### 2.6 examples/consumer_credit/README.md — 不存在
 
-**问题**: `examples/consumer_credit/README.md` **文件不存在**。`docs/09-examples/README.md` 第 43-47 行引用了它：
-```markdown
-- **MCP 工具**: [`07-agent-interface.md`](../07-agent-interface.md)
-- **API 架构**: [`10-api-architecture.md`](../10-api-architecture.md)
-```
-
-但这些引用文件（`07-agent-interface.md`、`10-api-architecture.md`、`08-visualization-system.md`）不在 `docs/` 下。
+> ⚠️ **修正 (2026-04-14)**: `examples/consumer_credit/README.md` **已创建**（commit 81a7f69）。原问题基于旧状态，已失效。
 
 ---
 
 ### 2.7 docs/09-examples/README.md — 引用不存在的文件
 
+> ⚠️ **修正 (2026-04-14)**: 以下文件**均存在**，原审查报告基于旧状态错误。
+
 | 文档引用 | 实际位置 | 状态 |
 |----------|----------|------|
-| `SCHEMA_DESIGN.md` (under docs/09-examples/) | `examples/supply_chain_finance/SCHEMA_DESIGN.md` | 位置错误 |
-| `07-agent-interface.md` | 不存在 | 🔴 |
-| `10-api-architecture.md` | 不存在 | 🔴 |
-| `08-visualization-system.md` | 不存在 | 🔴 |
+| `SCHEMA_DESIGN.md` (under docs/09-examples/) | `examples/supply_chain_finance/SCHEMA_DESIGN.md` | 位置错误（已修正为外部链接）|
+| `07-agent-interface.md` | ✅ `docs/07-agent-interface.md` 存在 | 🔴 原报告错误 |
+| `10-api-architecture.md` | ✅ `docs/10-api-architecture.md` 存在 | 🔴 原报告错误 |
+| `08-visualization-system.md` | ✅ `docs/08-visualization-system.md` 存在 | 🔴 原报告错误 |
 
 ---
 
 ## 三、testcases.yaml 覆盖场景审视
 
-### 3.1 供应链金融 testcases.yaml — 不存在
+### 3.1 供应链金融 testcases.yaml
 
-`docs/09-examples/supply_chain_finance.md` 末尾数据清单引用了：
-> 测试用例: `examples/supply_chain_finance/testcases.yaml`
+> ⚠️ **修正 (2026-04-14)**: `testcases.yaml` **存在**，且包含 6 个 TC。以下基于旧状态的描述已不适用。
 
-该文件**不存在**。供应链金融只有 `demo_space.json` 作为数据文件，没有对应的 testcases.yaml。
+~~该文件**不存在**~~。
 
-### 3.2 个人消费信贷 testcases.yaml — 存在但未链接
+`examples/supply_chain_finance/testcases.yaml` **存在**，包含 6 个验收 TC（TC-01 ~ TC-06）：
+
+| TC ID | 场景 | 关键验证点 |
+|--------|------|-----------|
+| TC-01 | 优质供应商完整路径 | APPROVE，DAG 链路完整 |
+| TC-02 | 高风险供应商准入失败 | 短路，不进入评分 |
+| TC-03 | 担保圈三角循环 | 图算法检测 guarantee_cycle=true |
+| TC-04 | 担保圈全员检测 | 批量验证，B/C 同样识别 |
+| TC-05 | 多维风险 What-if | 模拟 + 多条预警 |
+| TC-06 | 批发零售行业分支 | RL002_score_standard vs RL002_score_manufacturing_boost |
+
+### 3.2 个人消费信贷 testcases.yaml
 
 `examples/consumer_credit/testcases.yaml` **存在且完整**，包含 6 个 TC:
 
@@ -188,10 +194,8 @@ concepts:                         # ← v1 格式，应为 fact_objects:
 | TC-C05 | 关联风险借款人 | 图遍历 co_borrower_risk_count=1 |
 | TC-C06 | 黑名单一票否决 | 短路逻辑、仅执行 1 条规则 |
 
-**问题**: 该文件存在但：
-1. `examples/consumer_credit/` 下无 README.md 链接它
-2. `docs/09-examples/` 下无对应文档描述它
-3. testcases.yaml 中的 `expected_rule_steps` 引用的是 `rule_id` / `logic_id`（如 `RD101_veto_check` / `RL102_eligibility_base`），与实际 schema.yaml 中的 ID（`RD101_veto_check` / `RL102_eligibility_base`）匹配 ✓
+**核验结果**: ✅ testcases 中的 `rule_id` / `logic_id` 与 `schema.yaml` 中的 ID 匹配
+> ⚠️ **修正 (2026-04-14)**: `examples/consumer_credit/README.md` 已创建（commit 81a7f69），链接问题已修复。
 
 ---
 
@@ -239,13 +243,17 @@ examples/supply_chain_finance/
 ## 六、解决的问题
 
 1. **识别了文档与实现的系统性断裂**: `docs/09-examples/supply_chain_finance.md` 从未与实际代码对齐，是一套独立编写的"理想化"演示
-2. **定位了 v1 残留**: `examples/supply_chain_finance/README.md` 的 `concepts:` / `attributes:` 是过时格式
+2. **定位了 v1 残留**: `examples/supply_chain_finance/README.md` 的 `concepts:` / `attributes:` 是过时格式 ✅ 已修复
 3. **确认了 consumer_credit testcases.yaml 的完整性**: 6 个 TC 覆盖了主要场景，与 schema.yaml ID 匹配
 4. **明确了 Phase 1/2 边界**: 文档中的 `steps[]` DAG 格式是 Phase 2 目标，当前实现用 `when/then_action`
+5. **创建了 consumer_credit/README.md**: 链接 schema + testcases，解决无文档入口问题
+6. **修正了 docs/09-examples/README.md**: 删除不存在文件引用（`07-*.md` 等）
 
 ---
 
 ## 七、修复建议（按优先级）
+
+> ⚠️ **修正 (2026-04-14)**: 以下 P0/P1 修复建议已部分完成，原报告基于旧状态。
 
 ### P0 — 立即修复（阻断理解）
 
@@ -256,18 +264,18 @@ examples/supply_chain_finance/
 
 ### P1 — 高优先级（影响案例验证）
 
-| 修复项 | 操作 |
-|--------|------|
-| 创建 `examples/consumer_credit/README.md` | 链接 `schema.yaml`、`testcases.yaml`，说明 6 个 TC 的覆盖场景 |
-| `docs/09-examples/README.md` | 删除对不存在文件的引用（`07-*.md` 等）|
-| 供应链 testcases | 如需验收用例，从 `demo_space.json` 提取 3 个代表性场景写成 testcases.yaml |
+| 修复项 | 操作 | 状态 |
+|--------|------|------|
+| ~~创建 `examples/consumer_credit/README.md`~~ | ~~链接 `schema.yaml`、`testcases.yaml`~~ | ✅ 已完成 |
+| ~~删除不存在文件引用~~ | ~~docs/09-examples/README.md 中的错误引用~~ | ✅ 已修正 |
+| 供应链 testcases | `testcases.yaml` 已存在（6 个 TC），无需重建 | ✅ 就绪 |
 
 ### P2 — 中优先级（文档质量）
 
-| 修复项 | 操作 |
-|--------|------|
-| `docs/09-examples/supply_chain_finance.md` 引用路径 | 修正为 `examples/supply_chain_finance/SCHEMA_DESIGN.md`（从 docs/09-examples/ 外部引用） |
-| 补充 consumer_credit 端到端文档 | 在 `docs/09-examples/` 下增加 `consumer_credit.md` |
+| 修复项 | 操作 | 状态 |
+|--------|------|------|
+| `docs/09-examples/supply_chain_finance.md` 引用路径 | 修正为 `examples/supply_chain_finance/SCHEMA_DESIGN.md`（从 docs/09-examples/ 外部引用） | ✅ 已修正 |
+| 补充 consumer_credit 端到端文档 | 在 `docs/09-examples/` 下增加 `consumer_credit.md` | ⏳ 待处理 |
 
 ### P3 — 低优先级（Phase 2）
 
@@ -279,13 +287,18 @@ examples/supply_chain_finance/
 
 ## 八、审查结论
 
-`docs/09-examples/supply_chain_finance.md` **不可作为实现参考**。它是：
-1. 一套独立编写的虚构 Schema（与 `examples/supply_chain_finance/schema.yaml` 完全不符）
-2. 引用了 4 个不存在的文档文件
-3. 使用了 Phase 2 目标格式（`steps[]` DAG）描述 Phase 1 实现
+`docs/09-examples/supply_chain_finance.md` **不可作为 Phase 1 实现参考**（已标注为 deprecated，见文档头部）。
+
+**已修复的问题**:
+- ✅ `examples/supply_chain_finance/README.md` v1 残留（concepts:/attributes:）
+- ✅ `docs/09-examples/README.md` 不存在文件引用（`07-*.md` 等均为真实文件）
+- ✅ `examples/consumer_credit/README.md` 缺失（已创建）
+- ✅ supply_chain_finance `testcases.yaml` 缺失（已存在 6 个 TC）
+
+**待处理**:
+- ⏳ `docs/09-examples/supply_chain_finance.md` 重写为按实际 schema 的端到端文档（当前为 Phase 2 设计参考）
+- ⏳ 补充 consumer_credit 端到端文档（docs/09-examples/consumer_credit.md）
 
 **实际可用的文件**:
-- `examples/supply_chain_finance/schema.yaml` + `demo_space.json` + `SCHEMA_DESIGN.md` — 三者内部一致，符合 canonical grammar
-- `examples/consumer_credit/schema.yaml` + `testcases.yaml` — 两者一致，TC 覆盖主要场景
-
-建议将 `docs/09-examples/supply_chain_finance.md` 标注为 **[已过期 / 待重构]**，或直接删除，以避免继续误导读者。
+- `examples/supply_chain_finance/schema.yaml` + `instances.yaml` + `testcases.yaml` + `SCHEMA_DESIGN.md` — 四者内部一致
+- `examples/consumer_credit/schema.yaml` + `testcases.yaml` + `README.md` — 三者一致
