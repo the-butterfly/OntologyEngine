@@ -49,7 +49,7 @@
 | 术语统一 | **[单一事实源]** | `01-overview/05-concepts.md` 已统一术语表并给出对照关系 | [`01-overview/05-concepts.md`](./01-overview/05-concepts.md) |
 | Phase 2 RFC 路线 | **[待扩展]** | RFC-010 主路线 + RFC-011/012/013 子 RFC 已创建，规划 RuleExecutor DAG / kuzu / MCP 工具实现 | [`03-rfc/RFC-010-phase2-roadmap.md`](./03-rfc/RFC-010-phase2-roadmap.md) |
 | docs/09-examples 一致性 | **[关键设计点]** | 发现与实现系统性断裂：虚构 Schema（Company/Guarantee/steps[]）vs 实际（Supplier/supplies_to/when+then_action），详见 REVIEW_REPORT.md | [`09-examples/REVIEW_REPORT.md`](./09-examples/REVIEW_REPORT.md) |
-| MCP 工具实现 | **[关键设计点]** | `ontology_engine/mcp/` 不存在；`docs/07-agent-interface.md` 是 Phase 2 目标；按 RFC-013 P1/P2/P3 优先级包装 REST API | [`docs/09-examples/TOOL_AUDIT.md`](./09-examples/TOOL_AUDIT.md) |
+| MCP 工具实现 | **[关键设计点]** | ✅ `ontology_engine/mcp/` 已实现 7 个工具（P1 5 个核心 + P2 2 个）；RFC-013 P1/P2/P3 优先级已对齐；遗留低优先级 review 问题见 TODO.md | [`docs/09-examples/TOOL_AUDIT.md`](./09-examples/TOOL_AUDIT.md) |
 | 平台化扩展边界 | **[待扩展]** | 能力矩阵已建立，明确 current/optional/future | [`05-schema-v2/06-dataset-and-sync.md`](./05-schema-v2/06-dataset-and-sync.md) |
 
 ## 重点核验清单
@@ -58,7 +58,7 @@
 - **[已核对代码]** `06-module-detailed-design/07-expression-engine.md`: 已区分当前实现（simpleeval）与目标设计（L0/L1）
 - **[已核对代码]** `06-module-detailed-design/10-api-layer.md`: 已与 `ontology_engine/api/routes/` 核验，移除固定端点数量
 - **[待核对代码]** `02-design/02-api-design.md`: 需继续和 `ontology_engine/api/server.py` 对齐
-- **[待核对代码]** `07-agent-interface.md`: MCP 工具定义需与 `ontology_engine/tools/` 实际代码逐一核验
+- **[部分已核对]** `07-agent-interface.md`: P1 核心 5 个 MCP 工具已实现并通过单元测试；P2/P3 工具待按 RFC-013 优先级继续
 - **[已过期入口]** `docs/09-examples/supply_chain_finance.md`: 使用虚构 Schema，与 `examples/supply_chain_finance/schema.yaml` 不符，详见 REVIEW_REPORT.md
 
 ## 更新要求
