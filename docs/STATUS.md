@@ -49,7 +49,7 @@
 | 术语统一 | **[单一事实源]** | `01-overview/05-concepts.md` 已统一术语表并给出对照关系 | [`01-overview/05-concepts.md`](./01-overview/05-concepts.md) |
 | Phase 2 RFC 路线 | **[待扩展]** | RFC-010 主路线 + RFC-011/012/013 子 RFC 已创建，规划 RuleExecutor DAG / kuzu / MCP 工具实现 | [`03-rfc/RFC-010-phase2-roadmap.md`](./03-rfc/RFC-010-phase2-roadmap.md) |
 | docs/09-examples 一致性 | **[关键设计点]** | 发现与实现系统性断裂：虚构 Schema（Company/Guarantee/steps[]）vs 实际（Supplier/supplies_to/when+then_action），详见 REVIEW_REPORT.md | [`09-examples/REVIEW_REPORT.md`](./09-examples/REVIEW_REPORT.md) |
-| MCP 工具实现 | **[关键设计点]** | `ontology_engine/mcp/` **完全不存在**，`07-agent-interface.md` 是 Phase 2 目标设计；已确认 0/18 工具已实现为 MCP，约 14 个有等效 REST API | [`docs/09-examples/TOOL_AUDIT.md`](./09-examples/TOOL_AUDIT.md) |
+| MCP 工具实现 | **[关键设计点]** | `ontology_engine/mcp/` 不存在；`docs/07-agent-interface.md` 是 Phase 2 目标；按 RFC-013 P1/P2/P3 优先级包装 REST API | [`docs/09-examples/TOOL_AUDIT.md`](./09-examples/TOOL_AUDIT.md) |
 | 平台化扩展边界 | **[待扩展]** | 能力矩阵已建立，明确 current/optional/future | [`05-schema-v2/06-dataset-and-sync.md`](./05-schema-v2/06-dataset-and-sync.md) |
 
 ## 重点核验清单
