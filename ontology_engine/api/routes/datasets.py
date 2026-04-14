@@ -157,11 +157,13 @@ async def create_snapshot(
 
 
 @router.get("/{dataset_id}/snapshots")
-async def get_dataset_snapshots(dataset_id: str) -> dict[str, Any]:
+async def get_dataset_snapshots(
+    dataset_id: str,
+    service: DatasetService = Depends(get_dataset_service),
+) -> dict[str, Any]:
     """Get snapshots for a dataset."""
-    storage = get_storage()
     try:
-        snapshots = await storage.get_snapshots(dataset_id)
+        snapshots = await service.get_snapshots(dataset_id)
         return success_response(data=snapshots, meta={"total": len(snapshots)})
     except Exception as e:
         return error_response(code="INTERNAL_ERROR", message=str(e))

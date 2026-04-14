@@ -117,22 +117,19 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Handle tool call requests."""
-    result: dict
+    _TOOL_HANDLERS = {
+        "oe_create_space": oe_create_space,
+        "oe_load_schema": oe_load_schema,
+        "oe_register_dataset": oe_register_dataset,
+        "oe_trigger_sync": oe_trigger_sync,
+        "oe_execute_rule": oe_execute_rule,
+        "oe_simulate": oe_simulate,
+        "oe_query": oe_query,
+    }
 
-    if name == "oe_create_space":
-        result = await oe_create_space(**arguments)
-    elif name == "oe_load_schema":
-        result = await oe_load_schema(**arguments)
-    elif name == "oe_register_dataset":
-        result = await oe_register_dataset(**arguments)
-    elif name == "oe_trigger_sync":
-        result = await oe_trigger_sync(**arguments)
-    elif name == "oe_execute_rule":
-        result = await oe_execute_rule(**arguments)
-    elif name == "oe_simulate":
-        result = await oe_simulate(**arguments)
-    elif name == "oe_query":
-        result = await oe_query(**arguments)
+    handler = _TOOL_HANDLERS.get(name)
+    if handler:
+        result = await handler(**arguments)
     else:
         result = {"success": False, "data": None, "error": f"Unknown tool: {name}"}
 

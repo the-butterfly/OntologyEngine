@@ -1,14 +1,9 @@
 """Execution MCP tools — oe_execute_rule and oe_simulate."""
 
+import asyncio
+
 from ontology_engine.mcp import mcp_response
 from ontology_engine.core.semantic_space import SemanticSpaceStorage
-
-
-_EXPLAIN_MAP = {
-    "full": "full",
-    "detailed": "basic",
-    "brief": "none",
-}
 
 
 async def oe_execute_rule(
@@ -88,21 +83,11 @@ async def oe_simulate(
 
         from ontology_engine.api.routes.consumption import _run_full_analysis
 
-        # Baseline run
-        baseline = await _run_full_analysis(
-            space=space,
-            entity=entity,
-            dimension=dimension or "credit_assessment",
-            overrides={},
-            include_trace=False,
-        )
-        # Simulated run with overrides
-        simulated = await _run_full_analysis(
-            space=space,
-            entity=entity,
-            dimension=dimension or "credit_assessment",
-            overrides=overrides or {},
-            include_trace=False,
+        dim = dimension or "credit_assessment"
+        # Run baseline and simulated concurrently
+        baseline, simulated = await asyncio.gather(
+            _run_full_analysis(space=space, entity=entity, dimension=dim, overrides={}, include_trace=False),
+            _run_full_analysis(space=space, entity=entity, dimension=dim, overrides=overrides or {}, include_trace=False),
         )
 
         return mcp_response(
