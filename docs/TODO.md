@@ -25,6 +25,7 @@
 - ✅ Canonical grammar 字段名对齐（element_type→type, target_objects→applies_to 等），代码/schema/example 全部更新
 
 ### P2 完成项
+- ✅ DuckDB 新增 API 路由注册 — `server.py:374-376` 三条路由已注册，`tests/unit/services/test_dataset_and_incremental.py` 13 个单元测试覆盖
 - ✅ 冻结空间状态机与版本管理的正式口径（ADR-010）
 - ✅ 收敛平台化扩展边界（能力矩阵）
 - ✅ 补全分层设计文档元数据（01-04 添加 related_adrs）
@@ -42,13 +43,12 @@
 
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
-| P1 | docs/09-examples/supply_chain_finance.md 重构完成 | ✅ 标记为 deprecated（Phase 2 设计参考） | 文档已更新为 Phase 2 目标设计参考，含完整不符点和当前实现对照 |
+| P1 | docs/09-examples/supply_chain_finance.md 重构完成 | ✅ 文档已有完整 deprecated 标注 + 不符点清单，无需重写 |
 | P1 | MCP 工具实现（P1 核心 5 个）| RFC-013 | `oe_create_space/execute_rule/query/register_dataset/simulate` — 包装现有 API 为 MCP 工具 |
 | P1 | 前端 Playwright 验证 | `ontology-engine-ui/` | 验证前端页面展示 Phase 1 新功能 |
 | P1 | 全链路 API 验收 | API routes | 端到端测试新增功能（数据集/增量更新/分类） |
 | P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 graph.networkx_store |
 | P2 | LLMJudgeOperator._call_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
-| P2 | DuckDB 新增 API 路由注册 | `ontology_engine/api/server.py` | dataset/incremental/category 路由待注册 |
 
 ## Next
 
