@@ -152,8 +152,8 @@ export default function SpaceListPage() {
     },
     {
       title: '规则',
-      dataIndex: 'rule_definition_count',
-      key: 'rule_definition_count',
+      dataIndex: 'rule_logic_count',
+      key: 'rule_logic_count',
       width: 70,
       render: (v) => <Text>{v ?? 0}</Text>,
     },
@@ -238,6 +238,7 @@ export default function SpaceListPage() {
           rowKey="id"
           loading={spacesLoading}
           pagination={{ pageSize: 10 }}
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: '暂无语义空间，点击「创建空间」新建' }}
         />
       </Card>

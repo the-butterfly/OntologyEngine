@@ -2,7 +2,7 @@
 
 export interface GraphNode {
   id: string;
-  type: 'entity' | 'metric' | 'rule';
+  type: 'entity' | 'category' | 'metric' | 'rule';
   data: Record<string, any>;
 }
 
@@ -10,7 +10,7 @@ export interface GraphEdge {
   id: string;
   source: string;
   target: string;
-  type: 'relation' | 'metric_dep' | 'rule_input';
+  type: 'relation' | 'metric_dep' | 'rule_input' | 'dependency' | 'component' | 'data_dependency';
   data: Record<string, any>;
 }
 
