@@ -175,7 +175,7 @@ class SchemaGraphBuilder:
         }
         layers = type_layers.get(graph_type, ["L1", "L3", "L4"])
         if layer_filter:
-            layers = [l for l in layers if l in layer_filter]
+            layers = [layer for layer in layers if layer in layer_filter]
         return layers
 
     def _build_entity_node(self, concept: ConceptDefinition) -> GraphNode:
@@ -240,6 +240,61 @@ class SchemaGraphBuilder:
                 "condition_preview": condition_preview,
                 "action_preview": action_preview,
                 "enabled": rule.enabled,
+            },
+        )
+
+    def _build_rule_group_node(
+        self,
+        name: str,
+        description: str = "",
+        rule_type: str = "decision",
+        priority: int = 100,
+    ) -> GraphNode:
+        """Build a rule group node (Phase 2).
+
+        Rule groups are containers for rule steps.
+        Displayed as blue hexagons (#1677FF).
+        """
+        return GraphNode(
+            id=name,
+            type="rule_group",
+            data={
+                "label": name,
+                "layer": "L4_rule_group",
+                "description": description,
+                "rule_type": rule_type,
+                "priority": priority,
+                "color": "#1677FF",  # Blue for rule groups
+            },
+        )
+
+    def _build_rule_step_node(
+        self,
+        rule_group: str,
+        step_id: str,
+        name: str,
+        operator: str | None = None,
+        condition: str | None = None,
+        order: int = 0,
+    ) -> GraphNode:
+        """Build a rule step node (Phase 2).
+
+        Rule steps are individual logic instances within a rule group.
+        Displayed as light blue diamonds (#4096FF).
+        """
+        label = f"{step_id}: {name}" if name else step_id
+        return GraphNode(
+            id=f"{rule_group}.{step_id}",
+            type="rule_step",
+            data={
+                "label": label,
+                "layer": "L4_rule_step",
+                "step_id": step_id,
+                "rule_group": rule_group,
+                "operator": operator,
+                "condition": condition,
+                "order": order,
+                "color": "#4096FF",  # Light blue for rule steps
             },
         )
 
@@ -364,6 +419,79 @@ class SchemaGraphBuilder:
                         },
                     )
                 )
+
+        return edges
+
+    def _build_contains_edge(
+        self,
+        rule_group: str,
+        step_id: str,
+    ) -> GraphEdge:
+        """Build a contains edge (rule group → rule step).
+
+        Phase 2: Represents that a rule group contains a rule step.
+        """
+        return GraphEdge(
+            id=f"contains_{rule_group}_{step_id}",
+            source=rule_group,
+            target=f"{rule_group}.{step_id}",
+            type="contains",
+            data={
+                "label": "contains",
+                "flow_type": "containment",
+            },
+        )
+
+    def _build_step_flow_edge(
+        self,
+        rule_group: str,
+        from_step_id: str,
+        to_step_id: str,
+    ) -> GraphEdge:
+        """Build a sequential flow edge between rule steps.
+
+        Phase 2: Represents execution order between steps.
+        """
+        return GraphEdge(
+            id=f"step_flow_{from_step_id}_{to_step_id}",
+            source=f"{rule_group}.{from_step_id}",
+            target=f"{rule_group}.{to_step_id}",
+            type="sequential",
+            data={
+                "label": "执行顺序",
+                "flow_type": "sequential",
+            },
+        )
+
+    def _build_rule_group_execution_edges(
+        self,
+        rule_group: str,
+        steps: list[dict[str, Any]],
+    ) -> list[GraphEdge]:
+        """Build all edges for a rule group execution.
+
+        Phase 2: Builds contains and sequential edges for rule steps.
+        """
+        edges: list[GraphEdge] = []
+        seen: set[str] = set()
+
+        # Add contains edges for each step
+        for step in steps:
+            step_id = step.get("id", step.get("step_id", ""))
+            edge = self._build_contains_edge(rule_group, step_id)
+            if edge.id not in seen:
+                seen.add(edge.id)
+                edges.append(edge)
+
+        # Sort steps by order and add sequential edges
+        sorted_steps = sorted(steps, key=lambda s: s.get("step_order", s.get("order", 0)))
+        for i in range(len(sorted_steps) - 1):
+            from_step = sorted_steps[i].get("id", sorted_steps[i].get("step_id", ""))
+            to_step = sorted_steps[i + 1].get("id", sorted_steps[i + 1].get("step_id", ""))
+            edge = self._build_step_flow_edge(rule_group, from_step, to_step)
+            if edge.id not in seen:
+                seen.add(edge.id)
+                edges.append(edge)
 
         return edges
 
