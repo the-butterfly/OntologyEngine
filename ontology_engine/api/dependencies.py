@@ -15,6 +15,9 @@ from ontology_engine.services import (
     IncrementalUpdateService,
 )
 from ontology_engine.services.visualization_service import VisualizationService
+from ontology_engine.services.rule_service import RuleService
+from ontology_engine.services.dag_service import DAGService
+from ontology_engine.services.simulation_service import SimulationService
 
 # Global storage and services (initialized on startup)
 _storage: Any = None
@@ -89,3 +92,24 @@ def get_incremental_update_service() -> IncrementalUpdateService:
     if _services is None or "incremental" not in _services:
         raise HTTPException(status_code=500, detail="Incremental update service not initialized")
     return _services["incremental"]
+
+
+def get_rule_service() -> RuleService:
+    """Get rule service."""
+    if _services is None or "rule" not in _services:
+        raise HTTPException(status_code=500, detail="Rule service not initialized")
+    return _services["rule"]
+
+
+def get_dag_service() -> DAGService:
+    """Get DAG service."""
+    if _services is None or "dag" not in _services:
+        raise HTTPException(status_code=500, detail="DAG service not initialized")
+    return _services["dag"]
+
+
+def get_simulation_service() -> SimulationService:
+    """Get simulation service."""
+    if _services is None or "simulation" not in _services:
+        raise HTTPException(status_code=500, detail="Simulation service not initialized")
+    return _services["simulation"]

@@ -2,6 +2,12 @@
 """Rule operators module."""
 
 from ontology_engine.engine.rule.operators.base import Operator, OperatorRegistry
+from ontology_engine.engine.rule.operators.registry import (
+    get_operator_schema,
+    get_all_operator_schemas,
+    validate_operator_params,
+    build_operator_schemas,
+)
 
 # Import all operators to register them
 from ontology_engine.engine.rule.operators.set_flag import (
@@ -30,10 +36,19 @@ from ontology_engine.engine.rule.operators.decision_table import (
 from ontology_engine.engine.rule.operators.llm_judge import (
     LLMJudgeOperator,
 )
+from ontology_engine.engine.rule.operators.weighted_sum import (
+    WeightedSumOperator,
+)
 
 __all__ = [
     "Operator",
     "OperatorRegistry",
+    # Registry utilities
+    "get_operator_schema",
+    "get_all_operator_schemas",
+    "validate_operator_params",
+    "build_operator_schemas",
+    # Operators
     "SetFlagOperator",
     "ApproveEligibilityOperator",
     "RejectEligibilityOperator",
@@ -48,4 +63,5 @@ __all__ = [
     "GraphTraversalOperator",
     "DecisionTableOperator",
     "LLMJudgeOperator",
+    "WeightedSumOperator",
 ]

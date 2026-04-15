@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 
 # ============== Schema Graph Models (G6) ==============
@@ -10,21 +10,40 @@ from typing import Any, Literal
 
 @dataclass
 class GraphNode:
-    """G6-compatible graph node."""
+    """G6-compatible graph node.
+
+    Node types:
+    - entity: L1 entity
+    - metric: L3 metric (atomic, derived, composite, graph)
+    - rule: L4 rule
+    - rule_group: L4 rule group (Phase 2)
+    - rule_step: L4 rule step (Phase 2)
+    - decision: Decision result
+    """
 
     id: str
-    type: str  # entity | metric | rule
+    type: str  # entity | metric | rule | rule_group | rule_step | decision
     data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class GraphEdge:
-    """G6-compatible graph edge."""
+    """G6-compatible graph edge.
+
+    Edge types:
+    - relation: Entity relation (L1)
+    - metric_dep: Metric dependency (L3)
+    - rule_input: Rule input (L3 → L4)
+    - rule_flow: Rule execution flow (L4)
+    - data_flow: General data flow
+    - contains: Contains relationship
+    - sequential: Sequential execution
+    """
 
     id: str
     source: str
     target: str
-    type: str  # relation | metric_dep | rule_input
+    type: str  # relation | metric_dep | rule_input | rule_flow | data_flow | contains | sequential
     data: dict[str, Any] = field(default_factory=dict)
 
 
