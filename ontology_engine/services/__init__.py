@@ -9,6 +9,9 @@ from ontology_engine.services.ingestion_service import IngestionService
 from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.services.incremental_update import IncrementalUpdateService, EntityDiffer
 from ontology_engine.services.dataset_service import DatasetService
+from ontology_engine.services.rule_service import RuleService
+from ontology_engine.services.dag_service import DAGService
+from ontology_engine.services.simulation_service import SimulationService
 
 __all__ = [
     "SchemaService",
@@ -20,4 +23,7 @@ __all__ = [
     "IncrementalUpdateService",
     "EntityDiffer",
     "DatasetService",
+    "RuleService",
+    "DAGService",
+    "SimulationService",
 ]

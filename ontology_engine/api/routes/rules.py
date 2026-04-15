@@ -109,6 +109,7 @@ async def execute_rules(
 class RuleGroupCreateRequest(BaseModel):
     """Request body for creating a rule group."""
     name: str
+    schema_id: str  # Required for semantic space isolation
     description: str = ""
     type: str = "decision"
     priority: int = 100
@@ -129,6 +130,7 @@ class RuleGroupUpdateRequest(BaseModel):
     inputs: list[dict[str, Any]] | None = None
     outputs: list[dict[str, Any]] | None = None
     enabled: bool | None = None
+    schema_id: str | None = None  # Optional for update
 
 
 @router.post("/rule-groups")
@@ -139,7 +141,8 @@ async def create_rule_group(
     """Create a new rule group."""
     try:
         data = body.model_dump()
-        rule_group = await service.create_rule_group(data)
+        schema_id = data.pop("schema_id")  # Extract schema_id from body
+        rule_group = await service.create_rule_group(data, schema_id=schema_id)
         return success_response(data={"rule_group": rule_group.to_dict()})
     except RuleServiceError as e:
         return error_response(code="VALIDATION_ERROR", message=str(e))
@@ -149,12 +152,13 @@ async def create_rule_group(
 
 @router.get("/rule-groups")
 async def list_rule_groups(
+    schema_id: str = Query(..., description="Semantic space ID (required)"),
     enabled: bool | None = None,
     service: RuleService = Depends(get_rule_service)
 ):
-    """List all rule groups."""
+    """List all rule groups in a semantic space."""
     try:
-        rule_groups = await service.list_rule_groups(enabled=enabled)
+        rule_groups = await service.list_rule_groups(schema_id=schema_id, enabled=enabled)
         return success_response(data={
             "rule_groups": [rg.to_dict() for rg in rule_groups]
         })
@@ -162,48 +166,54 @@ async def list_rule_groups(
         return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.get("/rule-groups/{name}")
+@router.get("/rule-groups/{id}")
 async def get_rule_group(
-    name: str,
+    id: str,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
-    """Get a rule group by name."""
+    """Get a rule group by id or name.
+
+    When using name-based lookup (non-UUID id), schema_id is required.
+    """
     try:
-        rule_group = await service.get_rule_group(name)
+        rule_group = await service.get_rule_group(id, schema_id=schema_id)
         if rule_group is None:
-            return error_response(code="NOT_FOUND", message=f"Rule group '{name}' not found")
+            return error_response(code="NOT_FOUND", message=f"Rule group '{id}' not found")
         return success_response(data={"rule_group": rule_group.to_dict()})
     except Exception as e:
         return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.put("/rule-groups/{name}")
+@router.put("/rule-groups/{id}")
 async def update_rule_group(
-    name: str,
+    id: str,
     body: RuleGroupUpdateRequest,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Update a rule group."""
     try:
         data = body.model_dump(exclude_unset=True)
-        rule_group = await service.update_rule_group(name, data)
+        rule_group = await service.update_rule_group(id, data, schema_id=schema_id)
         if rule_group is None:
-            return error_response(code="NOT_FOUND", message=f"Rule group '{name}' not found")
+            return error_response(code="NOT_FOUND", message=f"Rule group '{id}' not found")
         return success_response(data={"rule_group": rule_group.to_dict()})
     except Exception as e:
         return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.delete("/rule-groups/{name}")
+@router.delete("/rule-groups/{id}")
 async def delete_rule_group(
-    name: str,
+    id: str,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Delete a rule group and its steps."""
     try:
-        deleted = await service.delete_rule_group(name)
+        deleted = await service.delete_rule_group(id, schema_id=schema_id)
         if not deleted:
-            return error_response(code="NOT_FOUND", message=f"Rule group '{name}' not found")
+            return error_response(code="NOT_FOUND", message=f"Rule group '{id}' not found")
         return success_response(data={"deleted": True})
     except Exception as e:
         return error_response(code="INTERNAL_ERROR", message=str(e))
@@ -243,12 +253,13 @@ class RuleStepUpdateRequest(BaseModel):
 async def create_rule_step(
     name: str,
     body: RuleStepCreateRequest,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Create a new rule step."""
     try:
         data = body.model_dump()
-        step = await service.create_rule_step(name, data)
+        step = await service.create_rule_step(name, data, schema_id=schema_id)
         return success_response(data={"step": step.to_dict()})
     except RuleServiceError as e:
         return error_response(code="VALIDATION_ERROR", message=str(e))
@@ -259,11 +270,12 @@ async def create_rule_step(
 @router.get("/rule-groups/{name}/steps")
 async def list_rule_steps(
     name: str,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """List all rule steps for a rule group."""
     try:
-        steps = await service.list_rule_steps(name)
+        steps = await service.list_rule_steps(name, schema_id=schema_id)
         return success_response(data={
             "steps": [s.to_dict() for s in steps]
         })
@@ -276,12 +288,13 @@ async def update_rule_step(
     name: str,
     step_id: str,
     body: RuleStepUpdateRequest,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Update a rule step."""
     try:
         data = body.model_dump(exclude_unset=True)
-        step = await service.update_rule_step(name, step_id, data)
+        step = await service.update_rule_step(name, step_id, data, schema_id=schema_id)
         if step is None:
             return error_response(code="NOT_FOUND", message=f"Step '{step_id}' not found")
         return success_response(data={"step": step.to_dict()})
@@ -293,11 +306,12 @@ async def update_rule_step(
 async def delete_rule_step(
     name: str,
     step_id: str,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Delete a rule step."""
     try:
-        deleted = await service.delete_rule_step(name, step_id)
+        deleted = await service.delete_rule_step(name, step_id, schema_id=schema_id)
         if not deleted:
             return error_response(code="NOT_FOUND", message=f"Step '{step_id}' not found")
         return success_response(data={"deleted": True})
@@ -309,12 +323,15 @@ async def delete_rule_step(
 async def reorder_rule_steps(
     name: str,
     step_ids: list[str],
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Reorder rule steps."""
     try:
-        await service.reorder_rule_steps(name, step_ids)
+        await service.reorder_rule_steps(name, step_ids, schema_id=schema_id)
         return success_response(data={"reordered": True})
+    except RuleServiceError as e:
+        return error_response(code="VALIDATION_ERROR", message=str(e))
     except Exception as e:
         return error_response(code="INTERNAL_ERROR", message=str(e))
 
@@ -335,6 +352,7 @@ class SimulateRequest(BaseModel):
 async def simulate_rule_group(
     name: str,
     body: SimulateRequest,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     rule_service: RuleService = Depends(get_rule_service),
     simulation_service: SimulationService = Depends(get_simulation_service),
 ):
@@ -342,8 +360,8 @@ async def simulate_rule_group(
     try:
         # Get rule group and steps in parallel
         rule_group, steps = await asyncio.gather(
-            rule_service.get_rule_group(name),
-            rule_service.list_rule_steps(name),
+            rule_service.get_rule_group(name, schema_id=schema_id),
+            rule_service.list_rule_steps(name, schema_id=schema_id),
         )
         if rule_group is None:
             return error_response(code="NOT_FOUND", message=f"Rule group '{name}' not found")
@@ -394,6 +412,7 @@ async def simulate_rule_group(
 class ImportYamlRequest(BaseModel):
     """Request body for YAML import."""
     yaml_content: str
+    schema_id: str  # Required for semantic space isolation
 
 
 @router.post("/rule-groups/import")
@@ -403,7 +422,10 @@ async def import_rule_group(
 ):
     """Import a rule group from YAML."""
     try:
-        rule_group = await service.import_from_yaml(body.yaml_content)
+        rule_group = await service.import_from_yaml(
+            body.yaml_content,
+            schema_id=body.schema_id
+        )
         return success_response(data={"rule_group": rule_group.to_dict()})
     except RuleServiceError as e:
         return error_response(code="VALIDATION_ERROR", message=str(e))
@@ -430,11 +452,12 @@ async def validate_yaml(
 @router.get("/rule-groups/{name}/export")
 async def export_rule_group(
     name: str,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service)
 ):
     """Export a rule group to YAML."""
     try:
-        yaml_content = await service.export_rule_group_to_yaml(name)
+        yaml_content = await service.export_rule_group_to_yaml(name, schema_id=schema_id)
         return success_response(data={
             "name": name,
             "yaml_content": yaml_content,

@@ -12,7 +12,7 @@ export const ruleStepsApi = {
     const response = await apiClient.get(
       `/rule-groups/${ruleGroupName}/steps?schema_id=${schemaId}`
     );
-    return response.data.steps;
+    return response.data.data.steps;
   },
 
   /**
@@ -26,7 +26,7 @@ export const ruleStepsApi = {
     const response = await apiClient.get(
       `/rule-groups/${ruleGroupName}/steps/${stepId}?schema_id=${schemaId}`
     );
-    return response.data.step;
+    return response.data.data.step;
   },
 
   /**
@@ -41,7 +41,7 @@ export const ruleStepsApi = {
       `/rule-groups/${ruleGroupName}/steps?schema_id=${schemaId}`,
       step
     );
-    return response.data.step;
+    return response.data.data.step;
   },
 
   /**
@@ -57,7 +57,7 @@ export const ruleStepsApi = {
       `/rule-groups/${ruleGroupName}/steps/${stepId}?schema_id=${schemaId}`,
       updates
     );
-    return response.data.step;
+    return response.data.data.step;
   },
 
   /**
