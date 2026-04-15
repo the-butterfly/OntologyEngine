@@ -305,6 +305,12 @@ class MetricComponent(BaseModel):
     transform: str | None = None
 
 
+class GraphAlgorithmDefinition(BaseModel):
+    """Structured graph algorithm definition."""
+    name: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class MetricDefinitionV2(BaseModel):
     """L3 Metric definition in v2 format.
 
@@ -327,7 +333,7 @@ class MetricDefinitionV2(BaseModel):
     thresholds: dict | None = None
     overridable: bool = False
     components: list[MetricComponent] | None = None
-    algorithm: str | None = None
+    algorithm: GraphAlgorithmDefinition | str | None = None
     traversal: dict | None = None
     neighbor_filter: str | None = None
     value_domain: ValueDomain | None = None
@@ -342,6 +348,28 @@ class MetricDefinitionV2(BaseModel):
                 data = dict(data)
                 data["type"] = data.pop("element_type")
         return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_algorithm(cls, data):
+        """Normalize string algorithm to GraphAlgorithmDefinition."""
+        if isinstance(data, dict) and isinstance(data.get("algorithm"), str):
+            data = dict(data)
+            data["algorithm"] = {"name": data["algorithm"], "params": {}}
+        return data
+
+    @model_validator(mode="after")
+    def _derive_composite_dependencies(self) -> "MetricDefinitionV2":
+        """Auto-derive dependencies for composite metrics from components."""
+        if self.type == "composite" and self.components:
+            expected = [c.metric for c in self.components]
+            if self.dependencies and set(self.dependencies) != set(expected):
+                raise ValueError(
+                    f"Metric '{self.id}' dependencies {self.dependencies} "
+                    f"do not match components {expected}"
+                )
+            self.dependencies = expected
+        return self
 
 
 class IndicatorDefinition(BaseModel):

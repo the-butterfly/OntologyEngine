@@ -38,6 +38,12 @@ class TriggerAlertOperator(Operator):
         alert_level = inputs.get("alert_level", "info")
         alert_type = inputs.get("alert_type", "general")
         message = inputs.get("message", "")
+        message_template = inputs.get("message_template")
+        if message_template:
+            try:
+                message = message_template.format(**context)
+            except (KeyError, ValueError):
+                message = message_template
         data = inputs.get("data", {})
 
         # Create alert object

@@ -13,6 +13,7 @@ from ontology_engine.engine.metric.errors import (
     MetricNotComputableError,
     MetricNotFoundError,
 )
+from ontology_engine.engine.metric.graph_operators import GraphOperatorRegistry
 from ontology_engine.storage.base import StorageBackend
 
 if TYPE_CHECKING:
@@ -361,23 +362,32 @@ class MetricEngine:
     ) -> Any:
         algorithm = getattr(metric_def, "algorithm", None)
 
-        if algorithm == "longest_path":
-            return await self._compute_guarantee_chain_depth(entity)
-        if algorithm == "cycle_detection":
-            depth = await self._compute_guarantee_chain_depth(entity)
-            return depth >= 3
-        if algorithm == "page_rank":
-            neighbors = await self._get_neighbors_with_relations(
-                entity.entity_id,
-                "guarantees_for",
-                "outgoing",
-            )
-            return round(len(neighbors) / 10.0, 4)
-        if algorithm == "betweenness":
-            depth = await self._compute_guarantee_chain_depth(entity)
-            return round(depth / 10.0, 4)
+        if algorithm is None:
+            raise MetricError(f"Graph metric '{metric_def.name}' missing algorithm")
 
-        raise MetricError(f"Unknown graph algorithm: {algorithm}")
+        # Handle both legacy string algorithms and structured GraphAlgorithmDefinition
+        algorithm_name: str
+        algorithm_params: dict[str, Any]
+        if isinstance(algorithm, str):
+            algorithm_name = algorithm
+            algorithm_params = {}
+        else:
+            algorithm_name = getattr(algorithm, "name", None) or ""
+            algorithm_params = getattr(algorithm, "params", {}) or {}
+
+        if not algorithm_name:
+            raise MetricError(f"Graph metric '{metric_def.name}' has invalid algorithm")
+
+        traversal = getattr(metric_def, "traversal", None)
+
+        return await GraphOperatorRegistry.execute(
+            algorithm_name,
+            entity,
+            self.storage,
+            algorithm_params,
+            traversal,
+            dep_values,
+        )
 
     def _build_eval_context(
         self,

@@ -38,17 +38,205 @@ instances:
 
   - fact_object: RepaymentRecord
     data:
-      # 连续24期按时还款记录（房贷）
       - record_id: "RPY_P_001"
         loan_id: "LOAN_MORTGAGE_01"
-        due_date: "2026-03-01"
-        actual_payment_date: "2026-03-01"
+        due_date: "2024-04-01"
+        actual_payment_date: "2024-04-01"
         amount_due: { value: 3000, currency: CNY }
         amount_paid: { value: 3000, currency: CNY }
         days_overdue: 0
         belongs_to: { borrower_id: "BRW_P" }
 
       - record_id: "RPY_P_002"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-05-01"
+        actual_payment_date: "2024-05-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_003"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-06-01"
+        actual_payment_date: "2024-06-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_004"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-07-01"
+        actual_payment_date: "2024-07-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_005"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-08-01"
+        actual_payment_date: "2024-08-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_006"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-09-01"
+        actual_payment_date: "2024-09-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_007"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-10-01"
+        actual_payment_date: "2024-10-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_008"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-11-01"
+        actual_payment_date: "2024-11-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_009"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2024-12-01"
+        actual_payment_date: "2024-12-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_010"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-01-01"
+        actual_payment_date: "2025-01-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_011"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-02-01"
+        actual_payment_date: "2025-02-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_012"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-03-01"
+        actual_payment_date: "2025-03-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_013"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-04-01"
+        actual_payment_date: "2025-04-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_014"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-05-01"
+        actual_payment_date: "2025-05-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_015"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-06-01"
+        actual_payment_date: "2025-06-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_016"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-07-01"
+        actual_payment_date: "2025-07-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_017"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-08-01"
+        actual_payment_date: "2025-08-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_018"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-09-01"
+        actual_payment_date: "2025-09-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_019"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-10-01"
+        actual_payment_date: "2025-10-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_020"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-11-01"
+        actual_payment_date: "2025-11-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_021"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2025-12-01"
+        actual_payment_date: "2025-12-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_022"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2026-01-01"
+        actual_payment_date: "2026-01-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
+
+      - record_id: "RPY_P_023"
         loan_id: "LOAN_MORTGAGE_01"
         due_date: "2026-02-01"
         actual_payment_date: "2026-02-01"
@@ -57,7 +245,14 @@ instances:
         days_overdue: 0
         belongs_to: { borrower_id: "BRW_P" }
 
-      # 省略中间22条（在测试用例中标注 repayment_on_time_count=24, total=24）
+      - record_id: "RPY_P_024"
+        loan_id: "LOAN_MORTGAGE_01"
+        due_date: "2026-03-01"
+        actual_payment_date: "2026-03-01"
+        amount_due: { value: 3000, currency: CNY }
+        amount_paid: { value: 3000, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_P" }
 
   - fact_object: LoanApplication
     data:
@@ -109,21 +304,218 @@ instances:
         online_behavior_score: 65
 
   - fact_object: RepaymentRecord
-    data:
-      # 23期按时 + 1期逾期（7天）
+
       - record_id: "RPY_M_001"
         loan_id: "LOAN_MICRO_01"
+        due_date: "2024-04-01"
+        actual_payment_date: "2024-04-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_002"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-05-01"
+        actual_payment_date: "2024-05-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_003"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-06-01"
+        actual_payment_date: "2024-06-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_004"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-07-01"
+        actual_payment_date: "2024-07-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_005"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-08-01"
+        actual_payment_date: "2024-08-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_006"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-09-01"
+        actual_payment_date: "2024-09-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_007"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-10-01"
+        actual_payment_date: "2024-10-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_008"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-11-01"
+        actual_payment_date: "2024-11-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_009"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2024-12-01"
+        actual_payment_date: "2024-12-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_010"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-01-01"
+        actual_payment_date: "2025-01-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_011"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-02-01"
+        actual_payment_date: "2025-02-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_012"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-03-01"
+        actual_payment_date: "2025-03-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_013"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-04-01"
+        actual_payment_date: "2025-04-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_014"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-05-01"
+        actual_payment_date: "2025-05-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_015"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-06-01"
+        actual_payment_date: "2025-06-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_016"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-07-01"
+        actual_payment_date: "2025-07-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_017"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-08-01"
+        actual_payment_date: "2025-08-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_018"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-09-01"
+        actual_payment_date: "2025-09-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_019"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-10-01"
+        actual_payment_date: "2025-10-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_020"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2025-11-01"
+        actual_payment_date: "2025-11-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_021"
+        loan_id: "LOAN_MICRO_01"
         due_date: "2025-12-01"
-        actual_payment_date: "2025-12-08"   # 逾期7天
+        actual_payment_date: "2025-12-08"
         amount_due: { value: 500, currency: CNY }
         amount_paid: { value: 500, currency: CNY }
         days_overdue: 7
         belongs_to: { borrower_id: "BRW_M" }
 
-      - record_id: "RPY_M_002"
+      - record_id: "RPY_M_022"
         loan_id: "LOAN_MICRO_01"
         due_date: "2026-01-01"
         actual_payment_date: "2026-01-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_023"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2026-02-01"
+        actual_payment_date: "2026-02-01"
+        amount_due: { value: 500, currency: CNY }
+        amount_paid: { value: 500, currency: CNY }
+        days_overdue: 0
+        belongs_to: { borrower_id: "BRW_M" }
+
+      - record_id: "RPY_M_024"
+        loan_id: "LOAN_MICRO_01"
+        due_date: "2026-03-01"
+        actual_payment_date: "2026-03-01"
         amount_due: { value: 500, currency: CNY }
         amount_paid: { value: 500, currency: CNY }
         days_overdue: 0
