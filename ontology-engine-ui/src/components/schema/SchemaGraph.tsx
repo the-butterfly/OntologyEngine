@@ -291,18 +291,27 @@ function SchemaGraphComponent({ data, loading, onNodeClick, onNodeHover }: Schem
                 if (d.data?.edgeType === 'dependency') return [2, 2];
                 return undefined;
               },
-              endArrow: (d: any): boolean => d.data?.edgeType !== 'relation',
+              endArrow: true,  // Show arrow for all edges including relations
               startArrow: false,
               curveOffset: (d: any): number => d.data?.curveOffset || 0,
               curvePosition: 0.5,
               labelText: (d: any): string => {
+                // Show relation name for relation edges
+                if (d.data?.edgeType === 'relation') {
+                  return d.data?.label || '';
+                }
+                // Show weight for weighted edges
                 const w = d.data?.weight;
                 if (w != null) return `${(w * 100).toFixed(0)}%`;
+                // Show element for data dependency edges
                 if (d.data?.edgeType === 'data_dependency') return d.data?.element || '';
                 return '';
               },
-              labelFontSize: 9,
-              labelFill: (d: any): string => d.data?.weight != null ? '#722ED1' : '#666',
+              labelFontSize: 10,
+              labelFill: (d: any): string => {
+                if (d.data?.edgeType === 'relation') return '#1890FF';
+                return '#666';
+              },
               labelBackground: true,
               labelBackgroundFill: '#fff',
               labelBackgroundRadius: 3,
