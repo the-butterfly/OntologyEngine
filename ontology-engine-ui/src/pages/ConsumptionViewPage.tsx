@@ -3,19 +3,28 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Breadcrumb, Menu, Tag, Space, Typography, Card, Spin, message, Alert, Tabs } from 'antd';
+import { Breadcrumb, Tag, Space, Typography, Card, Spin, message, Alert, Tabs } from 'antd';
 import {
   ApartmentOutlined,
   BranchesOutlined,
   ExperimentOutlined,
-  ArrowLeftOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 import { useSpaceStore } from '../store/spaceStore';
+import { spaceApi } from '../api/spaceApi';
 import SchemaVisualizationPage from './consumption/SchemaVisualizationPage';
 import RuleExecutionPage from './consumption/RuleExecutionPage';
 import SimulationPage from './SimulationPage';
+import ViewEntitiesPage from './consumption/ViewEntitiesPage';
 
 const { Title } = Typography;
+
+interface ViewStats {
+  entity_count: number;
+  relation_count: number;
+  rule_definition_count: number;
+  rule_logic_count: number;
+}
 
 export default function ConsumptionViewPage() {
   const { viewId } = useParams<{ viewId: string }>();
@@ -23,6 +32,12 @@ export default function ConsumptionViewPage() {
   const { setActiveView } = useSpaceStore();
   const [loading, setLoading] = useState(true);
   const [viewInfo, setViewInfo] = useState<any>(null);
+  const [viewStats, setViewStats] = useState<ViewStats>({
+    entity_count: 0,
+    relation_count: 0,
+    rule_definition_count: 0,
+    rule_logic_count: 0,
+  });
   const [activeTab, setActiveTab] = useState('visualize');
 
   // Set active view ID when page loads
@@ -47,6 +62,21 @@ export default function ConsumptionViewPage() {
           message.error('无法加载消费视图');
           setLoading(false);
         });
+
+      // Load view statistics in parallel
+      Promise.all([
+        spaceApi.listViewEntities(viewId),
+        spaceApi.getRuleDependencyGraph(viewId),
+      ])
+        .then(([entities, graph]) => {
+          setViewStats({
+            entity_count: entities.length,
+            relation_count: graph.dependency_edges?.length || 0,
+            rule_definition_count: graph.nodes?.length || 0,
+            rule_logic_count: graph.execution_order?.length || 0,
+          });
+        })
+        .catch(() => {});
     }
   }, [viewId]);
 
@@ -80,6 +110,11 @@ export default function ConsumptionViewPage() {
       children: isActive ? <RuleExecutionPage /> : null,
     },
     {
+      key: 'instances',
+      label: <span><DatabaseOutlined /> 数据实例</span>,
+      children: isActive ? <ViewEntitiesPage /> : null,
+    },
+    {
       key: 'simulate',
       label: <span><ExperimentOutlined /> What-If 模拟</span>,
       children: isActive ? <SimulationPage /> : null,
@@ -97,12 +132,15 @@ export default function ConsumptionViewPage() {
         style={{ marginBottom: 16 }}
       />
 
-      <Space style={{ marginBottom: 16 }}>
+      <Space style={{ marginBottom: 16 }} wrap>
         <Tag color={isActive ? 'green' : 'orange'}>
           {viewInfo.status.toUpperCase()}
         </Tag>
         <Tag color="purple">{viewId}</Tag>
         <Tag>{viewInfo.description}</Tag>
+        <Tag color="blue">实体: {viewStats.entity_count}</Tag>
+        <Tag color="cyan">关系: {viewStats.relation_count}</Tag>
+        <Tag color="orange">规则: {viewStats.rule_logic_count}</Tag>
       </Space>
 
       {!isActive && (
