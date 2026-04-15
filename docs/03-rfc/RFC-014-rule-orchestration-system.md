@@ -98,17 +98,24 @@
 
 @dataclass
 class RuleGroupDefinition:
-    """规则组（框架）- 对应四元素的 ① ② ③"""
-    name: str
-    description: str
-    type: Literal["constraint", "inference", "alert", "decision"]
+    """规则组（框架）- 对应四元素的 ① ② ③
+
+    Attributes:
+        id: UUID primary key, used by frontend and as URL parameter
+        name: Business identifier, unique within a semantic space (schema_id)
+        schema_id: Semantic space identifier - enforces name uniqueness isolation
+    """
+    id: str = ""          # UUID primary key for frontend/URL use
+    name: str = ""        # Business name, unique within (name, schema_id)
+    description: str = ""
+    type: Literal["constraint", "inference", "alert", "decision"] = "decision"
     priority: int = 100
     applies_to: AppliesToConfig = field(default_factory=AppliesToConfig)
     preconditions: list[Precondition] = field(default_factory=list)
     inputs: list[IOElement] = field(default_factory=list)
     outputs: list[IOElement] = field(default_factory=list)
     enabled: bool = True
-    schema_id: str | None = None
+    schema_id: str = ""   # Semantic space ID (required for isolation)
     created_at: str = ""
     updated_at: str = ""
 
@@ -117,7 +124,7 @@ class RuleStep:
     """规则实例（具体逻辑）- 对应四元素的 ④"""
     id: str
     name: str
-    rule_group: str                       # 所属规则组
+    rule_group: str                       # 所属规则组 name (not UUID)
     order: int                            # 执行顺序（支持拖拽调整）
     when: ConditionClause
     then: ActionClause
@@ -157,8 +164,13 @@ class OperatorSchema:
 
 ```sql
 -- 规则组表（框架层）
+-- id: UUID primary key for frontend/URL use
+-- name: Business identifier, unique within a semantic space (schema_id)
+-- schema_id: Semantic space identifier for name isolation
+-- Unique constraint is on (name, schema_id) for semantic space isolation
 CREATE TABLE rule_groups (
-    name        VARCHAR PRIMARY KEY,
+    id          VARCHAR PRIMARY KEY,
+    name        VARCHAR NOT NULL,
     description TEXT,
     type        VARCHAR NOT NULL,
     priority    INTEGER DEFAULT 100,
@@ -167,12 +179,14 @@ CREATE TABLE rule_groups (
     inputs      JSON,
     outputs     JSON,
     enabled     BOOLEAN DEFAULT TRUE,
-    schema_id   VARCHAR,
+    schema_id   VARCHAR NOT NULL,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (name, schema_id)
 );
 
 -- 规则实例表（逻辑层）
+-- References rule_groups via rule_group name (not UUID)
 CREATE TABLE rule_steps (
     id           VARCHAR NOT NULL,
     rule_group   VARCHAR NOT NULL REFERENCES rule_groups(name),
@@ -218,17 +232,22 @@ CREATE TABLE operator_registry (
 
 ### 4.1 规则组 CRUD
 
+> **注意**:
+> - 主资源路由使用 `{id}` (UUID)，嵌套路由保留 `{name}` (业务标识)
+> - 所有操作都需要 `schema_id` 参数用于语义空间隔离
+> - `schema_id` 在创建时为必填，查询/更新/删除时用于区分同名规则组
+
 ```
-POST   /api/v1/rule-groups                    # 创建规则组
-GET    /api/v1/rule-groups                    # 列表（含分页/过滤）
-GET    /api/v1/rule-groups/{name}             # 获取规则组详情
-PUT    /api/v1/rule-groups/{name}             # 更新规则组
-DELETE /api/v1/rule-groups/{name}             # 删除规则组
-GET    /api/v1/rule-groups/{name}/steps       # 获取规则实例列表
-POST   /api/v1/rule-groups/{name}/steps       # 添加规则实例
-PUT    /api/v1/rule-groups/{name}/steps/{id}  # 更新规则实例
-DELETE /api/v1/rule-groups/{name}/steps/{id}  # 删除规则实例
-POST   /api/v1/rule-groups/{name}/reorder     # 调整规则实例顺序
+POST   /api/v1/rule-groups                     # 创建规则组 (body: {name, schema_id, ...})
+GET    /api/v1/rule-groups?schema_id=xxx      # 列表（按语义空间过滤）
+GET    /api/v1/rule-groups/{id}?schema_id=xxx # 获取规则组详情 (by UUID, schema_id for name lookup)
+PUT    /api/v1/rule-groups/{id}?schema_id=xxx # 更新规则组 (by UUID, schema_id for name lookup)
+DELETE /api/v1/rule-groups/{id}?schema_id=xxx # 删除规则组 (by UUID, schema_id for name lookup)
+GET    /api/v1/rule-groups/{name}/steps?schema_id=xxx      # 获取规则实例列表 (by name)
+POST   /api/v1/rule-groups/{name}/steps?schema_id=xxx      # 添加规则实例 (by name)
+PUT    /api/v1/rule-groups/{name}/steps/{step_id}?schema_id=xxx  # 更新规则实例
+DELETE /api/v1/rule-groups/{name}/steps/{step_id}?schema_id=xxx  # 删除规则实例
+POST   /api/v1/rule-groups/{name}/reorder?schema_id=xxx    # 调整规则实例顺序 (by name)
 ```
 
 ### 4.2 规则模拟执行
@@ -293,8 +312,8 @@ GET  /api/v1/dag/path                          # 从 source 到 target 的路径
 ### 4.4 YAML 导入导出
 
 ```
-GET  /api/v1/rule-groups/{name}/export        # 导出为 YAML（Schema v2 canonical）
-POST /api/v1/rule-groups/import               # 从 YAML 导入
+GET  /api/v1/rule-groups/{name}/export?schema_id=xxx  # 导出为 YAML（Schema v2 canonical）
+POST /api/v1/rule-groups/import               # 从 YAML 导入 (body: {yaml_content, schema_id})
 POST /api/v1/rule-groups/validate-yaml        # 验证 YAML 合法性
 ```
 
