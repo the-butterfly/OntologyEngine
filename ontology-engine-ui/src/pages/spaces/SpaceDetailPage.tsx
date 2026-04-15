@@ -19,14 +19,14 @@ import { useSpaceStore } from '../../store/spaceStore';
 const { Title } = Typography;
 
 const menuItems = [
-  { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明' },
-  { key: 'rules/declarations', icon: <SettingOutlined />, label: '规则声明' },
-  { key: 'rules/logics', icon: <BranchesOutlined />, label: '规则逻辑' },
-  { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例' },
-  { key: 'versions', icon: <HistoryOutlined />, label: '版本历史' },
-  { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化' },
-  { key: 'execute', icon: <BranchesOutlined />, label: '规则执行' },
-  { key: 'simulate', icon: <ExperimentOutlined />, label: 'What-If 模拟' },
+  { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明', testId: 'menu-schema' },
+  { key: 'rules/declarations', icon: <SettingOutlined />, label: '规则声明', testId: 'menu-rules-declarations' },
+  { key: 'rules/logics', icon: <BranchesOutlined />, label: '规则逻辑', testId: 'menu-rules-logics' },
+  { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例', testId: 'menu-instances' },
+  { key: 'versions', icon: <HistoryOutlined />, label: '版本历史', testId: 'menu-versions' },
+  { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化', testId: 'menu-visualize' },
+  { key: 'execute', icon: <BranchesOutlined />, label: '规则执行', testId: 'menu-execute' },
+  { key: 'simulate', icon: <ExperimentOutlined />, label: 'What-If 模拟', testId: 'menu-simulate' },
 ];
 
 export default function SpaceDetailPage() {
@@ -63,15 +63,18 @@ export default function SpaceDetailPage() {
     }
   }, [error]);
 
-  // Get current selected key from path
+  // Get current selected key from path - use exact suffix matching
   const getSelectedKey = () => {
     const path = location.pathname;
-    const suffixes = ['schema', 'rules/declarations', 'rules/logics', 'instances', 'versions', 'visualize', 'execute', 'simulate'];
-    for (const suffix of suffixes) {
-      if (path.includes(`/${suffix}`)) {
-        return suffix;
-      }
-    }
+    // Exact matching to avoid ambiguity with badges that contain similar text
+    if (path.endsWith('/rules/declarations')) return 'rules/declarations';
+    if (path.endsWith('/rules/logics')) return 'rules/logics';
+    if (path.endsWith('/schema')) return 'schema';
+    if (path.endsWith('/instances')) return 'instances';
+    if (path.endsWith('/versions')) return 'versions';
+    if (path.endsWith('/visualize')) return 'visualize';
+    if (path.endsWith('/execute')) return 'execute';
+    if (path.endsWith('/simulate')) return 'simulate';
     return 'schema';
   };
 
@@ -105,7 +108,7 @@ export default function SpaceDetailPage() {
 
       <Space style={{ marginBottom: 16 }}>
         <Tag color="blue">v{activeSpace.version}</Tag>
-        <Tag color={activeSpace.status === 'active' ? 'green' : 'blue'}>
+        <Tag color={activeSpace.status === 'active' ? 'green' : activeSpace.status === 'draft' ? 'orange' : 'default'}>
           {activeSpace.status.toUpperCase()}
         </Tag>
         <Tag>{activeSpace.entity_count} 实体</Tag>
@@ -133,7 +136,29 @@ export default function SpaceDetailPage() {
       {isConsumptionRoute() && !activeSpace.view_id && (
         <Alert
           message="消费视图未创建"
-          description="请先激活空间以创建消费视图，才能使用可视化、规则执行和模拟功能。"
+          description={
+            <div>
+              <p>请先激活空间以创建消费视图，才能使用可视化、规则执行和模拟功能。</p>
+              {activeSpace.status !== 'active' && (
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={async () => {
+                    try {
+                      await useSpaceStore.getState().activateSpace(spaceId!);
+                      message.success('空间已激活，正在刷新...');
+                      await useSpaceStore.getState().setActiveSpace(spaceId!);
+                    } catch (e) {
+                      message.error('激活失败');
+                    }
+                  }}
+                  style={{ marginTop: 8 }}
+                >
+                  一键激活空间
+                </Button>
+              )}
+            </div>
+          }
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
@@ -143,7 +168,27 @@ export default function SpaceDetailPage() {
       {isConsumptionRoute() && activeSpace.view_id && activeSpace.status !== 'active' && (
         <Alert
           message="空间未激活"
-          description="请先激活空间后才能使用消费视图功能。"
+          description={
+            <div>
+              <p>请先激活空间后才能使用消费视图功能。</p>
+              <Button
+                type="primary"
+                size="small"
+                onClick={async () => {
+                  try {
+                    await useSpaceStore.getState().activateSpace(spaceId!);
+                    message.success('空间已激活，正在刷新...');
+                    await useSpaceStore.getState().setActiveSpace(spaceId!);
+                  } catch (e) {
+                    message.error('激活失败');
+                  }
+                }}
+                style={{ marginTop: 8 }}
+              >
+                激活空间
+              </Button>
+            </div>
+          }
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}

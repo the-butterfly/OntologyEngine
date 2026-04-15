@@ -183,6 +183,36 @@ class SpaceApi {
     return response.data.data;
   }
 
+  // L2 Categorizations
+  async listCategorizations(spaceId: string): Promise<any[]> {
+    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L2/categorizations`);
+    return response.data.data;
+  }
+
+  async createCategorization(spaceId: string, categorization: any): Promise<any> {
+    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L2/categorizations`, categorization);
+    return response.data.data;
+  }
+
+  async deleteCategorization(spaceId: string, categorizationId: string): Promise<void> {
+    await axios.delete(`${BASE_URL}/${spaceId}/schema/L2/categorizations/${categorizationId}`);
+  }
+
+  // L3 Analytical Elements
+  async listAnalyticalElements(spaceId: string): Promise<any[]> {
+    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L3/analytical-elements`);
+    return response.data.data;
+  }
+
+  async createAnalyticalElement(spaceId: string, element: any): Promise<any> {
+    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L3/analytical-elements`, element);
+    return response.data.data;
+  }
+
+  async deleteAnalyticalElement(spaceId: string, elementId: string): Promise<void> {
+    await axios.delete(`${BASE_URL}/${spaceId}/schema/L3/analytical-elements/${elementId}`);
+  }
+
   // Rule Definitions L4 (uses /{space_id} prefix)
   async listRuleDefinitions(spaceId: string): Promise<RuleDefinition[]> {
     const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L4/rules/definitions`);

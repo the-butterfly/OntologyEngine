@@ -2,8 +2,8 @@
 // Schema declaration page - shows L1-L4 all layers in tabs
 
 import { useState } from 'react';
-import { Typography, Card, Table, Tag, Space, Spin, Empty, Tabs, Button, Modal, Input, message, Tooltip, Badge, Collapse, Descriptions } from 'antd';
-import { ImportOutlined, InfoCircleOutlined, ApartmentOutlined, TagsOutlined, BarChartOutlined, BranchesOutlined } from '@ant-design/icons';
+import { Typography, Card, Table, Tag, Space, Spin, Empty, Tabs, Button, Modal, Input, Form, Select, message, Tooltip, Badge, Collapse, Descriptions } from 'antd';
+import { ImportOutlined, PlusOutlined, InfoCircleOutlined, ApartmentOutlined, TagsOutlined, BarChartOutlined, BranchesOutlined } from '@ant-design/icons';
 import { useSpaceStore } from '../../store/spaceStore';
 import { spaceApi } from '../../api/spaceApi';
 import type { ColumnsType } from 'antd/es/table';
@@ -76,6 +76,16 @@ export default function SchemaDeclarationPage() {
   const [yamlPath, setYamlPath] = useState('examples/supply_chain_finance/schema.yaml');
   const [importing, setImporting] = useState(false);
 
+  // L2 Create Modal
+  const [l2CreateModalVisible, setL2CreateModalVisible] = useState(false);
+  const [l2Form] = Form.useForm();
+  const [l2Saving, setL2Saving] = useState(false);
+
+  // L3 Create Modal
+  const [l3CreateModalVisible, setL3CreateModalVisible] = useState(false);
+  const [l3Form] = Form.useForm();
+  const [l3Saving, setL3Saving] = useState(false);
+
   // Load full schema overview when space is active
   const loadOverview = async () => {
     if (!activeSpaceId) return;
@@ -108,6 +118,52 @@ export default function SchemaDeclarationPage() {
       message.error(e?.response?.data?.message || '导入失败');
     } finally {
       setImporting(false);
+    }
+  };
+
+  // L2 Create
+  const handleCreateL2 = async () => {
+    try {
+      const values = await l2Form.validateFields();
+      setL2Saving(true);
+      await spaceApi.createCategorization(activeSpaceId!, {
+        id: values.id,
+        name: values.name,
+        description: values.description || undefined,
+        type: 'flat',
+      });
+      message.success('分类定义已创建');
+      setL2CreateModalVisible(false);
+      l2Form.resetFields();
+      loadOverview();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || '创建失败');
+    } finally {
+      setL2Saving(false);
+    }
+  };
+
+  // L3 Create
+  const handleCreateL3 = async () => {
+    try {
+      const values = await l3Form.validateFields();
+      setL3Saving(true);
+      await spaceApi.createAnalyticalElement(activeSpaceId!, {
+        id: values.id,
+        name: values.name,
+        description: values.description || undefined,
+        type: values.element_type,
+      });
+      message.success('分析要素已创建');
+      setL3CreateModalVisible(false);
+      l3Form.resetFields();
+      loadOverview();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || '创建失败');
+    } finally {
+      setL3Saving(false);
     }
   };
 
@@ -342,62 +398,71 @@ export default function SchemaDeclarationPage() {
           <Badge count={overview.L2.count} style={{ marginLeft: 6, backgroundColor: '#52c41a' }} />
         </span>
       ),
-      children: overview.L2.count === 0 ? (
-        <Empty description="暂无分类定义" />
-      ) : (
-        <Table
-          columns={l2Columns}
-          dataSource={overview.L2.items}
-          rowKey="id"
-          size="small"
-          pagination={{ pageSize: 10 }}
-          expandable={{
-            expandedRowRender: (record: CategorizationDef) => (
-              <div style={{ padding: '8px 16px' }}>
-                {record.description && (
-                  <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
-                    {record.description}
-                  </Paragraph>
-                )}
-                <Text type="secondary" style={{ fontSize: 12 }}>触发器（分类条件）：</Text>
-                {(record.triggers || []).length === 0 ? (
-                  <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>无</Text>
-                ) : (
-                  <div style={{ marginTop: 6 }}>
-                    {(record.triggers || []).map((trigger: any, idx: number) => (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '4px 10px', marginBottom: 4,
-                          background: '#f6ffed', borderRadius: 4, border: '1px solid #b7eb8f',
-                          fontSize: 12,
-                        }}
-                      >
-                        <Tag color="green" style={{ fontSize: 11 }}>{trigger.result_value || trigger.category_value || `分类${idx + 1}`}</Tag>
-                        {trigger.condition?.expression && (
-                          <Text code style={{ fontSize: 11 }}>
-                            {trigger.condition.expression}
-                          </Text>
-                        )}
-                        {trigger.condition?.allOf && (
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            满足全部 {trigger.condition.allOf.length} 个条件
-                          </Text>
-                        )}
-                        {trigger.condition?.anyOf && (
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            满足任一 {trigger.condition.anyOf.length} 个条件
-                          </Text>
-                        )}
+      children: (
+        <>
+          <div style={{ marginBottom: 16, textAlign: 'right' }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setL2CreateModalVisible(true)}>
+              创建分类
+            </Button>
+          </div>
+          {overview.L2.count === 0 ? (
+            <Empty description="暂无分类定义，点击上方按钮创建" />
+          ) : (
+            <Table
+              columns={l2Columns}
+              dataSource={overview.L2.items}
+              rowKey="id"
+              size="small"
+              pagination={{ pageSize: 10 }}
+              expandable={{
+                expandedRowRender: (record: CategorizationDef) => (
+                  <div style={{ padding: '8px 16px' }}>
+                    {record.description && (
+                      <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+                        {record.description}
+                      </Paragraph>
+                    )}
+                    <Text type="secondary" style={{ fontSize: 12 }}>触发器（分类条件）：</Text>
+                    {(record.triggers || []).length === 0 ? (
+                      <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>无</Text>
+                    ) : (
+                      <div style={{ marginTop: 6 }}>
+                        {(record.triggers || []).map((trigger: any, idx: number) => (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              padding: '4px 10px', marginBottom: 4,
+                              background: '#f6ffed', borderRadius: 4, border: '1px solid #b7eb8f',
+                              fontSize: 12,
+                            }}
+                          >
+                            <Tag color="green" style={{ fontSize: 11 }}>{trigger.result_value || trigger.category_value || `分类${idx + 1}`}</Tag>
+                            {trigger.condition?.expression && (
+                              <Text code style={{ fontSize: 11 }}>
+                                {trigger.condition.expression}
+                              </Text>
+                            )}
+                            {trigger.condition?.allOf && (
+                              <Text type="secondary" style={{ fontSize: 11 }}>
+                                满足全部 {trigger.condition.allOf.length} 个条件
+                              </Text>
+                            )}
+                            {trigger.condition?.anyOf && (
+                              <Text type="secondary" style={{ fontSize: 11 }}>
+                                满足任一 {trigger.condition.anyOf.length} 个条件
+                              </Text>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            ),
-          }}
-        />
+                ),
+              }}
+            />
+          )}
+        </>
       ),
     },
     {
@@ -409,68 +474,77 @@ export default function SchemaDeclarationPage() {
           <Badge count={overview.L3.count} style={{ marginLeft: 6, backgroundColor: '#fa8c16' }} />
         </span>
       ),
-      children: overview.L3.count === 0 ? (
-        <Empty description="暂无分析要素" />
-      ) : (
-        <Table
-          columns={l3Columns}
-          dataSource={overview.L3.items}
-          rowKey="id"
-          size="small"
-          pagination={{ pageSize: 15 }}
-          expandable={{
-            expandedRowRender: (record: AnalyticalElement) => (
-              <Descriptions size="small" column={2} style={{ padding: '8px 16px' }}>
-                {record.description && (
-                  <Descriptions.Item label="描述" span={2}>{record.description}</Descriptions.Item>
-                )}
-                <Descriptions.Item label="类型">
-                  <Tag color={ELEM_TYPE_COLORS[record.element_type] || 'default'}>{record.element_type}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="可覆盖">
-                  {record.overridable ? <Tag color="green">是（L4 可覆盖）</Tag> : <Tag>否</Tag>}
-                </Descriptions.Item>
-                {record.formula && (
-                  <Descriptions.Item label="计算公式" span={2}>
-                    <Text code>{record.formula}</Text>
-                  </Descriptions.Item>
-                )}
-                {record.source && (
-                  <Descriptions.Item label="数据来源" span={2}>
-                    <Tag color="geekblue">{record.source.type}</Tag>
-                    {record.source.path && <Text code style={{ marginLeft: 8, fontSize: 11 }}>{record.source.path}</Text>}
-                    {record.source.field && <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>字段: {record.source.field}</Text>}
-                  </Descriptions.Item>
-                )}
-                {record.components && record.components.length > 0 && (
-                  <Descriptions.Item label="组合权重" span={2}>
-                    <Space wrap size="small">
-                      {record.components.map((c: any, i: number) => (
-                        <Tag key={i} color="purple" style={{ fontSize: 11 }}>
-                          {c.metric}: <Text strong style={{ color: '#722ed1' }}>{(c.weight * 100).toFixed(0)}%</Text>
-                        </Tag>
-                      ))}
-                    </Space>
-                  </Descriptions.Item>
-                )}
-                {record.dependencies && record.dependencies.length > 0 && (
-                  <Descriptions.Item label="依赖要素" span={2}>
-                    <Space wrap size="small">
-                      {record.dependencies.map((dep: string, i: number) => (
-                        <Tag key={i} style={{ fontSize: 11 }}>{dep}</Tag>
-                      ))}
-                    </Space>
-                  </Descriptions.Item>
-                )}
-                {record.thresholds && (
-                  <Descriptions.Item label="阈值配置" span={2}>
-                    <Text code style={{ fontSize: 11 }}>{JSON.stringify(record.thresholds)}</Text>
-                  </Descriptions.Item>
-                )}
-              </Descriptions>
-            ),
-          }}
-        />
+      children: (
+        <>
+          <div style={{ marginBottom: 16, textAlign: 'right' }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setL3CreateModalVisible(true)}>
+              创建要素
+            </Button>
+          </div>
+          {overview.L3.count === 0 ? (
+            <Empty description="暂无分析要素，点击上方按钮创建" />
+          ) : (
+            <Table
+              columns={l3Columns}
+              dataSource={overview.L3.items}
+              rowKey="id"
+              size="small"
+              pagination={{ pageSize: 15 }}
+              expandable={{
+                expandedRowRender: (record: AnalyticalElement) => (
+                  <Descriptions size="small" column={2} style={{ padding: '8px 16px' }}>
+                    {record.description && (
+                      <Descriptions.Item label="描述" span={2}>{record.description}</Descriptions.Item>
+                    )}
+                    <Descriptions.Item label="类型">
+                      <Tag color={ELEM_TYPE_COLORS[record.element_type] || 'default'}>{record.element_type}</Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="可覆盖">
+                      {record.overridable ? <Tag color="green">是（L4 可覆盖）</Tag> : <Tag>否</Tag>}
+                    </Descriptions.Item>
+                    {record.formula && (
+                      <Descriptions.Item label="计算公式" span={2}>
+                        <Text code>{record.formula}</Text>
+                      </Descriptions.Item>
+                    )}
+                    {record.source && (
+                      <Descriptions.Item label="数据来源" span={2}>
+                        <Tag color="geekblue">{record.source.type}</Tag>
+                        {record.source.path && <Text code style={{ marginLeft: 8, fontSize: 11 }}>{record.source.path}</Text>}
+                        {record.source.field && <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>字段: {record.source.field}</Text>}
+                      </Descriptions.Item>
+                    )}
+                    {record.components && record.components.length > 0 && (
+                      <Descriptions.Item label="组合权重" span={2}>
+                        <Space wrap size="small">
+                          {record.components.map((c: any, i: number) => (
+                            <Tag key={i} color="purple" style={{ fontSize: 11 }}>
+                              {c.metric}: <Text strong style={{ color: '#722ed1' }}>{(c.weight * 100).toFixed(0)}%</Text>
+                            </Tag>
+                          ))}
+                        </Space>
+                      </Descriptions.Item>
+                    )}
+                    {record.dependencies && record.dependencies.length > 0 && (
+                      <Descriptions.Item label="依赖要素" span={2}>
+                        <Space wrap size="small">
+                          {record.dependencies.map((dep: string, i: number) => (
+                            <Tag key={i} style={{ fontSize: 11 }}>{dep}</Tag>
+                          ))}
+                        </Space>
+                      </Descriptions.Item>
+                    )}
+                    {record.thresholds && (
+                      <Descriptions.Item label="阈值配置" span={2}>
+                        <Text code style={{ fontSize: 11 }}>{JSON.stringify(record.thresholds)}</Text>
+                      </Descriptions.Item>
+                    )}
+                  </Descriptions>
+                ),
+              }}
+            />
+          )}
+        </>
       ),
     },
     {
@@ -584,6 +658,66 @@ export default function SchemaDeclarationPage() {
           <Button size="small" onClick={() => setYamlPath('examples/supply_chain_finance/schema.yaml')}>供应链金融</Button>
           <Button size="small" onClick={() => setYamlPath('examples/consumer_credit/schema.yaml')}>个人消费信贷</Button>
         </Space>
+      </Modal>
+
+      {/* L2 Create Modal */}
+      <Modal
+        title="创建分类体系"
+        open={l2CreateModalVisible}
+        onOk={handleCreateL2}
+        onCancel={() => { setL2CreateModalVisible(false); l2Form.resetFields(); }}
+        confirmLoading={l2Saving}
+        okText="创建"
+        cancelText="取消"
+      >
+        <Form form={l2Form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="id" label="分类ID" rules={[{ required: true, message: '请输入分类ID' }]}>
+            <Input placeholder="如 CAT001" />
+          </Form.Item>
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
+            <Input placeholder="如 企业质量分级" />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea placeholder="分类描述（可选）" rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* L3 Create Modal */}
+      <Modal
+        title="创建分析要素"
+        open={l3CreateModalVisible}
+        onOk={handleCreateL3}
+        onCancel={() => { setL3CreateModalVisible(false); l3Form.resetFields(); }}
+        confirmLoading={l3Saving}
+        okText="创建"
+        cancelText="取消"
+      >
+        <Form form={l3Form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="id" label="要素ID" rules={[{ required: true, message: '请输入要素ID' }]}>
+            <Input placeholder="如 credit_score" />
+          </Form.Item>
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
+            <Input placeholder="如 信用评分" />
+          </Form.Item>
+          <Form.Item name="element_type" label="要素类型" rules={[{ required: true }]}>
+            <Select
+              placeholder="选择类型"
+              options={[
+                { value: 'atomic', label: 'atomic（原子要素）' },
+                { value: 'derived', label: 'derived（推导要素）' },
+                { value: 'composite', label: 'composite（组合要素）' },
+                { value: 'graph', label: 'graph（图指标要素）' },
+                { value: 'flag', label: 'flag（标志位）' },
+                { value: 'score', label: 'score（评分）' },
+                { value: 'limit', label: 'limit（额度）' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea placeholder="要素描述（可选）" rows={2} />
+          </Form.Item>
+        </Form>
       </Modal>
     </Card>
   );
