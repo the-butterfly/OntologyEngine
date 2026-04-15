@@ -230,10 +230,17 @@ class RuleExecutor:
 
         elif action == ACTION_TRIGGER_ALERT and output:
             alert_level = output.get("alert_level", "warning")
+            message = output.get("message", "")
+            message_template = output.get("message_template")
+            if message_template:
+                try:
+                    message = message_template.format(**eval_context)
+                except (KeyError, ValueError):
+                    message = message_template
             alert = Alert(
                 level=alert_level,
                 type=output.get("alert_type", "general"),
-                message=output.get("message", ""),
+                message=message,
                 data=output
             )
             context.alerts.append(alert)

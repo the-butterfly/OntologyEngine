@@ -8,6 +8,7 @@ dependencies = [
     "duckdb>=0.9.0",
     "pydantic>=2.0",
     "simpleeval>=0.9.13",
+    "asteval>=0.9.29",
     "mcp>=1.0.0",
 ]
 

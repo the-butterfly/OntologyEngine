@@ -501,7 +501,12 @@ analytical_elements:
       name: "关联共借人逾期人数"
       description: "与当前借款人共同借款/担保关系中，存在当前逾期的人数"
       type: graph
-      algorithm: neighbor_attribute_count
+      algorithm:
+        name: neighbor_attribute_count
+        params:
+          direction: both
+          max_hops: 2
+          deduplicate_neighbors: true
       traversal:
         entity: Borrower
         edge: BorrowerRelation
@@ -516,7 +521,11 @@ analytical_elements:
       name: "关系网络风险评分"
       description: "借款人关系网络中的整体风险程度（0=无风险，100=极高风险）"
       type: graph
-      algorithm: weighted_neighbor_risk
+      algorithm:
+        name: weighted_neighbor_risk
+        params:
+          direction: both
+          max_hops: 2
       traversal:
         entity: Borrower
         edge: BorrowerRelation
@@ -564,12 +573,6 @@ analytical_elements:
 
       formula: "SUM(transform(component) * weight) * 100"
       range: [0, 100]
-      dependencies:
-        - debt_to_income_ratio
-        - credit_bureau_score
-        - repayment_rate_24m
-        - online_behavior_score
-        - network_risk_score
 
   indicators:
     - id: has_stable_income
@@ -919,7 +922,7 @@ business_logic:
             if network_risk_score >= 60: "HIGH"
             elif network_risk_score >= 40: "MEDIUM"
             else: "LOW"
-          message: "关联共借人/担保人中存在{co_borrower_risk_count}人当前逾期，风险评分{network_risk_score}，建议人工核查关系网络"
+          message_template: "关联共借人/担保人中存在{co_borrower_risk_count}人当前逾期，风险评分{network_risk_score}，建议人工核查关系网络"
       priority: 130
       version: 1
       environment: default

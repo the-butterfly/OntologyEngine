@@ -98,61 +98,61 @@ def print_decision_summary(decision: str, reasoning: str, alerts: list) -> None:
 # Demo case definitions
 DEMO_CASES = [
     {
-        "id": "SUP_2024_001",
+        "id": "SUP_A",
         "name": "Quality Supplier (Benchmark)",
         "description": "Established tech supplier with good payment history",
         "expected_dimensions": ["credit_assessment"],
     },
     {
-        "id": "SUP_2024_003",
+        "id": "SUP_B",
         "name": "High Risk Supplier",
         "description": "Trading company with multiple overdue invoices",
         "expected_dimensions": ["credit_assessment", "risk_early_warning"],
     },
     {
-        "id": "SUP_2024_A",
+        "id": "SUP_C_A",
         "name": "Guarantee Circle Supplier",
         "description": "Supplier in circular guarantee chain (A→B→C→A)",
         "expected_dimensions": ["credit_assessment", "risk_early_warning"],
     },
     {
-        "id": "SUP_2024_NEW",
+        "id": "SUP_D_NEW",
         "name": "New Supplier",
         "description": "Newly established supplier with limited history",
         "expected_dimensions": ["credit_assessment"],
     },
     {
-        "id": "SUP_2024_NEG",
+        "id": "SUP_E_NEG",
         "name": "Negative News Supplier",
         "description": "Supplier with multiple negative news articles",
         "expected_dimensions": ["credit_assessment", "risk_early_warning"],
     },
     {
-        "id": "SUP_2024_EXC",
+        "id": "SUP_F_EXC",
         "name": "Excellent Supplier",
         "description": "Supplier with perfect payment record and high utilization",
         "expected_dimensions": ["credit_assessment"],
     },
     {
-        "id": "SUP_2024_MULTI",
+        "id": "SUP_G_MULTI",
         "name": "Multi-Core Enterprise Supplier",
         "description": "Supplier serving multiple top-tier core enterprises",
         "expected_dimensions": ["credit_assessment"],
     },
     {
-        "id": "SUP_2024_TRADE",
+        "id": "SUP_H_TRADE",
         "name": "Trading Company",
         "description": "Small trading company with limited track record",
         "expected_dimensions": ["credit_assessment"],
     },
     {
-        "id": "SUP_2024_MFG",
+        "id": "SUP_I_MFG",
         "name": "Manufacturing Supplier",
         "description": "Large manufacturing enterprise with stable business",
         "expected_dimensions": ["credit_assessment"],
     },
     {
-        "id": "SUP_2024_PARTIAL",
+        "id": "SUP_J_PARTIAL",
         "name": "Partial Guarantee Supplier",
         "description": "Supplier with partial guarantee from another supplier",
         "expected_dimensions": ["credit_assessment"],
@@ -205,43 +205,43 @@ async def run_demo():
     print_banner("DETAILED ANALYSIS - KEY CASES")
 
     # Case 1: Excellent supplier
-    print("\n>>> Excellent Supplier Analysis (SUP_2024_EXC)")
-    r = results["SUP_2024_EXC"]
+    print("\n>>> Excellent Supplier Analysis (SUP_F_EXC)")
+    r = results["SUP_F_EXC"]
     print_detailed_metrics(r.computed_metrics)
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
 
     # Case 2: High risk supplier
-    print("\n>>> High Risk Supplier Analysis (SUP_2024_003)")
-    r = results["SUP_2024_003"]
+    print("\n>>> High Risk Supplier Analysis (SUP_B)")
+    r = results["SUP_B"]
     print_detailed_metrics(r.computed_metrics)
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
 
     # Case 3: Guarantee circle
-    print("\n>>> Guarantee Circle Analysis (SUP_2024_A)")
-    r = results["SUP_2024_A"]
+    print("\n>>> Guarantee Circle Analysis (SUP_C_A)")
+    r = results["SUP_C_A"]
     print_detailed_metrics(r.computed_metrics)
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
 
     # Case 4: New supplier
-    print("\n>>> New Supplier Analysis (SUP_2024_NEW)")
-    r = results["SUP_2024_NEW"]
+    print("\n>>> New Supplier Analysis (SUP_D_NEW)")
+    r = results["SUP_D_NEW"]
     print_detailed_metrics(r.computed_metrics)
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
 
     # Case 5: Manufacturing supplier
-    print("\n>>> Manufacturing Supplier Analysis (SUP_2024_MFG)")
-    r = results["SUP_2024_MFG"]
+    print("\n>>> Manufacturing Supplier Analysis (SUP_I_MFG)")
+    r = results["SUP_I_MFG"]
     print_detailed_metrics(r.computed_metrics)
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
 
     # Case 6: Partial guarantee supplier
-    print("\n>>> Partial Guarantee Supplier Analysis (SUP_2024_PARTIAL)")
-    r = results["SUP_2024_PARTIAL"]
+    print("\n>>> Partial Guarantee Supplier Analysis (SUP_J_PARTIAL)")
+    r = results["SUP_J_PARTIAL"]
     print_detailed_metrics(r.computed_metrics)
     print_rule_trace(r.rule_results)
     print_alerts(r.alerts)
@@ -249,7 +249,7 @@ async def run_demo():
     # Multi-dimension analysis
     print_banner("MULTI-DIMENSION ANALYSIS")
 
-    multi_dim_cases = ["SUP_2024_003", "SUP_2024_A", "SUP_2024_NEG"]
+    multi_dim_cases = ["SUP_B", "SUP_C_A", "SUP_E_NEG"]
     for entity_id in multi_dim_cases:
         print(f"\n▶ {entity_id} - Multiple Dimensions:")
 
@@ -266,16 +266,16 @@ async def run_demo():
     print_banner("INDUSTRY PRACTICES")
 
     print("\n▶ Multi-Tier Supply Chain Analysis:")
-    tier1 = results["SUP_2024_001"]
-    tier2_result = await engine.analyze("SUP_2024_B", "credit_assessment")
-    tier3_result = await engine.analyze("SUP_2024_C", "credit_assessment")
+    tier1 = results["SUP_A"]
+    tier2_result = await engine.analyze("SUP_H_TRADE", "credit_assessment")
+    tier3_result = await engine.analyze("SUP_B", "credit_assessment")
 
-    print(f"  Tier-1 (SUP_2024_001): {tier1.decision} - Score: {tier1.computed_metrics.get('credit_score', 'N/A')}")
-    print(f"  Tier-2 (SUP_2024_B):   {tier2_result.decision} - Score: {tier2_result.computed_metrics.get('credit_score', 'N/A')}")
-    print(f"  Tier-3 (SUP_2024_C):   {tier3_result.decision} - Score: {tier3_result.computed_metrics.get('credit_score', 'N/A')}")
+    print(f"  Tier-1 (SUP_A): {tier1.decision} - Score: {tier1.computed_metrics.get('credit_score', 'N/A')}")
+    print(f"  Tier-2 (SUP_H_TRADE):   {tier2_result.decision} - Score: {tier2_result.computed_metrics.get('credit_score', 'N/A')}")
+    print(f"  Tier-3 (SUP_B):   {tier3_result.decision} - Score: {tier3_result.computed_metrics.get('credit_score', 'N/A')}")
 
     print("\n▶ Risk Early Warning Demonstration:")
-    for entity_id in ["SUP_2024_A", "SUP_2024_NEG", "SUP_2024_003"]:
+    for entity_id in ["SUP_C_A", "SUP_E_NEG", "SUP_B"]:
         result = await engine.analyze(entity_id, "risk_early_warning")
         if result.alerts:
             entity = await engine.get_entity("Supplier", entity_id)
@@ -288,7 +288,7 @@ async def run_demo():
     print_banner("TRANSACTION MONITORING")
 
     print("\n▶ Transaction Monitoring Analysis:")
-    monitoring_cases = ["SUP_2024_EXC", "SUP_2024_MULTI", "SUP_2024_MFG"]
+    monitoring_cases = ["SUP_F_EXC", "SUP_G_MULTI", "SUP_I_MFG"]
     for entity_id in monitoring_cases:
         result = await engine.analyze(entity_id, "transaction_monitoring")
         entity = await engine.get_entity("Supplier", entity_id)

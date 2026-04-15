@@ -478,7 +478,13 @@ analytical_elements:
       name: "担保链深度"
       description: "从当前供应商出发的最长担保链条长度，深度越大风险越高"
       type: graph
-      algorithm: longest_path
+      algorithm:
+        name: longest_path
+        params:
+          direction: both
+          weighted: false
+          allow_revisit: false
+          max_hops: 10
       traversal:
         entity: Supplier
         edge: GuaranteeRelation
@@ -492,7 +498,11 @@ analytical_elements:
       name: "是否存在担保圈"
       description: "检测当前供应商是否处于循环担保圈中"
       type: graph
-      algorithm: cycle_detection
+      algorithm:
+        name: cycle_detection
+        params:
+          direction: both
+          max_hops: 10
       traversal:
         entity: Supplier
         edge: GuaranteeRelation
@@ -539,12 +549,6 @@ analytical_elements:
 
       formula: "SUM(transform(component) * weight) * 100"
       range: [0, 100]
-      dependencies:
-        - business_stability_score
-        - tax_compliance_score
-        - reputation_score
-        - guarantee_chain_depth
-        - core_enterprise_count
 
   indicators:
 
@@ -774,7 +778,7 @@ business_logic:
         output:
           alert_level: CRITICAL
           alert_type: guarantee_circle_detected
-          message: "检测到担保圈或深度担保链（深度={guarantee_chain_depth}），建议降低授信额度或要求追加抵押"
+          message_template: "检测到担保圈或深度担保链（深度={guarantee_chain_depth}），建议降低授信额度或要求追加抵押"
       priority: 100
       version: 1
       environment: default
@@ -822,16 +826,16 @@ business_logic:
           risk_warning_list:
             - condition: "overdue_invoice_ratio >= 15"
               level: HIGH
-              message: "逾期发票占比过高（{overdue_invoice_ratio:.1f}%），需关注资金周转"
+              message_template: "逾期发票占比过高（{overdue_invoice_ratio:.1f}%），需关注资金周转"
             - condition: "negative_news_count_90d >= 3"
               level: MEDIUM
-              message: "近90天存在{negative_news_count_90d}条负面舆情，建议人工核查"
+              message_template: "近90天存在{negative_news_count_90d}条负面舆情，建议人工核查"
             - condition: "credit_score < 50"
               level: HIGH
-              message: "综合信用评分低于50分（当前{credit_score:.0f}），授信风险较高"
+              message_template: "综合信用评分低于50分（当前{credit_score:.0f}），授信风险较高"
             - condition: "guarantee_chain_depth >= 5"
               level: CRITICAL
-              message: "担保链深度达{guarantee_chain_depth}层，存在系统性连锁风险"
+              message_template: "担保链深度达{guarantee_chain_depth}层，存在系统性连锁风险"
       priority: 100
       version: 1
       environment: default

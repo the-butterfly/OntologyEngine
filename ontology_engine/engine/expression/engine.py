@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import ast
 import re
 from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
+import asteval
 import simpleeval
 
 
@@ -21,7 +23,9 @@ class ExpressionEngine:
         {
             "today",
             "days_between",
+            "days_since",
             "is_null",
+            "clamp",
             "max",
             "min",
             "round",
@@ -45,14 +49,47 @@ class ExpressionEngine:
         if expression is None or not expression.strip():
             return True
 
-        prepared = self._prepare_expression(expression, context or {})
+        eval_context = context or {}
+        prepared = self._prepare_expression(expression, eval_context)
 
+        evaluator = self._create_simpleeval(eval_context)
+
+        try:
+            return evaluator.eval(prepared)
+        except Exception as exc:
+            # Fall back to asteval for multi-line or complex statements
+            if "\n" in expression or "\r" in expression:
+                return self._evaluate_with_asteval(expression, eval_context)
+            raise ExpressionSyntaxError(
+                f"Invalid expression '{expression}': {exc}"
+            ) from exc
+
+    def _create_simpleeval(
+        self,
+        context: Mapping[str, Any],
+    ) -> simpleeval.SimpleEval:
+        """Create a hardened SimpleEval instance."""
         evaluator = simpleeval.SimpleEval()
+
+        # Security: disable bitwise and string-formatting operators
+        unsafe_nodes = {
+            ast.LShift,
+            ast.RShift,
+            ast.BitAnd,
+            ast.BitOr,
+            ast.BitXor,
+            ast.Mod,
+        }
+        for node in unsafe_nodes:
+            evaluator.operators.pop(node, None)
+
         evaluator.functions.update(
             {
                 "today": lambda: date.today().isoformat(),
                 "days_between": self._days_between,
+                "days_since": self._days_since,
                 "is_null": lambda value: value is None,
+                "clamp": self._clamp,
                 "max": max,
                 "min": min,
                 "round": round,
@@ -62,11 +99,42 @@ class ExpressionEngine:
                 "bool": bool,
             }
         )
+        evaluator.names.update(context)
+        return evaluator
 
-        try:
-            return evaluator.eval(prepared)
-        except Exception as exc:  # noqa: BLE001
-            raise ExpressionSyntaxError(f"Invalid expression '{expression}': {exc}") from exc
+    def _evaluate_with_asteval(
+        self,
+        expression: str,
+        context: Mapping[str, Any],
+    ) -> Any:
+        """Evaluate multi-line expressions using asteval (AST sandbox)."""
+        interpreter = asteval.Interpreter()
+        # Inject safe builtins and context variables
+        interpreter.symtable.update(
+            {
+                "today": lambda: date.today().isoformat(),
+                "days_between": self._days_between,
+                "days_since": self._days_since,
+                "is_null": lambda value: value is None,
+                "clamp": self._clamp,
+                "max": max,
+                "min": min,
+                "round": round,
+                "abs": abs,
+                "int": int,
+                "float": float,
+                "bool": bool,
+            }
+        )
+        interpreter.symtable.update(context)
+
+        result = interpreter.eval(expression)
+        if interpreter.error:
+            err_msg = "; ".join(str(e) for e in interpreter.error)
+            raise ExpressionSyntaxError(
+                f"Invalid expression '{expression}': {err_msg}"
+            )
+        return result
 
     def _prepare_expression(
         self,
@@ -197,6 +265,22 @@ class ExpressionEngine:
         if start_date is None or end_date is None:
             return 0
         return abs((end_date - start_date).days)
+
+    @staticmethod
+    def _days_since(start: Any) -> int:
+        start_date = ExpressionEngine._parse_date(start)
+        if start_date is None:
+            return 0
+        return abs((date.today() - start_date).days)
+
+    @staticmethod
+    def _clamp(value: Any, min_val: Any, max_val: Any) -> Any:
+        if value is None or min_val is None or max_val is None:
+            return value
+        try:
+            return max(min_val, min(max_val, value))
+        except (TypeError, ValueError):
+            return value
 
     @staticmethod
     def _parse_date(value: Any) -> date | None:

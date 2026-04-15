@@ -328,3 +328,373 @@ instances:
         guarantee_type: JOINT_LIABILITY
         start_date: "2026-01-01"
         status: ACTIVE
+
+  # ============================================================
+  # CASE-D: 新供应商（成立未满1年）
+  # 预期：准入检查失败（成立年限）→ REJECT
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_D_NEW"
+        company_name: "新兴科技有限公司"
+        unified_credit_code: "91440300MA5GCASED1"
+        registered_capital: { value: 1000000, currency: CNY }
+        establishment_date: "2025-09-01"
+        industry_type: TECHNOLOGY
+        company_size: SMALL
+        status: ACTIVE
+        tax_compliance_score: 60
+        negative_news_count_90d: 0
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_D_001"
+        invoice_type: NORMAL
+        amount: { value: 600000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_D_NEW" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+  # ============================================================
+  # CASE-E: 负面舆情供应商
+  # 预期：声誉分极低 → credit_score≈64 → APPROVE_WITH_CONDITIONS
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_E_NEG"
+        company_name: "风波贸易有限公司"
+        unified_credit_code: "91440300MA5GCASEE1"
+        registered_capital: { value: 5000000, currency: CNY }
+        establishment_date: "2020-06-01"
+        industry_type: RETAIL
+        company_size: MEDIUM
+        status: ACTIVE
+        tax_compliance_score: 70
+        negative_news_count_90d: 6
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_E_001"
+        invoice_type: SPECIAL
+        amount: { value: 2000000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_E_NEG" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+      - invoice_no: "INV_E_002"
+        invoice_type: SPECIAL
+        amount: { value: 100000, currency: CNY }
+        issue_date: "2026-01-15"
+        due_date: "2026-03-01"
+        status: OVERDUE
+        issued_by: { supplier_id: "SUP_E_NEG" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+  - fact_object: Contract
+    data:
+      - contract_no: "CTR_E_001"
+        contract_amount: { value: 4200000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_E_NEG" }
+        signed_with: { enterprise_id: "CE_HW" }
+
+  # ============================================================
+  # CASE-F: 优秀供应商（完美记录，AAA级）
+  # 预期：APPROVE，额度高
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_F_EXC"
+        company_name: "卓越供应链集团有限公司"
+        unified_credit_code: "91440300MA5GCASEF1"
+        registered_capital: { value: 100000000, currency: CNY }
+        establishment_date: "2015-01-01"
+        industry_type: LOGISTICS
+        company_size: LARGE
+        status: ACTIVE
+        tax_compliance_score: 95
+        negative_news_count_90d: 0
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_F_001"
+        invoice_type: SPECIAL
+        amount: { value: 5000000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_F_EXC" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+      - invoice_no: "INV_F_002"
+        invoice_type: SPECIAL
+        amount: { value: 5000000, currency: CNY }
+        issue_date: "2026-02-01"
+        due_date: "2026-05-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_F_EXC" }
+        issued_to: { enterprise_id: "CE_BYD" }
+
+      - invoice_no: "INV_F_003"
+        invoice_type: SPECIAL
+        amount: { value: 5000000, currency: CNY }
+        issue_date: "2026-04-01"
+        due_date: "2026-07-01"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_F_EXC" }
+        issued_to: { enterprise_id: "CE_ALI" }
+
+      - invoice_no: "INV_F_004"
+        invoice_type: SPECIAL
+        amount: { value: 5000000, currency: CNY }
+        issue_date: "2026-03-10"
+        due_date: "2026-06-10"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_F_EXC" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+  - fact_object: Contract
+    data:
+      - contract_no: "CTR_F_001"
+        contract_amount: { value: 20000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_F_EXC" }
+        signed_with: { enterprise_id: "CE_HW" }
+
+      - contract_no: "CTR_F_002"
+        contract_amount: { value: 20000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_F_EXC" }
+        signed_with: { enterprise_id: "CE_BYD" }
+
+  # ============================================================
+  # CASE-G: 多核心企业供应商（4家核心企业）
+  # 预期：APPROVE
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_G_MULTI"
+        company_name: "广联达科技有限公司"
+        unified_credit_code: "91440300MA5GCASEG1"
+        registered_capital: { value: 30000000, currency: CNY }
+        establishment_date: "2018-01-01"
+        industry_type: TECHNOLOGY
+        company_size: LARGE
+        status: ACTIVE
+        tax_compliance_score: 85
+        negative_news_count_90d: 0
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_G_001"
+        invoice_type: SPECIAL
+        amount: { value: 3000000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_G_MULTI" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+      - invoice_no: "INV_G_002"
+        invoice_type: SPECIAL
+        amount: { value: 3000000, currency: CNY }
+        issue_date: "2026-02-01"
+        due_date: "2026-05-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_G_MULTI" }
+        issued_to: { enterprise_id: "CE_BYD" }
+
+      - invoice_no: "INV_G_003"
+        invoice_type: SPECIAL
+        amount: { value: 3000000, currency: CNY }
+        issue_date: "2026-04-01"
+        due_date: "2026-07-01"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_G_MULTI" }
+        issued_to: { enterprise_id: "CE_ALI" }
+
+      - invoice_no: "INV_G_004"
+        invoice_type: SPECIAL
+        amount: { value: 3000000, currency: CNY }
+        issue_date: "2026-03-15"
+        due_date: "2026-06-15"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_G_MULTI" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+  - fact_object: Contract
+    data:
+      - contract_no: "CTR_G_001"
+        contract_amount: { value: 12000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_G_MULTI" }
+        signed_with: { enterprise_id: "CE_HW" }
+
+      - contract_no: "CTR_G_002"
+        contract_amount: { value: 12000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_G_MULTI" }
+        signed_with: { enterprise_id: "CE_BYD" }
+
+  # ============================================================
+  # CASE-H: 小型贸易商
+  # 预期：APPROVE_WITH_CONDITIONS
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_H_TRADE"
+        company_name: "小微商贸有限公司"
+        unified_credit_code: "91440300MA5GCASEH1"
+        registered_capital: { value: 1000000, currency: CNY }
+        establishment_date: "2022-01-01"
+        industry_type: RETAIL
+        company_size: SMALL
+        status: ACTIVE
+        tax_compliance_score: 65
+        negative_news_count_90d: 0
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_H_001"
+        invoice_type: NORMAL
+        amount: { value: 600000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_H_TRADE" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+  - fact_object: Contract
+    data:
+      - contract_no: "CTR_H_001"
+        contract_amount: { value: 2000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_H_TRADE" }
+        signed_with: { enterprise_id: "CE_HW" }
+
+  # ============================================================
+  # CASE-I: 大型制造（主力供应商）
+  # 预期：APPROVE（制造业主力）
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_I_MFG"
+        company_name: "宏达重工集团有限公司"
+        unified_credit_code: "91440300MA5GCASEI1"
+        registered_capital: { value: 80000000, currency: CNY }
+        establishment_date: "2012-01-01"
+        industry_type: MANUFACTURING
+        company_size: LARGE
+        status: ACTIVE
+        tax_compliance_score: 90
+        negative_news_count_90d: 0
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_I_001"
+        invoice_type: SPECIAL
+        amount: { value: 5000000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_I_MFG" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+      - invoice_no: "INV_I_002"
+        invoice_type: SPECIAL
+        amount: { value: 5000000, currency: CNY }
+        issue_date: "2026-02-01"
+        due_date: "2026-05-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_I_MFG" }
+        issued_to: { enterprise_id: "CE_BYD" }
+
+  - fact_object: Contract
+    data:
+      - contract_no: "CTR_I_001"
+        contract_amount: { value: 20000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_I_MFG" }
+        signed_with: { enterprise_id: "CE_HW" }
+
+      - contract_no: "CTR_I_002"
+        contract_amount: { value: 10000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_I_MFG" }
+        signed_with: { enterprise_id: "CE_BYD" }
+
+  # ============================================================
+  # CASE-J: 部分担保供应商
+  # 预期：APPROVE_WITH_CONDITIONS（担保链深度=1）
+  # ============================================================
+  - fact_object: Supplier
+    data:
+      - supplier_id: "SUP_J_PARTIAL"
+        company_name: "鑫源实业有限公司"
+        unified_credit_code: "91440300MA5GCASEJ1"
+        registered_capital: { value: 20000000, currency: CNY }
+        establishment_date: "2019-01-01"
+        industry_type: MANUFACTURING
+        company_size: MEDIUM
+        status: ACTIVE
+        tax_compliance_score: 80
+        negative_news_count_90d: 0
+
+  - fact_object: Invoice
+    data:
+      - invoice_no: "INV_J_001"
+        invoice_type: SPECIAL
+        amount: { value: 2500000, currency: CNY }
+        issue_date: "2026-03-01"
+        due_date: "2026-06-01"
+        status: PAID
+        issued_by: { supplier_id: "SUP_J_PARTIAL" }
+        issued_to: { enterprise_id: "CE_HW" }
+
+      - invoice_no: "INV_J_002"
+        invoice_type: SPECIAL
+        amount: { value: 2500000, currency: CNY }
+        issue_date: "2026-04-01"
+        due_date: "2026-07-01"
+        status: PENDING
+        issued_by: { supplier_id: "SUP_J_PARTIAL" }
+        issued_to: { enterprise_id: "CE_BYD" }
+
+  - fact_object: Contract
+    data:
+      - contract_no: "CTR_J_001"
+        contract_amount: { value: 8000000, currency: CNY }
+        start_date: "2026-01-01"
+        end_date: "2026-12-31"
+        status: ACTIVE
+        signed_by: { supplier_id: "SUP_J_PARTIAL" }
+        signed_with: { enterprise_id: "CE_HW" }
+
+  - fact_object: GuaranteeRelation
+    data:
+      - guarantor_id: "SUP_A"
+        guaranteed_id: "SUP_J_PARTIAL"
+        guarantee_amount: { value: 10000000, currency: CNY }
+        guarantee_type: JOINT_LIABILITY
+        start_date: "2026-01-01"
+        status: ACTIVE
