@@ -58,6 +58,107 @@ export default function NodeDetailPanel({ node, onMetricClick }: NodeDetailPanel
             </Space>
           </Card>
         )}
+
+        {data.properties?.length > 0 && (
+          <Card
+            size="small"
+            title={`属性定义 (${data.properties.length})`}
+            style={{ marginBottom: 12 }}
+            styles={{ header: { fontSize: 12, padding: '4px 12px' } }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {data.properties.map((prop: any) => (
+                <div
+                  key={prop.name}
+                  style={{
+                    padding: '6px 8px',
+                    background: '#fafafa',
+                    borderRadius: 4,
+                    borderLeft: prop.required ? '3px solid #ff4d4f' : '3px solid #d9d9d9',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Text strong style={{ fontSize: 12 }}>{prop.name}</Text>
+                    <Tag color={prop.required ? 'red' : 'default'} style={{ fontSize: 9, margin: 0, padding: '0 2px' }}>
+                      {prop.type}
+                    </Tag>
+                    {prop.unique && <Tag color="purple" style={{ fontSize: 9, margin: 0, padding: '0 2px' }}>唯一</Tag>}
+                  </div>
+                  {prop.description && (
+                    <Text type="secondary" style={{ fontSize: 11 }}>{prop.description}</Text>
+                  )}
+                  {prop.enum && (
+                    <div style={{ marginTop: 4 }}>
+                      <Text type="secondary" style={{ fontSize: 10 }}>枚举值: </Text>
+                      {prop.enum.map((v: string) => (
+                        <Tag key={v} style={{ fontSize: 9 }}>{v}</Tag>
+                      ))}
+                    </div>
+                  )}
+                  {prop.validation?.pattern && (
+                    <Text type="secondary" style={{ fontSize: 10, fontFamily: 'monospace' }}>
+                      正则: {prop.validation.pattern}
+                    </Text>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  // Category Node Detail
+  if (type === 'category') {
+    return (
+      <div style={{ padding: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <DatabaseOutlined style={{ fontSize: 20, color: '#722ED1' }} />
+          <div>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{data.label || id}</h4>
+            <Text type="secondary" style={{ fontSize: 11 }}>L2 分类体系</Text>
+          </div>
+        </div>
+
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Descriptions column={1} size="small">
+            <Descriptions.Item label="分类ID">
+              <code style={{ fontSize: 11 }}>{id}</code>
+            </Descriptions.Item>
+            {data.taxonomy_type && (
+              <Descriptions.Item label="分类类型">
+                <Tag color="purple" style={{ fontSize: 11 }}>{data.taxonomy_type}</Tag>
+              </Descriptions.Item>
+            )}
+            {data.classification_count != null && (
+              <Descriptions.Item label="分类数量">
+                <Badge count={data.classification_count} style={{ backgroundColor: '#722ED1' }} />
+              </Descriptions.Item>
+            )}
+          </Descriptions>
+        </Card>
+
+        {data.description && (
+          <Card size="small" title="描述" style={{ marginBottom: 12 }}>
+            <Paragraph style={{ fontSize: 12, margin: 0 }}>{data.description}</Paragraph>
+          </Card>
+        )}
+
+        {data.classifications?.length > 0 && (
+          <Card
+            size="small"
+            title={`分类项 (${data.classifications.length})`}
+            style={{ marginBottom: 12 }}
+            styles={{ header: { fontSize: 12, padding: '4px 12px' } }}
+          >
+            <Space wrap>
+              {data.classifications.map((item: string) => (
+                <Tag key={item} color="purple" style={{ fontSize: 11 }}>{item}</Tag>
+              ))}
+            </Space>
+          </Card>
+        )}
       </div>
     );
   }
