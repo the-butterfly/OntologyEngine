@@ -32,7 +32,7 @@ export const operatorsApi = {
    */
   list: async (): Promise<OperatorInfo[]> => {
     const response = await apiClient.get('/operators');
-    return response.data.operators;
+    return response.data.data.operators;
   },
 
   /**
@@ -40,7 +40,7 @@ export const operatorsApi = {
    */
   getSchema: async (operatorName: string): Promise<OperatorSchema> => {
     const response = await apiClient.get(`/operators/${operatorName}/schema`);
-    return response.data.schema;
+    return response.data.data.schema;
   },
 };
 

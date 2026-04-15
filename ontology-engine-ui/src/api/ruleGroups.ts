@@ -15,7 +15,7 @@ export const ruleGroupsApi = {
       query.set('enabled', String(params.enabled));
     }
     const response = await apiClient.get(`/rule-groups?${query}`);
-    return response.data.rule_groups;
+    return response.data.data.rule_groups;
   },
 
   /**
@@ -24,7 +24,7 @@ export const ruleGroupsApi = {
   getById: async (id: string, schemaId?: string): Promise<RuleGroup> => {
     const query = schemaId ? `?schema_id=${schemaId}` : '';
     const response = await apiClient.get(`/rule-groups/${id}${query}`);
-    return response.data.rule_group;
+    return response.data.data.rule_group;
   },
 
   /**
@@ -35,7 +35,7 @@ export const ruleGroupsApi = {
       ...ruleGroup,
       schema_id: schemaId,
     });
-    return response.data.rule_group;
+    return response.data.data.rule_group;
   },
 
   /**
@@ -48,7 +48,7 @@ export const ruleGroupsApi = {
   ): Promise<RuleGroup> => {
     const query = schemaId ? `?schema_id=${schemaId}` : '';
     const response = await apiClient.put(`/rule-groups/${id}${query}`, updates);
-    return response.data.rule_group;
+    return response.data.data.rule_group;
   },
 
   /**
@@ -68,7 +68,7 @@ export const ruleGroupsApi = {
     const response = await apiClient.get(
       `/rule-groups/${name}/steps?schema_id=${schemaId}`
     );
-    return response.data.steps;
+    return response.data.data.steps;
   },
 
   /**
@@ -83,7 +83,7 @@ export const ruleGroupsApi = {
       `/rule-groups/${name}/steps?schema_id=${schemaId}`,
       step
     );
-    return response.data.step;
+    return response.data.data.step;
   },
 
   /**
@@ -99,7 +99,7 @@ export const ruleGroupsApi = {
       `/rule-groups/${name}/steps/${stepId}?schema_id=${schemaId}`,
       updates
     );
-    return response.data.step;
+    return response.data.data.step;
   },
 
   /**
@@ -112,6 +112,20 @@ export const ruleGroupsApi = {
   ): Promise<void> => {
     await apiClient.delete(
       `/rule-groups/${name}/steps/${stepId}?schema_id=${schemaId}`
+    );
+  },
+
+  /**
+   * Reorder steps within a rule group
+   */
+  reorderSteps: async (
+    name: string,
+    stepIds: string[],
+    schemaId: string
+  ): Promise<void> => {
+    await apiClient.put(
+      `/rule-groups/${name}/steps/reorder?schema_id=${schemaId}`,
+      { step_ids: stepIds }
     );
   },
 
@@ -141,7 +155,7 @@ export const ruleGroupsApi = {
     const response = await apiClient.get(
       `/rule-groups/${name}/export?schema_id=${schemaId}`
     );
-    return response.data.yaml_content;
+    return response.data.data.yaml_content;
   },
 
   /**
@@ -152,7 +166,7 @@ export const ruleGroupsApi = {
       yaml_content: yamlContent,
       schema_id: schemaId,
     });
-    return response.data.rule_group;
+    return response.data.data.rule_group;
   },
 };
 
