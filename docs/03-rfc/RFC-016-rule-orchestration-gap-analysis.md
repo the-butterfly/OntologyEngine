@@ -1,8 +1,9 @@
 # RFC-016: 规则编排系统 Gap 分析与实施路线
 
-> **状态**: draft
+> **状态**: updated
 > **父 RFC**: RFC-014 · RFC-015
 > **创建日期**: 2026-04-16
+> **最后更新**: 2026-04-16
 > **作者**: the-butterfly
 
 ---
@@ -15,6 +16,20 @@
 2. **画布编排缺口**：Phase 2-B 规划的拖拽可视化编排尚未实现
 3. **桥接缺口**：旧规则声明（RuleDeclaration）无法关联到新规则组（RuleGroup）
 4. **要素 DAG 深度联动**：当前 DAG 只读，缺少点击节点→编辑规则的双向联动
+5. **YAML 格式不匹配**：Phase 2 `import_from_yaml` 的格式与 `RuleGroupDefinition` 模型不兼容，也与示例 `schema.yaml` 格式脱节
+
+---
+
+## 实施状态总览（2026-04-16）
+
+| 任务 | 描述 | 状态 | 说明 |
+|------|------|------|------|
+| T1 | 统一入口导航 | ✅ **已完成** | 旧 `RuleLogicsPage`/`RuleDeclarationsPage` 已删除；`SpaceDetailPage` 导航统一为 `/rules?schemaId=X` |
+| T2 | 画布拖拽编排（G6/X6） | 🔲 待实施 | `RuleChainDAG` 尚未支持节点拖拽排序 |
+| T3 | DAG 双向联动（BFS 高亮） | 🔲 待实施 | `highlightNodeId` state 已预备，但高亮逻辑未完成 |
+| T4 | 数据迁移准备（外键字段） | ✅ **已完成** | `rule_groups.source_declaration_id` VARCHAR 列已通过迁移脚本添加 |
+| T5 | 旧系统废弃 | ✅ **已完成** | `RuleLogicsPage.tsx` / `RuleDeclarationsPage.tsx` 已删除；`App.tsx` 旧路由已清理 |
+| T6 | Phase 2 YAML 格式适配 | 🔲 新发现 | `import_from_yaml` / `export_rule_group_to_yaml` 格式与 Phase 2 模型不兼容（见第三节 Gap 5） |
 
 ---
 
@@ -63,20 +78,13 @@
 - 业务分析师不知道哪个是"正确"入口
 - 未来迁移路线不清晰
 
-**决策点**：
-- 选项 A：逐步废弃旧系统，所有流量引导到 `/rules`（Phase 2 新系统）
-- 选项 B：双轨并存，通过桥接层让旧规则声明引用新规则组
-- 选项 C：统一入口层，URL 只是视图不同，共用同一数据模型
+**决策**：✅ **选项 A：废弃旧系统**（用户确认 D1）
 
-**决策点**：
-- 选项 A：逐步废弃旧系统，所有流量引导到 `/rules`（Phase 2 新系统）
-- 选项 B：双轨并存，通过桥接层让旧规则声明引用新规则组
-- 选项 C：统一入口层，URL 只是视图不同，共用同一数据模型
-
-**决策**：✅ **选项 A：废弃旧系统**（用户确认）
-- Phase 2 完成 后，`/rules/logics` 及 `rule_declarations`/`rule_logics` 表废弃
-- 迁移路径：旧数据 → 新 `rule_groups`/`rule_steps`，通过外键字段建立引用（见 Gap 3）
-- 迁移完成后删除旧表、旧 API、旧页面组件
+**实施结果**（✅ 已完成 T1 + T5）：
+- `RuleLogicsPage.tsx` / `RuleDeclarationsPage.tsx` 已从 `ontology-engine-ui/src/pages/spaces/` 删除
+- `App.tsx` 旧路由已清理（`RuleDeclarationsPage`/`RuleLogicsPage` import 已移除）
+- `SpaceDetailPage` 导航统一为单一条目 `rules → /rules?schemaId=X`
+- 旧 `rule_declarations` / `rule_logics` 表仍存在于 DuckDB（待后续迁移脚本清理）
 
 ---
 
@@ -88,18 +96,19 @@
 - `RuleChainDAG` 组件：`element_dependency` 维度的只读 DAG 展示
 - 节点位置静态计算（`x: 100/300/500`, `y: 80 * idx`）
 - 点击节点可跳转编辑（`handleDAGNodeClick` → `setInitialEditStep`）
+- `RuleStepList` 列表层级拖拽排序（`@dnd-kit`）✅
 
 **缺失部分**：
-- 节点拖拽排序（应同步更新 `step_order` 并调用 `POST /rule-groups/:name/steps/reorder`）
+- 画布层级节点拖拽排序（应同步更新 `step_order` 并调用 `POST /rule-groups/:name/steps/reorder`）
 - 新节点创建（从左侧算子面板拖入画布）
 - 连线编辑（INPUT → STEP → OUTPUT 的边连接方式）
 - 画布缩放/平移
 
 **实施关键细节**：
-- `@dnd-kit` 已引入项目（RuleStepList 中有使用），但 DAG 区域未使用
-- **决策**：✅ **G6/X6**（用户确认）
+- `@dnd-kit` 已引入项目（RuleStepList 中有使用），但 DAG 画布区域未使用
+- **决策**：✅ **G6/X6**（用户确认 D2）
   - G6 (`@antv/g6`) 4.x 支持拖拽节点、边编辑、画布缩放/平移
-  - X6（@antv/x6）是 G6 的 React 封装，更适合 React 项目，是更优选择
+  - X6（@antv/x6）是 G6 的 React 封装，更适合 React 项目
   - 扩展 `RuleChainDAG` 为可编辑模式，无需引入新库
 - DAG 节点拖拽后需要：
   1. 更新本地位置 state
@@ -121,9 +130,11 @@
 | 数据迁移 | 将 `rule_logics` 数据迁移到 `rule_steps`，废弃旧表 | 高（一次性） |
 
 **决策**：✅ **外键引用**（用户确认 D3）
-- Phase 2 完成后，在 `rule_groups` 表增加 `source_declaration_id` VARCHAR 列（可空）
-- 迁移时将 `rule_declarations.id` → `rule_groups.source_declaration_id`
-- 迁移完成后删除旧 `rule_declarations`/`rule_logics` 表
+
+**实施结果**（✅ 已完成 T4）：
+- `rule_groups` 表已增加 `source_declaration_id` VARCHAR 列（可空）
+- 迁移脚本：`ontology_engine/migrations/add_source_declaration_id.py`
+- 迁移完成后删除旧 `rule_declarations`/`rule_logics` 表（待后续数据迁移阶段执行）
 
 ---
 
@@ -131,56 +142,72 @@
 
 **现状**：
 - `RuleChainDAG` 展示只读 DAG
-- `handleDAGNodeClick` 可以跳转到编辑 Modal，但：
-  - 没有反馈当前节点在 DAG 中的上下游关系
-  - 没有高亮路径（从 INPUT 到该节点的路径）
-  - 没有展示如果删除该节点会影响哪些 OUTPUT
+- `handleDAGNodeClick` 可以跳转到编辑 Modal
+- `RuleGroupDetailPage` 已预备 `highlightNodeId` state 和 `onReorder` 回调，但高亮逻辑未完成
+
+**缺失部分**：
+- BFS 上游（绿色）/ 下游（橙色）路径高亮未实现
+- 从选中节点反向遍历 `edges` 推导上游路径（前端实时计算，无需 API）
+- 影响分析：遍历从该节点出发的所有 OUTPUT 边，展示下游影响
+- DAG 右侧"路径详情面板"（显示从选中节点到根节点的完整路径）
 
 **实施关键细节**：
-- 后端 `/dag/path?from=X&to=Y` API 已存在，但**决策**：✅ **前端推导**（用户确认 D5）
+- **决策**：✅ **前端推导**（用户确认 D5）
   - 路径高亮基于前端已加载数据（`dagData.nodes`/`dagData.edges`）实时计算
   - BFS/DFS 从选中节点反向遍历 `edges` 推导上游路径
   - 影响分析：遍历从该节点出发的所有 OUTPUT 边，展示下游影响
-- 可在 DAG 右侧增加"路径详情面板"，显示从选中节点到根节点的完整路径
 - 无需额外 API 调用，响应更快
+
+### Gap 5: Phase 2 YAML 格式与模型不兼容（新发现）
+
+**问题**：`RuleService.import_from_yaml()` 和 `export_rule_group_to_yaml()` 使用的格式与 `RuleGroupDefinition` + `RuleStep` 模型不匹配，也与示例 `schema.yaml` 格式完全脱节。
+
+**详细分析**：
+
+| 格式 | 结构 | 来源 |
+|------|------|------|
+| 当前导入/导出 | 顶级 `rule_definitions[]` + `rule_logics[]`（扁平） | `rule_service.py:386-415` |
+| Phase 2 模型 | `RuleGroupDefinition`（四元素①②③）+ `RuleStep`（四元素④） | `engine/rule/models.py` |
+| 旧 L4 示例 | `semantic_space.business_logic.rule_definitions[]` + `rule_logics[]`（嵌套） | `examples/supply_chain_finance/schema.yaml` |
+
+**字段对照**：
+
+| 旧 L4 (`schema.yaml`) | Phase 2 (`RuleGroupDefinition`) | 当前导入格式 |
+|---|---|---|
+| `id: RD001` | `name` | `name` |
+| `rule_type: constraint` | `type: constraint` | `type` |
+| `applies_to: [Supplier]` | `applies_to.fact_objects: []` | `applies_to: {}` |
+| `applicable_categorizations` | `applies_to.categories: {}` | ❌ 缺失 |
+| `action_type: set_flag` | `operator: SET_FLAG` | ❌ 字段不同 |
+| `output: {is_eligible: true}` | `params: {}` + `output_mapping: {}` | ❌ 结构不同 |
+| `when.expression` | `when.type` + `when.expression` | ✅ 已支持 |
+| `allOf/anyOf` | `type: all_of/any_of` + `sub_conditions[]` | ⚠️ 值格式变化 |
+
+**关联影响范围**：
+- `ontology_engine/services/rule_service.py` — `import_from_yaml()` / `export_rule_group_to_yaml()` 核心逻辑
+- `ontology_engine/api/routes/rules.py` — import/export API 端点（接口不变）
+- 前端 UI 和 API 调用层**无需修改**
+
+**解决方案**（详见 RFC-017）：
+- 重新设计 Phase 2 YAML 格式（`rule_group` + `rule_steps`）
+- `import_from_yaml` 支持 Phase 2 格式（优先）和旧 L4 格式（兼容）
+- `export_rule_group_to_yaml` 输出 Phase 2 格式（与导入对称）
 
 ---
 
 ## 三、实施路线
 
-### 路线 A：渐进式桥接（已确认）
-
 ```
-当前（Phase 2 完成度 80%）
-  ↓
-[T1] 统一入口导航：规则管理菜单只保留一个入口
-  ↓
-[T2] 完善 Phase 2 画布编排（Phase 2-B）
-  - 节点拖拽排序
-  - 算子面板拖入创建
-  - 连线编辑
-  ↓
-[T3] 双向联动增强
-  - 路径高亮
-  - 影响分析面板
-  ↓
-[T4] 数据迁移准备
-  - 建立 rule_groups.source_declaration_id 外键
-  - 迁移脚本编写
-  ↓
-[T5] 旧系统废弃（可选）
+当前（Phase 2 完成度约 85%）
+  ✅ T1: 统一入口导航          — 已完成
+  ✅ T4: 数据迁移准备（外键字段）— 已完成
+  ✅ T5: 旧系统废弃            — 已完成
+  🔲 T2: 完善画布编排（Phase 2-B）— G6/X6 节点拖拽排序
+  🔲 T3: 双向联动增强（BFS 高亮）— 上游/下游路径高亮
+  🔲 T6: Phase 2 YAML 格式适配  — 见 RFC-017
 ```
 
-### 路线 B：快速废弃（备选）
-
-若时间有限，可在 Phase 2 完成后直接：
-```
-[T1] 删除 rule_declarations / rule_logics 表
-[T2] 删除 RuleLogicsPage / RuleDeclarationsPage 组件
-[T3] 删除旧 API 路由
-```
-
-适合作为路线 A 的快速替代方案，不推荐（会丢失历史数据）。
+**说明**：Gap 1（入口导航）和 Gap 3（外键桥接）已通过 T1+T4+T5 解决。剩余 Gap 2（G6 画布）、Gap 4（DAG 联动）、Gap 5（YAML 格式）构成 Phase 2-B/C 的核心工作。
 
 ---
 
@@ -229,36 +256,43 @@
 
 ### 前端（Phase 2 已实现）
 
-| 文件 | 作用 |
-|------|------|
-| `ontology-engine-ui/src/pages/rules/RuleGroupListPage.tsx` | 规则组列表 |
-| `ontology-engine-ui/src/pages/rules/RuleGroupDetailPage.tsx` | 三栏详情页（含 DAG） |
-| `ontology-engine-ui/src/pages/rules/RuleGroupCreatePage.tsx` | 创建页 |
-| `ontology-engine-ui/src/pages/rules/RuleStepEditPage.tsx` | 步骤编辑页（深链接） |
-| `ontology-engine-ui/src/components/rule/RuleStepList.tsx` | 步骤列表 + 拖拽排序 |
-| `ontology-engine-ui/src/components/rule/RuleChainDAG.tsx` | DAG 可视化 |
-| `ontology-engine-ui/src/components/rule/ActionEditor.tsx` | 5 算子参数编辑器 |
-| `ontology-engine-ui/src/api/ruleGroups.ts` | API 客户端 |
-| `ontology-engine-ui/src/hooks/useRuleGroups.ts` | 数据获取 Hook |
-| `ontology-engine-ui/src/stores/ruleStore.ts` | Zustand 状态 |
+| 文件 | 作用 | 状态 |
+|------|------|------|
+| `ontology-engine-ui/src/pages/rules/RuleGroupListPage.tsx` | 规则组列表 + 导入/导出 | ✅ |
+| `ontology-engine-ui/src/pages/rules/RuleGroupDetailPage.tsx` | 三栏详情页（含 DAG） | ✅ |
+| `ontology-engine-ui/src/pages/rules/RuleGroupCreatePage.tsx` | 创建页 | ✅ |
+| `ontology-engine-ui/src/pages/rules/RuleStepEditPage.tsx` | 步骤编辑页（深链接） | ✅ |
+| `ontology-engine-ui/src/components/rule/RuleStepList.tsx` | 步骤列表 + 拖拽排序 | ✅ |
+| `ontology-engine-ui/src/components/rule/RuleChainDAG.tsx` | DAG 可视化（只读） | ✅ |
+| `ontology-engine-ui/src/components/rule/ActionEditor.tsx` | 5 算子参数编辑器 | ✅ |
+| `ontology-engine-ui/src/api/ruleGroups.ts` | API 客户端 | ✅ |
+| `ontology-engine-ui/src/hooks/useRuleGroups.ts` | 数据获取 Hook | ✅ |
+| `ontology-engine-ui/src/stores/ruleStore.ts` | Zustand 状态 | ✅ |
+| `ontology-engine-ui/src/pages/spaces/SpaceDetailPage.tsx` | 统一规则管理导航入口 | ✅ |
 
 ### 后端
 
-| 文件 | 作用 |
-|------|------|
-| `ontology_engine/api/routes/rules.py` | 规则 API 路由 |
-| `ontology_engine/services/rule_service.py` | 规则服务层 |
-| `ontology_engine/engine/rule/models.py` | 规则数据模型 |
-| `ontology_engine/storage/duckdb/store.py` | DuckDB 存储（含 upsert 修复） |
-| `ontology_engine/engine/rule/operators/` | 算子注册中心 |
+| 文件 | 作用 | 状态 |
+|------|------|------|
+| `ontology_engine/api/routes/rules.py` | 规则 API 路由 | ✅ |
+| `ontology_engine/services/rule_service.py` | 规则服务层（含 YAML 导入/导出） | ✅ 但格式待升级 |
+| `ontology_engine/engine/rule/models.py` | 规则数据模型 | ✅ |
+| `ontology_engine/storage/duckdb/store.py` | DuckDB 存储（含 upsert 修复） | ✅ |
+| `ontology_engine/engine/rule/operators/` | 算子注册中心 | ✅ |
+| `ontology_engine/migrations/add_source_declaration_id.py` | 外键字段迁移脚本 | ✅ |
 
-### 旧系统（待桥接或废弃）
+### 旧系统（已废弃）
 
-| 文件 | 作用 |
+| 文件 | 状态 |
 |------|------|
-| `ontology-engine-ui/src/pages/spaces/RuleLogicsPage.tsx` | 旧规则逻辑页 |
-| `ontology-engine-ui/src/pages/spaces/RuleDeclarationsPage.tsx` | 旧规则声明页 |
-| `ontology_engine/services/rule_service.py` (legacy) | 旧规则服务 |
+| `ontology-engine-ui/src/pages/spaces/RuleLogicsPage.tsx` | ✅ 已删除（T5） |
+| `ontology-engine-ui/src/pages/spaces/RuleDeclarationsPage.tsx` | ✅ 已删除（T5） |
+
+### 新增设计文档
+
+| 文件 | 内容 |
+|------|------|
+| `docs/03-rfc/RFC-017-rule-orchestration-yaml-format.md` | Phase 2 YAML 格式设计（rule_group + rule_steps） |
 
 ---
 

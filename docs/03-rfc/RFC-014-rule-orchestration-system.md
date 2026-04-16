@@ -1,11 +1,12 @@
 # RFC-014: 规则逻辑编排系统
 
-> **状态**: draft
+> **状态**: updated
 > **父 RFC**: [RFC-010](./RFC-010-phase2-roadmap.md)
 > **创建日期**: 2026-04-15
+> **最后更新**: 2026-04-16
 > **作者**: the-butterfly
 > **评审截止**: 待定
-> **关联文档**: [RFC-011](./RFC-011-rule-executor-dag.md) · [RFC-012](./RFC-012-kuzu-storage.md)
+> **关联文档**: [RFC-011](./RFC-011-rule-executor-dag.md) · [RFC-012](./RFC-012-kuzu-storage.md) · [RFC-016](./RFC-016-rule-orchestration-gap-analysis.md) · [RFC-017](./RFC-017-rule-orchestration-yaml-format.md)
 
 ---
 
@@ -280,12 +281,7 @@ Response:
       "step_name": "基本资质检查",
       "condition_result": true,
       "condition_detail": {
-        "type": "ALL_OF",
-        "sub_conditions": [
-          {"expr": "status == 'ACTIVE'", "result": true, "explain": "状态为激活"},
-          {"expr": "registered_capital.value >= 1000000", "result": true, "explain": "注册资本500万 >= 100万"}
-        ]
-      },
+        "type": "all_of",
       "action_taken": "SET_FLAG",
       "output": {"eligible": true},
       "duration_ms": 2
@@ -311,10 +307,41 @@ GET  /api/v1/dag/path                          # 从 source 到 target 的路径
 
 ### 4.4 YAML 导入导出
 
+> **重要更新**：YAML 格式设计已迁移至 [RFC-017](./RFC-017-rule-orchestration-yaml-format.md)。
+> 当前实现格式（扁平的 `rule_definitions[] + rule_logics[]`）与 Phase 2 模型不兼容，将在 Phase 2-B 中重新设计。
+
 ```
-GET  /api/v1/rule-groups/{name}/export?schema_id=xxx  # 导出为 YAML（Schema v2 canonical）
+GET  /api/v1/rule-groups/{name}/export?schema_id=xxx  # 导出为 YAML
 POST /api/v1/rule-groups/import               # 从 YAML 导入 (body: {yaml_content, schema_id})
-POST /api/v1/rule-groups/validate-yaml        # 验证 YAML 合法性
+POST /api/v1/rule-groups/validate-yaml        # 验证 YAML 合法性（Phase 2-B 实现）
+```
+
+**Phase 2 YAML 格式目标**（RFC-017）：
+
+```yaml
+rule_group:
+  name: "RD001_basic_eligibility"
+  type: "constraint"
+  priority: 100
+  applies_to:
+    fact_objects: ["Supplier"]
+    categories: {}
+  inputs: [...]
+  outputs: [...]
+
+rule_steps:
+  - id: "step-1"
+    order: 1
+    when:
+      type: "all_of"                  # expression | all_of | any_of
+      sub_conditions:
+        - "entity.registered_capital_value >= 1000000"
+    then:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_eligible"
+        flag_value: true
+      output_mapping: {}
 ```
 
 ### 4.5 算子查询
