@@ -94,7 +94,8 @@ class IngestionService:
 
     async def import_from_dict(
         self,
-        data: dict[str, Any]
+        data: dict[str, Any],
+        space_id: str | None = None
     ) -> IngestionResult:
         """Import from a dictionary format.
 
@@ -110,6 +111,7 @@ class IngestionService:
 
         Args:
             data: Dictionary with entities and relations
+            space_id: Space ID to associate with imported entities
 
         Returns:
             IngestionResult with counts
@@ -136,7 +138,8 @@ class IngestionService:
 
         request = IngestionRequest(
             entities=entities,
-            relations=relations
+            relations=relations,
+            space_id=space_id
         )
 
         return await self.import_instances(request)

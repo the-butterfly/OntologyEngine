@@ -1,9 +1,9 @@
 # API 设计文档
 
-> **Version**: v2.0 (Phase 2)
+> **Version**: v2.1 (Phase 2 - Migration Complete)
 > **Protocol**: REST (FastAPI)
 > **状态**: 与代码一致
-> **最后核验**: 2026-04-16
+> **最后核验**: 2026-04-17
 
 ## 目录
 
@@ -1163,46 +1163,46 @@ const body = {
 
 ## 附录 B: 迁移检查清单
 
-> **验证状态**: ⚠️ 代码审查完成，发现部分路径不匹配和缺失功能
+> **验证状态**: ✅ 代码审查完成 - 所有迁移项均已实现
 
 ### Phase 1 → Phase 2 迁移项
 
-| 旧端点 | 新端点 (实际路径) | 验证状态 | 前端影响 |
-|--------|-------------------|----------|----------|
-| `GET /v1/schema` | `GET /v1/management/{space_id}` | ⚠️ 路径已存在 | Schema 页面 |
-| `POST /v1/schema/load` | `POST /v1/management/{space_id}/schema/load-from-yaml` | ⚠️ 路径已存在 | Schema 上传 |
-| `GET /v1/entities` | `GET /v1/management/{space_id}/instances/entities` | ⚠️ 路径已存在 | 实体列表 |
-| `POST /v1/entities` | `POST /v1/management/{space_id}/instances/entities` | ⚠️ 路径已存在 | 实体创建 |
-| `GET /v1/visualize/schema/graph` | `GET /v1/consumption/views/{view_id}/visualize/schema-graph` | ✅ 已实现 | 可视化页面 |
-| `GET /v1/visualize/entities` | `GET /v1/consumption/views/{view_id}/entities` | ✅ 已实现 | 可视化页面 |
-| `GET /v1/visualize/metrics/{id}` | 无等效端点 | ❌ 缺失 | Metric 快照 |
-| `GET /v1/visualize/rule-chain/{dim}` | `GET /v1/consumption/views/{view_id}/rules/dependency-graph` | ⚠️ 部分等效 | 规则链图 |
-| `POST /v1/ingestion/import` | `POST /v1/ingestion/import?space=xxx_id` | ❌ **未实现** | 数据导入 |
-| `DELETE /v1/schema/rollback/{v}` | `POST /v1/management/{space_id}/versions/{v}/rollback` | ⚠️ 需验证 | 版本回滚 |
+| 旧端点 | 新端点 (实际路径) | 状态 | 实施日期 |
+|--------|-------------------|------|----------|
+| `GET /v1/schema` | `GET /v1/management/{space_id}` | ✅ 已迁移 + deprecated header | 2026-04-17 |
+| `POST /v1/schema/load` | `POST /v1/management/{space_id}/schema/load-from-yaml` | ✅ 已迁移 + deprecated header | 2026-04-17 |
+| `GET /v1/entities` | `GET /v1/management/{space_id}/instances/entities` | ✅ 已迁移 + deprecated header | 2026-04-17 |
+| `POST /v1/entities` | `POST /v1/management/{space_id}/instances/entities` | ✅ 已迁移 + deprecated header | 2026-04-17 |
+| `GET /v1/visualize/schema/graph` | `GET /v1/consumption/views/{view_id}/visualize/schema-graph` | ✅ 已实现 | 2026-04-17 |
+| `GET /v1/visualize/entities` | `GET /v1/consumption/views/{view_id}/entities` | ✅ 已实现 | 2026-04-17 |
+| `GET /v1/visualize/metrics/{id}` | `GET /v1/consumption/views/{view_id}/metrics/{entity_id}/snapshot` | ✅ 已实现 | 2026-04-17 |
+| `GET /v1/visualize/rule-chain/{dim}` | `GET /v1/consumption/views/{view_id}/rules/dependency-graph` | ✅ 已实现 | 2026-04-17 |
+| `POST /v1/ingestion/import` | `POST /v1/ingestion/import?space_id=xxx` | ✅ 已实现 | 2026-04-17 |
+| `DELETE /v1/schema/rollback/{v}` | `POST /v1/management/{space_id}/versions/{v}/rollback` | ✅ 路径已存在 | 2026-04-17 |
 
-### 关键发现
+### 已完成项
 
-#### 1. 路径前缀不匹配 (需更正文档)
-- 文档假设: `/v1/management/spaces/{id}/...`
-- 实际代码: `/v1/management/{space_id}/...` (management.py 路由 prefix 是 `/v1/management`)
+#### 1. ingestion.py space_id 参数 ✅
+- `POST /v1/ingestion/import?space_id=xxx`
+- `POST /v1/ingestion/import/dict?space_id=xxx`
+- `POST /v1/ingestion/validate?space_id=xxx`
+- 缺失 space_id 返回 400 `MISSING_PARAMETER`
 
-#### 2. ingestion.py 缺少 space 参数
-- 当前状态: `POST /v1/ingestion/import` 等端点**不接受** `space_id` 参数
-- 影响: 无法将导入的实体关联到正确的 Space，数据隔离失效
+#### 2. visualization.ts 前端重构 ✅
+- `fetchSchemaGraph` → `spaceApi.getSchemaGraph(viewId, ...)`
+- `fetchVisualizationEntities` → `spaceApi.listViewEntities(viewId, ...)`
+- `fetchMetricSnapshot` → `spaceApi.getMetricSnapshot(viewId, entityId, ...)`
+- `fetchRuleChainGraph` → `spaceApi.getRuleDependencyGraph(viewId)`
+- `simulateExecution` → `spaceApi.executeSimulate(viewId, ...)`
+- `fetchExecutionTrace` → `spaceApi.executeAnalyze(viewId, ..., true)`
 
-#### 3. visualization.ts 需全面重构
-- 当前: 基于 `/v1/visualize/*` (无 view_id)
-- 目标: 基于 `/v1/consumption/views/{view_id}/*`
-- 缺失: `fetchMetricSnapshot` 无等效端点
+#### 3. Deprecation Headers ✅
+- `schema.py`: 5 个端点全部添加 `X-Deprecation-Warning`
+- `entities.py`: 5 个端点全部添加 `X-Deprecation-Warning`
+- `visualization.py`: 6 个端点全部添加 `X-Deprecation-Warning`
 
-### 迁移执行清单
-
-- [ ] **P0**: ingestion.py 添加 `space_id` query 参数
-- [ ] **P0**: 验证 `POST /v1/management/{space_id}/schema/load-from-yaml` 正确加载 YAML 到 Space
-- [ ] **P1**: 更新 visualization.ts 使用 spaceApi.ts + consumption views
-- [ ] **P1**: 为 `fetchMetricSnapshot` 创建新端点或使用现有 Metric API
-- [ ] **P2**: 添加旧端点 deprecation warning headers
-- [ ] **P2**: 前端 entity 创建/查询改用 Space-scoped 端点
+#### 4. 新端点实现 ✅
+- `GET /v1/consumption/views/{view_id}/metrics/{entity_id}/snapshot` (consumption.py)
 
 ---
 

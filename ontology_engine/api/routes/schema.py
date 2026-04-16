@@ -2,6 +2,7 @@
 """Schema management endpoints."""
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 
 from ontology_engine.api.dependencies import get_schema_service
 from ontology_engine.api.dto.responses import success_response, error_response
@@ -26,7 +27,8 @@ async def load_schema(
     """
     try:
         result = await service.load_schema(schema_path)
-        return success_response(data=result)
+        response = success_response(data=result)
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
     except FileNotFoundError:
         return error_response(
             code="NOT_FOUND",
@@ -53,7 +55,8 @@ async def get_schema(
             code="SCHEMA_NOT_LOADED",
             message="No schema loaded"
         )
-    return success_response(data=schema)
+    response = success_response(data=schema)
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
 
 
 @router.post("/reload")
@@ -71,7 +74,8 @@ async def reload_schema(
     """
     try:
         result = await service.reload_schema(schema_path)
-        return success_response(data=result)
+        response = success_response(data=result)
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
     except FileNotFoundError:
         return error_response(
             code="NOT_FOUND",
@@ -91,7 +95,8 @@ async def get_schema_versions(
         List of version info dicts
     """
     versions = await service.get_schema_versions()
-    return success_response(data={"versions": versions})
+    response = success_response(data={"versions": versions})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
 
 
 @router.post("/rollback/{target_version}")
@@ -109,7 +114,8 @@ async def rollback_schema(
     """
     try:
         result = await service.rollback_schema(target_version)
-        return success_response(data=result)
+        response = success_response(data=result)
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
     except ValueError as e:
         return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:

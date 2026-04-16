@@ -75,8 +75,10 @@ class IngestionRequest:
         self,
         instances_path: str | None = None,
         entities: list[dict] | None = None,
-        relations: list[dict] | None = None
+        relations: list[dict] | None = None,
+        space_id: str | None = None
     ):
         self.instances_path = instances_path
         self.entities = entities if entities else []
         self.relations = relations if relations else []
+        self.space_id = space_id

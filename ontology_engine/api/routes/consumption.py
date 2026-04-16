@@ -577,6 +577,48 @@ async def get_rules_for_entity(
 
 
 # ============================================================================
+# Metric Snapshot
+# ============================================================================
+
+@router.get("/views/{view_id}/metrics/{entity_id}/snapshot", response_model=dict)
+async def get_metric_snapshot(
+    view_id: str,
+    entity_id: str,
+    dimension: str = Query(default="credit_assessment"),
+):
+    """Get metric snapshot for an entity in a consumption view.
+
+    Returns the computed metrics, outputs, and decision for the entity
+    without full execution trace.
+    """
+    storage = _get_storage()
+    space = await storage.load(view_id)
+
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+
+    entity = next(
+        (e for e in space.instances.entities if e.get("entity_id") == entity_id),
+        None,
+    )
+    if not entity:
+        return error_response(code="NOT_FOUND", message=f"Entity {entity_id} not found")
+
+    # Run analysis without trace for performance
+    result = await _run_full_analysis(space, entity, dimension, {}, include_trace=False)
+
+    # Map to MetricSnapshot structure
+    return success_response(data={
+        "entity_id": entity_id,
+        "dimension": dimension,
+        "metrics": result.get("computed_metrics", {}),
+        "outputs": result.get("final_outputs", {}),
+        "decision": result.get("decision", None),
+        "decision_reasoning": None,  # Reasoning not computed in MVP
+    })
+
+
+# ============================================================================
 # Execution
 # ============================================================================
 
