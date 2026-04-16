@@ -1,0 +1,64 @@
+# RD002: 信用评分计算
+# 驱动 L3 credit_score 指标体系计算，制造业供应商获得额外5分加成
+rule_group:
+  name: "RD002_credit_score"
+  description: "信用评分计算与行业加成"
+  type: "inference"
+  priority: 90
+  enabled: true
+
+  applies_to:
+    fact_objects:
+      - "Supplier"
+    categories: {}
+
+  inputs:
+    - name: "is_eligible"
+      type: "flag"
+
+  outputs:
+    - name: "credit_score"
+      type: "computed_value"
+    - name: "credit_grade"
+      type: "computed_value"
+
+rule_steps:
+  - id: "step-1"
+    name: "标准信用评分计算"
+    order: 1
+    enabled: true
+    description: "准入通过后，触发 L3 credit_score 指标体系计算"
+    tags: ["credit_score", "评分计算"]
+
+    when:
+      type: "expression"
+      expression: "is_eligible == true"
+
+    then:
+      operator: "COMPUTE"
+      params:
+        formula: "$metric:credit_score"
+      output_mapping:
+        credit_score: "$metric:credit_score"
+        credit_grade: "$metric:credit_grade"
+
+  - id: "step-2"
+    name: "制造业信用评分行业加成"
+    order: 2
+    enabled: true
+    description: "制造业供应商因行业稳定性较高，获得额外5分基础加成"
+    tags: ["credit_score", "行业加成", "制造业"]
+
+    when:
+      type: "all_of"
+      sub_conditions:
+        - "is_eligible == true"
+        - "entity.industry_type == 'MANUFACTURING'"
+
+    then:
+      operator: "COMPUTE"
+      params:
+        formula: "min(100, $metric:credit_score + 5)"
+      output_mapping:
+        credit_score: "min(100, $metric:credit_score + 5)"
+        credit_grade: "$metric:credit_grade"

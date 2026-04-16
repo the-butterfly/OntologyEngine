@@ -1,0 +1,98 @@
+# RD006: 综合授信决策
+# 综合信用评分、担保风险、预警状态生成最终授信决策
+rule_group:
+  name: "RD006_final_decision"
+  description: "综合授信决策表"
+  type: "decision"
+  priority: 50
+  enabled: true
+
+  applies_to:
+    fact_objects:
+      - "Supplier"
+    categories:
+      - "credit_assessment"
+
+  inputs:
+    - name: "credit_score"
+      type: "metric"
+    - name: "guarantee_chain_depth"
+      type: "metric"
+    - name: "has_guarantee_cycle"
+      type: "metric"
+    - name: "recommended_credit_limit"
+      type: "computed_value"
+
+  outputs:
+    - name: "final_decision"
+      type: "flag"
+    - name: "approved_credit_limit"
+      type: "computed_value"
+    - name: "decision_reason"
+      type: "computed_value"
+
+rule_steps:
+  - id: "step-1"
+    name: "授信决策表"
+    order: 1
+    enabled: true
+    description: |
+      优先级排列的决策分支：
+      1. APPROVE          — 高信用 + 低担保风险
+      2. APPROVE_WITH_CONDITIONS — 中信用 OR 中担保风险
+      3. APPROVE_RESTRICTED      — 低信用（临界）
+      4. REJECT                  — 不符合授信条件
+    tags: ["decision", "授信决策", "最终决策"]
+
+    when:
+      type: "expression"
+      expression: "true"
+
+    then:
+      operator: "DECISION_TABLE"
+      params:
+        branches:
+          - condition: "credit_score >= 80 and not has_guarantee_cycle and guarantee_chain_depth < 2"
+            decision: "APPROVE"
+            limit_multiplier: 1.0
+            reason: "信用状况优良，担保风险低，全额批准"
+          - condition: "credit_score >= 60 and guarantee_chain_depth < 3"
+            decision: "APPROVE_WITH_CONDITIONS"
+            limit_multiplier: 0.8
+            reason: "信用良好但存在一定风险，附条件批准（需提供追加担保）"
+          - condition: "credit_score >= 40"
+            decision: "APPROVE_RESTRICTED"
+            limit_multiplier: 0.5
+            reason: "信用评分较低，严格限额批准"
+          - condition: "true"
+            decision: "REJECT"
+            limit_multiplier: 0.0
+            reason: "综合信用评分不达标（< 40分），拒绝授信"
+      output_mapping:
+        final_decision: |
+          if credit_score >= 80 and not has_guarantee_cycle and guarantee_chain_depth < 2:
+              'APPROVE'
+          elif credit_score >= 60 and guarantee_chain_depth < 3:
+              'APPROVE_WITH_CONDITIONS'
+          elif credit_score >= 40:
+              'APPROVE_RESTRICTED'
+          else:
+              'REJECT'
+        approved_credit_limit: |
+          if credit_score >= 80 and not has_guarantee_cycle and guarantee_chain_depth < 2:
+              recommended_credit_limit * 1.0
+          elif credit_score >= 60 and guarantee_chain_depth < 3:
+              recommended_credit_limit * 0.8
+          elif credit_score >= 40:
+              recommended_credit_limit * 0.5
+          else:
+              0
+        decision_reason: |
+          if credit_score >= 80 and not has_guarantee_cycle and guarantee_chain_depth < 2:
+              '信用状况优良，担保风险低，全额批准'
+          elif credit_score >= 60 and guarantee_chain_depth < 3:
+              '信用良好但存在一定风险，附条件批准（需提供追加担保）'
+          elif credit_score >= 40:
+              '信用评分较低，严格限额批准'
+          else:
+              '综合信用评分不达标（< 40分），拒绝授信'
