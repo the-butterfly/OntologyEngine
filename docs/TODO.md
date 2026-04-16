@@ -67,6 +67,7 @@
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
 | P2 | Phase 2 RuleExecutor DAG 实现 | RFC-011 | 顺序执行 → steps[] DAG 拓扑排序（Phase 2 最高优先级） |
+| P2 | 规则编排画布功能完善 | `ontology-engine-ui/` | 🔴 未解决：节点拖拽定位持久化、节点配置面板保存、规则链保存到后端 |
 | P2 | Phase 2 kuzu 图存储升级 | RFC-012 | NetworkX → kuzu，支撑 100K 节点规模 |
 | P2 | DuckDB 新增表 CRUD 方法 | `ontology_engine/storage/duckdb/store.py` | datasets/change_batches/entity_versions 等表的完整 CRUD |
 | P3 | KuzuGraphStore 实现（Phase 2 存储） | RFC-012 | 现有 `07-phase1-enhancement/01-graph-storage-extension.md` 中的 kuzu 规划 |
