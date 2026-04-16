@@ -1,10 +1,11 @@
 # RFC-015: 规则编排前端实现
 
-> **状态**: draft
+> **状态**: updated
 > **父 RFC**: RFC-014
 > **创建日期**: 2026-04-15
+> **最后更新**: 2026-04-16
 > **关联**: 后端 Phase 2 规则编排 + 语义空间隔离
-> **前端 RFC**: `docs-ui/rfc/RFC-UI-001-rule-orchestration-frontend.md` (详细实施文档)
+> **关联 RFC**: [RFC-016](./RFC-016-rule-orchestration-gap-analysis.md) · [RFC-017](./RFC-017-rule-orchestration-yaml-format.md)
 
 ## 摘要
 
@@ -12,21 +13,36 @@
 
 ## 一、现状与目标
 
-### 1.1 现状
+### 1.1 Phase 2-A 实施状态（2026-04-16）
 
-后端已完成 Phase 2 规则编排系统的核心实现：
-- `RuleGroupDefinition` 模型：包含 `id` (UUID) 和 `name` (业务标识，+ schema_id 组合唯一)
-- `schema_id` 语义空间隔离
-- 完整的 CRUD API、模拟执行、YAML 导入导出
+| 组件 | 文件 | 状态 |
+|------|------|------|
+| TypeScript 类型 | `src/types/rule.ts` | ✅ 完成 |
+| API 客户端 | `src/api/ruleGroups.ts` | ✅ 完成 |
+| Hooks | `src/hooks/useRuleGroups.ts` | ✅ 完成 |
+| Zustand Store | `src/stores/ruleStore.ts` | ✅ 完成 |
+| 规则组列表页 | `src/pages/rules/RuleGroupListPage.tsx` | ✅ 完成 |
+| 规则组详情页 | `src/pages/rules/RuleGroupDetailPage.tsx` | ✅ 完成 |
+| 规则组创建页 | `src/pages/rules/RuleGroupCreatePage.tsx` | ✅ 完成 |
+| 规则步骤编辑页 | `src/pages/rules/RuleStepEditPage.tsx` | ✅ 完成 |
+| 规则步骤列表 + 拖拽 | `src/components/rule/RuleStepList.tsx` | ✅ 完成 |
+| DAG 可视化 | `src/components/rule/RuleChainDAG.tsx` | ✅ 完成（只读） |
+| 动作编辑器 | `src/components/rule/ActionEditor.tsx` | ✅ 完成 |
+| 条件编辑器 | `src/components/rule/ConditionEditor.tsx` | ✅ 完成 |
+| 统一导航入口 | `src/pages/spaces/SpaceDetailPage.tsx` | ✅ 完成 |
+| YAML 导入/导出 | UI 层 | ✅ 完成（后端格式待升级，见 RFC-017） |
 
-前端设计文档位于 `detail/implementation/frontend-rule-ui-implementation-checklist.md`，需升级为正式 RFC。
+**待完成（Phase 2-B/C）**：
+- G6/X6 画布拖拽排序（`RuleChainDAG` 可编辑模式）
+- BFS 上下游路径高亮
+- DAG 右侧路径详情面板
 
 ### 1.2 目标
 
 本 RFC 定义 Week 4-6 的实施内容：
-- **Week 4**: 数据层 + 骨架（类型、API 客户端、Hooks、Store、页面布局）
-- **Week 5**: 规则组编辑（RuleGroupListPage、RuleGroupForm）
-- **Week 6**: 规则逻辑实例编辑（RuleStepList、ConditionEditor、ActionEditor）
+- **Week 4**: 数据层 + 骨架（类型、API 客户端、Hooks、Store、页面布局） ✅
+- **Week 5**: 规则组编辑（RuleGroupListPage、RuleGroupForm） ✅
+- **Week 6**: 规则逻辑实例编辑（RuleStepList、ConditionEditor、ActionEditor） ✅
 
 ## 二、类型定义（TypeScript）
 
