@@ -1,0 +1,51 @@
+# RD003: 担保圈风险检测
+# 利用图算法检测循环担保圈，为预警和额度计算提供风险输入
+rule_group:
+  name: "RD003_guarantee_risk"
+  description: "担保圈风险检测与预警"
+  type: "alert"
+  priority: 95
+  enabled: true
+
+  applies_to:
+    fact_objects:
+      - "Supplier"
+    categories:
+      - "credit_assessment"
+      - "risk_early_warning"
+
+  inputs:
+    - name: "has_guarantee_cycle"
+      type: "metric"
+    - name: "guarantee_chain_depth"
+      type: "metric"
+
+  outputs:
+    - name: "guarantee_alert"
+      type: "alert"
+
+rule_steps:
+  - id: "step-1"
+    name: "担保圈风险预警"
+    order: 1
+    enabled: true
+    description: "检测循环担保圈或深度担保链，触发预警"
+    tags: ["guarantee", "风险预警", "担保圈"]
+
+    when:
+      type: "expression"
+      expression: "has_guarantee_cycle == true OR guarantee_chain_depth >= 3"
+
+    then:
+      operator: "ALERT"
+      params:
+        alert_level: "CRITICAL"
+        alert_type: "guarantee_circle_detected"
+        message_template: "检测到担保圈或深度担保链（深度={guarantee_chain_depth}），建议降低授信额度或要求追加抵押"
+      output_mapping:
+        guarantee_alert: |
+          {
+            'alert_level': 'CRITICAL',
+            'alert_type': 'guarantee_circle_detected',
+            'message': '检测到担保圈或深度担保链（深度=' + str(guarantee_chain_depth) + '），建议降低授信额度或要求追加抵押'
+          }

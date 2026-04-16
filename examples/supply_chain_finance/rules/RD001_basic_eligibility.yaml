@@ -1,0 +1,82 @@
+# RD001: 基础准入检查
+# 供应商融资申请的基础资质门槛校验，不满足则直接拒绝
+rule_group:
+  name: "RD001_basic_eligibility"
+  description: "供应商融资申请的基础资质门槛校验"
+  type: "constraint"
+  priority: 100
+  enabled: true
+
+  applies_to:
+    fact_objects:
+      - "Supplier"
+    categories: {}
+
+  preconditions:
+    - expression: "entity.status == 'ACTIVE'"
+      fail:
+        action: "reject"
+        reason: "企业经营状态异常"
+
+  inputs:
+    - name: "registered_capital_value"
+      type: "attribute"
+    - name: "establishment_date"
+      type: "attribute"
+    - name: "total_invoice_amount_90d"
+      type: "metric"
+
+  outputs:
+    - name: "is_eligible"
+      type: "flag"
+    - name: "rejection_reason"
+      type: "computed_value"
+
+rule_steps:
+  - id: "step-1"
+    name: "注册资本与成立年限检查"
+    order: 1
+    enabled: true
+    description: "校验注册资本≥100万且成立≥1年且近90天交易额≥50万"
+    tags: ["eligibility", "准入检查"]
+
+    when:
+      type: "all_of"
+      sub_conditions:
+        - "entity.registered_capital_value >= 1000000"
+        - "days_since(entity.establishment_date) >= 365"
+        - "metrics.total_invoice_amount_90d >= 500000"
+
+    then:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_eligible"
+        flag_value: true
+      output_mapping: {}
+
+    else:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_eligible"
+        flag_value: false
+      output_mapping:
+        rejection_reason: "不满足基础准入条件（经营状态、注册资本、成立年限或近期交易额不达标）"
+
+  - id: "step-2"
+    name: "拒绝原因记录"
+    order: 2
+    enabled: true
+    description: "当不满足准入条件时，记录具体拒绝原因"
+    tags: ["eligibility", "拒绝处理"]
+
+    when:
+      type: "expression"
+      expression: "is_eligible == false"
+
+    then:
+      operator: "SET_VALUE"
+      params:
+        field: "rejection_reason"
+        value: "不满足基础准入条件（经营状态、注册资本、成立年限或近期交易额不达标）"
+      output_mapping:
+        rejection_reason: "不满足基础准入条件（经营状态、注册资本、成立年限或近期交易额不达标）"

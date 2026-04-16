@@ -1,0 +1,66 @@
+# RD004: 授信额度计算
+# 基于信用评分和担保风险计算推荐授信额度（万元）
+rule_group:
+  name: "RD004_credit_limit"
+  description: "授信额度计算公式"
+  type: "inference"
+  priority: 80
+  enabled: true
+
+  applies_to:
+    fact_objects:
+      - "Supplier"
+    categories:
+      - "credit_assessment"
+
+  inputs:
+    - name: "credit_score"
+      type: "metric"
+    - name: "credit_grade"
+      type: "metric"
+    - name: "registered_capital_value"
+      type: "attribute"
+    - name: "guarantee_chain_depth"
+      type: "metric"
+
+  outputs:
+    - name: "recommended_credit_limit"
+      type: "computed_value"
+
+rule_steps:
+  - id: "step-1"
+    name: "额度计算公式"
+    order: 1
+    enabled: true
+    description: |
+      基础额度 = 注册资本 × 0.5
+      乘数按信用等级：AAA→2.0 / AA→1.8 / A→1.5 / BBB→1.2 / BB→1.0 / B→0.8 / 其他→0.5
+      担保链折扣：每增加1层深度，扣减10%（最多扣减50%）
+    tags: ["credit_limit", "额度计算"]
+
+    when:
+      type: "expression"
+      expression: "credit_grade IS NOT NULL"
+
+    then:
+      operator: "COMPUTE"
+      params:
+        formula: |
+          base = registered_capital_value * 0.5
+          grade_multiplier_map = {
+              'AAA': 2.0, 'AA': 1.8, 'A': 1.5,
+              'BBB': 1.2, 'BB': 1.0, 'B': 0.8
+          }
+          multiplier = grade_multiplier_map.get(credit_grade, 0.5)
+          guarantee_discount = max(0.5, 1 - guarantee_chain_depth * 0.1)
+          base * multiplier * guarantee_discount / 10000
+      output_mapping:
+        recommended_credit_limit: |
+          base = registered_capital_value * 0.5
+          grade_multiplier_map = {
+              'AAA': 2.0, 'AA': 1.8, 'A': 1.5,
+              'BBB': 1.2, 'BB': 1.0, 'B': 0.8
+          }
+          multiplier = grade_multiplier_map.get(credit_grade, 0.5)
+          guarantee_discount = max(0.5, 1 - guarantee_chain_depth * 0.1)
+          base * multiplier * guarantee_discount / 10000
