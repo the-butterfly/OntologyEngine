@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from ontology_engine.engine.rule.models import (
+    AppliesToConfig,
     RuleGroupDefinition,
     RuleStep,
 )
@@ -424,6 +425,10 @@ class RuleService:
     ) -> RuleGroupDefinition:
         """Import a rule group from YAML.
 
+        Supports two formats:
+        - Phase 2: rule_group + rule_steps structure (RFC-017 Section 2.1)
+        - Legacy: rule_definitions + rule_logics structure (backward compatible)
+
         Args:
             yaml_content: YAML content string
             schema_id: Semantic space ID for the imported rule group (required)
@@ -443,7 +448,104 @@ class RuleService:
         except yaml.YAMLError as e:
             raise RuleServiceError(f"Invalid YAML: {e}")
 
-        # Extract rule definition
+        # Detect format: Phase 2 uses rule_group, legacy uses rule_definitions
+        if "rule_group" in data:
+            return await self._import_phase2_format(data, schema_id)
+        elif "rule_definitions" in data:
+            return await self._import_legacy_format(data, schema_id)
+        else:
+            raise RuleServiceError(
+                "No valid rule format found. Expected 'rule_group' (Phase 2) or 'rule_definitions' (legacy)"
+            )
+
+    async def _import_phase2_format(
+        self,
+        data: dict[str, Any],
+        schema_id: str,
+    ) -> RuleGroupDefinition:
+        """Import Phase 2 YAML format (rule_group + rule_steps).
+
+        Args:
+            data: Parsed YAML data
+            schema_id: Semantic space ID
+
+        Returns:
+            Imported RuleGroupDefinition
+        """
+        rg_raw = data["rule_group"]
+        steps_raw = data.get("rule_steps", [])
+
+        name = rg_raw.get("name")
+        if not name:
+            raise RuleServiceError("Rule group must have a name")
+
+        # Check if rule group already exists
+        existing = await self._storage.get_rule_group(name, schema_id=schema_id)
+        if existing:
+            raise RuleServiceError(
+                f"Rule group '{name}' already exists in semantic space '{schema_id}'"
+            )
+
+        # Normalize AppliesToConfig: fact_objects must be list, categories must be dict
+        applies_to = self._normalize_applies_to(rg_raw.get("applies_to", {}))
+
+        # Build rule group data
+        rg_data = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "description": rg_raw.get("description", ""),
+            "type": rg_raw.get("type", "decision"),
+            "priority": rg_raw.get("priority", 100),
+            "enabled": rg_raw.get("enabled", True),
+            "applies_to": {
+                "fact_objects": applies_to.fact_objects,
+                "categories": applies_to.categories,
+            },
+            "preconditions": rg_raw.get("preconditions", []),
+            "inputs": self._normalize_io_elements(rg_raw.get("inputs", [])),
+            "outputs": self._normalize_io_elements(rg_raw.get("outputs", [])),
+            "schema_id": schema_id,
+        }
+
+        # Save rule group
+        await self._storage.save_rule_group(rg_data, schema_id=schema_id)
+
+        # Process rule steps
+        for step_raw in steps_raw:
+            when_normalized = self._normalize_when(step_raw.get("when", {}))
+            then_normalized = self._normalize_action(step_raw.get("then", {}))
+
+            step_data = {
+                "id": step_raw.get("id"),
+                "name": step_raw.get("name", ""),
+                "step_order": step_raw.get("order", 0),
+                "enabled": step_raw.get("enabled", True),
+                "description": step_raw.get("description", ""),
+                "tags": step_raw.get("tags", []),
+                "when": when_normalized,
+                "then": then_normalized,
+            }
+            await self._storage.save_rule_step(name, step_data)
+
+        return RuleGroupDefinition.from_dict(
+            await self._storage.get_rule_group(name, schema_id=schema_id)
+        )
+
+    async def _import_legacy_format(
+        self,
+        data: dict[str, Any],
+        schema_id: str,
+    ) -> RuleGroupDefinition:
+        """Import legacy YAML format (rule_definitions + rule_logics).
+
+        Args:
+            data: Parsed YAML data
+            schema_id: Semantic space ID
+
+        Returns:
+            Imported RuleGroupDefinition
+        """
+        # Extract rule definition (legacy format)
         rule_defs = data.get("rule_definitions", [])
         if not rule_defs:
             raise RuleServiceError("No rule_definitions found in YAML")
@@ -453,19 +555,16 @@ class RuleService:
         if not name:
             raise RuleServiceError("Rule definition must have a name")
 
-        # Check if rule group already exists in this semantic space
+        # Check if rule group already exists
         existing = await self._storage.get_rule_group(name, schema_id=schema_id)
         if existing:
             raise RuleServiceError(
                 f"Rule group '{name}' already exists in semantic space '{schema_id}'"
             )
 
-        # Generate UUID for rule group
-        rule_group_id = str(uuid.uuid4())
-
-        # Prepare rule group data
+        # Prepare rule group data (legacy format)
         rg_data = {
-            "id": rule_group_id,
+            "id": str(uuid.uuid4()),
             "name": name,
             "description": rule_def.get("description", ""),
             "type": rule_def.get("type", "decision"),
@@ -481,7 +580,7 @@ class RuleService:
         # Save rule group
         await self._storage.save_rule_group(rg_data, schema_id=schema_id)
 
-        # Extract and save rule steps
+        # Extract and save rule steps from rule_logics
         rule_logics = data.get("rule_logics", [])
         for logic in rule_logics:
             if logic.get("rule_definition") == name:
@@ -502,8 +601,117 @@ class RuleService:
             await self._storage.get_rule_group(name, schema_id=schema_id)
         )
 
+    # =========================================================================
+    # Helper methods for Phase 2 YAML normalization
+    # =========================================================================
+
+    def _normalize_applies_to(self, raw: dict[str, Any]) -> "AppliesToConfig":
+        """Normalize AppliesToConfig: fact_objects must be list, categories must be dict.
+
+        Args:
+            raw: Raw applies_to dict from YAML
+
+        Returns:
+            AppliesToConfig with normalized fields
+        """
+        fact_objects = raw.get("fact_objects", [])
+        if isinstance(fact_objects, str):
+            fact_objects = [fact_objects]
+
+        categories = raw.get("categories", {})
+        # Legacy format may have categories as list, normalize to dict
+        if isinstance(categories, list):
+            categories = {}
+
+        return AppliesToConfig(
+            fact_objects=fact_objects,
+            categories=categories,
+        )
+
+    def _normalize_io_elements(
+        self,
+        elements: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Normalize IO elements (inputs/outputs).
+
+        Args:
+            elements: List of IO element dicts
+
+        Returns:
+            Normalized list of IO element dicts
+        """
+        normalized = []
+        for elem in elements:
+            normalized.append({
+                "name": elem.get("name", ""),
+                "type": elem.get("type"),
+                "metric": elem.get("metric"),
+                "attribute": elem.get("attribute"),
+            })
+        return normalized
+
+    def _normalize_when(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Normalize when clause.
+
+        Phase 2 format: when.type determines structure
+        - expression: uses when.expression
+        - all_of/any_of: uses when.sub_conditions
+
+        Args:
+            raw: Raw when clause dict
+
+        Returns:
+            Normalized when clause
+        """
+        if not raw:
+            return {"type": "expression", "expression": None, "sub_conditions": []}
+
+        when_type = raw.get("type", "expression")
+        if when_type == "expression":
+            return {
+                "type": "expression",
+                "expression": raw.get("expression"),
+                "sub_conditions": [],
+            }
+        elif when_type in ("all_of", "any_of"):
+            return {
+                "type": when_type,
+                "expression": None,
+                "sub_conditions": raw.get("sub_conditions", []),
+            }
+        else:
+            # Preserve original structure for unknown types
+            return {
+                "type": when_type,
+                "expression": raw.get("expression"),
+                "sub_conditions": raw.get("sub_conditions", []),
+            }
+
+    def _normalize_action(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Normalize action/then clause.
+
+        Phase 2 format uses then.operator directly from params,
+        legacy format may have then as the operator itself.
+
+        Args:
+            raw: Raw action dict
+
+        Returns:
+            Normalized action clause
+        """
+        if not raw:
+            return {"operator": "", "params": {}, "output_mapping": {}}
+
+        return {
+            "operator": raw.get("operator", ""),
+            "params": raw.get("params", {}),
+            "output_mapping": raw.get("output_mapping", {}),
+        }
+
     async def validate_yaml(self, yaml_content: str) -> tuple[bool, list[str]]:
         """Validate YAML without importing.
+
+        Supports both Phase 2 (rule_group + rule_steps) and legacy (rule_definitions + rule_logics) formats.
 
         Args:
             yaml_content: YAML content string
@@ -517,6 +725,56 @@ class RuleService:
             data = yaml.safe_load(yaml_content)
         except yaml.YAMLError as e:
             return False, [f"Invalid YAML syntax: {e}"]
+
+        # Detect format
+        if "rule_group" in data:
+            errors.extend(self._validate_phase2_format(data))
+        elif "rule_definitions" in data:
+            errors.extend(self._validate_legacy_format(data))
+        else:
+            errors.append("No valid rule format found. Expected 'rule_group' (Phase 2) or 'rule_definitions' (legacy)")
+
+        return len(errors) == 0, errors
+
+    def _validate_phase2_format(self, data: dict[str, Any]) -> list[str]:
+        """Validate Phase 2 YAML format.
+
+        Args:
+            data: Parsed YAML data
+
+        Returns:
+            List of error messages
+        """
+        errors: list[str] = []
+
+        # Validate rule_group
+        rg = data.get("rule_group", {})
+        if not rg.get("name"):
+            errors.append("rule_group must have a name")
+
+        # Validate rule_steps if present
+        steps = data.get("rule_steps", [])
+        if not isinstance(steps, list):
+            errors.append("rule_steps must be a list")
+        else:
+            for i, step in enumerate(steps):
+                if not step.get("id"):
+                    errors.append(f"rule_steps[{i}] must have id")
+                if not step.get("when"):
+                    errors.append(f"rule_steps[{i}] must have when clause")
+
+        return errors
+
+    def _validate_legacy_format(self, data: dict[str, Any]) -> list[str]:
+        """Validate legacy YAML format.
+
+        Args:
+            data: Parsed YAML data
+
+        Returns:
+            List of error messages
+        """
+        errors: list[str] = []
 
         # Check rule_definitions
         if "rule_definitions" not in data:
@@ -546,4 +804,4 @@ class RuleService:
                                 if not step.get("id"):
                                     errors.append(f"rule_logics[{i}].steps[{j}] must have id")
 
-        return len(errors) == 0, errors
+        return errors
