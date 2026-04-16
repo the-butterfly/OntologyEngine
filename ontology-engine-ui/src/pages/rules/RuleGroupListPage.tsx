@@ -25,25 +25,17 @@ import {
   ExportOutlined,
   ImportOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useRuleGroups } from '../../hooks/useRuleGroups';
 import type { RuleGroup } from '../../types/rule';
 
 const { Title, Text } = Typography;
 const { TextArea } = InputAnt;
 
-interface RuleGroupListPageProps {
-  schemaId: string;
-  onCreate?: () => void;
-  onEdit?: (group: RuleGroup) => void;
-}
-
-export const RuleGroupListPage: React.FC<RuleGroupListPageProps> = ({
-  schemaId,
-  onCreate,
-  onEdit,
-}) => {
+export const RuleGroupListPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const schemaId = searchParams.get('schemaId') || '';
   const {
     loading,
     ruleGroups,
@@ -56,14 +48,13 @@ export const RuleGroupListPage: React.FC<RuleGroupListPageProps> = ({
   } = useRuleGroups(schemaId);
 
   const [searchText, setSearchText] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importContent, setImportContent] = useState('');
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     fetchGroups();
-  }, [schemaId, typeFilter, fetchGroups]);
+  }, [schemaId, fetchGroups]);
 
   useEffect(() => {
     if (error) {
@@ -78,14 +69,14 @@ export const RuleGroupListPage: React.FC<RuleGroupListPageProps> = ({
 
   const handleEdit = useCallback(
     (group: RuleGroup) => {
-      if (onEdit) {
-        onEdit(group);
-      } else {
-        navigate(`/rules/${group.id}?schemaId=${schemaId}`);
-      }
+      navigate(`/rules/${group.id}?schemaId=${schemaId}`);
     },
-    [navigate, onEdit, schemaId]
+    [navigate, schemaId]
   );
+
+  const handleCreate = useCallback(() => {
+    navigate(`/rules/new?schemaId=${schemaId}`);
+  }, [navigate, schemaId]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -136,7 +127,6 @@ export const RuleGroupListPage: React.FC<RuleGroupListPageProps> = ({
     } finally {
       setImporting(false);
     }
-  // Note: schemaId is captured in importYaml closure - no need to add to deps
   }, [importContent, importYaml, fetchGroups]);
 
   const columns = [
@@ -248,7 +238,7 @@ export const RuleGroupListPage: React.FC<RuleGroupListPageProps> = ({
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={onCreate}
+              onClick={handleCreate}
             >
               新建规则组
             </Button>
@@ -268,7 +258,6 @@ export const RuleGroupListPage: React.FC<RuleGroupListPageProps> = ({
             placeholder="筛选类型"
             allowClear
             style={{ width: 120 }}
-            onChange={setTypeFilter}
             options={[
               { label: '决策', value: 'decision' },
               { label: '约束', value: 'constraint' },

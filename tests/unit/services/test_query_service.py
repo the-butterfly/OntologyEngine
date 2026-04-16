@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.services.query_service import QueryService
+from ontology_engine.storage.base import VectorSearchResult
 from ontology_engine.storage.duckdb import EntityInstance
 
 
@@ -142,3 +143,90 @@ class TestQueryService:
         """Test find path depth limit."""
         with pytest.raises(ValueError):
             await service.find_path("SUP_001", "INV_001", max_depth=5)
+
+
+class TestQueryServicePhase2Retrieval:
+    """Test Phase 2 retrieval interfaces on QueryService."""
+
+    @pytest.fixture
+    def storage(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def retrieval(self):
+        r = AsyncMock()
+        r.semantic_search = AsyncMock(return_value=[])
+        r.hybrid_search = AsyncMock(return_value=[])
+        r.graph_pattern_match = AsyncMock(return_value=[])
+        return r
+
+    @pytest.fixture
+    def service(self, storage, retrieval):
+        return QueryService(storage=storage, retrieval=retrieval)
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_delegates_to_retrieval(self, service, retrieval):
+        retrieval.semantic_search.return_value = [
+            VectorSearchResult(id="e1", score=0.9, metadata={}),
+        ]
+        result = await service.semantic_search("query", top_k=5, concept_type="Company")
+        assert len(result) == 1
+        retrieval.semantic_search.assert_awaited_once_with(
+            query_text="query", top_k=5, concept_type="Company"
+        )
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_without_retrieval_raises(self, storage):
+        service = QueryService(storage=storage)
+        with pytest.raises(NotImplementedError, match="RetrievalBackend"):
+            await service.semantic_search("query")
+
+    @pytest.mark.asyncio
+    async def test_hybrid_search_delegates_to_retrieval(self, service, retrieval):
+        retrieval.hybrid_search.return_value = [
+            VectorSearchResult(id="e1", score=0.8, metadata={}),
+        ]
+        result = await service.hybrid_search(
+            query_text="hello",
+            graph_seed_id="seed",
+            top_k=3,
+        )
+        assert len(result) == 1
+        retrieval.hybrid_search.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_hybrid_search_without_retrieval_raises(self, storage):
+        service = QueryService(storage=storage)
+        with pytest.raises(NotImplementedError, match="RetrievalBackend"):
+            await service.hybrid_search(query_vector=[1.0, 0.0])
+
+    @pytest.mark.asyncio
+    async def test_graph_pattern_match_delegates_to_retrieval(self, service, retrieval):
+        retrieval.graph_pattern_match.return_value = [
+            {"nodes": [{"entity_id": "c1"}]},
+        ]
+        result = await service.graph_pattern_match(
+            "Company",
+            [("supplies", "Enterprise")],
+            start_filters={"status": "active"},
+            limit=50,
+        )
+        assert len(result) == 1
+        retrieval.graph_pattern_match.assert_awaited_once_with(
+            start_concept="Company",
+            path_pattern=[("supplies", "Enterprise")],
+            start_filters={"status": "active"},
+            limit=50,
+        )
+
+    @pytest.mark.asyncio
+    async def test_graph_pattern_match_fallback_without_retrieval(self, storage):
+        from ontology_engine.storage.base import EntityInstance
+        storage.query_entities.return_value = [
+            EntityInstance(concept="Company", entity_id="c1", data={}),
+        ]
+        storage.get_neighbors.return_value = []
+        service = QueryService(storage=storage)
+        result = await service.graph_pattern_match("Company", [])
+        assert len(result) == 1
+        assert result[0]["nodes"][0]["entity_id"] == "c1"

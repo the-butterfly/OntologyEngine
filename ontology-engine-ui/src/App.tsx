@@ -5,10 +5,6 @@ import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Layout, Menu, Typography } from 'antd';
 import {
   DatabaseOutlined,
-  ApartmentOutlined,
-  BranchesOutlined,
-  ExperimentOutlined,
-  SettingOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
 
@@ -16,8 +12,6 @@ import {
 import SpaceListPage from './pages/spaces/SpaceListPage';
 import SpaceDetailPage from './pages/spaces/SpaceDetailPage';
 import SchemaDeclarationPage from './pages/spaces/SchemaDeclarationPage';
-import RuleDeclarationsPage from './pages/spaces/RuleDeclarationsPage';
-import RuleLogicsPage from './pages/spaces/RuleLogicsPage';
 import InstanceDataPage from './pages/spaces/InstanceDataPage';
 import VersionHistoryPage from './pages/spaces/VersionHistoryPage';
 
@@ -27,6 +21,12 @@ import RuleExecutionPage from './pages/consumption/RuleExecutionPage';
 import SimulationPage from './pages/SimulationPage'; // Reuse existing
 import ConsumptionViewPage from './pages/ConsumptionViewPage';
 import ConsumptionViewListPage from './pages/consumption/ConsumptionViewListPage';
+
+// Rule Pages (Phase 2)
+import { RuleGroupListPage } from './pages/rules/RuleGroupListPage';
+import { RuleGroupDetailPage } from './pages/rules/RuleGroupDetailPage';
+import { RuleGroupCreatePage } from './pages/rules/RuleGroupCreatePage';
+import { RuleStepEditPage } from './pages/rules/RuleStepEditPage';
 
 import './App.css';
 
@@ -60,8 +60,6 @@ function App() {
             <Route path="/spaces/:spaceId" element={<SpaceDetailPage />}>
               <Route index element={<Navigate to="schema" replace />} />
               <Route path="schema" element={<SchemaDeclarationPage />} />
-              <Route path="rules/declarations" element={<RuleDeclarationsPage />} />
-              <Route path="rules/logics" element={<RuleLogicsPage />} />
               <Route path="instances" element={<InstanceDataPage />} />
               <Route path="versions" element={<VersionHistoryPage />} />
               <Route path="visualize" element={<SchemaVisualizationPage />} />
@@ -72,6 +70,12 @@ function App() {
             {/* Consumption View Route */}
             <Route path="/consumption" element={<ConsumptionViewListPage />} />
             <Route path="/consumption/:viewId" element={<ConsumptionViewPage />} />
+
+            {/* Rule Management Routes (Phase 2) */}
+            <Route path="/rules" element={<RuleGroupListPage />} />
+            <Route path="/rules/new" element={<RuleGroupCreatePage />} />
+            <Route path="/rules/:groupId" element={<RuleGroupDetailPage />} />
+            <Route path="/rules/:groupId/steps/:stepId/edit" element={<RuleStepEditPage />} />
 
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/spaces" replace />} />

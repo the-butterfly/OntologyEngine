@@ -18,6 +18,9 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0",
 ]
+kuzu = [
+    "kuzu>=0.4.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]

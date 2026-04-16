@@ -1,0 +1,118 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "OntologyEngine" [ref=e5] [cursor=pointer]:
+      - /url: /spaces
+      - heading "OntologyEngine" [level=4] [ref=e6]
+    - menu [ref=e7]:
+      - menuitem "database 管理面" [ref=e8] [cursor=pointer]:
+        - img "database" [ref=e9]:
+          - img [ref=e10]
+        - link "管理面" [ref=e13]:
+          - /url: /spaces
+      - menuitem "apartment 消费面" [ref=e14] [cursor=pointer]:
+        - img "apartment" [ref=e15]:
+          - img [ref=e16]
+        - text: 消费面
+      - menuitem [disabled]:
+        - img:
+          - img
+  - main [ref=e18]:
+    - generic [ref=e223]:
+      - navigation [ref=e224]:
+        - list [ref=e225]:
+          - listitem [ref=e226]:
+            - link "语义空间" [ref=e227] [cursor=pointer]:
+              - /url: "#/spaces"
+          - listitem [ref=e228]: /
+          - listitem [ref=e229]: Demo Supply Chain Space
+      - generic [ref=e230]:
+        - generic [ref=e232]: v1
+        - generic [ref=e234]: ACTIVE
+        - generic [ref=e236]: 1 实体
+        - generic [ref=e238]: 1 规则声明
+        - generic [ref=e240]: 1 规则逻辑
+      - generic [ref=e243]:
+        - menu [ref=e244]:
+          - menuitem "apartment Schema 声明" [ref=e245] [cursor=pointer]:
+            - img "apartment" [ref=e246]:
+              - img [ref=e247]
+            - generic [ref=e249]: Schema 声明
+          - menuitem "setting 规则声明" [active] [ref=e250] [cursor=pointer]:
+            - img "setting" [ref=e251]:
+              - img [ref=e252]
+            - generic [ref=e254]: 规则声明
+          - menuitem "branches 规则逻辑" [ref=e255] [cursor=pointer]:
+            - img "branches" [ref=e256]:
+              - img [ref=e257]
+            - generic [ref=e259]: 规则逻辑
+          - menuitem "database 数据实例" [ref=e260] [cursor=pointer]:
+            - img "database" [ref=e261]:
+              - img [ref=e262]
+            - generic [ref=e264]: 数据实例
+          - menuitem "history 版本历史" [ref=e265] [cursor=pointer]:
+            - img "history" [ref=e266]:
+              - img [ref=e267]
+            - generic [ref=e269]: 版本历史
+          - menuitem "apartment Schema 可视化" [ref=e270] [cursor=pointer]:
+            - img "apartment" [ref=e271]:
+              - img [ref=e272]
+            - generic [ref=e274]: Schema 可视化
+          - menuitem "branches 规则执行" [ref=e275] [cursor=pointer]:
+            - img "branches" [ref=e276]:
+              - img [ref=e277]
+            - generic [ref=e279]: 规则执行
+          - menuitem "experiment What-If 模拟" [ref=e280] [cursor=pointer]:
+            - img "experiment" [ref=e281]:
+              - img [ref=e282]
+            - generic [ref=e284]: What-If 模拟
+        - generic [ref=e341]:
+          - generic [ref=e343]:
+            - heading "规则声明" [level=5] [ref=e345]
+            - button "plus 创建声明" [ref=e347] [cursor=pointer]:
+              - img "plus" [ref=e349]:
+                - img [ref=e350]
+              - generic [ref=e353]: 创建声明
+          - generic [ref=e357]:
+            - table [ref=e361]:
+              - rowgroup [ref=e372]:
+                - row "ID 名称 类型 优先级 适用范畴 输入要素 输出要素 状态 操作" [ref=e373]:
+                  - columnheader "ID" [ref=e374]
+                  - columnheader "名称" [ref=e375]
+                  - columnheader "类型" [ref=e376]
+                  - columnheader "优先级" [ref=e377]
+                  - columnheader "适用范畴" [ref=e378]
+                  - columnheader "输入要素" [ref=e379]
+                  - columnheader "输出要素" [ref=e380]
+                  - columnheader "状态" [ref=e381]
+                  - columnheader "操作" [ref=e382]
+              - rowgroup [ref=e383]:
+                - row "R001_credit_check 信用检查 constraint 100 按分类 1 1 启用 edit delete" [ref=e384]:
+                  - cell "R001_credit_check" [ref=e385]
+                  - cell "信用检查" [ref=e386]
+                  - cell "constraint" [ref=e387]:
+                    - generic [ref=e388]: constraint
+                  - cell "100" [ref=e389]
+                  - cell "按分类" [ref=e390]
+                  - cell "1" [ref=e391]
+                  - cell "1" [ref=e392]
+                  - cell "启用" [ref=e393]:
+                    - generic [ref=e394]: 启用
+                  - cell "edit delete" [ref=e395]:
+                    - generic [ref=e396]:
+                      - button "edit" [ref=e398] [cursor=pointer]:
+                        - img "edit" [ref=e400]:
+                          - img [ref=e401]
+                      - button "delete" [ref=e404] [cursor=pointer]:
+                        - img "delete" [ref=e406]:
+                          - img [ref=e407]
+            - list [ref=e409]:
+              - listitem "上一页" [ref=e410]:
+                - button "left" [disabled] [ref=e411]:
+                  - img "left" [ref=e412]:
+                    - img [ref=e413]
+              - listitem "1" [ref=e415] [cursor=pointer]:
+                - generic [ref=e416]: "1"
+              - listitem "下一页" [ref=e417]:
+                - button "right" [disabled] [ref=e418]:
+                  - img "right" [ref=e419]:
+                    - img [ref=e420]

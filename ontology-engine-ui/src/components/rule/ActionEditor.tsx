@@ -2,10 +2,15 @@
 // Component for editing rule actions - supports 5 operator types with JSON Schema-driven parameters
 
 import React, { useState, useEffect } from 'react';
-import { Card, Select, Input, Switch, Space, Divider, Spin, message, Button } from 'antd';
+import { Card, Select, Input, Switch, Space, Spin, message } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { operatorsApi, OperatorSchema } from '../../api/operators';
 import type { ActionClause, OperatorName } from '../../types/rule';
+import BinningParamEditor from '../operator-params/BinningParamEditor';
+import ScorecardParamEditor from '../operator-params/ScorecardParamEditor';
+import WeightedSumParamEditor from '../operator-params/WeightedSumParamEditor';
+import DecisionTableEditor from '../operator-params/DecisionTableEditor';
+import LLMJudgeParamEditor from '../operator-params/LLMJudgeParamEditor';
 
 interface ActionEditorProps {
   value?: ActionClause;
@@ -44,6 +49,7 @@ export default function ActionEditor({
     if (selectedOperator) {
       fetchOperatorSchema(selectedOperator);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOperator]);
 
   // Sync with props
@@ -114,6 +120,35 @@ export default function ActionEditor({
       params: newParams,
       outputMapping: newMapping || outputMapping,
     });
+  };
+
+  /** Schema 驱动的专业算子编辑器，优先级高于通用渲染 */
+  const renderOperatorSpecificEditor = () => {
+    if (!operatorSchema) return null;
+    const editorProps = {
+      schema: operatorSchema,
+      value: params,
+      onChange: (newParams: Record<string, unknown>) => {
+        setParams(newParams);
+        emitChange(newParams);
+      },
+      disabled,
+    };
+
+    switch (operatorSchema.name) {
+      case 'BINNING':
+        return <BinningParamEditor {...editorProps} />;
+      case 'SCORECARD':
+        return <ScorecardParamEditor {...editorProps} />;
+      case 'WEIGHTED_SUM':
+        return <WeightedSumParamEditor {...editorProps} />;
+      case 'DECISION_TABLE':
+        return <DecisionTableEditor {...editorProps} />;
+      case 'LLM_JUDGE':
+        return <LLMJudgeParamEditor {...editorProps} />;
+      default:
+        return null;
+    }
   };
 
   const renderParamEditor = (param: {
@@ -258,31 +293,37 @@ export default function ActionEditor({
                 <Spin /> 加载参数配置...
               </div>
             ) : operatorSchema ? (
-              <Space direction="vertical" style={{ width: '100%' }} size="small">
-                {operatorSchema.parameters.length === 0 ? (
-                  <div style={{ color: '#999', fontSize: 12 }}>该算子无需参数</div>
-                ) : (
-                  operatorSchema.parameters.map((param) => (
-                    <div key={param.name}>
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontWeight: 500, marginRight: 8 }}>{param.name}</span>
-                        {param.required && (
-                          <span style={{ color: 'red', fontSize: 11 }}>*</span>
-                        )}
-                        <span style={{ color: '#999', fontSize: 11, marginLeft: 8 }}>
-                          ({param.type})
-                        </span>
-                      </div>
-                      {param.description && (
-                        <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
-                          <InfoCircleOutlined /> {param.description}
+              <>
+                {/* 优先使用专业编辑器 */}
+                {renderOperatorSpecificEditor() || (
+                  // Fallback: 通用渲染（未知算子类型）
+                  <Space direction="vertical" style={{ width: '100%' }} size="small">
+                    {operatorSchema.parameters.length === 0 ? (
+                      <div style={{ color: '#999', fontSize: 12 }}>该算子无需参数</div>
+                    ) : (
+                      operatorSchema.parameters.map((param) => (
+                        <div key={param.name}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 500, marginRight: 8 }}>{param.name}</span>
+                            {param.required && (
+                              <span style={{ color: 'red', fontSize: 11 }}>*</span>
+                            )}
+                            <span style={{ color: '#999', fontSize: 11, marginLeft: 8 }}>
+                              ({param.type})
+                            </span>
+                          </div>
+                          {param.description && (
+                            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
+                              <InfoCircleOutlined /> {param.description}
+                            </div>
+                          )}
+                          {renderParamEditor(param)}
                         </div>
-                      )}
-                      {renderParamEditor(param)}
-                    </div>
-                  ))
+                      ))
+                    )}
+                  </Space>
                 )}
-              </Space>
+              </>
             ) : (
               <div style={{ color: '#999', fontSize: 12 }}>无法加载参数配置</div>
             )}

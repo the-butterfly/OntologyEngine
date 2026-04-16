@@ -81,8 +81,13 @@ class RuleGroupDefinition:
 
     定义规则的框架结构，包含作用对象、适用场景、I/O 要素声明。
     包含一组有序的规则实例。
+
+    Attributes:
+        id: UUID primary key, used by frontend and as URL parameter
+        name: Business identifier, unique constraint
     """
-    name: str
+    id: str = ""  # UUID primary key for frontend/URL use
+    name: str = ""
     description: str = ""
     type: Literal["constraint", "inference", "alert", "decision"] = "decision"
     priority: int = 100
@@ -98,6 +103,7 @@ class RuleGroupDefinition:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
         return {
+            "id": self.id,
             "name": self.name,
             "description": self.description,
             "type": self.type,
@@ -149,6 +155,7 @@ class RuleGroupDefinition:
             for o in data.get("outputs", [])
         ]
         return cls(
+            id=data.get("id", ""),
             name=data["name"],
             description=data.get("description", ""),
             type=data.get("type", "decision"),

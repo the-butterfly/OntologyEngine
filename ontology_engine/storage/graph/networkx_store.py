@@ -154,7 +154,14 @@ class NetworkXGraphStore(GraphStoreBackend):
         direction: str = "outgoing",
         limit: int = 100,
         filter_props: dict[str, Any] | None = None,
+        node_concept: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Get 1-hop neighbors of a node.
+
+        Note: ``node_concept`` is accepted for interface compatibility but
+        not enforced by NetworkX since concept is not stored in the graph.
+        Use kuzu for concept-filtered queries.
+        """
         self._ensure_initialized()
         if node_id not in self._graph:
             return []

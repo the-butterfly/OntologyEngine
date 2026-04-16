@@ -24,7 +24,7 @@ export const RuleGroupCreatePage: React.FC = () => {
         enabled: true,
       });
       message.success('规则组创建成功');
-      navigate(`/rules/${created.id}?schemaId=${schemaId}`);
+      navigate(`/rules/${created.id}?schemaId=${schemaId}&pendingSetup=true`);
     } catch {
       message.error('创建失败');
     }
