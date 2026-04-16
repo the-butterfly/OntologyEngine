@@ -2,6 +2,8 @@
 
 > **Primary**: DuckDB + Faiss
 > **Future**: Neo4j + pgvector
+> **状态**: 当前实现与本文档存在偏差，详见 `docs/04-migration-and-gap/README.md`
+> **最后核验**: 2026-04-16
 
 ## 架构
 
@@ -80,18 +82,9 @@ CREATE INDEX idx_relations_to ON relations(to_id);
 CREATE INDEX idx_relations_type ON relations(relation_type);
 ```
 
-#### instances - 实例数据 (JSON 存储)
-```sql
-CREATE TABLE instances (
-    id VARCHAR PRIMARY KEY,
-    schema_id VARCHAR NOT NULL,
-    entity_data JSON,
-    computed_metrics JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
 #### audit_log - 审计日志（决策 #7）
+
+> **当前实现状态**: ❌ 未实现 (2026-04-16)
 ```sql
 CREATE TABLE audit_log (
     id VARCHAR PRIMARY KEY,
@@ -111,6 +104,8 @@ CREATE INDEX idx_audit_time ON audit_log(created_at);
 ```
 
 #### schema_versions - Schema 版本管理（决策 #8）
+
+> **当前实现状态**: ❌ 未实现 (2026-04-16)
 ```sql
 CREATE TABLE schema_versions (
     id VARCHAR PRIMARY KEY,
@@ -126,7 +121,10 @@ CREATE INDEX idx_schema_versions ON schema_versions(version);
 
 ---
 
-## Faiss 向量存储
+## 向量存储
+
+> **当前实现状态**: ⚠️ 偏离目标设计 (2026-04-16)
+> 文档设计为 `FaissVectorStore`，实际实现为 `LocalVectorStore` 内存向量存储，无持久化。
 
 ### 文件结构
 
@@ -201,11 +199,17 @@ class VectorStore(ABC):
 
 ---
 
-## NetworkX 按需加载
+## NetworkX 图存储
+
+**当前实现状态**: ⚠️ 偏离目标设计 (2026-04-16)
+
+- 实际实现为独立内存图存储，节点/边直接存入 NetworkX
+- 未实现从 DuckDB 按需加载子图的 `load_from_duckdb` 逻辑
+- 未实现 LRU 缓存机制
 
 ```python
 class NetworkXGraph:
-    """内存图，用于图算法"""
+    """内存图，用于图算法 (目标设计)"""
 
     def load_from_duckdb(
         self,
@@ -214,24 +218,7 @@ class NetworkXGraph:
         relation_types: list[str] | None = None
     ) -> nx.DiGraph:
         """从 DuckDB 加载子图到内存"""
-        # 1. BFS 查询节点和边
-        # 2. 构建 NetworkX DiGraph
-        # 3. 返回图对象
-
-    def find_path(
-        self,
-        source: str,
-        target: str,
-        max_depth: int = 5
-    ) -> list[str] | None:
-        """最短路径"""
-
-    def calculate_centrality(
-        self,
-        node_id: str,
-        method: str = "betweenness"
-    ) -> float:
-        """中心性计算"""
+        # 目标设计，当前未实现
 ```
 
 ---
@@ -242,9 +229,9 @@ class NetworkXGraph:
 |--------|------|
 | 属性过滤 | DuckDB JSON 索引 + 物化视图 |
 | 关系查询 | from_id/to_id 复合索引 |
-| 向量检索 | Faiss IVF 索引 (数据量>10万) |
-| 图算法 | 子图加载 + NetworkX 缓存 |
-| 热数据 | diskcache LRU |
+| 向量检索 | Faiss IVF 索引 (数据量>10万) **[未实现，当前为内存实现]** |
+| 图算法 | 子图加载 + NetworkX 缓存 **[未实现按需加载]** |
+| 热数据 | diskcache LRU **[未实现]** |
 
 ---
 

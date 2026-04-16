@@ -1,5 +1,8 @@
 # 规则引擎设计
 
+> **状态**: 当前实现与本文档存在偏差，详见 `docs/04-migration-and-gap/README.md`
+> **最后核验**: 2026-04-16
+
 ## 核心流程
 
 ```
@@ -30,7 +33,10 @@ class RuleParser:
 
 ### 2. DAGBuilder
 
-构建规则依赖图。
+> **当前实现状态**: ❌ 未实现 (2026-04-16)
+> 实际 `RuleExecutor` 使用 `priority` 降序排序替代 DAG 拓扑执行。
+
+构建规则依赖图 (目标设计)。
 
 ```python
 class DAGBuilder:
@@ -88,8 +94,12 @@ class SimpleEvalExecutor:
         evaluator.functions = SAFE_FUNCTIONS
         return evaluator.eval(expr)
 
+>
+> **当前实现状态**: ⚠️ 部分实现 (2026-04-16)
+> 当前代码使用 simpleeval + asteval fallback，非独立的 ASTSandboxExecutor。
+
 class ASTSandboxExecutor:
-    """L1: AST 白名单沙箱执行器（基于 asteval）"""
+    """L1: AST 白名单沙箱执行器（基于 asteval）(目标设计)"""
     def __init__(self, whitelist, max_loop_iterations, timeout_seconds):
         self.whitelist = whitelist
         self.max_loop_iterations = max_loop_iterations
@@ -114,7 +124,9 @@ class ASTSandboxExecutor:
 
 ### 4. OperatorRegistry
 
-算子注册与执行。
+算子注册与执行。 ✅ 已实现 (2026-04-16)
+
+当前实际实现 16 个算子，已覆盖 flag/compute/switch/alert/graph/decision_table/llm_judge/weighted_sum 等类别。
 
 ```python
 class OperatorRegistry:
@@ -232,6 +244,9 @@ class RuleExecutor:
 ---
 
 ## 回滚机制
+
+> **当前实现状态**: ❌ 未实现 (2026-04-16)
+> 当前仅捕获异常并继续执行后续规则，无 snapshot/restore 机制。
 
 ```python
 @contextmanager
