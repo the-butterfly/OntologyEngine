@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ontology_engine.api.dependencies import get_visualization_service
@@ -36,7 +37,8 @@ async def get_schema_graph(
     try:
         layers = layer_filter.split(",") if layer_filter else None
         result = await service.get_schema_graph(graph_type, layers)
-        return success_response(data=dataclasses_asdict(result))
+        response = success_response(data=dataclasses_asdict(result))
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/visualize/schema-graph instead."})
     except SchemaNotLoadedError as exc:
         return error_response(code="SCHEMA_NOT_LOADED", message=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -52,7 +54,8 @@ async def list_visualization_entities(
     """List selectable entities for visualization pages."""
     try:
         result = await service.list_entities(concept=concept, dimension=dimension)
-        return success_response(data=[dataclasses_asdict(item) for item in result])
+        response = success_response(data=[dataclasses_asdict(item) for item in result])
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/entities instead."})
     except SchemaNotLoadedError as exc:
         return error_response(code="SCHEMA_NOT_LOADED", message=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -68,7 +71,8 @@ async def get_metric_snapshot(
     """Get real metric snapshot for one entity."""
     try:
         result = await service.get_metric_snapshot(entity_id=entity_id, dimension=dimension)
-        return success_response(data=dataclasses_asdict(result))
+        response = success_response(data=dataclasses_asdict(result))
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. No replacement endpoint exists."})
     except EntityNotFoundError as exc:
         return error_response(code="ENTITY_NOT_FOUND", message=str(exc))
     except SchemaNotLoadedError as exc:
@@ -85,7 +89,8 @@ async def get_rule_chain_graph(
     """Get rule chain DAG graph data (X6 format)."""
     try:
         result = await service.get_rule_chain_graph(dimension)
-        return success_response(data=dataclasses_asdict(result))
+        response = success_response(data=dataclasses_asdict(result))
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/rules/dependency-graph instead."})
     except SchemaNotLoadedError as exc:
         return error_response(code="SCHEMA_NOT_LOADED", message=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -117,7 +122,8 @@ async def simulate_execution(
             overrides=request.overrides,
             dry_run=request.dry_run,
         )
-        return success_response(data=dataclasses_asdict(result))
+        response = success_response(data=dataclasses_asdict(result))
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/execute/simulate instead."})
     except EntityNotFoundError as exc:
         return error_response(code="ENTITY_NOT_FOUND", message=str(exc))
     except SchemaNotLoadedError as exc:
@@ -138,7 +144,8 @@ async def get_execution_trace(
     """Get historical execution trace."""
     try:
         steps = await service.get_execution_trace(entity_id, dimension)
-        return success_response(data=[dataclasses_asdict(step) for step in steps])
+        response = success_response(data=[dataclasses_asdict(step) for step in steps])
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/execute/analyze instead."})
     except EntityNotFoundError as exc:
         return error_response(code="ENTITY_NOT_FOUND", message=str(exc))
     except SchemaNotLoadedError as exc:

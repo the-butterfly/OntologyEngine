@@ -361,6 +361,13 @@ class SpaceApi {
     return response.data.data;
   }
 
+  // Metric snapshot for an entity in a consumption view
+  async getMetricSnapshot(viewId: string, entityId: string, dimension?: string): Promise<any> {
+    const params = dimension ? { dimension } : {};
+    const response = await axios.get(`/v1/consumption/views/${viewId}/metrics/${entityId}/snapshot`, { params });
+    return response.data.data;
+  }
+
   // Schema YAML import
   async loadSchemaFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
     const response = await axios.post(`${BASE_URL}/${spaceId}/schema/load-from-yaml`, {

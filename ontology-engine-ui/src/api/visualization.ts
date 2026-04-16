@@ -1,5 +1,6 @@
 // API client for visualization endpoints
 import axios from 'axios';
+import { spaceApi } from './spaceApi';
 import type {
   ExecutionStepSnapshot,
   MetricSnapshot,
@@ -10,8 +11,6 @@ import type {
   VisualizationEntityOption,
 } from '../types/visualization';
 
-const BASE_URL = '/v1/visualize';
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -21,18 +20,6 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
-}
-
-function handleResponse<T>(res: any): T {
-  if (res.data && res.data.success === false) {
-    const error = res.data.error;
-    throw new ApiError(
-      error?.message || 'Unknown error',
-      error?.code,
-      res.status
-    );
-  }
-  return res.data.data;
 }
 
 function normalizeAxiosError(err: unknown): never {
@@ -48,72 +35,77 @@ function normalizeAxiosError(err: unknown): never {
 }
 
 export async function fetchSchemaGraph(
+  viewId: string,
   graphType: string,
   layerFilter?: string[],
 ): Promise<SchemaGraphData> {
   try {
-    const params = new URLSearchParams({ graph_type: graphType });
-    if (layerFilter?.length) params.set('layer_filter', layerFilter.join(','));
-    const res = await axios.get(`${BASE_URL}/schema/graph`, { params });
-    return handleResponse<SchemaGraphData>(res);
+    return await spaceApi.getSchemaGraph(viewId, graphType, layerFilter?.join(','));
   } catch (err) {
     normalizeAxiosError(err);
   }
 }
 
 export async function fetchVisualizationEntities(
+  viewId: string,
   concept = 'Supplier',
-  dimension?: string,
 ): Promise<VisualizationEntityOption[]> {
   try {
-    const params = new URLSearchParams();
-    if (concept) params.set('concept', concept);
-    if (dimension) params.set('dimension', dimension);
-    const res = await axios.get(`${BASE_URL}/entities`, { params });
-    return handleResponse<VisualizationEntityOption[]>(res);
+    const entities = await spaceApi.listViewEntities(viewId, concept);
+    // Transform EntityInstance[] to VisualizationEntityOption[]
+    return entities.map((e) => ({
+      entity_id: e.entity_id,
+      concept_type: e._concept || concept,
+      label: ((e.properties as Record<string, unknown>)?.name as string) || e.entity_id,
+      active_dimensions: [],
+    }));
   } catch (err) {
     normalizeAxiosError(err);
   }
 }
 
 export async function fetchMetricSnapshot(
+  viewId: string,
   entityId: string,
   dimension = 'credit_assessment',
 ): Promise<MetricSnapshot> {
   try {
-    const params = new URLSearchParams({ dimension });
-    const res = await axios.get(`${BASE_URL}/metrics/${entityId}`, { params });
-    return handleResponse<MetricSnapshot>(res);
+    return await spaceApi.getMetricSnapshot(viewId, entityId, dimension);
   } catch (err) {
     normalizeAxiosError(err);
   }
 }
 
-export async function fetchRuleChainGraph(dimension: string): Promise<RuleChainGraphData> {
+export async function fetchRuleChainGraph(
+  viewId: string,
+): Promise<RuleChainGraphData> {
   try {
-    const res = await axios.get(`${BASE_URL}/rule-chain/${dimension}`);
-    return handleResponse<RuleChainGraphData>(res);
+    return await spaceApi.getRuleDependencyGraph(viewId);
   } catch (err) {
     normalizeAxiosError(err);
   }
 }
 
-export async function simulateExecution(req: SimulationRequest): Promise<SimulationResult> {
+export async function simulateExecution(
+  viewId: string,
+  req: SimulationRequest,
+): Promise<SimulationResult> {
   try {
-    const res = await axios.post(`${BASE_URL}/simulate`, req);
-    return handleResponse<SimulationResult>(res);
+    // Uses spaceApi.executeSimulate which calls POST /v1/consumption/views/{viewId}/execute/simulate
+    return await spaceApi.executeSimulate(viewId, req.entity_id, req.dimension, req.overrides);
   } catch (err) {
     normalizeAxiosError(err);
   }
 }
 
 export async function fetchExecutionTrace(
+  viewId: string,
   entityId: string,
   dimension: string,
 ): Promise<ExecutionStepSnapshot[]> {
   try {
-    const res = await axios.get(`${BASE_URL}/execution/${entityId}/${dimension}`);
-    return handleResponse<ExecutionStepSnapshot[]>(res);
+    // Uses spaceApi.executeAnalyze which calls POST /v1/consumption/views/{viewId}/execute/analyze
+    return await spaceApi.executeAnalyze(viewId, entityId, dimension, true);
   } catch (err) {
     normalizeAxiosError(err);
   }

@@ -4,6 +4,7 @@
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ontology_engine.api.dependencies import get_entity_service
@@ -51,7 +52,8 @@ async def create_entity(
             entity_id=body.entity_id,
             attributes=body.attributes
         )
-        return success_response(data=result)
+        response = success_response(data=result)
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
     except ConceptNotDefinedError as e:
         return error_response(code="CONCEPT_NOT_FOUND", message=str(e))
     except Exception as e:
@@ -80,7 +82,8 @@ async def batch_create_entities(
         for b in bodies
     ]
     result = await service.batch_create(requests)
-    return success_response(data=result)
+    response = success_response(data=result)
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
 
 
 @router.get("/{entity_id}")
@@ -110,7 +113,8 @@ async def get_entity(
             message=f"Entity {entity_id} not found",
             details={"entity_id": entity_id}
         )
-    return success_response(data=result)
+    response = success_response(data=result)
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
 
 
 @router.post("/query")
@@ -130,7 +134,8 @@ async def query_entities(
         concept_type=body.concept_type,
         filters=body.filter
     )
-    return success_response(data={"entities": results})
+    response = success_response(data={"entities": results})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
 
 
 @router.get("/{entity_id}/neighbors")
@@ -156,7 +161,8 @@ async def get_neighbors(
             relation_type=relation_type,
             depth=depth
         )
-        return success_response(data={"neighbors": results})
+        response = success_response(data={"neighbors": results})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
     except ValueError as e:
         return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:
