@@ -2,6 +2,7 @@
 """Rule orchestration service - CRUD and YAML import/export."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -13,6 +14,16 @@ from ontology_engine.engine.rule.models import (
     RuleStep,
 )
 from ontology_engine.storage.base import StorageBackend
+
+# L4 action_type -> Phase 2 operator mapping
+ACTION_TYPE_MAP = {
+    "set_flag": "SET_FLAG",
+    "compute": "COMPUTE",
+    "alert": "ALERT",
+    "approve": "APPROVE",
+    "reject": "REJECT",
+    "set_value": "SET_VALUE",
+}
 
 
 class RuleServiceError(Exception):
@@ -507,11 +518,10 @@ class RuleService:
         # Save rule group
         await self._storage.save_rule_group(rg_data, schema_id=schema_id)
 
-        # Process rule steps
-        for step_raw in steps_raw:
+        # Process rule steps in parallel
+        async def save_step(step_raw: dict[str, Any]) -> None:
             when_normalized = self._normalize_when(step_raw.get("when", {}))
             then_normalized = self._normalize_action(step_raw.get("then", {}))
-
             step_data = {
                 "id": step_raw.get("id"),
                 "name": step_raw.get("name", ""),
@@ -524,9 +534,9 @@ class RuleService:
             }
             await self._storage.save_rule_step(name, step_data)
 
-        return RuleGroupDefinition.from_dict(
-            await self._storage.get_rule_group(name, schema_id=schema_id)
-        )
+        await asyncio.gather(*[save_step(s) for s in steps_raw])
+
+        return RuleGroupDefinition.from_dict(rg_data)
 
     async def _import_legacy_format(
         self,
@@ -577,26 +587,31 @@ class RuleService:
         # Save rule group
         await self._storage.save_rule_group(rg_data, schema_id=schema_id)
 
-        # Extract and save rule steps from rule_logics
+        # Extract and save rule steps from rule_logics in parallel
+        async def save_legacy_step(step: dict[str, Any], order: int) -> None:
+            step_data = {
+                "id": step.get("id"),
+                "name": step.get("name", ""),
+                "step_order": order,
+                "when": step.get("when", {}),
+                "then": step.get("then", {}),
+                "else": step.get("else"),
+                "enabled": True,
+            }
+            await self._storage.save_rule_step(name, step_data)
+
         rule_logics = data.get("rule_logics", [])
+        save_tasks = []
         for logic in rule_logics:
             if logic.get("rule_definition") == name:
                 steps = logic.get("steps", [])
                 for order, step in enumerate(steps):
-                    step_data = {
-                        "id": step.get("id"),
-                        "name": step.get("name", ""),
-                        "step_order": order,
-                        "when": step.get("when", {}),
-                        "then": step.get("then", {}),
-                        "else": step.get("else"),
-                        "enabled": True,
-                    }
-                    await self._storage.save_rule_step(name, step_data)
+                    save_tasks.append(save_legacy_step(step, order))
 
-        return RuleGroupDefinition.from_dict(
-            await self._storage.get_rule_group(name, schema_id=schema_id)
-        )
+        if save_tasks:
+            await asyncio.gather(*save_tasks)
+
+        return RuleGroupDefinition.from_dict(rg_data)
 
     # L4 Schema YAML Import (Legacy Compatibility)
     # =========================================================================
@@ -681,6 +696,20 @@ class RuleService:
         if not rule_definitions:
             raise RuleServiceError("No rule_definitions found in L4 schema YAML")
 
+        # Pre-build lookup dict: definition_id -> list of matching logics
+        # Also index by logic id for logic_ids references
+        definition_logics: dict[str, list[dict[str, Any]]] = {}
+        logic_by_id: dict[str, dict[str, Any]] = {}
+        for logic in rule_logics:
+            def_id = logic.get("definition_id", "")
+            if def_id:
+                if def_id not in definition_logics:
+                    definition_logics[def_id] = []
+                definition_logics[def_id].append(logic)
+            logic_id = logic.get("id", "")
+            if logic_id:
+                logic_by_id[logic_id] = logic
+
         imported_rule_groups: list[RuleGroupDefinition] = []
 
         # Process each rule_definition
@@ -706,7 +735,7 @@ class RuleService:
                 applies_to_list = [applies_to_list]
 
             # Map applicable_categorizations -> categories (empty dict for now)
-            applicable_categorizations = rule_def.get("applicable_categorizations", [])
+            # Note: applicable_categorizations not yet mapped, reserved for future use
 
             # Normalize inputs: id -> name
             inputs_raw = rule_def.get("inputs", [])
@@ -746,26 +775,25 @@ class RuleService:
                 "schema_id": schema_id,
             }
 
-            # Save rule group
+            # Find all rule_logics that reference this rule_definition
+            logic_ids = rule_def.get("logic_ids", [])
+            matching_logics = list(definition_logics.get(rule_def_id, []))
+            for lid in logic_ids:
+                if lid in logic_by_id and lid not in [lg.get("id") for lg in matching_logics]:
+                    matching_logics.append(logic_by_id[lid])
+
+            # Save rule group and create rule_steps in parallel
             await self._storage.save_rule_group(rg_data, schema_id=schema_id)
 
-            # Find all rule_logics that reference this rule_definition by id
-            logic_ids = rule_def.get("logic_ids", [])
-            matching_logics = [
-                logic for logic in rule_logics
-                if logic.get("definition_id") == rule_def_id or logic.get("id") in logic_ids
-            ]
-
-            # Create rule_steps from each matching logic
-            for order, logic in enumerate(matching_logics):
+            async def save_l4_step(logic: dict[str, Any], order: int) -> None:
                 step_data = self._convert_l4_logic_to_step(logic, name, order)
                 await self._storage.save_rule_step(name, step_data)
 
-            imported_rule_groups.append(
-                RuleGroupDefinition.from_dict(
-                    await self._storage.get_rule_group(name, schema_id=schema_id)
-                )
-            )
+            save_tasks = [save_l4_step(logic, order) for order, logic in enumerate(matching_logics)]
+            if save_tasks:
+                await asyncio.gather(*save_tasks)
+
+            imported_rule_groups.append(RuleGroupDefinition.from_dict(rg_data))
 
         return imported_rule_groups
 
@@ -917,15 +945,7 @@ class RuleService:
         Returns:
             Phase 2 operator string
         """
-        action_type_map = {
-            "set_flag": "SET_FLAG",
-            "compute": "COMPUTE",
-            "alert": "ALERT",
-            "approve": "APPROVE",
-            "reject": "REJECT",
-            "set_value": "SET_VALUE",
-        }
-        return action_type_map.get(action_type.lower(), action_type.upper())
+        return ACTION_TYPE_MAP.get(action_type.lower(), action_type.upper())
 
     def _convert_l4_output(
         self,
@@ -1054,20 +1074,20 @@ class RuleService:
         if when_type == "expression":
             return {
                 "type": "expression",
-                "expression": raw.get("expression"),
+                "expression": raw.get("expression", ""),
                 "sub_conditions": [],
             }
         elif when_type in ("all_of", "any_of"):
             return {
                 "type": when_type,
-                "expression": None,
+                "expression": "",
                 "sub_conditions": raw.get("sub_conditions", []),
             }
         else:
             # Preserve original structure for unknown types
             return {
                 "type": when_type,
-                "expression": raw.get("expression"),
+                "expression": raw.get("expression", ""),
                 "sub_conditions": raw.get("sub_conditions", []),
             }
 

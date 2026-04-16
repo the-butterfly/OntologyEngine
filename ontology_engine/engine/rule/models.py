@@ -132,11 +132,21 @@ class RuleGroupDefinition:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RuleGroupDefinition":
-        """Create from dictionary."""
-        _applies_to = data.get("applies_to") or {}
+        """Create from dictionary.
+
+        Supports both snake_case (backend to_dict/DB) and camelCase (frontend API).
+        """
+        # Handle applies_to: snake_case (applies_to.fact_objects) or camelCase (appliesTo.factObjects)
+        _applies_to_raw = data.get("applies_to") or data.get("appliesTo") or {}
+        if isinstance(_applies_to_raw, dict):
+            _fact = _applies_to_raw.get("fact_objects") or _applies_to_raw.get("factObjects") or []
+            _cats = _applies_to_raw.get("categories") or {}
+        else:
+            _fact = []
+            _cats = {}
         applies_to = AppliesToConfig(
-            fact_objects=_applies_to.get("fact_objects", []),
-            categories=_applies_to.get("categories", {}),
+            fact_objects=_fact,
+            categories=_cats,
         )
         preconditions = [
             Precondition(expression=p.get("expression", ""), fail=p.get("fail"))
@@ -166,7 +176,8 @@ class RuleGroupDefinition:
             inputs=inputs,
             outputs=outputs,
             enabled=data.get("enabled", True),
-            schema_id=data.get("schema_id"),
+            # Support both snake_case and camelCase for schema_id
+            schema_id=data.get("schema_id") or data.get("schemaId") or "",
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
         )
@@ -188,10 +199,12 @@ class ActionClause:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ActionClause":
+        # Support both snake_case (backend to_dict) and camelCase (frontend API)
+        _mapping = data.get("output_mapping") or data.get("outputMapping") or {}
         return cls(
             operator=data.get("operator", ""),
             params=data.get("params", {}),
-            output_mapping=data.get("output_mapping", {}),
+            output_mapping=_mapping,
         )
 
 
@@ -211,10 +224,12 @@ class ConditionClause:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ConditionClause":
+        # Support both snake_case (backend to_dict) and camelCase (frontend API)
+        _subs = data.get("sub_conditions") or data.get("subConditions") or []
         return cls(
             type=data.get("type", "expression"),
             expression=data.get("expression"),
-            sub_conditions=data.get("sub_conditions", []),
+            sub_conditions=_subs,
         )
 
 
@@ -267,7 +282,8 @@ class RuleStep:
         return cls(
             id=data["id"],
             name=data.get("name", ""),
-            rule_group=data.get("rule_group", ""),
+            # Support both snake_case (backend to_dict/DB) and camelCase (frontend API)
+            rule_group=data.get("rule_group") or data.get("ruleGroup") or "",
             order=data.get("step_order", data.get("order", 0)),
             when=when,
             then=then,
