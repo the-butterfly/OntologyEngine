@@ -1045,44 +1045,57 @@ const body = {
 
 ---
 
-## 附录 A: 完整端点列表 (v2.0)
+## 附录 A: 完整端点列表 (v2.1)
 
 > **架构决策** (2026-04-16):
 > - `/v1/schema` → 标记为 deprecated，history 迁移到 Space
 > - `/v1/visualize` → 合并到 `/v1/consumption/views`
-> - `/v1/ingestion` → 增加 `?space=xxx_id` 参数
+> - `/v1/ingestion` → 增加 `?space_id=xxx_id` 参数
 > - 所有 asset 管理必须关联 Space
 
 ### Schema 管理 (`/v1/schema`) ⚠️ DEPRECATED
 | Method | Endpoint | 说明 |
 |--------|----------|------|
-| POST | `/v1/schema/load` | ~~加载 Schema~~ → 使用 `POST /v1/management/spaces/{id}/load-schema` |
-| GET | `/v1/schema` | ~~获取当前 Schema~~ → 使用 `GET /v1/management/spaces/{id}` |
-| POST | `/v1/schema/reload` | ~~热重载~~ → 使用 `POST /v1/management/spaces/{id}/activate` |
-| GET | `/v1/schema/versions` | ~~版本历史~~ → 使用 `GET /v1/management/spaces/{id}/versions` |
-| POST | `/v1/schema/rollback/{version}` | ~~版本回滚~~ → 使用 `POST /v1/management/spaces/{id}/versions/{version}/rollback` |
+| POST | `/v1/schema/load` | ~~加载 Schema~~ → 使用 `POST /v1/management/spaces/load-from-json` |
+| GET | `/v1/schema` | ~~获取当前 Schema~~ → 使用 `GET /v1/management/spaces/{space_id}` |
+| POST | `/v1/schema/reload` | ~~热重载~~ → 使用 `POST /v1/management/spaces/{space_id}/activate` |
+| GET | `/v1/schema/versions` | ~~版本历史~~ → 使用 `GET /v1/management/{space_id}/versions` |
+| POST | `/v1/schema/rollback/{version}` | ~~版本回滚~~ → 使用 `POST /v1/management/{space_id}/versions/{version}/rollback` |
 
-### Space 管理 (`/v1/management/spaces`) ⭐ PRIMARY
+### Space 管理 (`/v1/management`) ⭐ PRIMARY
 | Method | Endpoint | 说明 |
 |--------|----------|------|
 | POST | `/v1/management/spaces` | 创建 Space |
 | GET | `/v1/management/spaces` | 列出 Spaces |
-| GET | `/v1/management/spaces/{id}` | 获取 Space (含内部 L1-L4 schema) |
-| PUT | `/v1/management/spaces/{id}` | 更新 Space |
-| DELETE | `/v1/management/spaces/{id}` | 删除 Space |
-| POST | `/v1/management/spaces/{id}/activate` | 激活 Space |
-| POST | `/v1/management/spaces/{id}/archive` | 归档 Space |
-| GET | `/v1/management/spaces/{id}/versions` | 获取版本历史 |
-| POST | `/v1/management/spaces/{id}/versions/{version}/rollback` | 版本回滚 |
+| GET | `/v1/management/spaces/{space_id}` | 获取 Space (含内部 L1-L4 schema) |
+| PUT | `/v1/management/spaces/{space_id}` | 更新 Space |
+| DELETE | `/v1/management/spaces/{space_id}` | 删除 Space |
+| POST | `/v1/management/spaces/{space_id}/activate` | 激活 Space |
+| POST | `/v1/management/spaces/{space_id}/archive` | 归档 Space |
+| GET | `/v1/management/{space_id}/versions` | 获取版本历史 |
+| POST | `/v1/management/{space_id}/versions` | 创建快照 |
+| POST | `/v1/management/{space_id}/versions/{version}/rollback` | 版本回滚 |
+
+### Schema Layer 管理 (`/v1/management/{space_id}/schema/`)
+| Method | Endpoint | 说明 |
+|--------|----------|------|
+| GET | `/v1/management/{space_id}/schema/L1/fact-objects` | 获取 L1 要素对象 |
+| POST | `/v1/management/{space_id}/schema/L1/fact-objects` | 创建 L1 要素对象 |
+| GET | `/v1/management/{space_id}/schema/L2/categorizations` | 获取 L2 分类 |
+| POST | `/v1/management/{space_id}/schema/L2/categorizations` | 创建 L2 分类 |
+| GET | `/v1/management/{space_id}/schema/L3/analytical-elements` | 获取 L3 分析元素 |
+| POST | `/v1/management/{space_id}/schema/L3/analytical-elements` | 创建 L3 分析元素 |
+| GET | `/v1/management/{space_id}/schema/L4/rules/definitions` | 获取 L4 规则定义 |
+| POST | `/v1/management/{space_id}/schema/L4/rules/definitions` | 创建 L4 规则定义 |
 
 ### 实体管理 (`/v1/entities`) ⚠️ DEPRECATED → 迁移到 Space
 | Method | Endpoint | 说明 |
 |--------|----------|------|
-| POST | `/v1/entities` | ~~创建实体~~ → 使用 `POST /v1/management/spaces/{id}/entities` |
-| POST | `/v1/entities/batch` | ~~批量创建~~ → 使用 `POST /v1/management/spaces/{id}/entities/batch` |
-| GET | `/v1/entities/{entity_id}` | ~~获取实体~~ → 使用 `GET /v1/management/spaces/{id}/entities/{eid}` |
-| POST | `/v1/entities/query` | ~~条件查询~~ → 使用 `POST /v1/management/spaces/{id}/entities/query` |
-| GET | `/v1/entities/{entity_id}/neighbors` | ~~查询邻居~~ → 使用 `GET /v1/management/spaces/{id}/entities/{eid}/neighbors` |
+| POST | `/v1/entities` | ~~创建实体~~ → 使用 `POST /v1/management/{space_id}/instances/entities` |
+| POST | `/v1/entities/batch` | ~~批量创建~~ → 使用 `POST /v1/management/{space_id}/instances/entities` |
+| GET | `/v1/entities/{entity_id}` | ~~获取实体~~ → 使用 `GET /v1/management/{space_id}/instances/entities` |
+| POST | `/v1/entities/query` | ~~条件查询~~ → 使用 `POST /v1/management/{space_id}/instances/entities` |
+| GET | `/v1/entities/{entity_id}/neighbors` | ~~查询邻居~~ → 使用 `GET /v1/management/{space_id}/instances/entities` |
 
 ### 规则管理 (`/v1/rule-groups`)
 | Method | Endpoint | 说明 |
@@ -1112,17 +1125,20 @@ const body = {
 | Method | Endpoint | 说明 |
 |--------|----------|------|
 | GET | `/v1/consumption/views` | 列出视图 |
-| GET | `/v1/consumption/views/{id}` | 获取视图 |
-| POST | `/v1/consumption/views/{id}/execute/analyze` | 执行分析 |
-| POST | `/v1/consumption/views/{id}/execute/simulate` | What-if 模拟 |
-| GET | `/v1/consumption/views/{id}/visualize/*` | ~~可视化~~ → 已合并到 Views |
+| GET | `/v1/consumption/views/{view_id}` | 获取视图 |
+| POST | `/v1/consumption/views/{view_id}/execute/analyze` | 执行分析 |
+| POST | `/v1/consumption/views/{view_id}/execute/simulate` | What-if 模拟 |
+| GET | `/v1/consumption/views/{view_id}/visualize/schema-graph` | Schema 图 |
+| GET | `/v1/consumption/views/{view_id}/entities` | 视图实体 |
+| GET | `/v1/consumption/views/{view_id}/metrics/{entity_id}/snapshot` | Metric 快照 |
+| GET | `/v1/consumption/views/{view_id}/rules/dependency-graph` | 规则依赖图 |
 
-### 数据导入 (`/v1/ingestion`) ⭐ WITH SPACE PARAM
+### 数据导入 (`/v1/ingestion`) ⭐ WITH SPACE_ID PARAM
 | Method | Endpoint | 说明 |
 |--------|----------|------|
-| POST | `/v1/ingestion/upload` | 上传文件 (需 `?space=xxx_id`) |
-| GET | `/v1/ingestion/jobs/{job_id}/status` | 状态查询 (需 `?space=xxx_id`) |
-| POST | `/v1/ingestion/jobs/{job_id}/commit` | 提交导入 (需 `?space=xxx_id`) |
+| POST | `/v1/ingestion/import` | 导入实体/关系 (需 `?space_id=xxx`) |
+| POST | `/v1/ingestion/import/dict` | Dict 导入 (需 `?space_id=xxx`) |
+| POST | `/v1/ingestion/validate` | 验证导入 (需 `?space_id=xxx`) |
 
 ### 数据集 (`/v1/datasets`)
 | Method | Endpoint | 说明 |
@@ -1231,4 +1247,4 @@ data: {"final_result": {...}}
 
 ---
 
-*文档版本: v2.0 | 最后更新: 2026-04-16*
+*文档版本: v2.1 | 最后更新: 2026-04-17 | 迁移状态: ✅ 完成*
