@@ -366,14 +366,14 @@ class RuleService:
         rule_group_name: str,
         schema_id: str | None = None,
     ) -> str:
-        """Export a rule group to YAML format.
+        """Export a rule group to YAML format (Phase 2).
 
         Args:
             rule_group_name: Rule group name
             schema_id: Semantic space ID for rule group lookup
 
         Returns:
-            YAML string
+            YAML string in Phase 2 format (rule_group + rule_steps)
 
         Raises:
             RuleServiceError: If rule group not found
@@ -384,35 +384,32 @@ class RuleService:
 
         steps_data = await self._storage.list_rule_steps(rg_data["name"])
 
-        # Build YAML structure conforming to Schema v2
+        # Build Phase 2 YAML structure (RFC-017 Section 2.1)
         yaml_data = {
-            "rule_definitions": [
+            "rule_group": {
+                "name": rg_data["name"],
+                "description": rg_data.get("description", ""),
+                "type": rg_data.get("type", "decision"),
+                "priority": rg_data.get("priority", 100),
+                "enabled": rg_data.get("enabled", True),
+                "applies_to": rg_data.get("applies_to", {}),
+                "preconditions": rg_data.get("preconditions", []),
+                "inputs": rg_data.get("inputs", []),
+                "outputs": rg_data.get("outputs", []),
+            },
+            "rule_steps": [
                 {
-                    "name": rg_data["name"],
-                    "description": rg_data.get("description", ""),
-                    "type": rg_data.get("type", "decision"),
-                    "priority": rg_data.get("priority", 100),
-                    "applies_to": rg_data.get("applies_to", {}),
-                    "preconditions": rg_data.get("preconditions", []),
-                    "inputs": rg_data.get("inputs", []),
-                    "outputs": rg_data.get("outputs", []),
+                    "id": s["id"],
+                    "name": s.get("name", ""),
+                    "order": s.get("step_order", s.get("order", 0)),
+                    "enabled": s.get("enabled", True),
+                    "description": s.get("description", ""),
+                    "tags": s.get("tags", []),
+                    "when": s.get("when", {}),
+                    "then": s.get("then", {}),
+                    "else": s.get("else"),
                 }
-            ],
-            "rule_logics": [
-                {
-                    "name": f"{rule_group_name}_logic",
-                    "rule_definition": rule_group_name,
-                    "steps": [
-                        {
-                            "id": s["id"],
-                            "name": s.get("name", ""),
-                            "when": s.get("when", {}),
-                            "then": s.get("then", {}),
-                            "else": s.get("else"),
-                        }
-                        for s in steps_data
-                    ],
-                }
+                for s in steps_data
             ],
         }
 
@@ -600,6 +597,393 @@ class RuleService:
         return RuleGroupDefinition.from_dict(
             await self._storage.get_rule_group(name, schema_id=schema_id)
         )
+
+    # L4 Schema YAML Import (Legacy Compatibility)
+    # =========================================================================
+
+    async def import_from_l4_schema_yaml(
+        self,
+        yaml_content: str,
+        schema_id: str | None = None,
+    ) -> list[RuleGroupDefinition]:
+        """Import rules from old L4 schema.yaml format (nested in semantic_space.business_logic).
+
+        Single-direction only: converts L4 format to Phase 2 format.
+        Does NOT export back to L4 format.
+
+        L4 Format Structure:
+            semantic_space:
+              business_logic:
+                rule_definitions:
+                  - id: RD001_basic_eligibility
+                    name: "基础准入检查"
+                    rule_type: constraint
+                    applies_to: [Supplier]
+                    applicable_categorizations: [credit_assessment]
+                    inputs:
+                      - { id: status, name: "经营状态", type: attribute }
+                    outputs:
+                      - { id: is_eligible, name: "是否准入", type: flag }
+                    logic_ids: [RL001_eligibility_standard]
+                    enabled: true
+                rule_logics:
+                  - id: RL001_eligibility_standard
+                    definition_id: RD001_basic_eligibility
+                    when:
+                      expression: "status == 'ACTIVE'"
+                    then_action:
+                      action_type: set_flag
+                      output:
+                        is_eligible: true
+                    else_action:
+                      action_type: set_flag
+                      output:
+                        is_eligible: false
+
+        Field Mapping:
+            L4 Old                     -> Phase 2 New
+            id (rule_definition)       -> name
+            rule_type                  -> type
+            applies_to: [Supplier]     -> applies_to.fact_objects: ["Supplier"]
+            applicable_categorizations -> applies_to.categories: {} (empty for now)
+            inputs[].id                -> inputs[].name
+            outputs[].id               -> outputs[].name
+            logic_ids: [RL001]         -> Multiple rule_steps from each matching logic
+            action_type: set_flag      -> operator: SET_FLAG
+            output: {is_eligible: true} -> params: {flag_name: "is_eligible", flag_value: true}
+            when.expression (string)  -> when.type: "expression", when.expression
+
+        Args:
+            yaml_content: YAML content string in L4 format
+            schema_id: Semantic space ID (required for isolation)
+
+        Returns:
+            List of imported RuleGroupDefinition
+
+        Raises:
+            RuleServiceError: If YAML is invalid, validation fails, or schema_id is missing
+        """
+        # schema_id is required for semantic space isolation
+        if not schema_id:
+            raise RuleServiceError("schema_id is required for semantic space isolation")
+
+        try:
+            data = yaml.safe_load(yaml_content)
+        except yaml.YAMLError as e:
+            raise RuleServiceError(f"Invalid YAML: {e}")
+
+        # Extract business_logic from semantic_space
+        semantic_space = data.get("semantic_space", {})
+        business_logic = semantic_space.get("business_logic", {})
+        rule_definitions = business_logic.get("rule_definitions", [])
+        rule_logics = business_logic.get("rule_logics", [])
+
+        if not rule_definitions:
+            raise RuleServiceError("No rule_definitions found in L4 schema YAML")
+
+        imported_rule_groups: list[RuleGroupDefinition] = []
+
+        # Process each rule_definition
+        for rule_def in rule_definitions:
+            rule_def_id = rule_def.get("id")
+            name = rule_def.get("name")
+            if not name:
+                raise RuleServiceError("Rule definition must have a name")
+
+            # Check if rule group already exists
+            existing = await self._storage.get_rule_group(name, schema_id=schema_id)
+            if existing:
+                raise RuleServiceError(
+                    f"Rule group '{name}' already exists in semantic space '{schema_id}'"
+                )
+
+            # Map rule_type -> type
+            rule_type = rule_def.get("rule_type", "decision")
+
+            # Map applies_to: [Supplier] -> applies_to.fact_objects: ["Supplier"]
+            applies_to_list = rule_def.get("applies_to", [])
+            if isinstance(applies_to_list, str):
+                applies_to_list = [applies_to_list]
+
+            # Map applicable_categorizations -> categories (empty dict for now)
+            applicable_categorizations = rule_def.get("applicable_categorizations", [])
+
+            # Normalize inputs: id -> name
+            inputs_raw = rule_def.get("inputs", [])
+            inputs_normalized = []
+            for inp in inputs_raw:
+                inputs_normalized.append({
+                    "name": inp.get("id", inp.get("name", "")),
+                    "type": inp.get("type"),
+                    "metric": inp.get("metric"),
+                    "attribute": inp.get("attribute"),
+                })
+
+            # Normalize outputs: id -> name
+            outputs_raw = rule_def.get("outputs", [])
+            outputs_normalized = []
+            for out in outputs_raw:
+                outputs_normalized.append({
+                    "name": out.get("id", out.get("name", "")),
+                    "type": out.get("type"),
+                })
+
+            # Build rule group data
+            rg_data = {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "description": rule_def.get("description", ""),
+                "type": rule_type,
+                "priority": rule_def.get("priority", 100),
+                "enabled": rule_def.get("enabled", True),
+                "applies_to": {
+                    "fact_objects": applies_to_list,
+                    "categories": {},  # applicable_categorizations not mapped yet
+                },
+                "preconditions": [],
+                "inputs": inputs_normalized,
+                "outputs": outputs_normalized,
+                "schema_id": schema_id,
+            }
+
+            # Save rule group
+            await self._storage.save_rule_group(rg_data, schema_id=schema_id)
+
+            # Find all rule_logics that reference this rule_definition by id
+            logic_ids = rule_def.get("logic_ids", [])
+            matching_logics = [
+                logic for logic in rule_logics
+                if logic.get("definition_id") == rule_def_id or logic.get("id") in logic_ids
+            ]
+
+            # Create rule_steps from each matching logic
+            for order, logic in enumerate(matching_logics):
+                step_data = self._convert_l4_logic_to_step(logic, name, order)
+                await self._storage.save_rule_step(name, step_data)
+
+            imported_rule_groups.append(
+                RuleGroupDefinition.from_dict(
+                    await self._storage.get_rule_group(name, schema_id=schema_id)
+                )
+            )
+
+        return imported_rule_groups
+
+    def _convert_l4_logic_to_step(
+        self,
+        logic: dict[str, Any],
+        rule_group_name: str,
+        order: int,
+    ) -> dict[str, Any]:
+        """Convert an L4 rule_logic to a Phase 2 rule_step.
+
+        Args:
+            logic: L4 rule_logic dict
+            rule_group_name: Name of the parent rule group
+            order: Step order
+
+        Returns:
+            Phase 2 rule_step dict
+        """
+        logic_id = logic.get("id", "")
+        logic_name = logic.get("name", logic_id)
+
+        # Convert when clause
+        when_raw = logic.get("when", {})
+        when_normalized = self._normalize_l4_when(when_raw)
+
+        # Convert then_action
+        then_action = logic.get("then_action", {})
+        then_normalized = self._normalize_l4_action(then_action)
+
+        # Convert else_action
+        else_action = logic.get("else_action")
+        else_normalized = self._normalize_l4_action(else_action) if else_action else None
+
+        return {
+            "id": logic_id,
+            "name": logic_name,
+            "step_order": order,
+            "enabled": True,
+            "description": logic.get("description", ""),
+            "tags": [],
+            "when": when_normalized,
+            "then": then_normalized,
+            "else": else_normalized,
+        }
+
+    def _normalize_l4_when(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Normalize L4 when clause to Phase 2 format.
+
+        L4 when can have:
+        - expression: "string expression"
+        - allOf/anyOf: [list of conditions]
+
+        Phase 2 when has:
+        - type: "expression" | "all_of" | "any_of"
+        - expression: string (for type=expression)
+        - sub_conditions: [] (for type=all_of/any_of)
+
+        Args:
+            raw: L4 when clause dict
+
+        Returns:
+            Phase 2 when clause
+        """
+        if not raw:
+            return {"type": "expression", "expression": None, "sub_conditions": []}
+
+        # Handle expression string
+        if "expression" in raw:
+            expression = raw["expression"]
+            if isinstance(expression, str):
+                return {
+                    "type": "expression",
+                    "expression": expression,
+                    "sub_conditions": [],
+                }
+            # If expression is already parsed (not a string), treat as expression
+            return {
+                "type": "expression",
+                "expression": str(expression) if expression else None,
+                "sub_conditions": [],
+            }
+
+        # Handle allOf/anyOf
+        if "allOf" in raw or "anyOf" in raw:
+            cond_type = "all_of" if "allOf" in raw else "any_of"
+            conditions = raw.get("allOf") or raw.get("anyOf") or []
+            return {
+                "type": cond_type,
+                "expression": None,
+                "sub_conditions": conditions,
+            }
+
+        # Fallback: treat entire raw as expression
+        return {
+            "type": "expression",
+            "expression": str(raw) if raw else None,
+            "sub_conditions": [],
+        }
+
+    def _normalize_l4_action(self, raw: dict[str, Any] | None) -> dict[str, Any]:
+        """Normalize L4 action (then_action/else_action) to Phase 2 format.
+
+        L4 action structure:
+            then_action:
+              action_type: set_flag
+              output:
+                is_eligible: true
+                rejection_reason: "..."
+
+        Phase 2 action structure:
+            then:
+              operator: SET_FLAG
+              params:
+                flag_name: "is_eligible"
+                flag_value: true
+              output_mapping: {}
+
+        Args:
+            raw: L4 action dict
+
+        Returns:
+            Phase 2 action clause
+        """
+        if not raw:
+            return {"operator": "", "params": {}, "output_mapping": {}}
+
+        action_type = raw.get("action_type", "")
+        output = raw.get("output", {})
+
+        # Map L4 action_type to Phase 2 operator
+        operator = self._map_l4_action_type(action_type)
+
+        # Convert L4 output to params and output_mapping
+        params, output_mapping = self._convert_l4_output(output, action_type)
+
+        return {
+            "operator": operator,
+            "params": params,
+            "output_mapping": output_mapping,
+        }
+
+    def _map_l4_action_type(self, action_type: str) -> str:
+        """Map L4 action_type to Phase 2 operator.
+
+        Args:
+            action_type: L4 action type string
+
+        Returns:
+            Phase 2 operator string
+        """
+        action_type_map = {
+            "set_flag": "SET_FLAG",
+            "compute": "COMPUTE",
+            "alert": "ALERT",
+            "approve": "APPROVE",
+            "reject": "REJECT",
+            "set_value": "SET_VALUE",
+        }
+        return action_type_map.get(action_type.lower(), action_type.upper())
+
+    def _convert_l4_output(
+        self,
+        output: dict[str, Any],
+        action_type: str,
+    ) -> tuple[dict[str, Any], dict[str, str]]:
+        """Convert L4 output to Phase 2 params and output_mapping.
+
+        For set_flag action:
+            L4: output: {is_eligible: true, rejection_reason: "..."}
+            Phase 2: params: {flag_name: "is_eligible", flag_value: true}
+                     output_mapping: {rejection_reason: "rejection_reason"}
+
+        For compute action:
+            L4: output: {credit_score: "$metric:credit_score", ...}
+            Phase 2: params: {computations: {credit_score: "$metric:credit_score", ...}}
+                     output_mapping: {}
+
+        Args:
+            output: L4 output dict
+            action_type: L4 action type
+
+        Returns:
+            Tuple of (params, output_mapping)
+        """
+        if action_type == "set_flag":
+            # Extract flag_name and flag_value from output
+            flag_name = None
+            flag_value = None
+            output_mapping = {}
+
+            for key, value in output.items():
+                if flag_name is None and isinstance(value, bool):
+                    # First boolean value is the flag
+                    flag_name = key
+                    flag_value = value
+                else:
+                    # Other values go to output_mapping
+                    output_mapping[key] = key
+
+            params = {}
+            if flag_name is not None:
+                params["flag_name"] = flag_name
+                params["flag_value"] = flag_value
+
+            return params, output_mapping
+
+        elif action_type == "compute":
+            # For compute, put all outputs in params.computations
+            return {"computations": output}, {}
+
+        elif action_type == "alert":
+            # For alert, put output in params
+            return {"alert_data": output}, {}
+
+        else:
+            # Default: pass through output as params
+            return {"raw_output": output}, {}
 
     # =========================================================================
     # Helper methods for Phase 2 YAML normalization
