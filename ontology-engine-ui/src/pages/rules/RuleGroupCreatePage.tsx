@@ -23,10 +23,14 @@ export const RuleGroupCreatePage: React.FC = () => {
         priority: values.priority || 100,
         enabled: true,
       });
-      message.success('规则组创建成功');
       navigate(`/rules/${created.id}?schemaId=${schemaId}&pendingSetup=true`);
-    } catch {
-      message.error('创建失败');
+    } catch (err) {
+      console.error('[RuleGroupCreate] 创建失败:', err);
+      try {
+        message.error('创建失败');
+      } catch {
+        // message API may fail outside App context
+      }
     }
   };
 

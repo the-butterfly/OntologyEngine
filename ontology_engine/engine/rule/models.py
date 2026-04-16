@@ -133,13 +133,14 @@ class RuleGroupDefinition:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RuleGroupDefinition":
         """Create from dictionary."""
+        _applies_to = data.get("applies_to") or {}
         applies_to = AppliesToConfig(
-            fact_objects=data.get("applies_to", {}).get("fact_objects", []),
-            categories=data.get("applies_to", {}).get("categories", {}),
+            fact_objects=_applies_to.get("fact_objects", []),
+            categories=_applies_to.get("categories", {}),
         )
         preconditions = [
             Precondition(expression=p.get("expression", ""), fail=p.get("fail"))
-            for p in data.get("preconditions", [])
+            for p in (data.get("preconditions") or [])
         ]
         inputs = [
             IOElement(
@@ -148,11 +149,11 @@ class RuleGroupDefinition:
                 metric=i.get("metric"),
                 attribute=i.get("attribute"),
             )
-            for i in data.get("inputs", [])
+            for i in (data.get("inputs") or [])
         ]
         outputs = [
             IOElement(name=o.get("name", ""), type=o.get("type"))
-            for o in data.get("outputs", [])
+            for o in (data.get("outputs") or [])
         ]
         return cls(
             id=data.get("id", ""),
@@ -252,9 +253,12 @@ class RuleStep:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RuleStep":
         # Support both to_dict() format (when/then/else) and DB storage format (when_clause/then_clause/else_clause)
-        when_data = data.get("when", data.get("when_clause", {}))
-        then_data = data.get("then", data.get("then_clause", {}))
-        else_data = data.get("else", data.get("else_clause"))
+        _when_raw = data.get("when") if "when" in data else data.get("when_clause")
+        _then_raw = data.get("then") if "then" in data else data.get("then_clause")
+        _else_raw = data.get("else") if "else" in data else data.get("else_clause")
+        when_data = _when_raw if isinstance(_when_raw, dict) else None
+        then_data = _then_raw if isinstance(_then_raw, dict) else None
+        else_data = _else_raw if isinstance(_else_raw, dict) else None
 
         when = ConditionClause.from_dict(when_data) if isinstance(when_data, dict) else when_data
         then = ActionClause.from_dict(then_data) if isinstance(then_data, dict) else then_data
