@@ -65,8 +65,8 @@ export default function SpaceDetailPage() {
   // Get current selected key from path - use exact suffix matching
   const getSelectedKey = () => {
     const path = location.pathname;
-    // Exact matching to avoid ambiguity with badges that contain similar text
-    if (path.endsWith('/rules')) return 'rules';
+    // rules 系列：/spaces/:id/rules、/spaces/:id/rules/:groupId、/spaces/:id/rules/new
+    if (path.includes('/rules')) return 'rules';
     if (path.endsWith('/schema')) return 'schema';
     if (path.endsWith('/instances')) return 'instances';
     if (path.endsWith('/versions')) return 'versions';
@@ -77,11 +77,8 @@ export default function SpaceDetailPage() {
   };
 
   const handleMenuClick = ({ key }: { key: string }) => {
-    if (key === 'rules') {
-      navigate(`/rules?schemaId=${spaceId}`);
-    } else {
-      navigate(`/spaces/${spaceId}/${key}`);
-    }
+    // rules 菜单：内嵌到管理面右侧内容区（不再跳出到独立 /rules 路由）
+    navigate(`/spaces/${spaceId}/${key}`);
   };
 
   // Check if current route is a consumption operation
