@@ -68,7 +68,15 @@
 - 选项 B：双轨并存，通过桥接层让旧规则声明引用新规则组
 - 选项 C：统一入口层，URL 只是视图不同，共用同一数据模型
 
-**建议**：采用选项 B/C 的混合——统一数据模型到 Phase 2，保留 `/rules/logics` 作为"兼容视图"，Phase 2 完成后废弃旧系统。
+**决策点**：
+- 选项 A：逐步废弃旧系统，所有流量引导到 `/rules`（Phase 2 新系统）
+- 选项 B：双轨并存，通过桥接层让旧规则声明引用新规则组
+- 选项 C：统一入口层，URL 只是视图不同，共用同一数据模型
+
+**决策**：✅ **选项 A：废弃旧系统**（用户确认）
+- Phase 2 完成 后，`/rules/logics` 及 `rule_declarations`/`rule_logics` 表废弃
+- 迁移路径：旧数据 → 新 `rule_groups`/`rule_steps`，通过外键字段建立引用（见 Gap 3）
+- 迁移完成后删除旧表、旧 API、旧页面组件
 
 ---
 
@@ -89,12 +97,13 @@
 
 **实施关键细节**：
 - `@dnd-kit` 已引入项目（RuleStepList 中有使用），但 DAG 区域未使用
-- G6 (`@antv/g6`) 已用于 `RuleChainDAG`，画布编排可考虑：
-  - 选项 A：扩展 G6 使其可编辑（G6 4.x 支持拖拽节点）
-  - 选项 B：引入 React Flow 等专门的可编辑画布库
+- **决策**：✅ **G6/X6**（用户确认）
+  - G6 (`@antv/g6`) 4.x 支持拖拽节点、边编辑、画布缩放/平移
+  - X6（@antv/x6）是 G6 的 React 封装，更适合 React 项目，是更优选择
+  - 扩展 `RuleChainDAG` 为可编辑模式，无需引入新库
 - DAG 节点拖拽后需要：
   1. 更新本地位置 state
-  2. 调用 `POST /rule-groups/:name/steps/reorder` 持久化 `step_order`
+  2. 调用 `POST /rule-groups/{name}/steps/reorder` 持久化 `step_order`
   3. 乐观更新 UI
 
 ---
@@ -103,7 +112,7 @@
 
 **现状**：`RuleLogicsPage` 创建的 `RuleLogic` 存储在 `rule_logics` 表，`RuleGroup` 存储在 `rule_groups` 表，两者无关联字段。
 
-**桥接方案**（若采用双轨并存）：
+**桥接方案**：
 
 | 方案 | 说明 | 复杂度 |
 |------|------|--------|
@@ -111,7 +120,10 @@
 | 外键引用 | `rule_groups.source_declaration_id` 指向 `rule_declarations.id` | 中 |
 | 数据迁移 | 将 `rule_logics` 数据迁移到 `rule_steps`，废弃旧表 | 高（一次性） |
 
-**建议**：Phase 2 完成后执行一次性数据迁移，将 `rule_logics` → `rule_steps`，`rule_declarations` → 相关信息存入 `RuleGroup.description` 或 `applies_to`。
+**决策**：✅ **外键引用**（用户确认 D3）
+- Phase 2 完成后，在 `rule_groups` 表增加 `source_declaration_id` VARCHAR 列（可空）
+- 迁移时将 `rule_declarations.id` → `rule_groups.source_declaration_id`
+- 迁移完成后删除旧 `rule_declarations`/`rule_logics` 表
 
 ---
 
@@ -125,15 +137,18 @@
   - 没有展示如果删除该节点会影响哪些 OUTPUT
 
 **实施关键细节**：
-- 后端 `/dag/path?from=X&to=Y` API 已存在，可用于高亮路径
+- 后端 `/dag/path?from=X&to=Y` API 已存在，但**决策**：✅ **前端推导**（用户确认 D5）
+  - 路径高亮基于前端已加载数据（`dagData.nodes`/`dagData.edges`）实时计算
+  - BFS/DFS 从选中节点反向遍历 `edges` 推导上游路径
+  - 影响分析：遍历从该节点出发的所有 OUTPUT 边，展示下游影响
 - 可在 DAG 右侧增加"路径详情面板"，显示从选中节点到根节点的完整路径
-- 影响分析：后端 DAG 构建时可以计算出"删除此节点影响哪些 OUTPUT"，可复用到前端
+- 无需额外 API 调用，响应更快
 
 ---
 
 ## 三、实施路线
 
-### 路线 A：渐进式桥接（推荐）
+### 路线 A：渐进式桥接（已确认）
 
 ```
 当前（Phase 2 完成度 80%）
@@ -156,26 +171,28 @@
 [T5] 旧系统废弃（可选）
 ```
 
-### 路线 B：一次性重建
+### 路线 B：快速废弃（备选）
 
+若时间有限，可在 Phase 2 完成后直接：
 ```
-[T1] 设计新统一数据模型（融合两套）
-[T2] 一次性迁移所有 rule_logics → rule_steps
-[T3] 实现完整 Phase 2（包括画布编排）
-[T4] 废弃旧表和 API
+[T1] 删除 rule_declarations / rule_logics 表
+[T2] 删除 RuleLogicsPage / RuleDeclarationsPage 组件
+[T3] 删除旧 API 路由
 ```
+
+适合作为路线 A 的快速替代方案，不推荐（会丢失历史数据）。
 
 ---
 
-## 四、关键决策点（需确认）
+## 四、关键决策点（已确认）
 
-| # | 决策 | 选项 |
-|---|------|------|
-| D1 | 旧 `/rules/logics` 的最终处理策略？ | A: 废弃  B: 保留为只读兼容视图  C: 无限期双轨 |
-| D2 | 画布编排技术选型？ | A: G6 可编辑模式  B: React Flow  C: 自研 Canvas |
-| D3 | `RuleGroup.name` 是否允许与旧 `RuleDeclaration.id` 建立引用？ | A: 允许软链接  B: 新增 source_id 字段  C: 不建立引用 |
-| D4 | Phase 2-B 画布编排是否作为独立里程碑？ | A: 独立完成  B: 与 T3 双向联动合并 |
-| D5 | DAG 路径高亮是在后端计算还是前端计算？ | A: 后端 `/dag/path` API  B: 前端基于现有数据推导 |
+| # | 决策 | 选项 | 已选 |
+|---|------|------|------|
+| D1 | 旧 `/rules/logics` 的最终处理策略？ | A: 废弃  B: 保留为只读兼容视图  C: 无限期双轨 | ✅ A |
+| D2 | 画布编排技术选型？ | A: G6 可编辑  B: React Flow  C: 自研 Canvas | ✅ A (G6/X6) |
+| D3 | 旧系统到新系统的桥接方式？ | A: 软链接  B: 外键字段  C: 不建立引用 | ✅ B (外键字段) |
+| D4 | Phase 2-B 画布编排是否独立里程碑？ | A: 独立  B: 与 T3 合并 | ✅ B (合并) |
+| D5 | DAG 路径高亮的计算位置？ | A: 后端 API  B: 前端推导 | ✅ B (前端推导) |
 
 ---
 
