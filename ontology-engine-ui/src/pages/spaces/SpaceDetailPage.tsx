@@ -19,13 +19,13 @@ import { useSpaceStore } from '../../store/spaceStore';
 const { Title } = Typography;
 
 const menuItems = [
-  { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明', testId: 'menu-schema' },
-  { key: 'rules', icon: <BranchesOutlined />, label: '规则管理', testId: 'menu-rules-orchestration' },
-  { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例', testId: 'menu-instances' },
-  { key: 'versions', icon: <HistoryOutlined />, label: '版本历史', testId: 'menu-versions' },
-  { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化', testId: 'menu-visualize' },
-  { key: 'execute', icon: <BranchesOutlined />, label: '规则执行', testId: 'menu-execute' },
-  { key: 'simulate', icon: <ExperimentOutlined />, label: 'What-If 模拟', testId: 'menu-simulate' },
+  { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明' },
+  { key: 'rules', icon: <BranchesOutlined />, label: '规则管理' },
+  { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例' },
+  { key: 'versions', icon: <HistoryOutlined />, label: '版本历史' },
+  { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化' },
+  { key: 'execute', icon: <BranchesOutlined />, label: '规则执行' },
+  { key: 'simulate', icon: <ExperimentOutlined />, label: 'What-If 模拟' },
 ];
 
 export default function SpaceDetailPage() {
