@@ -1,14 +1,19 @@
 # ontology_engine/services/query_service.py
-"""Query service for pattern matching and graph traversal."""
+"""Query service for pattern matching, graph traversal, and semantic retrieval."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ontology_engine.services.dto import (
-    SearchResultResponse,
+from ontology_engine.services.dto import SearchResultResponse
+from ontology_engine.storage.base import (
+    GraphStoreBackend,
+    HybridSearchResult,
+    RetrievalBackend,
+    StorageBackend,
+    VectorStoreBackend,
+    VectorSearchResult,
 )
-from ontology_engine.storage.base import StorageBackend
 
 if TYPE_CHECKING:
     from ontology_engine.engine.rule import RuleExecutor
@@ -17,27 +22,37 @@ if TYPE_CHECKING:
 class QueryService:
     """Query service.
 
-    Handles pattern matching, graph traversal, and rule tracing.
+    Handles pattern matching, graph traversal, rule tracing, and
+    Phase 2 semantic / hybrid retrieval.
     """
 
     def __init__(
         self,
         storage: StorageBackend,
         rule_executor: RuleExecutor | None = None,
+        retrieval: RetrievalBackend | None = None,
+        graph_store: GraphStoreBackend | None = None,
+        vector_store: VectorStoreBackend | None = None,
     ):
         """Initialize QueryService.
 
         Args:
             storage: DuckDBStorage instance
             rule_executor: Optional RuleExecutor for rule tracing
+            retrieval: Optional unified retrieval backend
+            graph_store: Optional graph store for native graph queries
+            vector_store: Optional vector store for semantic search
         """
         self.storage = storage
         self.rule_executor = rule_executor
+        self.retrieval = retrieval
+        self.graph_store = graph_store
+        self.vector_store = vector_store
 
     async def pattern_match(
         self,
         concept: str,
-        patterns: dict[str, Any] | None = None
+        patterns: dict[str, Any] | None = None,
     ) -> list[SearchResultResponse]:
         """Pattern match entities by concept and attribute patterns.
 
@@ -50,7 +65,7 @@ class QueryService:
         """
         entities = await self.storage.query_entities(
             concept=concept,
-            filters=patterns
+            filters=patterns,
         )
 
         return [
@@ -58,7 +73,7 @@ class QueryService:
                 entity_id=e.entity_id,
                 concept_type=e.concept,
                 score=1.0,
-                attributes=e.data
+                attributes=e.data,
             )
             for e in entities
         ]
@@ -68,7 +83,7 @@ class QueryService:
         entity_id: str,
         relation_type: str,
         direction: str = "outgoing",
-        depth: int = 1
+        depth: int = 1,
     ) -> list[SearchResultResponse]:
         """Traverse graph from entity via relations.
 
@@ -90,26 +105,28 @@ class QueryService:
 
         for _ in range(depth):
             next_level = []
-            for current_id, rel_data in current_level:
+            for current_id, _rel_data in current_level:
                 neighbors = await self.storage.get_neighbors(
                     entity_id=current_id,
                     relation_type=relation_type,
-                    direction=direction
+                    direction=direction,
                 )
 
                 for entity, relation in neighbors:
                     if entity.entity_id not in visited:
                         visited.add(entity.entity_id)
-                        results.append(SearchResultResponse(
-                            entity_id=entity.entity_id,
-                            concept_type=entity.concept,
-                            score=1.0,
-                            attributes={
-                                **entity.data,
-                                "_relation_type": relation.relation_type,
-                                "_related_from": current_id
-                            }
-                        ))
+                        results.append(
+                            SearchResultResponse(
+                                entity_id=entity.entity_id,
+                                concept_type=entity.concept,
+                                score=1.0,
+                                attributes={
+                                    **entity.data,
+                                    "_relation_type": relation.relation_type,
+                                    "_related_from": current_id,
+                                },
+                            )
+                        )
                         next_level.append((entity.entity_id, relation.data))
 
             current_level = next_level
@@ -119,7 +136,7 @@ class QueryService:
     async def trace_rule(
         self,
         entity_id: str,
-        rule_id: str | None = None
+        rule_id: str | None = None,
     ) -> list[dict]:
         """Trace rule execution history for an entity.
 
@@ -136,7 +153,7 @@ class QueryService:
         self,
         from_entity_id: str,
         to_entity_id: str,
-        max_depth: int = 3
+        max_depth: int = 3,
     ) -> list[list[str]]:
         """Find paths between two entities.
 
@@ -151,7 +168,7 @@ class QueryService:
         if max_depth > 3:
             raise ValueError("Phase 1 maximum path depth is 3")
 
-        paths = []
+        paths: list[list[str]] = []
         visited = set()
 
         async def dfs(current: str, target: str, path: list[str]) -> None:
@@ -165,7 +182,7 @@ class QueryService:
             neighbors = await self.storage.get_neighbors(
                 entity_id=current,
                 relation_type="has_invoice",  # Default relation
-                direction="outgoing"
+                direction="outgoing",
             )
 
             for entity, _ in neighbors:
@@ -178,3 +195,123 @@ class QueryService:
 
         await dfs(from_entity_id, to_entity_id, [from_entity_id])
         return paths
+
+    # -------------------------------------------------------------------------
+    # Phase 2 retrieval interfaces (placeholders until Faiss/kuzu integration)
+    # -------------------------------------------------------------------------
+
+    async def semantic_search(
+        self,
+        query_text: str,
+        top_k: int = 10,
+        concept_type: str | None = None,
+    ) -> list[VectorSearchResult]:
+        """Pure semantic (vector) search.
+
+        Args:
+            query_text: Raw text query
+            top_k: Maximum number of results
+            concept_type: Optional concept filter
+
+        Returns:
+            Vector search results
+
+        Raises:
+            NotImplementedError: If no retrieval backend or embedder is configured.
+        """
+        if self.retrieval is not None:
+            return await self.retrieval.semantic_search(
+                query_text=query_text,
+                top_k=top_k,
+                concept_type=concept_type,
+            )
+        raise NotImplementedError(
+            "semantic_search requires a RetrievalBackend with an embedder. "
+            "Pass retrieval=DefaultRetrievalBackend(...) to QueryService."
+        )
+
+    async def hybrid_search(
+        self,
+        query_text: str | None = None,
+        query_vector: list[float] | None = None,
+        graph_seed_id: str | None = None,
+        top_k: int = 10,
+        semantic_weight: float = 0.6,
+        graph_weight: float = 0.4,
+        fusion_strategy: str = "independent_then_fuse",
+        path_pattern: list[tuple[str, str]] | None = None,
+        path_weight: float = 0.2,
+    ) -> HybridSearchResult:
+        """Hybrid retrieval combining semantic, graph, and optional path signals.
+
+        Args:
+            query_text: Optional raw text query
+            query_vector: Optional pre-computed query embedding
+            graph_seed_id: Optional seed entity for graph expansion
+            top_k: Maximum number of results
+            semantic_weight: Weight for vector scores
+            graph_weight: Weight for graph proximity scores
+            fusion_strategy: One of ``filter_then_fuse``, ``independent_then_fuse``,
+                            ``fuse_then_filter``
+            path_pattern: Optional sequence of (relation_type, target_concept) tuples
+            path_weight: Weight for path match scores
+
+        Returns:
+            HybridSearchResult with fused results and intermediate scores
+        """
+        if self.retrieval is not None:
+            return await self.retrieval.hybrid_search(
+                query_text=query_text,
+                query_vector=query_vector,
+                graph_seed_id=graph_seed_id,
+                top_k=top_k,
+                semantic_weight=semantic_weight,
+                graph_weight=graph_weight,
+                fusion_strategy=fusion_strategy,
+                path_pattern=path_pattern,
+                path_weight=path_weight,
+            )
+        raise NotImplementedError(
+            "hybrid_search requires a RetrievalBackend. "
+            "Pass retrieval=DefaultRetrievalBackend(...) to QueryService."
+        )
+
+    async def graph_pattern_match(
+        self,
+        start_concept: str,
+        path_pattern: list[tuple[str, str]],
+        start_filters: dict[str, Any] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Graph DSL pattern match.
+
+        Args:
+            start_concept: Starting node concept type
+            path_pattern: Sequence of (relation_type, target_concept) tuples
+            start_filters: Optional attribute filters on the start node
+            limit: Maximum result count
+
+        Returns:
+            Matched paths with node details
+        """
+        if self.retrieval is not None:
+            return await self.retrieval.graph_pattern_match(
+                start_concept=start_concept,
+                path_pattern=path_pattern,
+                start_filters=start_filters,
+                limit=limit,
+            )
+        # Fallback: use DuckDB traversal
+        from ontology_engine.storage.retrieval import DefaultRetrievalBackend
+
+        fallback = DefaultRetrievalBackend(
+            storage=self.storage,
+            graph_store=self.graph_store,
+            vector_store=self.vector_store,
+        )
+        return await fallback.graph_pattern_match(
+            start_concept=start_concept,
+            path_pattern=path_pattern,
+            start_filters=start_filters,
+            limit=limit,
+        )

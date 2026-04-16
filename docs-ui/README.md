@@ -10,6 +10,8 @@
 |------|------|---------|
 | [`01-frontend-architecture-review.md`](./01-frontend-architecture-review.md) | 架构审查 | 基于代码静态分析的架构总览、功能覆盖矩阵、代码质量评估 |
 | [`02-frontend-ux-audit-rfc.md`](./02-frontend-ux-audit-rfc.md) | UX 审计 RFC | 基于 Playwright 浏览器测试的 7 个 UX 问题根因分析和改进方案 |
+| [`03-rule-management-ui-design.md`](./03-rule-management-ui-design.md) | UI 设计文档 | 规则管理页面需求设计（详细 UI 布局和交互） |
+| [`rfc/RFC-UI-001-rule-orchestration-frontend.md`](./rfc/RFC-UI-001-rule-orchestration-frontend.md) | 前端 RFC | 规则编排前端实现 RFC，关联后端 RFC-015 |
 
 ---
 

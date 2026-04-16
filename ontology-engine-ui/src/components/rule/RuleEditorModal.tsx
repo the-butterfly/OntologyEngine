@@ -19,6 +19,7 @@ interface RuleEditorModalProps {
   outputs?: Array<{ name: string; type?: string }>;
   onSave?: (step: Partial<RuleStep>) => Promise<void>;
   onCancel?: () => void;
+  saving?: boolean;
 }
 
 export default function RuleEditorModal({
@@ -27,12 +28,11 @@ export default function RuleEditorModal({
   schemaId,
   step,
   inputs = [],
-  outputs = [],
   onSave,
   onCancel,
+  saving = false,
 }: RuleEditorModalProps) {
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
   const [when, setWhen] = useState<ConditionClause | undefined>(
     step?.when || { type: 'expression', expression: '' }
   );
@@ -43,6 +43,8 @@ export default function RuleEditorModal({
     step?.else || { operator: 'COMPUTE', params: {}, outputMapping: {} }
   );
 
+  // Sync local form state when step prop changes (e.g. switching between steps)
+  // This is a controlled-to-uncontrolled pattern required for editing different steps
   useEffect(() => {
     if (open && step) {
       form.setFieldsValue({
@@ -51,6 +53,7 @@ export default function RuleEditorModal({
         enabled: step.enabled ?? true,
         tags: step.tags,
       });
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWhen(step.when);
       setThenAction(step.then);
       setElseAction(step.else);
@@ -60,7 +63,6 @@ export default function RuleEditorModal({
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      setLoading(true);
 
       const updatedStep: Partial<RuleStep> = {
         ...step,
@@ -69,7 +71,7 @@ export default function RuleEditorModal({
         enabled: values.enabled,
         tags: values.tags || [],
         when,
-        then: thenAction!,
+        then: thenAction || { operator: 'COMPUTE', params: {}, outputMapping: {} },
         else: elseAction,
       };
 
@@ -77,8 +79,6 @@ export default function RuleEditorModal({
       message.success('保存成功');
     } catch {
       // Form validation failed
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -103,7 +103,7 @@ export default function RuleEditorModal({
       footer={
         <Space>
           <Button onClick={onCancel}>取消</Button>
-          <Button type="primary" onClick={handleSave} loading={loading}>
+          <Button type="primary" onClick={handleSave} loading={saving}>
             保存
           </Button>
         </Space>

@@ -319,7 +319,7 @@ async def delete_rule_step(
         return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
-@router.post("/rule-groups/{name}/reorder")
+@router.post("/rule-groups/{name}/steps/reorder")
 async def reorder_rule_steps(
     name: str,
     step_ids: list[str],

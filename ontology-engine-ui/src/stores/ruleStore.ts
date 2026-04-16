@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import { ruleGroupsApi } from '../api/ruleGroups';
+import { ruleStepsApi } from '../api/ruleSteps';
 import type { RuleGroup, RuleStep, SimulationResult, StepResult } from '../types/rule';
 
 interface RuleStore {
@@ -170,20 +171,26 @@ export const useRuleStore = create<RuleStore>((set, get) => ({
     }
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  reorderRuleSteps: async (_name, stepIds, _schemaId) => {
-    // TODO: call API to persist reorder
-    const currentSteps = get().ruleSteps;
-    // O(n) lookup using Map instead of O(n²) find per item
-    const stepMap = new Map(currentSteps.map((s) => [s.id, s]));
-    const reordered = stepIds
-      .map((id, index) => {
-        const step = stepMap.get(id);
-        return step ? { ...step, order: index } : null;
-      })
-      .filter(Boolean) as RuleStep[];
+  reorderRuleSteps: async (name, stepIds, schemaId) => {
+    try {
+      // Call API to persist the reorder
+      await ruleStepsApi.reorder(name, stepIds, schemaId);
+      // Update local state with new order
+      const currentSteps = get().ruleSteps;
+      const stepMap = new Map(currentSteps.map((s) => [s.id, s]));
+      const reordered = stepIds
+        .map((id, index) => {
+          const step = stepMap.get(id);
+          return step ? { ...step, order: index } : null;
+        })
+        .filter(Boolean) as RuleStep[];
 
-    set({ ruleSteps: reordered });
+      set({ ruleSteps: reordered });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to reorder steps';
+      set({ error: message });
+      throw e;
+    }
   },
 
   // ===== Simulation Actions =====

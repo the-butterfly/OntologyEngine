@@ -2,6 +2,7 @@
 """Rule orchestration service - CRUD and YAML import/export."""
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import yaml
@@ -36,100 +37,143 @@ class RuleService:
     # Rule Group CRUD
     # =========================================================================
 
-    async def create_rule_group(self, data: dict[str, Any]) -> RuleGroupDefinition:
+    async def create_rule_group(
+        self,
+        data: dict[str, Any],
+        schema_id: str | None = None,
+    ) -> RuleGroupDefinition:
         """Create a new rule group.
 
         Args:
             data: Rule group data
+            schema_id: Semantic space ID (required for semantic space isolation).
+                      The combination (name, schema_id) must be unique.
 
         Returns:
             Created RuleGroupDefinition
 
         Raises:
-            RuleServiceError: If rule group already exists
+            RuleServiceError: If rule group already exists or schema_id is missing
         """
         name = data.get("name")
         if not name:
             raise RuleServiceError("Rule group name is required")
 
-        existing = await self._storage.get_rule_group(name)
+        # schema_id is required for semantic space isolation
+        if not schema_id:
+            schema_id = data.get("schema_id")
+        if not schema_id:
+            raise RuleServiceError("schema_id is required for semantic space isolation")
+
+        # Generate UUID if not provided
+        if not data.get("id"):
+            data["id"] = str(uuid.uuid4())
+
+        # Check for existing rule group in the same semantic space
+        existing = await self._storage.get_rule_group(name, schema_id=schema_id)
         if existing:
-            raise RuleServiceError(f"Rule group '{name}' already exists")
+            raise RuleServiceError(
+                f"Rule group '{name}' already exists in semantic space '{schema_id}'"
+            )
+
+        # Ensure schema_id is in the data
+        data["schema_id"] = schema_id
 
         # Save to storage
-        await self._storage.save_rule_group(data)
+        await self._storage.save_rule_group(data, schema_id=schema_id)
 
         return RuleGroupDefinition.from_dict(data)
 
-    async def get_rule_group(self, name: str) -> RuleGroupDefinition | None:
-        """Get a rule group by name.
+    async def get_rule_group(
+        self,
+        identifier: str,
+        schema_id: str | None = None,
+    ) -> RuleGroupDefinition | None:
+        """Get a rule group by id or (name, schema_id).
 
         Args:
-            name: Rule group name
+            identifier: Rule group UUID (id) or name
+            schema_id: Semantic space ID for name-based lookup.
+                      Required when identifier is a name.
 
         Returns:
             RuleGroupDefinition or None if not found
         """
-        data = await self._storage.get_rule_group(name)
+        data = await self._storage.get_rule_group(identifier, schema_id=schema_id)
         if data is None:
             return None
         return RuleGroupDefinition.from_dict(data)
 
     async def list_rule_groups(
         self,
+        schema_id: str,
         enabled: bool | None = None,
     ) -> list[RuleGroupDefinition]:
-        """List rule groups with optional filter.
+        """List rule groups in a semantic space.
 
         Args:
+            schema_id: Semantic space ID (required for isolation)
             enabled: Optional filter by enabled status
 
         Returns:
-            List of RuleGroupDefinition
+            List of RuleGroupDefinition in the specified semantic space
         """
-        rows = await self._storage.list_rule_groups(enabled=enabled)
+        rows = await self._storage.list_rule_groups(schema_id=schema_id, enabled=enabled)
         return [RuleGroupDefinition.from_dict(r) for r in rows]
 
     async def update_rule_group(
         self,
-        name: str,
+        identifier: str,
         data: dict[str, Any],
+        schema_id: str | None = None,
     ) -> RuleGroupDefinition | None:
         """Update a rule group.
 
         Args:
-            name: Rule group name
+            identifier: Rule group UUID (id) or name
             data: Updated rule group data
+            schema_id: Semantic space ID for name-based lookup
 
         Returns:
             Updated RuleGroupDefinition or None if not found
         """
-        existing = await self._storage.get_rule_group(name)
+        existing = await self._storage.get_rule_group(identifier, schema_id=schema_id)
         if existing is None:
             return None
 
-        # Merge with existing data
+        # Merge with existing data - preserve existing name and schema_id
         merged = dict(existing)
         merged.update(data)
-        merged["name"] = name
+        # Ensure name is preserved from existing data
+        merged["name"] = existing["name"]
+        # Ensure schema_id is preserved
+        merged["schema_id"] = existing.get("schema_id")
+        # If id was provided in data, keep the existing id
+        if "id" not in data and existing.get("id"):
+            merged["id"] = existing["id"]
 
-        await self._storage.save_rule_group(merged)
+        await self._storage.save_rule_group(merged, schema_id=merged["schema_id"])
         return RuleGroupDefinition.from_dict(merged)
 
-    async def delete_rule_group(self, name: str) -> bool:
+    async def delete_rule_group(
+        self,
+        identifier: str,
+        schema_id: str | None = None,
+    ) -> bool:
         """Delete a rule group and its steps.
 
         Args:
-            name: Rule group name
+            identifier: Rule group UUID (id) or name
+            schema_id: Semantic space ID for name-based lookup
 
         Returns:
             True if deleted, False if not found
         """
-        existing = await self._storage.get_rule_group(name)
+        existing = await self._storage.get_rule_group(identifier, schema_id=schema_id)
         if existing is None:
             return False
 
-        await self._storage.delete_rule_group(name)
+        await self._storage.delete_rule_group(identifier, schema_id=schema_id)
         return True
 
     # =========================================================================
@@ -140,62 +184,84 @@ class RuleService:
         self,
         rule_group: str,
         data: dict[str, Any],
+        schema_id: str | None = None,
     ) -> RuleStep:
         """Create a new rule step.
 
         Args:
             rule_group: Parent rule group name
             data: Rule step data
+            schema_id: Semantic space ID for rule group lookup
 
         Returns:
             Created RuleStep
 
         Raises:
-            RuleServiceError: If rule step already exists
+            RuleServiceError: If rule step already exists or rule group not found
         """
         step_id = data.get("id")
         if not step_id:
             raise RuleServiceError("Rule step ID is required")
 
         # Verify rule group exists
-        rg = await self._storage.get_rule_group(rule_group)
+        rg = await self._storage.get_rule_group(rule_group, schema_id=schema_id)
         if rg is None:
-            raise RuleServiceError(f"Rule group '{rule_group}' not found")
+            raise RuleServiceError(f"Rule group '{rule_group}' not found in semantic space")
+
+        # Use the rule group's actual name (in case of case mismatch)
+        actual_rule_group = rg["name"]
 
         # Save to storage
-        await self._storage.save_rule_step(rule_group, data)
+        await self._storage.save_rule_step(actual_rule_group, data)
 
-        return RuleStep.from_dict({**data, "rule_group": rule_group})
+        return RuleStep.from_dict({**data, "rule_group": actual_rule_group})
 
     async def get_rule_step(
         self,
         rule_group: str,
         step_id: str,
+        schema_id: str | None = None,
     ) -> RuleStep | None:
         """Get a rule step by ID.
 
         Args:
             rule_group: Parent rule group name
             step_id: Rule step ID
+            schema_id: Semantic space ID for rule group lookup
 
         Returns:
             RuleStep or None if not found
         """
-        data = await self._storage.get_rule_step(rule_group, step_id)
+        # First resolve the rule group to get its actual name
+        rg = await self._storage.get_rule_group(rule_group, schema_id=schema_id)
+        if rg is None:
+            return None
+
+        data = await self._storage.get_rule_step(rg["name"], step_id)
         if data is None:
             return None
         return RuleStep.from_dict(data)
 
-    async def list_rule_steps(self, rule_group: str) -> list[RuleStep]:
+    async def list_rule_steps(
+        self,
+        rule_group: str,
+        schema_id: str | None = None,
+    ) -> list[RuleStep]:
         """List all rule steps for a rule group.
 
         Args:
             rule_group: Rule group name
+            schema_id: Semantic space ID for rule group lookup
 
         Returns:
             List of RuleStep ordered by step_order
         """
-        rows = await self._storage.list_rule_steps(rule_group)
+        # First resolve the rule group to get its actual name
+        rg = await self._storage.get_rule_group(rule_group, schema_id=schema_id)
+        if rg is None:
+            return []
+
+        rows = await self._storage.list_rule_steps(rg["name"])
         return [RuleStep.from_dict(r) for r in rows]
 
     async def update_rule_step(
@@ -203,6 +269,7 @@ class RuleService:
         rule_group: str,
         step_id: str,
         data: dict[str, Any],
+        schema_id: str | None = None,
     ) -> RuleStep | None:
         """Update a rule step.
 
@@ -210,18 +277,24 @@ class RuleService:
             rule_group: Parent rule group name
             step_id: Rule step ID
             data: Updated rule step data
+            schema_id: Semantic space ID for rule group lookup
 
         Returns:
             Updated RuleStep or None if not found
         """
-        existing = await self._storage.get_rule_step(rule_group, step_id)
+        # First resolve the rule group to get its actual name
+        rg = await self._storage.get_rule_group(rule_group, schema_id=schema_id)
+        if rg is None:
+            return None
+
+        existing = await self._storage.get_rule_step(rg["name"], step_id)
         if existing is None:
             return None
 
         # Merge with existing data
         merged = {
             "id": step_id,
-            "rule_group": rule_group,
+            "rule_group": rg["name"],
             "step_order": data.get("step_order", existing.order),
             "name": data.get("name", existing.name),
             "when": data.get("when", existing.when.to_dict()),
@@ -232,48 +305,71 @@ class RuleService:
             "tags": data.get("tags", existing.tags),
         }
 
-        await self._storage.save_rule_step(rule_group, merged)
+        await self._storage.save_rule_step(rg["name"], merged)
         return RuleStep.from_dict(merged)
 
-    async def delete_rule_step(self, rule_group: str, step_id: str) -> bool:
+    async def delete_rule_step(
+        self,
+        rule_group: str,
+        step_id: str,
+        schema_id: str | None = None,
+    ) -> bool:
         """Delete a rule step.
 
         Args:
             rule_group: Parent rule group name
             step_id: Rule step ID
+            schema_id: Semantic space ID for rule group lookup
 
         Returns:
             True if deleted, False if not found
         """
-        existing = await self._storage.get_rule_step(rule_group, step_id)
+        # First resolve the rule group to get its actual name
+        rg = await self._storage.get_rule_group(rule_group, schema_id=schema_id)
+        if rg is None:
+            return False
+
+        existing = await self._storage.get_rule_step(rg["name"], step_id)
         if existing is None:
             return False
 
-        await self._storage.delete_rule_step(rule_group, step_id)
+        await self._storage.delete_rule_step(rg["name"], step_id)
         return True
 
     async def reorder_rule_steps(
         self,
         rule_group: str,
         step_ids: list[str],
+        schema_id: str | None = None,
     ) -> None:
         """Reorder rule steps.
 
         Args:
             rule_group: Rule group name
             step_ids: List of step IDs in new order
+            schema_id: Semantic space ID for rule group lookup
         """
-        await self._storage.reorder_rule_steps(rule_group, step_ids)
+        # First resolve the rule group to get its actual name
+        rg = await self._storage.get_rule_group(rule_group, schema_id=schema_id)
+        if rg is None:
+            raise RuleServiceError(f"Rule group '{rule_group}' not found")
+
+        await self._storage.reorder_rule_steps(rg["name"], step_ids)
 
     # =========================================================================
     # YAML Import/Export
     # =========================================================================
 
-    async def export_rule_group_to_yaml(self, rule_group_name: str) -> str:
+    async def export_rule_group_to_yaml(
+        self,
+        rule_group_name: str,
+        schema_id: str | None = None,
+    ) -> str:
         """Export a rule group to YAML format.
 
         Args:
             rule_group_name: Rule group name
+            schema_id: Semantic space ID for rule group lookup
 
         Returns:
             YAML string
@@ -281,11 +377,11 @@ class RuleService:
         Raises:
             RuleServiceError: If rule group not found
         """
-        rg_data = await self._storage.get_rule_group(rule_group_name)
+        rg_data = await self._storage.get_rule_group(rule_group_name, schema_id=schema_id)
         if rg_data is None:
             raise RuleServiceError(f"Rule group '{rule_group_name}' not found")
 
-        steps_data = await self._storage.list_rule_steps(rule_group_name)
+        steps_data = await self._storage.list_rule_steps(rg_data["name"])
 
         # Build YAML structure conforming to Schema v2
         yaml_data = {
@@ -321,18 +417,27 @@ class RuleService:
 
         return yaml.dump(yaml_data, allow_unicode=True, sort_keys=False)
 
-    async def import_from_yaml(self, yaml_content: str) -> RuleGroupDefinition:
+    async def import_from_yaml(
+        self,
+        yaml_content: str,
+        schema_id: str | None = None,
+    ) -> RuleGroupDefinition:
         """Import a rule group from YAML.
 
         Args:
             yaml_content: YAML content string
+            schema_id: Semantic space ID for the imported rule group (required)
 
         Returns:
             Imported RuleGroupDefinition
 
         Raises:
-            RuleServiceError: If YAML is invalid or validation fails
+            RuleServiceError: If YAML is invalid, validation fails, or schema_id is missing
         """
+        # schema_id is required for semantic space isolation
+        if not schema_id:
+            raise RuleServiceError("schema_id is required for semantic space isolation")
+
         try:
             data = yaml.safe_load(yaml_content)
         except yaml.YAMLError as e:
@@ -348,8 +453,19 @@ class RuleService:
         if not name:
             raise RuleServiceError("Rule definition must have a name")
 
-        # Validate and save rule group
-        await self._storage.save_rule_group({
+        # Check if rule group already exists in this semantic space
+        existing = await self._storage.get_rule_group(name, schema_id=schema_id)
+        if existing:
+            raise RuleServiceError(
+                f"Rule group '{name}' already exists in semantic space '{schema_id}'"
+            )
+
+        # Generate UUID for rule group
+        rule_group_id = str(uuid.uuid4())
+
+        # Prepare rule group data
+        rg_data = {
+            "id": rule_group_id,
             "name": name,
             "description": rule_def.get("description", ""),
             "type": rule_def.get("type", "decision"),
@@ -359,7 +475,11 @@ class RuleService:
             "inputs": rule_def.get("inputs", []),
             "outputs": rule_def.get("outputs", []),
             "enabled": True,
-        })
+            "schema_id": schema_id,
+        }
+
+        # Save rule group
+        await self._storage.save_rule_group(rg_data, schema_id=schema_id)
 
         # Extract and save rule steps
         rule_logics = data.get("rule_logics", [])
@@ -378,7 +498,9 @@ class RuleService:
                     }
                     await self._storage.save_rule_step(name, step_data)
 
-        return RuleGroupDefinition.from_dict(await self._storage.get_rule_group(name))
+        return RuleGroupDefinition.from_dict(
+            await self._storage.get_rule_group(name, schema_id=schema_id)
+        )
 
     async def validate_yaml(self, yaml_content: str) -> tuple[bool, list[str]]:
         """Validate YAML without importing.

@@ -50,6 +50,10 @@ class StorageBackend(ABC):
         """Load one entity by concept and identifier."""
 
     @abstractmethod
+    async def get_entity_by_id(self, entity_id: str) -> EntityInstance | None:
+        """Load one entity by identifier only (across all concepts)."""
+
+    @abstractmethod
     async def query_entities(
         self,
         concept: str | None,
@@ -396,8 +400,14 @@ class GraphStoreBackend(ABC):
         direction: str = "outgoing",
         limit: int = 100,
         filter_props: dict[str, Any] | None = None,
+        node_concept: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get 1-hop neighbors of a node."""
+        """Get 1-hop neighbors of a node.
+
+        Args:
+            node_concept: Optional concept filter applied at the storage layer
+                         (e.g. kuzu WHERE n.concept = ...). Ignored if not supported.
+        """
 
     @abstractmethod
     async def find_paths(
@@ -447,4 +457,179 @@ class GraphStoreBackend(ABC):
 
         Returns:
             {"nodes_written": N, "edges_written": M}
+        """
+
+
+# ============================================================================
+# Vector Storage
+# ============================================================================
+
+@dataclass
+class VectorSearchResult:
+    """Result from a vector search operation."""
+
+    id: str
+    score: float
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class HybridSearchResult:
+    """Result from a hybrid search operation with observability into intermediate scores.
+
+    Attributes:
+        results: Final fused results ordered by relevance.
+        semantic_scores: Per-entity cosine similarity scores from vector search.
+        graph_scores: Per-entity graph proximity scores from BFS expansion.
+        path_match_scores: Per-entity path pattern match scores (0/1 for unweighted,
+                          normalized weight for weighted edges, max across multiple paths).
+        fusion_metadata: Strategy name, weights used, candidate counts, etc.
+    """
+
+    results: list[VectorSearchResult]
+    semantic_scores: dict[str, float] = field(default_factory=dict)
+    graph_scores: dict[str, float] = field(default_factory=dict)
+    path_match_scores: dict[str, float] = field(default_factory=dict)
+    fusion_metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class VectorStoreBackend(ABC):
+    """Abstract interface for vector storage and ANN search.
+
+    Target implementation uses Faiss for approximate nearest neighbor search
+    with sentence-transformers embeddings. See ``LocalVectorStore`` for a
+    placeholder in-memory implementation that can be used until Faiss is
+    integrated (Phase 2 prerequisite).
+    """
+
+    @abstractmethod
+    async def initialize(self, dimension: int) -> None:
+        """Initialize vector storage.
+
+        Args:
+            dimension: Dimensionality of embedding vectors.
+        """
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Release resources."""
+
+    @abstractmethod
+    async def add_vectors(
+        self,
+        ids: list[str],
+        vectors: list[list[float]],
+        metadata: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Add or update vectors.
+
+        Args:
+            ids: Unique identifiers for the vectors.
+            vectors: Embedding vectors (each length == dimension).
+            metadata: Optional metadata dict per vector.
+        """
+
+    @abstractmethod
+    async def search(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[VectorSearchResult]:
+        """Search for nearest neighbors.
+
+        Args:
+            query_vector: Query embedding vector.
+            top_k: Maximum number of results.
+            filters: Optional metadata filter (exact match).
+
+        Returns:
+            List of search results ordered by relevance (higher score = better).
+        """
+
+    @abstractmethod
+    async def delete_vectors(self, ids: list[str]) -> None:
+        """Remove vectors by identifier."""
+
+
+# ============================================================================
+# Unified Retrieval (Repository) Layer
+# ============================================================================
+
+class RetrievalBackend(ABC):
+    """Unified retrieval facade that coordinates storage backends.
+
+    Phase 2 design goal: DuckDB (entity/attribute) + GraphStore (topology)
+    + VectorStore (semantics) work together through a single repository
+    interface.  This is the abstraction referenced in
+    ``docs/05-schema-v2/query-engine-target.md`` as the "统一 Repository 接口".
+    """
+
+    @abstractmethod
+    async def semantic_search(
+        self,
+        query_text: str,
+        top_k: int = 10,
+        concept_type: str | None = None,
+    ) -> list[VectorSearchResult]:
+        """Pure vector/semantic search.
+
+        Args:
+            query_text: Raw text query.
+            top_k: Maximum number of results.
+            concept_type: Optional concept filter.
+
+        Returns:
+            Vector search results.
+        """
+
+    @abstractmethod
+    async def hybrid_search(
+        self,
+        query_text: str | None = None,
+        query_vector: list[float] | None = None,
+        graph_seed_id: str | None = None,
+        top_k: int = 10,
+        semantic_weight: float = 0.6,
+        graph_weight: float = 0.4,
+        fusion_strategy: str = "independent_then_fuse",
+        path_pattern: list[tuple[str, str]] | None = None,
+        path_weight: float = 0.2,
+    ) -> HybridSearchResult:
+        """Hybrid retrieval combining semantic, graph, and optional path signals.
+
+        Args:
+            query_text: Optional raw text query (used to derive embedding).
+            query_vector: Optional pre-computed query embedding.
+            graph_seed_id: Optional seed entity for graph expansion.
+            top_k: Maximum number of results.
+            semantic_weight: Weight for vector scores.
+            graph_weight: Weight for graph proximity scores.
+            fusion_strategy: One of ``filter_then_fuse``, ``independent_then_fuse``,
+                            ``fuse_then_filter``.
+            path_pattern: Optional sequence of (relation_type, target_concept) tuples.
+            path_weight: Weight for path match scores.
+
+        Returns:
+            HybridSearchResult with fused results and intermediate scores.
+        """
+
+    @abstractmethod
+    async def graph_pattern_match(
+        self,
+        start_concept: str,
+        path_pattern: list[tuple[str, str]],
+        start_filters: dict[str, Any] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Graph DSL pattern match (e.g. Company -(guarantees)-> Company).
+
+        Args:
+            start_concept: Starting node concept type.
+            path_pattern: Sequence of (relation_type, target_concept) tuples.
+            start_filters: Optional attribute filters on the start node.
+            limit: Maximum result count.
+
+        Returns:
+            Matched paths with node details.
         """

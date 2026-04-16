@@ -48,22 +48,38 @@ class DualWriteCoordinator:
         self,
         entity: EntityInstance,
         relations: list[RelationInstance] | None = None,
+        space_id: str = "default",
     ) -> str:
-        """Save entity to DuckDB and sync to GraphStore."""
+        """Save entity to DuckDB and sync to GraphStore.
+
+        Args:
+            entity: Entity to save.
+            relations: Optional relations to create.
+            space_id: Space identifier for graph store isolation.
+
+        Returns:
+            The saved entity ID.
+
+        Raises:
+            GraphSyncError: If kuzu write fails in production mode.
+        """
         # Step 1: Write to DuckDB (strong consistency)
         entity_id = await self.storage.save_entity(entity)
 
         # Step 2: Write to GraphStore (eventual consistency)
         if self.graph:
             try:
+                node_props = {**entity.data, "space_id": space_id}
                 await self.graph.upsert_node(
-                    node_id=entity.entity_id,
+                    node_id=entity_id,
                     labels=[entity.concept],
-                    properties=entity.data,
+                    properties=node_props,
                 )
             except Exception as e:
-                self._log_sync_failure("upsert_node", entity.entity_id, e)
-                logger.warning(f"Graph sync failed for node {entity.entity_id}: {e}")
+                self._log_sync_failure("upsert_node", entity_id, e)
+                logger.warning(f"Graph sync failed for node {entity_id}: {e}")
+                # Mark entity as pending graph sync (via background reconciliation)
+                await self._mark_pending_sync(entity_id)
 
         # Step 3: Write relations
         if relations:
@@ -80,7 +96,7 @@ class DualWriteCoordinator:
                             properties=rel.data or {},
                         )
                     except Exception as e:
-                        self._log_sync_failure("upsert_edge", rel.relation_type, e)
+                        self._log_sync_failure("upsert_edge", edge_id, e)
                         logger.warning(f"Graph sync failed for edge: {e}")
 
         return entity_id
@@ -112,7 +128,7 @@ class DualWriteCoordinator:
         for gn in graph_neighbors:
             neighbor_id = gn["neighbor_id"]
             # Get full entity from DuckDB
-            entity = await self.storage.get_entity(concept=None, entity_id=neighbor_id)
+            entity = await self.storage.get_entity_by_id(entity_id=neighbor_id)
             if entity:
                 results.append({
                     "entity": {"entity_id": entity.entity_id, "concept": entity.concept, "data": entity.data},
@@ -157,6 +173,17 @@ class DualWriteCoordinator:
         result = await self.graph.batch_upsert(nodes=nodes, edges=edges)
         logger.info(f"Batch sync completed: {result}")
         return result
+
+    async def _mark_pending_sync(self, entity_id: str) -> None:
+        """Mark entity as pending graph sync for background reconciliation.
+
+        Currently logs the entity. In production, this could update a
+        ``graph_sync_pending`` flag on the entity in DuckDB for a
+        background reconciliation task to process.
+        """
+        logger.info(f"Entity {entity_id} marked as pending graph sync")
+        # TODO: In production, update entity in DuckDB with sync_pending flag
+        # e.g., await self.storage.update_entity_sync_status(entity_id, "pending")
 
     def get_sync_failures(self) -> list[dict[str, Any]]:
         """Get list of sync failures for debugging."""

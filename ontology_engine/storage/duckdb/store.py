@@ -233,6 +233,97 @@ class DuckDBStorage(StorageBackend):
             """,
         )
 
+        # --- Phase 2: Rule Orchestration Tables ---
+
+        # Rule groups table (framework - four elements ①②③)
+        # Note: UNIQUE constraint is on (name, schema_id) for semantic space isolation
+        # schema_id NULL values are allowed but behave according to SQL standard
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS rule_groups (
+                id                      VARCHAR PRIMARY KEY,
+                name                    VARCHAR NOT NULL,
+                description             TEXT,
+                type                    VARCHAR NOT NULL,
+                priority                INTEGER DEFAULT 100,
+                applies_to              JSON,
+                preconditions           JSON,
+                inputs                  JSON,
+                outputs                 JSON,
+                enabled                 BOOLEAN DEFAULT TRUE,
+                schema_id               VARCHAR,
+                source_declaration_id   VARCHAR,
+                created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (name, schema_id)
+            )
+            """,
+        )
+
+        # Migration: add source_declaration_id column for existing databases
+        try:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "ALTER TABLE rule_groups ADD COLUMN IF NOT EXISTS source_declaration_id VARCHAR",
+            )
+        except Exception:
+            pass  # Column may already exist
+
+        # Rule steps table (logic - four element ④)
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS rule_steps (
+                id           VARCHAR NOT NULL,
+                rule_group   VARCHAR NOT NULL,
+                step_order   INTEGER NOT NULL,
+                name         VARCHAR,
+                when_clause  JSON,
+                then_clause  JSON,
+                else_clause  JSON,
+                enabled      BOOLEAN DEFAULT TRUE,
+                description  TEXT,
+                tags         JSON,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (rule_group, id)
+            )
+            """,
+        )
+
+        # Metric extensions table (value domain / thresholds / color)
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS metric_extensions (
+                metric_name  VARCHAR PRIMARY KEY,
+                value_domain JSON,
+                thresholds   JSON,
+                color        VARCHAR,
+                unit         VARCHAR,
+                updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+        )
+
+        # Operator registry table
+        await asyncio.to_thread(
+            self._conn.execute,
+            """
+            CREATE TABLE IF NOT EXISTS operator_registry (
+                name         VARCHAR PRIMARY KEY,
+                display_name VARCHAR,
+                description  TEXT,
+                category     VARCHAR,
+                param_schema JSON,
+                input_types  JSON,
+                output_types JSON,
+                enabled      BOOLEAN DEFAULT TRUE
+            )
+            """,
+        )
+
     async def save_entity(self, entity: EntityInstance) -> str:
         self._ensure_initialized()
         assert self._conn is not None
@@ -263,6 +354,25 @@ class DuckDBStorage(StorageBackend):
         if result is None:
             return None
         return EntityInstance(concept=concept, entity_id=entity_id, data=json.loads(result[0]))
+
+    async def get_entity_by_id(self, entity_id: str) -> EntityInstance | None:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+
+        async with self._lock:
+            def _fetch() -> tuple[str, str] | None:
+                cursor = self._conn.execute(
+                    "SELECT concept, data FROM entities WHERE entity_id = ?",
+                    [entity_id],
+                )
+                return cursor.fetchone()
+
+            result = await asyncio.to_thread(_fetch)
+
+        if result is None:
+            return None
+        return EntityInstance(concept=result[0], entity_id=entity_id, data=json.loads(result[1]))
 
     async def query_entities(
         self,
@@ -1226,6 +1336,574 @@ class DuckDBStorage(StorageBackend):
                 "DELETE FROM entity_versions WHERE entity_id = ? AND version = ?",
                 [entity_id, version],
             )
+
+    # =========================================================================
+    # Phase 2: Rule Orchestration CRUD
+    # =========================================================================
+
+    async def save_rule_group(
+        self,
+        data: dict[str, Any],
+        schema_id: str | None = None,
+    ) -> None:
+        """Save a rule group.
+
+        Args:
+            data: Rule group data dict with keys: id (optional, UUID generated if empty),
+                  name, description, type, priority, applies_to, preconditions,
+                  inputs, outputs, enabled, schema_id
+            schema_id: Semantic space ID (required for semantic space isolation).
+                      If not provided, uses '__global__' for backward compatibility.
+                      The combination (name, schema_id) must be unique.
+        """
+        import uuid as uuid_module
+
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+
+        # Generate UUID if not provided
+        rule_group_id = data.get("id") or str(uuid_module.uuid4())
+        name = data["name"]
+        # Use provided schema_id or default for backward compatibility
+        effective_schema_id = schema_id if schema_id is not None else data.get("schema_id")
+        if not effective_schema_id:
+            effective_schema_id = "__global__"
+
+        params = [
+            rule_group_id,
+            name,
+            data.get("description", ""),
+            data.get("type", "decision"),
+            data.get("priority", 100),
+            json.dumps(data.get("applies_to", {})),
+            json.dumps(data.get("preconditions", [])),
+            json.dumps(data.get("inputs", [])),
+            json.dumps(data.get("outputs", [])),
+            data.get("enabled", True),
+            effective_schema_id,
+        ]
+        async with self._lock:
+            def _upsert_group() -> None:
+                # DuckDB does not support INSERT OR REPLACE with multiple constraints;
+                # use DELETE + INSERT to handle both PK(id) and UNIQUE(name, schema_id).
+                self._conn.execute(
+                    "DELETE FROM rule_groups WHERE id = ? OR (name = ? AND schema_id = ?)",
+                    [rule_group_id, name, effective_schema_id],
+                )
+                self._conn.execute(
+                    """
+                    INSERT INTO rule_groups
+                        (id, name, description, type, priority, applies_to, preconditions,
+                         inputs, outputs, enabled, schema_id, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    """,
+                    params,
+                )
+            await asyncio.to_thread(_upsert_group)
+
+    async def get_rule_group(
+        self,
+        identifier: str,
+        schema_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Get a rule group by id or (name, schema_id) combination.
+
+        Args:
+            identifier: The rule group's UUID (id) or business name
+            schema_id: When identifier is a name, this specifies the semantic space
+                      for lookup. If not provided and identifier is a name,
+                      looks up in '__global__' space for backward compatibility.
+        """
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+
+        # Determine if identifier is UUID (id) or name based on hyphen pattern
+        # UUIDs have the pattern: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        is_uuid = "-" in identifier and len(identifier) == 36
+
+        async with self._lock:
+            def _fetch() -> tuple | None:
+                if is_uuid:
+                    cursor = self._conn.execute(
+                        """
+                        SELECT id, name, description, type, priority, applies_to,
+                               preconditions, inputs, outputs, enabled, schema_id,
+                               created_at, updated_at
+                        FROM rule_groups WHERE id = ?
+                        """,
+                        [identifier],
+                    )
+                else:
+                    # Name-based lookup: use schema_id if provided, otherwise '__global__'
+                    effective_schema_id = schema_id if schema_id else "__global__"
+                    cursor = self._conn.execute(
+                        """
+                        SELECT id, name, description, type, priority, applies_to,
+                               preconditions, inputs, outputs, enabled, schema_id,
+                               created_at, updated_at
+                        FROM rule_groups WHERE name = ? AND schema_id = ?
+                        """,
+                        [identifier, effective_schema_id],
+                    )
+                return cursor.fetchone()
+            row = await asyncio.to_thread(_fetch)
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "description": row[2],
+            "type": row[3],
+            "priority": row[4],
+            "applies_to": json.loads(row[5]) if row[5] else {},
+            "preconditions": json.loads(row[6]) if row[6] else [],
+            "inputs": json.loads(row[7]) if row[7] else [],
+            "outputs": json.loads(row[8]) if row[8] else [],
+            "enabled": row[9],
+            "schema_id": row[10],
+            "created_at": str(row[11]) if row[11] else "",
+            "updated_at": str(row[12]) if row[12] else "",
+        }
+
+    async def list_rule_groups(
+        self,
+        schema_id: str | None = None,
+        enabled: bool | None = None,
+    ) -> list[dict[str, Any]]:
+        """List rule groups with optional filters.
+
+        Args:
+            schema_id: Filter by semantic space ID. If not provided, lists all spaces.
+            enabled: Optional filter by enabled status
+        """
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                conditions = []
+                params: list[Any] = []
+                if schema_id is not None:
+                    conditions.append("schema_id = ?")
+                    params.append(schema_id)
+                if enabled is not None:
+                    conditions.append("enabled = ?")
+                    params.append(enabled)
+                where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+                cursor = self._conn.execute(
+                    f"""
+                    SELECT id, name, description, type, priority, applies_to,
+                           preconditions, inputs, outputs, enabled, schema_id,
+                           created_at, updated_at
+                    FROM rule_groups {where}
+                    ORDER BY priority DESC, name
+                    """,
+                    params,
+                )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "description": r[2],
+                "type": r[3],
+                "priority": r[4],
+                "applies_to": json.loads(r[5]) if r[5] else {},
+                "preconditions": json.loads(r[6]) if r[6] else [],
+                "inputs": json.loads(r[7]) if r[7] else [],
+                "outputs": json.loads(r[8]) if r[8] else [],
+                "enabled": r[9],
+                "schema_id": r[10],
+                "created_at": str(r[11]) if r[11] else "",
+                "updated_at": str(r[12]) if r[12] else "",
+            }
+            for r in rows
+        ]
+
+    async def delete_rule_group(
+        self,
+        identifier: str,
+        schema_id: str | None = None,
+    ) -> None:
+        """Delete a rule group and its steps by id or (name, schema_id).
+
+        Args:
+            identifier: The rule group's UUID (id) or business name
+            schema_id: When identifier is a name, this specifies the semantic space.
+                      If not provided and identifier is a name, uses '__global__'.
+        """
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+
+        # Determine if identifier is UUID (id) or name
+        is_uuid = "-" in identifier and len(identifier) == 36
+
+        async with self._lock:
+            # First get the name for deleting steps (steps reference rule_group by name)
+            if is_uuid:
+                def _get_name() -> str | None:
+                    cursor = self._conn.execute(
+                        "SELECT name FROM rule_groups WHERE id = ?",
+                        [identifier],
+                    )
+                    row = cursor.fetchone()
+                    return row[0] if row else None
+                name = await asyncio.to_thread(_get_name)
+            else:
+                name = identifier
+
+            if name:
+                # Delete steps using the exact rule_group name
+                await asyncio.to_thread(
+                    self._conn.execute,
+                    "DELETE FROM rule_steps WHERE rule_group = ?",
+                    [name],
+                )
+
+            # Delete from rule_groups using appropriate column
+            if is_uuid:
+                await asyncio.to_thread(
+                    self._conn.execute,
+                    "DELETE FROM rule_groups WHERE id = ?",
+                    [identifier],
+                )
+            else:
+                effective_schema_id = schema_id if schema_id else "__global__"
+                await asyncio.to_thread(
+                    self._conn.execute,
+                    "DELETE FROM rule_groups WHERE name = ? AND schema_id = ?",
+                    [name, effective_schema_id],
+                )
+
+    async def save_rule_step(self, rule_group: str, data: dict[str, Any]) -> None:
+        """Save a rule step.
+
+        Args:
+            rule_group: Parent rule group name
+            data: Rule step data dict with keys: id, name, step_order, when_clause,
+                  then_clause, else_clause, enabled, description, tags
+        """
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        step_params = [
+            data["id"],
+            rule_group,
+            data.get("step_order", data.get("order", 0)),
+            data.get("name", ""),
+            json.dumps(data.get("when", data.get("when_clause", {}))),
+            json.dumps(data.get("then", data.get("then_clause", {}))),
+            json.dumps(data.get("else", data.get("else_clause"))) if data.get("else") else None,
+            data.get("enabled", True),
+            data.get("description", ""),
+            json.dumps(data.get("tags", [])),
+        ]
+        async with self._lock:
+            def _upsert_step() -> None:
+                # DuckDB ON CONFLICT requires explicit target; use DELETE + INSERT.
+                self._conn.execute(
+                    "DELETE FROM rule_steps WHERE rule_group = ? AND id = ?",
+                    [rule_group, data["id"]],
+                )
+                self._conn.execute(
+                    """
+                    INSERT INTO rule_steps
+                        (id, rule_group, step_order, name, when_clause, then_clause,
+                         else_clause, enabled, description, tags, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    """,
+                    step_params,
+                )
+            await asyncio.to_thread(_upsert_step)
+
+    async def get_rule_step(self, rule_group: str, step_id: str) -> dict[str, Any] | None:
+        """Get a rule step by ID."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> tuple | None:
+                cursor = self._conn.execute(
+                    """
+                    SELECT id, rule_group, step_order, name, when_clause, then_clause,
+                           else_clause, enabled, description, tags, created_at, updated_at
+                    FROM rule_steps WHERE rule_group = ? AND id = ?
+                    """,
+                    [rule_group, step_id],
+                )
+                return cursor.fetchone()
+            row = await asyncio.to_thread(_fetch)
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "rule_group": row[1],
+            "step_order": row[2],
+            "name": row[3],
+            "when": json.loads(row[4]) if row[4] else {},
+            "then": json.loads(row[5]) if row[5] else {},
+            "else": json.loads(row[6]) if row[6] else None,
+            "enabled": row[7],
+            "description": row[8],
+            "tags": json.loads(row[9]) if row[9] else [],
+            "created_at": str(row[10]) if row[10] else "",
+            "updated_at": str(row[11]) if row[11] else "",
+        }
+
+    async def list_rule_steps(self, rule_group: str) -> list[dict[str, Any]]:
+        """List all rule steps for a rule group."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                cursor = self._conn.execute(
+                    """
+                    SELECT id, rule_group, step_order, name, when_clause, then_clause,
+                           else_clause, enabled, description, tags, created_at, updated_at
+                    FROM rule_steps WHERE rule_group = ?
+                    ORDER BY step_order
+                    """,
+                    [rule_group],
+                )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        return [
+            {
+                "id": r[0],
+                "rule_group": r[1],
+                "step_order": r[2],
+                "name": r[3],
+                "when": json.loads(r[4]) if r[4] else {},
+                "then": json.loads(r[5]) if r[5] else {},
+                "else": json.loads(r[6]) if r[6] else None,
+                "enabled": r[7],
+                "description": r[8],
+                "tags": json.loads(r[9]) if r[9] else [],
+                "created_at": str(r[10]) if r[10] else "",
+                "updated_at": str(r[11]) if r[11] else "",
+            }
+            for r in rows
+        ]
+
+    async def delete_rule_step(self, rule_group: str, step_id: str) -> None:
+        """Delete a rule step."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM rule_steps WHERE rule_group = ? AND id = ?",
+                [rule_group, step_id],
+            )
+
+    async def reorder_rule_steps(self, rule_group: str, step_ids: list[str]) -> None:
+        """Reorder rule steps.
+
+        Args:
+            rule_group: Rule group name
+            step_ids: List of step IDs in new order
+        """
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            for order, step_id in enumerate(step_ids):
+                await asyncio.to_thread(
+                    self._conn.execute,
+                    "UPDATE rule_steps SET step_order = ? WHERE rule_group = ? AND id = ?",
+                    [order, rule_group, step_id],
+                )
+
+    async def save_metric_extension(
+        self,
+        metric_name: str,
+        value_domain: dict[str, Any] | None = None,
+        thresholds: dict[str, Any] | None = None,
+        color: str | None = None,
+        unit: str | None = None,
+    ) -> None:
+        """Save metric extension data."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                """
+                INSERT OR REPLACE INTO metric_extensions
+                    (metric_name, value_domain, thresholds, color, unit, updated_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
+                """,
+                [
+                    metric_name,
+                    json.dumps(value_domain) if value_domain else None,
+                    json.dumps(thresholds) if thresholds else None,
+                    color,
+                    unit,
+                ],
+            )
+
+    async def get_metric_extension(
+        self, metric_name: str
+    ) -> dict[str, Any] | None:
+        """Get metric extension data."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> tuple | None:
+                cursor = self._conn.execute(
+                    """
+                    SELECT metric_name, value_domain, thresholds, color, unit, updated_at
+                    FROM metric_extensions WHERE metric_name = ?
+                    """,
+                    [metric_name],
+                )
+                return cursor.fetchone()
+            row = await asyncio.to_thread(_fetch)
+        if row is None:
+            return None
+        return {
+            "metric_name": row[0],
+            "value_domain": json.loads(row[1]) if row[1] else None,
+            "thresholds": json.loads(row[2]) if row[2] else None,
+            "color": row[3],
+            "unit": row[4],
+            "updated_at": str(row[5]) if row[5] else "",
+        }
+
+    async def list_metric_extensions(
+        self,
+    ) -> list[dict[str, Any]]:
+        """List all metric extensions."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                cursor = self._conn.execute(
+                    """
+                    SELECT metric_name, value_domain, thresholds, color, unit, updated_at
+                    FROM metric_extensions
+                    """,
+                )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        return [
+            {
+                "metric_name": r[0],
+                "value_domain": json.loads(r[1]) if r[1] else None,
+                "thresholds": json.loads(r[2]) if r[2] else None,
+                "color": r[3],
+                "unit": r[4],
+                "updated_at": str(r[5]) if r[5] else "",
+            }
+            for r in rows
+        ]
+
+    async def delete_metric_extension(self, metric_name: str) -> None:
+        """Delete a metric extension."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM metric_extensions WHERE metric_name = ?",
+                [metric_name],
+            )
+
+    async def save_operator_registry(self, data: dict[str, Any]) -> None:
+        """Save operator registry entry."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                """
+                INSERT OR REPLACE INTO operator_registry
+                    (name, display_name, description, category, param_schema,
+                     input_types, output_types, enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    data["name"],
+                    data.get("display_name", data["name"]),
+                    data.get("description", ""),
+                    data.get("category", "compute"),
+                    json.dumps(data.get("param_schema", {})),
+                    json.dumps(data.get("input_types", [])),
+                    json.dumps(data.get("output_types", [])),
+                    data.get("enabled", True),
+                ],
+            )
+
+    async def get_operator_registry(self, name: str) -> dict[str, Any] | None:
+        """Get operator registry entry."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> tuple | None:
+                cursor = self._conn.execute(
+                    """
+                    SELECT name, display_name, description, category, param_schema,
+                           input_types, output_types, enabled
+                    FROM operator_registry WHERE name = ?
+                    """,
+                    [name],
+                )
+                return cursor.fetchone()
+            row = await asyncio.to_thread(_fetch)
+        if row is None:
+            return None
+        return {
+            "name": row[0],
+            "display_name": row[1],
+            "description": row[2],
+            "category": row[3],
+            "param_schema": json.loads(row[4]) if row[4] else {},
+            "input_types": json.loads(row[5]) if row[5] else [],
+            "output_types": json.loads(row[6]) if row[6] else [],
+            "enabled": row[7],
+        }
+
+    async def list_operator_registry(self) -> list[dict[str, Any]]:
+        """List all operator registry entries."""
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                cursor = self._conn.execute(
+                    """
+                    SELECT name, display_name, description, category, param_schema,
+                           input_types, output_types, enabled
+                    FROM operator_registry ORDER BY name
+                    """,
+                )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        return [
+            {
+                "name": r[0],
+                "display_name": r[1],
+                "description": r[2],
+                "category": r[3],
+                "param_schema": json.loads(r[4]) if r[4] else {},
+                "input_types": json.loads(r[5]) if r[5] else [],
+                "output_types": json.loads(r[6]) if r[6] else [],
+                "enabled": r[7],
+            }
+            for r in rows
+        ]
 
     async def close(self) -> None:
         if self._conn is not None:

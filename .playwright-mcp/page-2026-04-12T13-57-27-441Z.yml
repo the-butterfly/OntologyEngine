@@ -1,0 +1,103 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "OntologyEngine" [ref=e5] [cursor=pointer]:
+      - /url: /spaces
+      - heading "OntologyEngine" [level=4] [ref=e6]
+    - menu [ref=e7]:
+      - menuitem "database 管理面" [ref=e8] [cursor=pointer]:
+        - img "database" [ref=e9]:
+          - img [ref=e10]
+        - link "管理面" [ref=e13]:
+          - /url: /spaces
+      - menuitem "apartment 消费面" [ref=e14] [cursor=pointer]:
+        - img "apartment" [ref=e15]:
+          - img [ref=e16]
+        - text: 消费面
+      - menuitem [disabled]:
+        - img:
+          - img
+  - main [ref=e18]:
+    - generic [ref=e223]:
+      - navigation [ref=e224]:
+        - list [ref=e225]:
+          - listitem [ref=e226]:
+            - link "语义空间" [ref=e227] [cursor=pointer]:
+              - /url: "#/spaces"
+          - listitem [ref=e228]: /
+          - listitem [ref=e229]: Demo Supply Chain Space
+      - generic [ref=e230]:
+        - generic [ref=e232]: v1
+        - generic [ref=e234]: ACTIVE
+        - generic [ref=e236]: 1 实体
+        - generic [ref=e238]: 1 规则声明
+        - generic [ref=e240]: 1 规则逻辑
+      - generic [ref=e243]:
+        - menu [ref=e244]:
+          - menuitem "apartment Schema 声明" [ref=e245] [cursor=pointer]:
+            - img "apartment" [ref=e246]:
+              - img [ref=e247]
+            - generic [ref=e249]: Schema 声明
+          - menuitem "setting 规则声明" [ref=e250] [cursor=pointer]:
+            - img "setting" [ref=e251]:
+              - img [ref=e252]
+            - generic [ref=e254]: 规则声明
+          - menuitem "branches 规则逻辑" [ref=e255] [cursor=pointer]:
+            - img "branches" [ref=e256]:
+              - img [ref=e257]
+            - generic [ref=e259]: 规则逻辑
+          - menuitem "database 数据实例" [ref=e260] [cursor=pointer]:
+            - img "database" [ref=e261]:
+              - img [ref=e262]
+            - generic [ref=e264]: 数据实例
+          - menuitem "history 版本历史" [ref=e265] [cursor=pointer]:
+            - img "history" [ref=e266]:
+              - img [ref=e267]
+            - generic [ref=e269]: 版本历史
+          - menuitem "apartment Schema 可视化" [ref=e270] [cursor=pointer]:
+            - img "apartment" [ref=e271]:
+              - img [ref=e272]
+            - generic [ref=e274]: Schema 可视化
+          - menuitem "branches 规则执行" [ref=e275] [cursor=pointer]:
+            - img "branches" [ref=e276]:
+              - img [ref=e277]
+            - generic [ref=e279]: 规则执行
+          - menuitem "experiment What-If 模拟" [ref=e280] [cursor=pointer]:
+            - img "experiment" [ref=e281]:
+              - img [ref=e282]
+            - generic [ref=e284]: What-If 模拟
+        - generic [ref=e286]:
+          - generic [ref=e288]:
+            - heading "Schema 声明 (L1 事实对象)" [level=5] [ref=e290]
+            - generic [ref=e292]: 1 个对象
+          - generic [ref=e296]:
+            - table [ref=e300]:
+              - rowgroup [ref=e304]:
+                - row "ID 名称 描述 属性 关系" [ref=e305]:
+                  - columnheader "ID" [ref=e306]
+                  - columnheader "名称" [ref=e307]
+                  - columnheader "描述" [ref=e308]
+                  - columnheader "属性" [ref=e309]
+                  - columnheader "关系" [ref=e310]
+              - rowgroup [ref=e311]:
+                - 'row "Supplier 供应商 供应链中的供应商企业 entity_id: string company_name: string annual_revenue: Money 无" [ref=e312]':
+                  - cell "Supplier" [ref=e313]
+                  - cell "供应商" [ref=e314]
+                  - cell "供应链中的供应商企业" [ref=e315]
+                  - 'cell "entity_id: string company_name: string annual_revenue: Money" [ref=e316]':
+                    - generic [ref=e317]:
+                      - generic [ref=e319]: "entity_id: string"
+                      - generic [ref=e321]: "company_name: string"
+                      - generic [ref=e323]: "annual_revenue: Money"
+                  - cell "无" [ref=e324]:
+                    - generic [ref=e326]: 无
+            - list [ref=e327]:
+              - listitem "上一页" [ref=e328]:
+                - button "left" [disabled] [ref=e329]:
+                  - img "left" [ref=e330]:
+                    - img [ref=e331]
+              - listitem "1" [ref=e333] [cursor=pointer]:
+                - generic [ref=e334]: "1"
+              - listitem "下一页" [ref=e335]:
+                - button "right" [disabled] [ref=e336]:
+                  - img "right" [ref=e337]:
+                    - img [ref=e338]

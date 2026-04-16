@@ -1,0 +1,92 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "OntologyEngine" [ref=e5] [cursor=pointer]:
+      - /url: /spaces
+      - heading "OntologyEngine" [level=4] [ref=e6]
+    - menu [ref=e7]:
+      - menuitem "database 管理面" [ref=e8] [cursor=pointer]:
+        - img "database" [ref=e9]:
+          - img [ref=e10]
+        - link "管理面" [ref=e13]:
+          - /url: /spaces
+      - menuitem "apartment 消费面" [ref=e14] [cursor=pointer]:
+        - img "apartment" [ref=e15]:
+          - img [ref=e16]
+        - text: 消费面
+      - menuitem [disabled]:
+        - img:
+          - img
+  - main [ref=e18]:
+    - generic [ref=e19]:
+      - navigation [ref=e20]:
+        - list [ref=e21]:
+          - listitem [ref=e22]:
+            - link "语义空间" [ref=e23] [cursor=pointer]:
+              - /url: "#/spaces"
+          - listitem [ref=e24]: /
+          - listitem [ref=e25]: Final Test Space
+      - generic [ref=e26]:
+        - generic [ref=e28]: v1
+        - generic [ref=e30]: ACTIVE
+        - generic [ref=e32]: 0 实体
+        - generic [ref=e34]: 0 规则声明
+        - generic [ref=e36]: 0 规则逻辑
+        - generic [ref=e38]: "视图: view_b933ce1d"
+      - generic [ref=e41]:
+        - menu [ref=e42]:
+          - menuitem "apartment Schema 声明" [ref=e43] [cursor=pointer]:
+            - img "apartment" [ref=e44]:
+              - img [ref=e45]
+            - generic [ref=e47]: Schema 声明
+          - menuitem "setting 规则声明" [ref=e48] [cursor=pointer]:
+            - img "setting" [ref=e49]:
+              - img [ref=e50]
+            - generic [ref=e52]: 规则声明
+          - menuitem "branches 规则逻辑" [ref=e53] [cursor=pointer]:
+            - img "branches" [ref=e54]:
+              - img [ref=e55]
+            - generic [ref=e57]: 规则逻辑
+          - menuitem "database 数据实例" [ref=e58] [cursor=pointer]:
+            - img "database" [ref=e59]:
+              - img [ref=e60]
+            - generic [ref=e62]: 数据实例
+          - menuitem "history 版本历史" [ref=e63] [cursor=pointer]:
+            - img "history" [ref=e64]:
+              - img [ref=e65]
+            - generic [ref=e67]: 版本历史
+          - menuitem "apartment Schema 可视化" [ref=e68] [cursor=pointer]:
+            - img "apartment" [ref=e69]:
+              - img [ref=e70]
+            - generic [ref=e72]: Schema 可视化
+          - menuitem "branches 规则执行" [active] [ref=e73] [cursor=pointer]:
+            - img "branches" [ref=e74]:
+              - img [ref=e75]
+            - generic [ref=e77]: 规则执行
+          - menuitem "experiment What-If 模拟" [ref=e78] [cursor=pointer]:
+            - img "experiment" [ref=e79]:
+              - img [ref=e80]
+            - generic [ref=e82]: What-If 模拟
+        - generic [ref=e188]:
+          - generic [ref=e190]:
+            - heading "规则执行" [level=5] [ref=e192]
+            - generic [ref=e194]:
+              - generic [ref=e196] [cursor=pointer]:
+                - generic [ref=e198]:
+                  - combobox [ref=e200]
+                  - generic "信用评估" [ref=e201]
+                - generic:
+                  - img:
+                    - img
+              - generic [ref=e203] [cursor=pointer]:
+                - combobox [ref=e207]
+                - generic:
+                  - img:
+                    - img
+                - img [ref=e210]:
+                  - img [ref=e211]
+              - button "执行分析" [disabled] [ref=e214]:
+                - generic: 执行分析
+          - generic [ref=e216]:
+            - img "暂无数据" [ref=e218]
+            - generic [ref=e230]: 选择维度和实体后点击执行
+            - generic [ref=e233]: 执行规则分析，查看每条规则的执行步骤和结果

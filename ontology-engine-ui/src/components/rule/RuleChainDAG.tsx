@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Graph } from '@antv/g6';
 import { RULE_TYPE_COLORS, EXECUTION_STATUS_COLORS } from '../../utils/colorSchemes';
 import type { RuleChainGraphData, ExecutionStepSnapshot, RuleChainNode, RuleChainEdge } from '../../types/visualization';
@@ -8,13 +8,22 @@ interface RuleChainDAGProps {
   executionSteps?: ExecutionStepSnapshot[];
   currentStep?: number;
   onNodeClick?: (nodeId: string) => void;
+  /** Node ID to highlight (upstream in green, downstream in orange) */
+  highlightNodeId?: string;
+  /** Called with step IDs in top-to-bottom order after a drag reorder */
+  onReorder?: (stepIds: string[]) => void;
+  /** Enable drag-to-reorder mode for step nodes */
+  editable?: boolean;
 }
 
-export default function RuleChainDAG({ 
-  chainData, 
+export default function RuleChainDAG({
+  chainData,
   executionSteps = [],
   currentStep = 0,
-  onNodeClick 
+  onNodeClick,
+  highlightNodeId,
+  onReorder,
+  editable = false,
 }: RuleChainDAGProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
@@ -27,6 +36,41 @@ export default function RuleChainDAG({
     if (stepIndex + 1 < currentStep) return executionSteps[stepIndex].status;
     return 'pending';
   }, [executionSteps, currentStep]);
+
+  // Compute upstream (toward INPUT) and downstream (toward OUTPUT) node IDs for highlight
+  const { upstreamIds, downstreamIds } = useMemo(() => {
+    if (!highlightNodeId || !chainData) {
+      return { upstreamIds: new Set<string>(), downstreamIds: new Set<string>() };
+    }
+    const upstreamIds = new Set<string>();
+    const downstreamIds = new Set<string>();
+
+    // BFS upstream: follow edges.source → target BACKWARD from highlightNodeId
+    const queue: string[] = [highlightNodeId];
+    while (queue.length) {
+      const current = queue.shift()!;
+      chainData.edges.forEach(edge => {
+        if (edge.target === current && !upstreamIds.has(edge.source)) {
+          upstreamIds.add(edge.source);
+          queue.push(edge.source);
+        }
+      });
+    }
+
+    // BFS downstream: follow edges.source → target FORWARD from highlightNodeId
+    const dQueue: string[] = [highlightNodeId];
+    while (dQueue.length) {
+      const current = dQueue.shift()!;
+      chainData.edges.forEach(edge => {
+        if (edge.source === current && !downstreamIds.has(edge.target)) {
+          downstreamIds.add(edge.target);
+          dQueue.push(edge.target);
+        }
+      });
+    }
+
+    return { upstreamIds, downstreamIds };
+  }, [highlightNodeId, chainData]);
 
   const renderGraph = useCallback(async () => {
     if (!containerRef.current) return;
@@ -138,19 +182,44 @@ export default function RuleChainDAG({
         }
       });
 
+      // Drag-to-reorder: when a step node is dragged, collect all step nodes by y position
+      if (editable && onReorder) {
+        graph.on('node:dragend', (evt: any) => {
+          if (isDestroyedRef.current) return;
+          const draggedId = evt.target?.id;
+          if (!draggedId) return;
+          // Collect all step node data (exclude INPUT:/OUTPUT: virtual nodes)
+          const allNodeData = graph.getNodeData();
+          const stepNodeData = allNodeData.filter((n: any) => {
+            const id = n.id as string;
+            return !id.startsWith('INPUT:') && !id.startsWith('OUTPUT:');
+          });
+          // Sort by y position (top to bottom)
+          const sorted = [...stepNodeData].sort((a: any, b: any) => {
+            const posA = (a.style?.y as number) ?? 0;
+            const posB = (b.style?.y as number) ?? 0;
+            return posA - posB;
+          });
+          const stepIds = sorted.map((n: any) => n.id as string);
+          if (stepIds.length > 0) {
+            onReorder(stepIds);
+          }
+        });
+      }
+
       await graph.render();
-      
+
       if (!isDestroyedRef.current) {
         graphRef.current = graph;
         // After render, add HTML overlays for rich node content
-        addNodeOverlays(graph, chainData, getStepStatus, containerRef.current);
+        addNodeOverlays(graph, chainData, getStepStatus, containerRef.current, upstreamIds, downstreamIds, highlightNodeId);
       } else {
         graph.destroy();
       }
     } catch (e) {
       console.error('Failed to render rule chain graph:', e);
     }
-  }, [chainData, getStepStatus, onNodeClick]);
+  }, [chainData, getStepStatus, onNodeClick, upstreamIds, downstreamIds, highlightNodeId, editable, onReorder]);
 
   useEffect(() => {
     isDestroyedRef.current = false;
@@ -214,6 +283,9 @@ function addNodeOverlays(
   chainData: RuleChainGraphData,
   getStepStatus: (id: string) => string,
   container: HTMLDivElement | null,
+  upstreamIds: Set<string> = new Set(),
+  downstreamIds: Set<string> = new Set(),
+  highlightNodeId?: string,
 ) {
   try {
     if (!container) return;
@@ -235,6 +307,20 @@ function addNodeOverlays(
         
         const overlay = document.createElement('div');
         overlay.className = 'rule-node-overlay';
+
+        // Determine highlight glow
+        const isUpstream = upstreamIds.has(node.id);
+        const isDownstream = downstreamIds.has(node.id);
+        const isCenter = node.id === highlightNodeId;
+        let glowStyle = '';
+        if (isCenter) {
+          glowStyle = '0 0 16px #1890ff, 0 0 8px #1890ff;';
+        } else if (isUpstream) {
+          glowStyle = '0 0 12px #52c41a;';
+        } else if (isDownstream) {
+          glowStyle = '0 0 12px #fa8c16;';
+        }
+
         overlay.style.cssText = `
           position: absolute;
           left: ${x - 100}px;
@@ -247,6 +333,9 @@ function addNodeOverlays(
           justify-content: center;
           padding: 8px 12px;
           box-sizing: border-box;
+          ${glowStyle ? `box-shadow: ${glowStyle}` : ''}
+          border-radius: 8px;
+          transition: box-shadow 0.2s;
         `;
         
         overlay.innerHTML = `

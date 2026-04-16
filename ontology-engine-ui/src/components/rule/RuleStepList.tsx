@@ -1,7 +1,7 @@
 // ontology-engine-ui/src/components/rule/RuleStepList.tsx
 // Rule step list with drag-and-drop reordering support using @dnd-kit
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, Tag, List, Popconfirm, message } from 'antd';
 import {
   PlusOutlined,
@@ -9,6 +9,7 @@ import {
   DeleteOutlined,
   HolderOutlined,
 } from '@ant-design/icons';
+import { ruleGroupsApi } from '../../api/ruleGroups';
 import {
   DndContext,
   closestCenter,
@@ -40,6 +41,10 @@ interface RuleStepListProps {
   onDeleteStep?: (stepId: string) => void;
   onReorder?: (stepIds: string[]) => Promise<void>;
   disabled?: boolean;
+  /** 当从外部传入一个 step 时，自动打开编辑 Modal（用于 deep link 编辑） */
+  initialEditStep?: RuleStep | null;
+  /** Called with step ID on hover enter, undefined on hover leave */
+  onHoverStep?: (stepId: string | undefined) => void;
 }
 
 interface SortableItemProps {
@@ -48,9 +53,10 @@ interface SortableItemProps {
   onEdit: () => void;
   onDelete: () => void;
   disabled: boolean;
+  onHover?: (stepId: string | undefined) => void;
 }
 
-function SortableItem({ id, step, onEdit, onDelete, disabled }: SortableItemProps) {
+function SortableItem({ id, step, onEdit, onDelete, disabled, onHover }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -76,6 +82,8 @@ function SortableItem({ id, step, onEdit, onDelete, disabled }: SortableItemProp
   return (
     <div ref={setNodeRef} style={style}>
       <List.Item
+        onMouseEnter={() => onHover?.(step.id)}
+        onMouseLeave={() => onHover?.(undefined)}
         actions={[
           <Button
             key="edit"
@@ -150,11 +158,14 @@ export default function RuleStepList({
   onDeleteStep,
   onReorder,
   disabled = false,
+  initialEditStep,
+  onHoverStep,
 }: RuleStepListProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<Partial<RuleStep> | undefined>();
   const [localSteps, setLocalSteps] = useState<RuleStep[]>(steps);
   const [reordering, setReordering] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -164,9 +175,17 @@ export default function RuleStepList({
   );
 
   // Sync with props
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalSteps(steps);
   }, [steps]);
+
+  // Respond to initialEditStep prop (from deep link editStepId)
+  useEffect(() => {
+    if (initialEditStep) {
+      setEditingStep(initialEditStep);
+      setModalOpen(true);
+    }
+  }, [initialEditStep]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -219,10 +238,30 @@ export default function RuleStepList({
   };
 
   const handleSave = async (updatedStep: Partial<RuleStep>) => {
-    // This would call the API to save
-    // For now, just close the modal
-    setModalOpen(false);
-    setEditingStep(undefined);
+    if (!ruleGroupName || !schemaId) return;
+    setSaving(true);
+    try {
+      let updatedSteps: RuleStep[];
+      if (updatedStep.id) {
+        // 编辑已有步骤
+        const result = await ruleGroupsApi.updateStep(ruleGroupName, updatedStep.id, updatedStep, schemaId);
+        updatedSteps = localSteps.map(s => s.id === updatedStep.id ? result : s);
+        message.success('步骤已更新');
+      } else {
+        // 新增步骤
+        const result = await ruleGroupsApi.addStep(ruleGroupName, updatedStep, schemaId);
+        updatedSteps = [...localSteps, result];
+        message.success('步骤已添加');
+      }
+      setLocalSteps(updatedSteps);
+      setModalOpen(false);
+      setEditingStep(undefined);
+      onStepsChange?.(updatedSteps);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -268,6 +307,7 @@ export default function RuleStepList({
                 onEdit={() => handleEdit(step)}
                 onDelete={() => handleDelete(step.id)}
                 disabled={disabled || reordering}
+                onHover={onHoverStep}
               />
             ))}
           </SortableContext>
@@ -283,6 +323,7 @@ export default function RuleStepList({
         outputs={outputs}
         onSave={handleSave}
         onCancel={handleCancel}
+        saving={saving}
       />
     </Card>
   );

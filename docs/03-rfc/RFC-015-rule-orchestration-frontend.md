@@ -4,6 +4,7 @@
 > **父 RFC**: RFC-014
 > **创建日期**: 2026-04-15
 > **关联**: 后端 Phase 2 规则编排 + 语义空间隔离
+> **前端 RFC**: `docs-ui/rfc/RFC-UI-001-rule-orchestration-frontend.md` (详细实施文档)
 
 ## 摘要
 

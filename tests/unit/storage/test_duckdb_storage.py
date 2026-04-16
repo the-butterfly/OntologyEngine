@@ -38,6 +38,19 @@ class TestDuckDBStorage:
         assert loaded.data["company_name"] == "测试供应商"
 
     @pytest.mark.asyncio
+    async def test_get_entity_by_id(self, storage: DuckDBStorage) -> None:
+        await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
+        await storage.save_entity(EntityInstance("Invoice", "INV_001", {"status": "PAID"}))
+
+        result = await storage.get_entity_by_id("SUP_001")
+        assert result is not None
+        assert result.concept == "Supplier"
+        assert result.data["status"] == "ACTIVE"
+
+        missing = await storage.get_entity_by_id("MISSING")
+        assert missing is None
+
+    @pytest.mark.asyncio
     async def test_query_entities_supports_all_concepts(self, storage: DuckDBStorage) -> None:
         await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
         await storage.save_entity(EntityInstance("Invoice", "INV_001", {"status": "PAID"}))

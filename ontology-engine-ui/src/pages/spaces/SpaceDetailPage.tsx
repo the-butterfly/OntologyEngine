@@ -20,8 +20,7 @@ const { Title } = Typography;
 
 const menuItems = [
   { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明', testId: 'menu-schema' },
-  { key: 'rules/declarations', icon: <SettingOutlined />, label: '规则声明', testId: 'menu-rules-declarations' },
-  { key: 'rules/logics', icon: <BranchesOutlined />, label: '规则逻辑', testId: 'menu-rules-logics' },
+  { key: 'rules', icon: <BranchesOutlined />, label: '规则管理', testId: 'menu-rules-orchestration' },
   { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例', testId: 'menu-instances' },
   { key: 'versions', icon: <HistoryOutlined />, label: '版本历史', testId: 'menu-versions' },
   { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化', testId: 'menu-visualize' },
@@ -67,8 +66,7 @@ export default function SpaceDetailPage() {
   const getSelectedKey = () => {
     const path = location.pathname;
     // Exact matching to avoid ambiguity with badges that contain similar text
-    if (path.endsWith('/rules/declarations')) return 'rules/declarations';
-    if (path.endsWith('/rules/logics')) return 'rules/logics';
+    if (path.endsWith('/rules')) return 'rules';
     if (path.endsWith('/schema')) return 'schema';
     if (path.endsWith('/instances')) return 'instances';
     if (path.endsWith('/versions')) return 'versions';
@@ -79,7 +77,11 @@ export default function SpaceDetailPage() {
   };
 
   const handleMenuClick = ({ key }: { key: string }) => {
-    navigate(`/spaces/${spaceId}/${key}`);
+    if (key === 'rules') {
+      navigate(`/rules?schemaId=${spaceId}`);
+    } else {
+      navigate(`/spaces/${spaceId}/${key}`);
+    }
   };
 
   // Check if current route is a consumption operation
