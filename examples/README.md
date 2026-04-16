@@ -161,3 +161,33 @@ for tc in results:
 | L4 规则声明/实例分离 | `docs/05-schema-v2/04-business-logic.md` |
 | 规则声明与实例详细规范 | `docs/05-schema-v2/07-rule-declaration-and-instance.md` |
 | L3/L4 计算边界 ADR | `docs/architecture/decisions/007-l3-l4-computation-boundary.md` |
+
+---
+
+## Phase 2 规则组 YAML
+
+`rules/` 目录存放 Phase 2 格式的规则组 YAML 文件，可通过前端 UI 或 API 导入：
+
+```bash
+# 通过 API 导入
+curl -X POST http://localhost:8000/v1/rule-groups/import \
+  -H "Content-Type: application/json" \
+  -d '{"yaml_content": "...", "schema_id": "space.supply_chain_finance"}'
+
+# 从旧 L4 schema.yaml 导入（单向转换）
+curl -X POST http://localhost:8000/v1/rule-groups/import-l4 \
+  -H "Content-Type: application/json" \
+  -d '{"yaml_content": "...", "schema_id": "space.supply_chain_finance"}'
+```
+
+### Phase 2 YAML 文件
+
+| 文件 | 对应规则 | 说明 |
+|------|---------|------|
+| `rules/RD001_basic_eligibility.yaml` | 基础准入检查 | 2个步骤：注册资本/成立年限 + else拒绝处理 |
+| `rules/RD002_credit_score.yaml` | 信用评分计算 | 2个步骤：标准评分 + 制造业加成 |
+| `rules/RD003_guarantee_risk.yaml` | 担保圈风险检测 | 1个步骤：环路/深度检测 |
+| `rules/RD004_credit_limit.yaml` | 授信额度计算 | 1个步骤：额度公式 |
+| `rules/RD006_final_decision.yaml` | 综合授信决策 | 1个步骤：决策表 |
+
+格式规范见 [RFC-017](../../docs/03-rfc/RFC-017-rule-orchestration-yaml-format.md)。
