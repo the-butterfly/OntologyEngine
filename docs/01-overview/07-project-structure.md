@@ -1,133 +1,158 @@
 # 项目结构
 
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-17
+> **[已核对代码]**: 与 `ontology_engine/` 实际目录结构逐项核验
+
+## 主包结构
+
 ```
-ontology_engine/                 # 主包
-├── __init__.py
-├── __main__.py                  # python -m ontology_engine
-├── config.py                    # 配置管理
+ontology_engine/                     # 主包
+├── __init__.py                      # 包入口
 │
-├── core/                        # 核心模块
-│   ├── __init__.py
-│   ├── schema/                  # Schema 管理
-│   │   ├── __init__.py
-│   │   ├── models.py           # Pydantic 模型
-│   │   ├── loader.py           # Schema 加载
-│   │   └── validator.py        # Schema 校验
-│   ├── models/                  # 数据模型
-│   │   ├── __init__.py
-│   │   ├── concept.py
-│   │   ├── entity.py
-│   │   ├── relation.py
-│   │   └── metric.py
-│   └── types/                   # 类型定义
-│       ├── __init__.py
-│       └── primitives.py
+├── core/                            # 核心层 (L0)
+│   ├── schema/                      # Schema 管理
+│   │   ├── models.py                # Pydantic 模型 (30K+, 含 Schema v2 全量模型)
+│   │   └── loader.py                # KGML YAML 加载与解析
+│   ├── instances/                   # 实例加载
+│   │   └── loader.py                # Entity/Relation 实例加载
+│   ├── semantic_space/              # 语义空间管理
+│   │   ├── models.py                # 空间模型定义
+│   │   ├── rule_models.py           # 规则相关模型
+│   │   ├── loader.py                # 空间配置加载
+│   │   ├── state_machine.py         # 空间状态机
+│   │   └── storage.py               # 空间持久化
+│   ├── dataset/                     # 数据集模型
+│   │   └── models.py                # Dataset/ChangeBatch 等模型
+│   └── types/                       # 类型定义
+│       └── __init__.py
 │
-├── storage/                     # 存储层 (本地优先)
-│   ├── __init__.py
-│   ├── base.py                 # 存储抽象接口
-│   │
-│   ├── duckdb/                 # DuckDB 实现 (默认)
-│   │   ├── __init__.py
-│   │   └── store.py            # DuckDB 主存储
-│   │
-│   └── adapters/               # 预留外部存储接口
-│       ├── __init__.py
-│       ├── neo4j_store.py      # Neo4j 适配器 (预留)
-│       ├── pgvector_store.py   # pgvector 适配器 (预留)
-│       └── redis_cache.py      # Redis 适配器 (预留)
+├── storage/                         # 存储层 (L1)
+│   ├── base.py                      # 存储抽象接口 (19K+)
+│   ├── duckdb/                      # DuckDB 主存储
+│   │   └── store.py                 # DuckDB 实现 (72K+, 30+ CRUD 方法)
+│   ├── graph/                       # 图存储
+│   │   ├── networkx_store.py        # NetworkX 图存储实现
+│   │   └── kuzu_store.py            # kuzu 图存储实现 (Phase 2)
+│   ├── vector/                      # 向量存储
+│   │   └── local_vector_store.py    # Faiss 本地向量存储
+│   ├── dual_write.py                # 图+关系双写协调器
+│   └── retrieval.py                 # 混合检索 (向量+图+SQL)
 │
-├── engine/                      # 引擎层
-│   ├── __init__.py
-│   │
-│   ├── query/                  # 查询引擎
-│   │   ├── __init__.py
-│   │   ├── parser.py
-│   │   ├── local_executor.py   # 本地查询执行
-│   │   └── optimizer.py
-│   │
-│   ├── rules/                  # 规则引擎
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── resolver.py         # DAG 依赖解析
-│   │   ├── executor.py
-│   │   └── operators/
-│   │       ├── __init__.py
-│   │       ├── base.py
-│   │       ├── math_ops.py
-│   │       ├── logic_ops.py
-│   │       └── graph_ops.py    # NetworkX 图算子
-│   │
-│   ├── inference/              # 推理引擎
-│   │   ├── __init__.py
-│   │   ├── symbolic.py
-│   │   └── llm.py
-│   │
-│   └── vector/                 # 向量引擎
-│       ├── __init__.py
-│       ├── embedder.py         # Embedding 生成
-│       └── indexer.py          # 向量索引管理
+├── engine/                          # 引擎层 (L2)
+│   ├── rule/                        # 规则引擎
+│   │   ├── models.py                # 规则模型 (11K+)
+│   │   ├── executor.py              # 规则执行器 (18K+)
+│   │   ├── evaluator.py             # 条件评估器
+│   │   └── operators/               # 算子库
+│   │       ├── base.py              # 算子基类
+│   │       ├── registry.py          # 算子注册中心 (13K+)
+│   │       ├── compute.py           # 计算算子 (BINNING 等)
+│   │       ├── decision_table.py    # 决策表算子
+│   │       ├── weighted_sum.py      # 加权求和算子
+│   │       ├── switch.py            # 分支算子 (11K+)
+│   │       ├── llm_judge.py         # LLM 定性分析算子
+│   │       ├── alert.py             # 告警算子
+│   │       └── set_flag.py          # 标记算子
+│   ├── metric/                      # 指标引擎
+│   │   ├── engine.py                # 指标计算引擎 (15K+)
+│   │   ├── dag.py                   # DAG 依赖解析
+│   │   ├── graph_operators.py       # 图指标算子
+│   │   └── errors.py                # 指标错误定义
+│   ├── categorization/              # 归类引擎
+│   │   ├── engine.py                # 归类编译+执行
+│   │   └── models.py                # 归类模型
+│   ├── expression/                  # 表达式引擎
+│   │   └── engine.py                # L0 simpleeval + L1 AST 沙箱
+│   ├── query/                       # 查询引擎 (占位，Phase 2)
+│   │   └── __init__.py
+│   ├── validation/                  # 值域验证
+│   │   └── value_domain_validator.py # 5种域类型验证
+│   └── errors.py                    # 引擎层通用错误
 │
-├── services/                    # 服务层
-│   ├── __init__.py
-│   ├── schema_service.py
-│   ├── query_service.py
-│   ├── rule_service.py
-│   └── memory_service.py
+├── services/                        # 服务层 (L3)
+│   ├── schema_service.py            # Schema CRUD + 版本
+│   ├── entity_service.py            # 实体/关系 CRUD
+│   ├── analysis_service.py          # 分析编排 (指标+规则)
+│   ├── query_service.py             # 查询路由 + 混合检索
+│   ├── rule_service.py              # 规则管理 (41K+, 最大服务)
+│   ├── ingestion_service.py         # 数据导入
+│   ├── dag_service.py               # DAG 执行编排
+│   ├── dataset_service.py           # 数据集管理 + diff
+│   ├── incremental_update.py        # 增量更新 + 影响分析
+│   ├── simulation_service.py        # dry_run + what-if 模拟
+│   ├── visualization_service.py     # 可视化服务
+│   └── dto/                         # 服务层数据传输对象
+│       ├── requests.py
+│       ├── responses.py
+│       └── errors.py
 │
-├── api/                         # API 层
-│   ├── __init__.py
-│   ├── server.py               # FastAPI 应用
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── schema.py
-│   │   ├── query.py
-│   │   ├── rules.py
-│   │   └── memory.py
-│   └── dependencies.py
+├── api/                             # API 层 (L4)
+│   ├── server.py                    # FastAPI 应用 (15K+)
+│   ├── dependencies.py              # 依赖注入
+│   ├── routes/                      # 14 个路由模块
+│   │   ├── management.py            # 管理面 API (54K+)
+│   │   ├── consumption.py           # 消费面 API (52K+)
+│   │   ├── semantic_spaces.py       # 语义空间管理 (41K+)
+│   │   ├── rules.py                 # 规则 API
+│   │   ├── query.py                 # 查询 API
+│   │   ├── ingestion.py             # 数据导入 API
+│   │   ├── datasets.py              # 数据集 API
+│   │   ├── categories.py            # 分类管理 API
+│   │   ├── visualization.py         # 可视化 API
+│   │   ├── entities.py              # 实体 API
+│   │   ├── schema.py                # Schema API
+│   │   ├── incremental.py           # 增量更新 API
+│   │   ├── analysis.py              # 分析 API
+│   │   └── relations.py             # 关系 API
+│   └── dto/                         # API 数据传输对象
+│       ├── requests.py
+│       └── responses.py
 │
-└── ingestion/                   # 数据接入
-    ├── __init__.py
-    ├── loaders/
-    │   ├── __init__.py
-    │   ├── kgml_loader.py
-    │   └── csv_loader.py
-    └── transformers.py
+├── mcp/                             # MCP Agent 协议层
+│   ├── server.py                    # MCP 服务器
+│   ├── tools/                       # 4 个 MCP 工具
+│   │   ├── space.py                 # 空间管理工具
+│   │   ├── dataset.py               # 数据集工具
+│   │   ├── query.py                 # 查询工具
+│   │   └── execution.py             # 执行工具
+│   └── transports/
+│       └── stdio.py                 # STDIO 传输
+│
+├── visualization/                   # 可视化模块
+│   ├── models.py                    # 7 个 dataclass
+│   ├── builders.py                  # Schema/RuleChain 图构建 (28K+)
+│   ├── explainers.py                # 条件拆解+中文解释 (21K+)
+│   └── simulator.py                 # dry_run/what_if 模拟 (26K+)
+│
+├── cli/                             # 命令行接口 (占位)
+│   └── __init__.py
+│
+└── migrations/                      # 数据库迁移
+    └── add_source_declaration_id.py
+```
 
-data/                            # 本地数据目录 (gitignore)
-├── .gitkeep
-├── ontology.db                  # DuckDB 主数据库
-├── vectors/                     # Faiss 索引
-└── cache/                       # diskcache
+## 项目根目录
 
-docs/                            # 文档
-├── README.md
-├── architecture.md
-├── concepts.md
-├── tech-stack.md
-├── project-structure.md
-└── roadmap.md
-
-tests/                           # 测试
-├── __init__.py
-├── unit/
-├── integration/
-└── conftest.py
-
-pyproject.toml                   # 项目配置
-├── [project]                   # 基础依赖 (本地存储)
-├── [project.optional-dependencies]
-│   ├── ai                      # openai, sentence-transformers
-│   ├── prod                    # neo4j, asyncpg, redis
-│   └── dev                     # pytest, black, ruff
-│
-docker-compose.yml               # 可选：生产环境服务
-Dockerfile
-Makefile
-scripts/                         # 工具脚本
-├── init_db.py                  # 初始化本地数据库
-├── migrate.py                  # 数据迁移工具
-└── backup.py                   # 数据备份
+```
+OntologyEngine/
+├── ontology_engine/                 # 主包 (如上)
+├── ontology-engine-ui/              # 前端 (React 18 + Vite + G6 + X6)
+├── examples/                        # 端到端案例
+│   ├── supply_chain_finance/        # 供应链金融授信
+│   └── consumer_credit/             # 个人消费信贷
+├── tests/                           # 测试
+│   └── unit/                        # 168+ 单元测试
+├── docs/                            # 文档体系
+├── docs-ui/                         # 前端文档
+├── docs-rust/                       # Rust 扩展设计文档
+├── detail/                          # 实施计划
+├── discuss/                         # 决策记录
+├── review/                          # 评审报告
+├── scripts/                         # 工具脚本
+├── data/                            # 本地数据 (gitignore)
+├── pyproject.toml                   # 项目配置
+├── AGENTS.md                        # Agent 行为指南
+└── CLAUDE.md                        # Claude Code 指南
 ```
 
 ## 存储层设计
@@ -135,77 +160,60 @@ scripts/                         # 工具脚本
 ### 接口抽象
 
 ```python
-# storage/base.py
-from abc import ABC, abstractmethod
-
+# storage/base.py (19K+)
 class StorageBackend(ABC):
     """主存储抽象接口 (DuckDB 实现)"""
+    # 实体/关系/指标/规则/数据集/增量更新等 30+ 方法
 
-    @abstractmethod
-    async def save_entity(self, entity: EntityInstance) -> str: ...
-
-    @abstractmethod
-    async def get_entity(self, concept: str, entity_id: str) -> EntityInstance | None: ...
-
-    @abstractmethod
-    async def query_entities(self, concept: str, filters: dict | None) -> list[EntityInstance]: ...
-
-    @abstractmethod
-    async def save_relation(self, relation: RelationInstance) -> None: ...
-
-    @abstractmethod
-    async def get_relations(self, from_entity_id: str, relation_type: str | None) -> list[RelationInstance]: ...
+class GraphStoreBackend(ABC):
+    """图存储抽象接口"""
+    # 节点/边/路径/邻居/图指标等
 
 class VectorStore(ABC):
     """向量存储抽象接口"""
-
-    @abstractmethod
-    async def insert(self, id: str, vector: list[float], metadata: dict): ...
-
-    @abstractmethod
-    async def search(self, query: list[float], top_k: int) -> list[SearchResult]: ...
-
-class MetaStore(ABC):
-    """元数据存储抽象接口"""
-
-    @abstractmethod
-    async def save_schema(self, schema: Schema): ...
-
-    @abstractmethod
-    async def load_schema(self, schema_id: str) -> Schema: ...
+    # insert/search/delete
 ```
 
-### 工厂模式
+### 实现关系
 
 ```python
 # storage/__init__.py
-from .duckdb.store import DuckDBStorage
-from .adapters.faiss_vector import FaissVectorStore  # 预留向量适配器
-from .adapters.neo4j_store import Neo4jGraphStore  # 预留
-
-def create_storage(config: StorageConfig) -> StorageBackend:
-    if config.storage_type == "duckdb":
-        return DuckDBStorage(config.data_dir / "ontology.db")
-    elif config.storage_type == "neo4j":
-        return Neo4jGraphStore(config.neo4j_uri, config.neo4j_user, config.neo4j_password)
-    else:
-        raise ValueError(f"Unknown storage type: {config.storage_type}")
+DuckDBStorage(StorageBackend)       # 主存储: 实体/关系/指标/审计
+NetworkXGraphStore(GraphStoreBackend)  # 图存储: NetworkX
+KuzuGraphStore(GraphStoreBackend)      # 图存储: kuzu (Phase 2)
+LocalVectorStore(VectorStore)          # 向量存储: Faiss
+DualWriteCoordinator                   # 图+关系双写协调
 ```
 
 ## 模块依赖
 
 ```
-api/
-  └── services/
-        └── engine/
-              ├── storage/     ← 通过接口注入
-              │     ├── duckdb/     (默认)
-              │     └── adapters/   (预留)
-              └── core/
+api/ ───────▶ services/ ───────▶ engine/ ───────▶ storage/
+ │                │                │                │
+ │                │                │                ▼
+ │                │                │           storage/base.py
+ │                │                │                │
+ │                │                │                ▼
+ │                │                │         storage/duckdb/
+ │                │                │         storage/graph/
+ │                │                │         storage/vector/
+ │                │                │
+ │                │                ▼
+ │                │           core/schema/
+ │                │           core/semantic_space/
+ │                │
+ │                ▼
+ │         visualization/
+ │         mcp/tools/
+ │
+ ▼
+examples/*/schema.yaml  ← 三层资产定义入口
 ```
 
-**原则**:
-- 上层依赖下层接口，不关心具体实现
-- 默认使用本地 DuckDB 存储
-- 通过配置切换外部存储，无需改代码
-- 图算法 (NetworkX) 按需加载，不作为主存储
+## 关键约束
+
+1. **上层依赖下层接口**，不关心具体实现
+2. **默认使用本地 DuckDB + NetworkX + Faiss**
+3. **通过配置切换外部存储**，无需改代码
+4. **图算法 (NetworkX) 按需加载**，不作为主存储
+5. **三层资产统一存储**：DuckDB 同时承载 IT 资产、组织资产和链接元数据
