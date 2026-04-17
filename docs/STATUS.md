@@ -1,7 +1,7 @@
 # 文档状态总表
 
 > **作用**: `docs/` 下唯一状态页
-> **最后更新**: 2026-04-16
+> **最后更新**: 2026-04-17
 > **使用规则**: 判断文档是否可信、是否过期、是否仍是当前入口时，以本页为准
 
 ## 状态说明
@@ -22,7 +22,7 @@
 | [`STATUS.md`](./STATUS.md) | 状态页 | accepted | now | 是 | 统一表达文档有效性 |
 | [`ROADMAP.md`](./ROADMAP.md) | 路线图 | accepted | now | 是 | 统一表达阶段目标 |
 | [`TODO.md`](./TODO.md) | backlog | accepted | now | 是 | 只保留开放事项 |
-| [`01-overview/`](./01-overview/README.md) | 项目概览 | accepted | mvp+phase1 | 主题级 | 仅承担愿景、目标、术语、边界说明 |
+| [`01-overview/`](./01-overview/README.md) | 项目概览 | accepted | mvp+phase1 | 主题级 | 仅承担愿景、目标、术语、边界说明；**2026-04-17 重构：三层资产链接+上下文栈** |
 | [`02-design/`](./02-design/README.md) | 当前实现基线 | transitional | mvp | 主题级 | 表达当前实现口径，需持续与代码核验 |
 | [`04-migration-and-gap/`](./04-migration-and-gap/README.md) | 迁移层 | accepted | phase1 | 是 | **2026-04-16 已刷新模块差距总表** |
 | [`05-schema-v2/`](./05-schema-v2/README.md) | 目标架构 | draft | phase1+future | 主题级 | 目标态规范，部分专题仍待冻结 |
@@ -46,7 +46,7 @@
 | Rule 模型双轨叙事 | **[关键设计点]** | ADR-008 Schema 已统一为 `rule_definitions + rule_logics`，但 `RuleExecutor` 仍未使用 (2026-04-16) | [`architecture/decisions/008-rule-model-unification.md`](./architecture/decisions/008-rule-model-unification.md) |
 | Formula / Expression 执行模型 | **[单一事实源]** | 已与代码核验，文档区分当前实现与目标设计 | [`02-design/06-formula-spec.md`](./02-design/06-formula-spec.md) |
 | Current API vs Target API | **[关键设计点]** | ADR-009 已明确边界，Current API 已核验 | [`architecture/decisions/009-api-architecture-evolution.md`](./architecture/decisions/009-api-architecture-evolution.md) |
-| 术语统一 | **[单一事实源]** | `01-overview/05-concepts.md` 已统一术语表并给出对照关系 | [`01-overview/05-concepts.md`](./01-overview/05-concepts.md) |
+| 术语统一 | **[单一事实源]** | `01-overview/05-concepts.md` 已统一术语表并给出对照关系；**2026-04-17 新增上下文栈/三层资产/Agent记忆架构概念** | [`01-overview/05-concepts.md`](./01-overview/05-concepts.md) |
 | Phase 2 RFC 路线 | **[待扩展]** | RFC-010 主路线 + RFC-011/012/013 子 RFC 已创建，规划 RuleExecutor DAG / kuzu / MCP 工具实现 | [`03-rfc/RFC-010-phase2-roadmap.md`](./03-rfc/RFC-010-phase2-roadmap.md) |
 | docs/09-examples 一致性 | **[关键设计点]** | 发现与实现系统性断裂：虚构 Schema（Company/Guarantee/steps[]）vs 实际（Supplier/supplies_to/when+then_action），详见 REVIEW_REPORT.md | [`09-examples/REVIEW_REPORT.md`](./09-examples/REVIEW_REPORT.md) |
 | MCP 工具实现 | **[关键设计点]** | ✅ `ontology_engine/mcp/` 已实现 7 个工具（P1 5 个核心 + P2 2 个）；RFC-013 P1/P2/P3 优先级已对齐；遗留低优先级 review 问题见 TODO.md | [`docs/09-examples/TOOL_AUDIT.md`](./09-examples/TOOL_AUDIT.md) |

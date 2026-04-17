@@ -1,20 +1,45 @@
-# 技术选型 (Python)
+# 技术选型
+
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-17
+> **[待核对代码]**: 依赖版本和实际 pyproject.toml 仍需核验
 
 ## 核心原则
 
 **本地优先**: 零外部依赖，单机可运行  
 **预留接口**: Neo4j/PostgreSQL 仅保留适配层接口  
-**渐进扩展**: 后期可无缝切换到生产级存储
+**渐进扩展**: 后期可无缝切换到生产级存储  
+**三层资产统一存储**: IT 资产、个人知识沉淀、组织级资产共用同一存储基础设施
 
 ## 存储策略
 
-| 数据类型 | 本地实现 | 预留接口 | 说明 |
-|----------|----------|----------|------|
-| 主存储 | DuckDB | - | OLAP 存储，实体/关系/指标 |
-| 图算法 | NetworkX (按需加载) | - | 担保链检测、路径查询 |
-| 向量 | faiss-cpu / annoy | pgvector | 本地向量索引 |
-| 缓存 | 内存 dict + diskcache | Redis | LRU + 持久化 |
-| 配置/日志 | 本地文件 | - | YAML/JSON |
+| 数据类型 | 本地实现 | 预留接口 | 承载资产 | 说明 |
+|----------|----------|----------|----------|------|
+| 主存储 | DuckDB | - | IT + 组织 | OLAP 存储，实体/关系/指标/审计 |
+| 图算法 | NetworkX (按需加载) | Neo4j | 三层链接 | 担保链检测、路径查询、影响分析 |
+| 向量 | faiss-cpu | pgvector | IT (语义) | 本地向量索引，混合检索 |
+| 缓存 | 内存 dict + diskcache | Redis | 运行时 | LRU + 持久化 |
+| 配置/日志 | 本地文件 | - | 组织 | YAML/JSON |
+
+### 三层资产存储映射
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  存储层统一承载三层知识资产                                 │
+│                                                           │
+│  DuckDB (主存储)                                          │
+│  ├─ IT 资产: entities, relations, datasets                │
+│  ├─ 组织资产: schemas, rule_definitions, rule_logics       │
+│  └─ 链接元数据: execution_snapshots, change_batches       │
+│                                                           │
+│  NetworkX (图算法)                                        │
+│  ├─ 三层资产链接图: IT数据 ← 专家规则 → 组织策略            │
+│  └─ 影响链: BFS 下游追踪                                  │
+│                                                           │
+│  Faiss (向量索引)                                         │
+│  ├─ IT 资产语义索引: 实体/关系 embedding                   │
+│  └─ 组织资产语义索引: 规则/指标 embedding                   │
+└──────────────────────────────────────────────────────────┘
+```
 
 ## 核心依赖
 
@@ -76,158 +101,53 @@ dev = [
 │                    Storage Layer                        │
 ├─────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │ DuckDBStore │  │ VectorStore │  │  MetaStore  │     │
+│  │ DuckDBStore │  │ VectorStore │  │  GraphStore │     │
 │  │  (主存储)    │  │  (抽象接口)  │  │  (抽象接口)  │     │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘     │
 └─────────┼────────────────┼────────────────┼────────────┘
           │                │                │
     ┌─────┴─────┐    ┌─────┴─────┐    ┌─────┴─────┐
-    │   DuckDB  │    │  faiss    │    │   DuckDB  │  ← 本地实现
-    │           │    │  /annoy   │    │  (元数据)  │
+    │   DuckDB  │    │  faiss    │    │ NetworkX  │  ← 本地实现
+    │           │    │  /annoy   │    │ (按需加载) │
     └─────┬─────┘    └───────────┘    └───────────┘
           │
     ┌─────┴─────┐
-    │  NetworkX │  ← 按需加载（图算法）
-    │ (内存图)  │
+    │  DualWrite │  ← 图+关系双写协调
+    │ Coordinator│
     └───────────┘
 ```
 
-## 存储实现细节
+## 上下文栈集成架构
 
-### 1. 主存储 (DuckDB)
-
-```python
-class DuckDBStorage(StorageBackend):
-    """DuckDB 主存储实现"""
-
-    def __init__(self, db_path: str = ":memory:"):
-        self.db_path = db_path
-        self._conn = None
-
-    async def initialize(self) -> None:
-        self._conn = duckdb.connect(self.db_path)
-        # 创建实体表
-        await asyncio.to_thread(self._conn.execute, """
-            CREATE TABLE IF NOT EXISTS entities (
-                concept VARCHAR NOT NULL,
-                entity_id VARCHAR NOT NULL,
-                data JSON NOT NULL,
-                PRIMARY KEY (concept, entity_id)
-            )
-        """)
-        # 创建关系表
-        await asyncio.to_thread(self._conn.execute, """
-            CREATE TABLE IF NOT EXISTS relations (
-                relation_type VARCHAR NOT NULL,
-                from_entity_id VARCHAR NOT NULL,
-                to_entity_id VARCHAR NOT NULL,
-                data JSON,
-                PRIMARY KEY (relation_type, from_entity_id, to_entity_id)
-            )
-        """)
-```
-
-**DuckDB Schema**:
-```sql
--- 实体表 (概念 + JSON 数据)
-CREATE TABLE entities (
-    concept VARCHAR NOT NULL,
-    entity_id VARCHAR NOT NULL,
-    data JSON NOT NULL,
-    PRIMARY KEY (concept, entity_id)
-);
-
--- 关系表
-CREATE TABLE relations (
-    relation_type VARCHAR NOT NULL,
-    from_entity_id VARCHAR NOT NULL,
-    to_entity_id VARCHAR NOT NULL,
-    data JSON,
-    PRIMARY KEY (relation_type, from_entity_id, to_entity_id)
-);
-
--- 索引
-CREATE INDEX idx_entities_concept ON entities(concept);
-CREATE INDEX idx_relations_from ON relations(from_entity_id);
-```
-
-**注意**: DuckDB 使用 `asyncio.to_thread()` 包装同步操作，避免阻塞事件循环。
-
-### 2. 向量存储 (faiss-cpu)
-
-```python
-class FaissVectorStore(VectorStore):
-    """本地 Faiss 向量存储"""
-    
-    def __init__(self, index_path: str = "data/vectors"):
-        self.dimension = 1536  # 默认 Embedding 维度
-        self.index = faiss.IndexFlatIP(self.dimension)  # 内积相似度
-        self.metadata = {}  # id -> metadata 映射
-        self.index_path = index_path
-    
-    async def insert(self, id: str, vector: list[float], metadata: dict):
-        # 添加到 Faiss 索引
-        # 保存 metadata
-        pass
-    
-    async def search(self, query: list[float], top_k: int = 10):
-        # Faiss 相似度搜索
-        pass
-    
-    def persist(self):
-        # 保存索引到本地文件
-        faiss.write_index(self.index, f"{self.index_path}/index.faiss")
-```
-
-### 3. 元数据存储 (DuckDB)
-
-```python
-class DuckDBMetaStore(MetaStore):
-    """Schema、配置、审计日志存储 (复用 DuckDB)"""
-
-    def __init__(self, db_path: str = "data/meta.db"):
-        self.db_path = db_path
-        self._conn = None
-```
-
-### 4. 缓存 (diskcache)
-
-```python
-from diskcache import Cache
-
-cache = Cache("data/cache")  # 本地文件缓存
-
-@cache.memoize(expire=3600)
-def expensive_compute(x):
-    return x * x
-```
-
-## 数据目录结构
+OntologyEngine 在上下文栈中的位置决定了其存储设计：
 
 ```
-data/                          # 本地数据目录
-├── ontology.db                # DuckDB 主数据库 (实体、关系、指标)
-├── vectors/                   # 向量索引
-│   ├── index.faiss           # Faiss 索引文件
-│   └── metadata.json         # 向量元数据
-├── cache/                     # diskcache 目录
-├── logs/                      # 本地日志
-└── snapshots/                 # 数据快照/备份
+┌─────────────────────────────────────────────────────────┐
+│  Agent 上下文栈查询时的四阶段集成流程                      │
+│                                                          │
+│  ① RAG 层: 向量搜索 → 识别最相关文档和实体入口点          │
+│     └─ OntologyEngine: FaissVectorStore                  │
+│                                                          │
+│  ② KG 层: 图遍历 → 从入口点沿关系边收集连接上下文         │
+│     └─ OntologyEngine: NetworkXGraphStore + DuckDB       │
+│                                                          │
+│  ③ Memory 层: 记忆检索 → 注入会话和用户上下文             │
+│     └─ 外部 Agent 框架提供                                │
+│                                                          │
+│  ④ LLM 推理: 在完整上下文窗口上运行                       │
+│     └─ 文档 + 关系 + 连续性 → 结构化推理结果              │
+└─────────────────────────────────────────────────────────┘
 ```
-
-**注意**: 使用单个 DuckDB 数据库替代原有的 graph.db + meta.db 分离存储。
 
 ## 预留接口
 
 ### Neo4j 适配器（预留）
 
 ```python
-class Neo4jGraphStore(GraphStore):
+class Neo4jGraphStore(GraphStoreBackend):
     """Neo4j 实现，生产环境启用"""
     
     def __init__(self, uri: str, user: str, password: str):
-        # from neo4j import GraphDatabase
-        # self.driver = GraphDatabase.driver(uri, auth=(user, password))
         raise NotImplementedError("Neo4j 适配器需安装 neo4j 驱动")
 ```
 
@@ -238,15 +158,12 @@ class PostgresVectorStore(VectorStore):
     """pgvector 实现，生产环境启用"""
     
     def __init__(self, dsn: str):
-        # import asyncpg
-        # self.pool = await asyncpg.create_pool(dsn)
         raise NotImplementedError("PostgreSQL 适配器需安装 asyncpg")
 ```
 
 ## 配置切换
 
 ```python
-# config.py
 class StorageConfig(BaseSettings):
     # 存储模式: local | neo4j | hybrid
     graph_store_type: str = "local"  # 默认本地
@@ -273,13 +190,16 @@ class StorageConfig(BaseSettings):
 | **容量** | 受单机限制 | 可扩展 |
 | **并发** | 适合低频写入 | 高并发优化 |
 | **场景** | 开发、演示、小规模 | 生产、大规模 |
+| **三层资产** | 单机完整链接 | 分布式资产链接 |
 
 ## 迁移路径
 
 ```
-Phase 1: 本地 DuckDB + faiss-cpu
+Phase 1: 本地 DuckDB + NetworkX + faiss-cpu
     ↓ 数据导出/导入
-Phase 2: DuckDB (持久化) + pgvector (生产环境)
+Phase 2: DuckDB (持久化) + kuzu (图数据库) + pgvector (可选)
+    ↓ 分布式扩展
+Phase 3: 可选 Neo4j (图) + pgvector (向量) + DuckDB 保持默认
 ```
 
 **数据迁移**:
@@ -291,3 +211,20 @@ async def export_to_parquet(duckdb_store: DuckDBStorage, output_dir: str):
         f"COPY entities TO '{output_dir}/entities.parquet' (FORMAT PARQUET)"
     )
 ```
+
+## 数据目录结构
+
+```
+data/                          # 本地数据目录
+├── ontology.db                # DuckDB 主数据库 (实体、关系、指标、规则)
+├── vectors/                   # Faiss 索引
+│   ├── index.faiss           # Faiss 索引文件
+│   └── metadata.json         # 向量元数据
+├── cache/                     # diskcache 目录
+├── logs/                      # 本地日志
+└── snapshots/                 # 数据快照/备份
+```
+
+---
+
+*参考：[AI Memory vs RAG vs Knowledge Graph (Atlan 2026)](https://atlan.com/know/ai-memory-vs-rag-vs-knowledge-graph/) | [Knowledge Graph Best Practices (Meegle 2026)](https://www.meegle.com/en_us/topics/knowledge-graphs/knowledge-graph-best-practices)*
