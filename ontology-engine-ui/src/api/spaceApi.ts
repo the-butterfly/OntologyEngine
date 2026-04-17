@@ -3,7 +3,7 @@
 
 import axios from 'axios';
 
-const BASE_URL = '/v1/management';
+const BASE_URL = '/v1';
 
 export interface ViewInfo {
   id: string;
@@ -174,141 +174,141 @@ class SpaceApi {
 
   // L1 Fact Objects (uses /{space_id} prefix)
   async listFactObjects(spaceId: string): Promise<any[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L1/fact-objects`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L1/fact-objects`);
     return response.data.data;
   }
 
   async createFactObject(spaceId: string, factObject: any): Promise<any> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L1/fact-objects`, factObject);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L1/fact-objects`, factObject);
     return response.data.data;
   }
 
   // L2 Categorizations
   async listCategorizations(spaceId: string): Promise<any[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L2/categorizations`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L2/categorizations`);
     return response.data.data;
   }
 
   async createCategorization(spaceId: string, categorization: any): Promise<any> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L2/categorizations`, categorization);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L2/categorizations`, categorization);
     return response.data.data;
   }
 
   async deleteCategorization(spaceId: string, categorizationId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/${spaceId}/schema/L2/categorizations/${categorizationId}`);
+    await axios.delete(`${BASE_URL}/spaces/${spaceId}/schema/L2/categorizations/${categorizationId}`);
   }
 
   // L3 Analytical Elements
   async listAnalyticalElements(spaceId: string): Promise<any[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L3/analytical-elements`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L3/analytical-elements`);
     return response.data.data;
   }
 
   async createAnalyticalElement(spaceId: string, element: any): Promise<any> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L3/analytical-elements`, element);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L3/analytical-elements`, element);
     return response.data.data;
   }
 
   async deleteAnalyticalElement(spaceId: string, elementId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/${spaceId}/schema/L3/analytical-elements/${elementId}`);
+    await axios.delete(`${BASE_URL}/spaces/${spaceId}/schema/L3/analytical-elements/${elementId}`);
   }
 
   // Rule Definitions L4 (uses /{space_id} prefix)
   async listRuleDefinitions(spaceId: string): Promise<RuleDefinition[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L4/rules/definitions`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/definitions`);
     return response.data.data;
   }
 
   async createRuleDefinition(spaceId: string, request: CreateRuleDefinitionRequest): Promise<RuleDefinition> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L4/rules/definitions`, request);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/definitions`, request);
     return response.data.data;
   }
 
   async getRuleDefinition(spaceId: string, ruleId: string): Promise<RuleDefinition> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L4/rules/definitions/${ruleId}`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/definitions/${ruleId}`);
     return response.data.data;
   }
 
   async updateRuleDefinition(spaceId: string, ruleId: string, request: CreateRuleDefinitionRequest): Promise<RuleDefinition> {
-    const response = await axios.put(`${BASE_URL}/${spaceId}/schema/L4/rules/definitions/${ruleId}`, request);
+    const response = await axios.put(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/definitions/${ruleId}`, request);
     return response.data.data;
   }
 
   async deleteRuleDefinition(spaceId: string, ruleId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/${spaceId}/schema/L4/rules/definitions/${ruleId}`);
+    await axios.delete(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/definitions/${ruleId}`);
   }
 
   // Rule Logics L4 (uses /{space_id} prefix)
   async listRuleLogics(spaceId: string): Promise<RuleLogic[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L4/rules/logics`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/logics`);
     return response.data.data;
   }
 
   async createRuleLogic(spaceId: string, request: CreateRuleLogicRequest): Promise<RuleLogic> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/L4/rules/logics`, request);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/logics`, request);
     return response.data.data;
   }
 
   async getRuleLogic(spaceId: string, logicId: string): Promise<RuleLogic> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/L4/rules/logics/${logicId}`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/logics/${logicId}`);
     return response.data.data;
   }
 
   async updateRuleLogic(spaceId: string, logicId: string, request: CreateRuleLogicRequest): Promise<RuleLogic> {
-    const response = await axios.put(`${BASE_URL}/${spaceId}/schema/L4/rules/logics/${logicId}`, request);
+    const response = await axios.put(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/logics/${logicId}`, request);
     return response.data.data;
   }
 
   async deleteRuleLogic(spaceId: string, logicId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/${spaceId}/schema/L4/rules/logics/${logicId}`);
+    await axios.delete(`${BASE_URL}/spaces/${spaceId}/schema/L4/rules/logics/${logicId}`);
   }
 
   // Versions (uses /{space_id}/versions)
   async listVersions(spaceId: string): Promise<SpaceVersion[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/versions`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/versions`);
     return response.data.data;
   }
 
   async createVersion(spaceId: string, description?: string): Promise<SpaceVersion> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/versions`, { description });
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/versions`, { description });
     return response.data.data;
   }
 
   async rollbackToVersion(spaceId: string, version: number): Promise<SpaceResponse> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/versions/${version}/rollback`);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/versions/${version}/rollback`);
     return response.data.data;
   }
 
   // Instances (uses /{space_id} prefix)
   async listEntities(spaceId: string, concept?: string): Promise<EntityInstance[]> {
     const params = concept ? { concept } : {};
-    const response = await axios.get(`${BASE_URL}/${spaceId}/instances/entities`, { params });
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/instances/entities`, { params });
     return response.data.data;
   }
 
   async createEntity(spaceId: string, entity: EntityInstance): Promise<EntityInstance> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/instances/entities`, entity);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/instances/entities`, entity);
     return response.data.data;
   }
 
   async listRelations(spaceId: string): Promise<RelationInstance[]> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/instances/relations`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/instances/relations`);
     return response.data.data;
   }
 
   async createRelation(spaceId: string, relation: RelationInstance): Promise<RelationInstance> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/instances/relations`, relation);
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/instances/relations`, relation);
     return response.data.data;
   }
 
   // Consumption Views
   async listViews(): Promise<any[]> {
-    const response = await axios.get('/v1/consumption/views');
+    const response = await axios.get('/v1/views');
     return response.data.data;
   }
 
   async getView(viewId: string): Promise<any> {
-    const response = await axios.get(`/v1/consumption/views/${viewId}`);
+    const response = await axios.get(`/v1/views/${viewId}`);
     return response.data.data;
   }
 
@@ -317,13 +317,13 @@ class SpaceApi {
     const params: Record<string, string> = {};
     if (graphType) params.graph_type = graphType;
     if (layerFilter) params.layer_filter = layerFilter;
-    const response = await axios.get(`/v1/consumption/views/${viewId}/visualize/schema-graph`, { params });
+    const response = await axios.get(`/v1/views/${viewId}/schema-graph`, { params });
     return response.data.data;
   }
 
   // Execution (Consumption Surface)
   async executeAnalyze(viewId: string, entityId: string, dimension?: string, includeTrace?: boolean): Promise<any> {
-    const response = await axios.post(`/v1/consumption/views/${viewId}/execute/analyze`, {
+    const response = await axios.post(`/v1/views/${viewId}/execute/analyze`, {
       entity_id: entityId,
       dimension: dimension || 'credit_assessment',
       include_trace: includeTrace !== false,
@@ -332,7 +332,7 @@ class SpaceApi {
   }
 
   async executeSimulate(viewId: string, entityId: string, dimension?: string, overrides?: Record<string, any>): Promise<any> {
-    const response = await axios.post(`/v1/consumption/views/${viewId}/execute/simulate`, {
+    const response = await axios.post(`/v1/views/${viewId}/execute/simulate`, {
       entity_id: entityId,
       dimension: dimension || 'credit_assessment',
       overrides: overrides || null,
@@ -344,33 +344,33 @@ class SpaceApi {
   // Consumption view entities
   async listViewEntities(viewId: string, concept?: string): Promise<EntityInstance[]> {
     const params = concept ? { concept } : {};
-    const response = await axios.get(`/v1/consumption/views/${viewId}/entities`, { params });
+    const response = await axios.get(`/v1/views/${viewId}/entities`, { params });
     return response.data.data;
   }
 
   // Rule dependency graph for consumption view
   async getRuleDependencyGraph(viewId: string): Promise<any> {
-    const response = await axios.get(`/v1/consumption/views/${viewId}/rules/dependency-graph`);
+    const response = await axios.get(`/v1/views/${viewId}/rules/dependency-graph`);
     return response.data.data;
   }
 
   // Applicable rules for an entity in a consumption view
   async getRulesForEntity(viewId: string, entityId: string, dimension?: string): Promise<any> {
     const params = dimension ? { dimension } : {};
-    const response = await axios.get(`/v1/consumption/views/${viewId}/rules/for-entity/${entityId}`, { params });
+    const response = await axios.get(`/v1/views/${viewId}/rules/for-entity/${entityId}`, { params });
     return response.data.data;
   }
 
   // Metric snapshot for an entity in a consumption view
   async getMetricSnapshot(viewId: string, entityId: string, dimension?: string): Promise<any> {
     const params = dimension ? { dimension } : {};
-    const response = await axios.get(`/v1/consumption/views/${viewId}/metrics/${entityId}/snapshot`, { params });
+    const response = await axios.get(`/v1/views/${viewId}/metrics/${entityId}/snapshot`, { params });
     return response.data.data;
   }
 
   // Schema YAML import
   async loadSchemaFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/schema/load-from-yaml`, {
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/load-yaml`, {
       yaml_path: yamlPath,
       overwrite,
     });
@@ -379,7 +379,7 @@ class SpaceApi {
 
   // Instance YAML import
   async loadInstancesFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
-    const response = await axios.post(`${BASE_URL}/${spaceId}/instances/load-from-yaml`, {
+    const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/instances/load-yaml`, {
       yaml_path: yamlPath,
       overwrite,
     });
@@ -388,7 +388,7 @@ class SpaceApi {
 
   // Schema overview (all layers)
   async getSchemaOverview(spaceId: string): Promise<any> {
-    const response = await axios.get(`${BASE_URL}/${spaceId}/schema/overview`);
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema`);
     return response.data.data;
   }
 }

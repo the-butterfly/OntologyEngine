@@ -53,7 +53,7 @@ async def create_entity(
             attributes=body.attributes
         )
         response = success_response(data=result)
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/instances/entities instead."})
     except ConceptNotDefinedError as e:
         return error_response(code="CONCEPT_NOT_FOUND", message=str(e))
     except Exception as e:
@@ -83,7 +83,7 @@ async def batch_create_entities(
     ]
     result = await service.batch_create(requests)
     response = success_response(data=result)
-    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/instances/entities instead."})
 
 
 @router.get("/{entity_id}")
@@ -114,7 +114,7 @@ async def get_entity(
             details={"entity_id": entity_id}
         )
     response = success_response(data=result)
-    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/instances/entities instead."})
 
 
 @router.post("/query")
@@ -135,7 +135,7 @@ async def query_entities(
         filters=body.filter
     )
     response = success_response(data={"entities": results})
-    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/instances/entities instead."})
 
 
 @router.get("/{entity_id}/neighbors")
@@ -162,7 +162,7 @@ async def get_neighbors(
             depth=depth
         )
         response = success_response(data={"neighbors": results})
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id}/instances/entities instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/instances/entities instead."})
     except ValueError as e:
         return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:

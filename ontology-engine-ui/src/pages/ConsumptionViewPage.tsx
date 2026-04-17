@@ -50,7 +50,7 @@ export default function ConsumptionViewPage() {
   useEffect(() => {
     if (viewId) {
       // Load view info
-      fetch(`/v1/consumption/views/${viewId}`)
+      fetch(`/v1/views/${viewId}`)
         .then(res => res.json())
         .then(data => {
           if (data.success) {

@@ -38,7 +38,7 @@ async def get_schema_graph(
         layers = layer_filter.split(",") if layer_filter else None
         result = await service.get_schema_graph(graph_type, layers)
         response = success_response(data=dataclasses_asdict(result))
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/visualize/schema-graph instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/views/{view_id}/schema-graph instead."})
     except SchemaNotLoadedError as exc:
         return error_response(code="SCHEMA_NOT_LOADED", message=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -55,7 +55,7 @@ async def list_visualization_entities(
     try:
         result = await service.list_entities(concept=concept, dimension=dimension)
         response = success_response(data=[dataclasses_asdict(item) for item in result])
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/entities instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/views/{view_id}/entities instead."})
     except SchemaNotLoadedError as exc:
         return error_response(code="SCHEMA_NOT_LOADED", message=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -90,7 +90,7 @@ async def get_rule_chain_graph(
     try:
         result = await service.get_rule_chain_graph(dimension)
         response = success_response(data=dataclasses_asdict(result))
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/rules/dependency-graph instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/views/{view_id}/rules/dependency-graph instead."})
     except SchemaNotLoadedError as exc:
         return error_response(code="SCHEMA_NOT_LOADED", message=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -123,7 +123,7 @@ async def simulate_execution(
             dry_run=request.dry_run,
         )
         response = success_response(data=dataclasses_asdict(result))
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/execute/simulate instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/views/{view_id}/execute/simulate instead."})
     except EntityNotFoundError as exc:
         return error_response(code="ENTITY_NOT_FOUND", message=str(exc))
     except SchemaNotLoadedError as exc:
@@ -145,7 +145,7 @@ async def get_execution_trace(
     try:
         steps = await service.get_execution_trace(entity_id, dimension)
         response = success_response(data=[dataclasses_asdict(step) for step in steps])
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/consumption/views/{view_id}/execute/analyze instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/views/{view_id}/execute/analyze instead."})
     except EntityNotFoundError as exc:
         return error_response(code="ENTITY_NOT_FOUND", message=str(exc))
     except SchemaNotLoadedError as exc:

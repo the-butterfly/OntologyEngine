@@ -32,7 +32,7 @@ from ontology_engine.core.instances import InstanceLoader
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/management", tags=["Management"])
+router = APIRouter(prefix="/v1", tags=["Management"])
 
 
 # ============================================================================
@@ -596,7 +596,7 @@ async def load_space_from_json(request: LoadSpaceFromJsonRequest):
 # Schema Management - L1 Fact Objects
 # ============================================================================
 
-@router.get("/{space_id}/schema/L1/fact-objects", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L1/fact-objects", response_model=dict)
 async def list_fact_objects(space_id: str):
     """List all fact objects in a space."""
     storage = _get_storage()
@@ -608,7 +608,7 @@ async def list_fact_objects(space_id: str):
     return success_response(data=space.layers.L1_fact_objects)
 
 
-@router.post("/{space_id}/schema/L1/fact-objects", response_model=dict)
+@router.post("/spaces/{space_id}/schema/L1/fact-objects", response_model=dict)
 async def add_fact_object(space_id: str, request: AddFactObjectRequest):
     """Add a fact object definition."""
     storage = _get_storage()
@@ -640,7 +640,7 @@ async def add_fact_object(space_id: str, request: AddFactObjectRequest):
 # Schema Management - L2 Categorizations
 # ============================================================================
 
-@router.get("/{space_id}/schema/L2/categorizations", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L2/categorizations", response_model=dict)
 async def list_categorizations(space_id: str):
     """List all categorizations in a space."""
     storage = _get_storage()
@@ -652,7 +652,7 @@ async def list_categorizations(space_id: str):
     return success_response(data=space.layers.L2_categorizations)
 
 
-@router.post("/{space_id}/schema/L2/categorizations", response_model=dict)
+@router.post("/spaces/{space_id}/schema/L2/categorizations", response_model=dict)
 async def add_categorization(space_id: str, request: AddCategorizationRequest):
     """Add a categorization definition."""
     storage = _get_storage()
@@ -684,7 +684,7 @@ async def add_categorization(space_id: str, request: AddCategorizationRequest):
 # Schema Management - L3 Analytical Elements
 # ============================================================================
 
-@router.get("/{space_id}/schema/L3/analytical-elements", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L3/analytical-elements", response_model=dict)
 async def list_analytical_elements(space_id: str):
     """List all analytical elements in a space."""
     storage = _get_storage()
@@ -696,7 +696,7 @@ async def list_analytical_elements(space_id: str):
     return success_response(data=space.layers.L3_analytical_elements)
 
 
-@router.post("/{space_id}/schema/L3/analytical-elements", response_model=dict)
+@router.post("/spaces/{space_id}/schema/L3/analytical-elements", response_model=dict)
 async def add_analytical_element(space_id: str, request: AddAnalyticalElementRequest):
     """Add an analytical element definition."""
     storage = _get_storage()
@@ -729,7 +729,7 @@ async def add_analytical_element(space_id: str, request: AddAnalyticalElementReq
 # Schema Management - L4 Rule Definitions
 # ============================================================================
 
-@router.get("/{space_id}/schema/L4/rules/definitions", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L4/rules/definitions", response_model=dict)
 async def list_rule_definitions(space_id: str):
     """List all rule definitions in a space."""
     storage = _get_storage()
@@ -741,7 +741,7 @@ async def list_rule_definitions(space_id: str):
     return success_response(data=space.layers.L4_business_logic.rule_definitions)
 
 
-@router.post("/{space_id}/schema/L4/rules/definitions", response_model=dict)
+@router.post("/spaces/{space_id}/schema/L4/rules/definitions", response_model=dict)
 async def add_rule_definition(space_id: str, request: AddRuleDefinitionRequest):
     """Add a rule definition."""
     storage = _get_storage()
@@ -774,7 +774,7 @@ async def add_rule_definition(space_id: str, request: AddRuleDefinitionRequest):
     return success_response(data=definition)
 
 
-@router.get("/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
 async def get_rule_definition(space_id: str, rule_id: str):
     """Get a rule definition by ID."""
     storage = _get_storage()
@@ -794,7 +794,7 @@ async def get_rule_definition(space_id: str, rule_id: str):
     return success_response(data=definition)
 
 
-@router.put("/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
+@router.put("/spaces/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
 async def update_rule_definition(space_id: str, rule_id: str, request: AddRuleDefinitionRequest):
     """Update a rule definition."""
     storage = _get_storage()
@@ -831,7 +831,7 @@ async def update_rule_definition(space_id: str, rule_id: str, request: AddRuleDe
     return success_response(data=definition)
 
 
-@router.delete("/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
+@router.delete("/spaces/{space_id}/schema/L4/rules/definitions/{rule_id}", response_model=dict)
 async def delete_rule_definition(space_id: str, rule_id: str):
     """Delete a rule definition."""
     storage = _get_storage()
@@ -857,7 +857,7 @@ async def delete_rule_definition(space_id: str, rule_id: str):
 # Schema Management - L4 Rule Logics
 # ============================================================================
 
-@router.get("/{space_id}/schema/L4/rules/logics", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L4/rules/logics", response_model=dict)
 async def list_rule_logics(space_id: str):
     """List all rule logics in a space."""
     storage = _get_storage()
@@ -869,7 +869,7 @@ async def list_rule_logics(space_id: str):
     return success_response(data=space.layers.L4_business_logic.rule_logics)
 
 
-@router.post("/{space_id}/schema/L4/rules/logics", response_model=dict)
+@router.post("/spaces/{space_id}/schema/L4/rules/logics", response_model=dict)
 async def add_rule_logic(space_id: str, request: AddRuleLogicRequest):
     """Add a rule logic."""
     storage = _get_storage()
@@ -907,7 +907,7 @@ async def add_rule_logic(space_id: str, request: AddRuleLogicRequest):
     return success_response(data=logic)
 
 
-@router.get("/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
 async def get_rule_logic(space_id: str, logic_id: str):
     """Get a rule logic by ID."""
     storage = _get_storage()
@@ -927,7 +927,7 @@ async def get_rule_logic(space_id: str, logic_id: str):
     return success_response(data=logic)
 
 
-@router.put("/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
+@router.put("/spaces/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
 async def update_rule_logic(space_id: str, logic_id: str, request: AddRuleLogicRequest):
     """Update a rule logic."""
     storage = _get_storage()
@@ -964,7 +964,7 @@ async def update_rule_logic(space_id: str, logic_id: str, request: AddRuleLogicR
     return success_response(data=logic)
 
 
-@router.delete("/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
+@router.delete("/spaces/{space_id}/schema/L4/rules/logics/{logic_id}", response_model=dict)
 async def delete_rule_logic(space_id: str, logic_id: str):
     """Delete a rule logic."""
     storage = _get_storage()
@@ -990,7 +990,7 @@ async def delete_rule_logic(space_id: str, logic_id: str):
 # Instance Management
 # ============================================================================
 
-@router.get("/{space_id}/instances/entities", response_model=dict)
+@router.get("/spaces/{space_id}/instances/entities", response_model=dict)
 async def list_entities(
     space_id: str,
     concept: str | None = Query(default=None),
@@ -1009,7 +1009,7 @@ async def list_entities(
     return success_response(data=entities)
 
 
-@router.post("/{space_id}/instances/entities", response_model=dict)
+@router.post("/spaces/{space_id}/instances/entities", response_model=dict)
 async def add_entity(space_id: str, request: CreateEntityInstanceRequest):
     """Add an entity instance."""
     storage = _get_storage()
@@ -1040,7 +1040,7 @@ async def add_entity(space_id: str, request: CreateEntityInstanceRequest):
 # Version Management
 # ============================================================================
 
-@router.get("/{space_id}/versions", response_model=dict)
+@router.get("/spaces/{space_id}/versions", response_model=dict)
 async def list_versions(space_id: str):
     """List all versions of a space."""
     storage = _get_storage()
@@ -1064,7 +1064,7 @@ async def list_versions(space_id: str):
     return success_response(data=versions)
 
 
-@router.post("/{space_id}/versions", response_model=dict)
+@router.post("/spaces/{space_id}/versions", response_model=dict)
 async def create_snapshot(space_id: str, request: CreateVersionSnapshotRequest):
     """Create a version snapshot."""
     storage = _get_storage()
@@ -1088,7 +1088,7 @@ async def create_snapshot(space_id: str, request: CreateVersionSnapshotRequest):
         return error_response(code="SNAPSHOT_ERROR", message=str(e))
 
 
-@router.post("/{space_id}/versions/{version}/rollback", response_model=dict)
+@router.post("/spaces/{space_id}/versions/{version}/rollback", response_model=dict)
 async def rollback_to_version(space_id: str, version: int):
     """Rollback to a previous version."""
     storage = _get_storage()
@@ -1108,7 +1108,7 @@ async def rollback_to_version(space_id: str, version: int):
 # Schema YAML Import
 # ============================================================================
 
-@router.post("/{space_id}/schema/load-from-yaml", response_model=dict)
+@router.post("/spaces/{space_id}/schema/load-yaml", response_model=dict)
 async def load_schema_from_yaml(space_id: str, request: LoadFromYamlRequest):
     """Load schema from a YAML file into a semantic space.
 
@@ -1213,7 +1213,7 @@ async def load_schema_from_yaml(space_id: str, request: LoadFromYamlRequest):
 # Instance Batch Import from YAML
 # ============================================================================
 
-@router.post("/{space_id}/instances/load-from-yaml", response_model=dict)
+@router.post("/spaces/{space_id}/instances/load-yaml", response_model=dict)
 async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYamlRequest):
     """Load entity and relation instances from an instances YAML file."""
     storage = _get_storage()
@@ -1279,7 +1279,7 @@ async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYaml
     })
 
 
-@router.get("/{space_id}/instances/relations", response_model=dict)
+@router.get("/spaces/{space_id}/instances/relations", response_model=dict)
 async def list_relations(space_id: str):
     """List all relation instances."""
     storage = _get_storage()
@@ -1291,7 +1291,7 @@ async def list_relations(space_id: str):
     return success_response(data=space.instances.relations)
 
 
-@router.post("/{space_id}/instances/relations", response_model=dict)
+@router.post("/spaces/{space_id}/instances/relations", response_model=dict)
 async def add_relation(space_id: str, relation: dict):
     """Add a relation instance."""
     storage = _get_storage()
@@ -1310,7 +1310,7 @@ async def add_relation(space_id: str, relation: dict):
 # Schema Overview (L1-L4 Summary)
 # ============================================================================
 
-@router.get("/{space_id}/schema/overview", response_model=dict)
+@router.get("/spaces/{space_id}/schema", response_model=dict)
 async def get_schema_overview(space_id: str):
     """Get a complete overview of all schema layers in a space."""
     storage = _get_storage()
@@ -1342,7 +1342,7 @@ async def get_schema_overview(space_id: str):
     })
 
 
-@router.get("/{space_id}/schema/L2/categorizations", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L2/categorizations", response_model=dict)
 async def list_categorizations_v2(space_id: str):
     """List all L2 categorizations."""
     storage = _get_storage()
@@ -1352,7 +1352,7 @@ async def list_categorizations_v2(space_id: str):
     return success_response(data=space.layers.L2_categorizations)
 
 
-@router.get("/{space_id}/schema/L3/analytical-elements", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L3/analytical-elements", response_model=dict)
 async def list_analytical_elements_v2(space_id: str):
     """List all L3 analytical elements."""
     storage = _get_storage()
@@ -1381,7 +1381,7 @@ def _rule_applies_to(rule: dict) -> list[str]:
     return rule.get("applies_to") or rule.get("target_objects") or []
 
 
-@router.get("/{space_id}/schema/L4/rules/dependency-graph", response_model=dict)
+@router.get("/spaces/{space_id}/schema/L4/rules/dependency-graph", response_model=dict)
 async def get_rule_dependency_graph(space_id: str):
     """Analyze rule dependencies based on input/output element connections.
 
