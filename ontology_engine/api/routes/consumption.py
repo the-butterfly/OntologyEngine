@@ -21,7 +21,7 @@ from ontology_engine.core.semantic_space import (
 from ontology_engine.engine.expression.engine import ExpressionEngine
 from ontology_engine.engine.rule.models import ExecutionContext
 
-router = APIRouter(prefix="/v1/consumption", tags=["Consumption"])
+router = APIRouter(prefix="/v1", tags=["Consumption"])
 
 
 # ============================================================================
@@ -153,7 +153,7 @@ async def list_view_entities(
 # Visualization
 # ============================================================================
 
-@router.get("/views/{view_id}/visualize/schema-graph", response_model=dict)
+@router.get("/views/{view_id}/schema-graph", response_model=dict)
 async def get_schema_graph(
     view_id: str,
     graph_type: str = Query(default="entity_relation"),

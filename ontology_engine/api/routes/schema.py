@@ -28,7 +28,7 @@ async def load_schema(
     try:
         result = await service.load_schema(schema_path)
         response = success_response(data=result)
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/schema instead."})
     except FileNotFoundError:
         return error_response(
             code="NOT_FOUND",
@@ -56,7 +56,7 @@ async def get_schema(
             message="No schema loaded"
         )
     response = success_response(data=schema)
-    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/schema instead."})
 
 
 @router.post("/reload")
@@ -75,7 +75,7 @@ async def reload_schema(
     try:
         result = await service.reload_schema(schema_path)
         response = success_response(data=result)
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/schema instead."})
     except FileNotFoundError:
         return error_response(
             code="NOT_FOUND",
@@ -96,7 +96,7 @@ async def get_schema_versions(
     """
     versions = await service.get_schema_versions()
     response = success_response(data={"versions": versions})
-    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
+    return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/schema instead."})
 
 
 @router.post("/rollback/{target_version}")
@@ -115,7 +115,7 @@ async def rollback_schema(
     try:
         result = await service.rollback_schema(target_version)
         response = success_response(data=result)
-        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/management/{space_id} instead."})
+        return JSONResponse(content=response, headers={"X-Deprecation-Warning": "Deprecated. Use /v1/spaces/{space_id}/schema instead."})
     except ValueError as e:
         return error_response(code="INVALID_REQUEST", message=str(e))
     except Exception as e:

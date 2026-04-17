@@ -23,7 +23,7 @@ export default function ConsumptionViewListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/v1/consumption/views')
+    fetch('/v1/views')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
