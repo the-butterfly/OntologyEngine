@@ -1,6 +1,22 @@
 # 模块架构
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-17
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
+
+---
+
+## 五层系统架构 vs 模块分层
+
+OntologyEngine 有两套对应的分层：
+
+| 系统架构层 | 关注问题 | 模块分层 | 对应模块 |
+|-----------|---------|---------|---------|
+| **L0 数据源层** | 数据从哪来 | — | 外部系统（Dataset 注册） |
+| **L1 知识编译层** | 如何把异构数据编译成统一知识 | L0 核心层 | SchemaLoader、ExtractionPipeline |
+| **L2 知识表示与存储层** | 如何存储结构化知识和向量 | L1 存储层 | KuzuDB、ChromaDB、SQLite |
+| **L3 推理与执行层** | 如何检索、推理、执行规则 | L2 引擎层 | RuleEngine、MetricEngine、QueryEngine |
+| **L4 Agent 协同与应用层** | 如何让多 Agent 协同作业 | L3 服务层 + L4 API | services/、mcp/、api/ |
+
+---
 
 ## 上下文栈对齐视图
 
@@ -52,9 +68,10 @@ OntologyEngine 在 AI Agent 上下文栈中占据**深度层**，与广度层（
 │   ── 执行 L1-L4 四层推理链                                       │
 ├─────────────────────────────────────────────────────────┤
 │ L1: 存储层 (资产持久化)                                  │
-│   ├─ DuckDBStorage   (实体/关系/元数据/审计)             │
-│   ├─ NetworkXGraph   (图算法，按需)                      │
-│   └─ FaissVectorStore (向量索引)                        │
+│   ├─ SQLiteStorage    (元数据/版本/审计)                │
+│   ├─ KuzuDBStorage   (实体/关系/Rule/互索引)           │
+│   ├─ ChromaVectorStore (KnowledgeFragment 向量，<100K)   │
+│   └─ FaissVectorStore (向量索引，>100K)                  │
 │   ── 存储三类资产：IT 资产 / 个人资产 / 组织资产                      │
 ├─────────────────────────────────────────────────────────┤
 │ L0: 核心层 (Schema 驱动)                                │
@@ -101,8 +118,8 @@ OntologyEngine 在 AI Agent 上下文栈中占据**深度层**，与广度层（
 - 上层只能调用 `storage/base.py` 接口
 - `local/` 只实现接口，不依赖上层
 - 三类资产的链接关系在存储层统一管理
-- **废弃**：~~DuckDBStorage~~（分析引擎不适合高频写入）
-- **废弃**：~~NetworkXGraph~~（内存图，无持久化）
+- **废弃**：~~DuckDBStorage~~（分析引擎不适合高频写入，改为 SQLite + KuzuDB）
+- **废弃**：~~NetworkXGraph~~（内存图，无持久化，改为 KuzuDB）
 
 ### 引擎层 (L2)
 
@@ -218,24 +235,18 @@ examples/*/schema.yaml  ← 三类资产定义入口（IT 资产 / 个人资产 
 }
 ```
 
-## 对齐 m-flow 的四层 Cone Graph
+## 对齐参考系统的设计映射
 
-| m-flow 概念 | OntologyEngine 对应 | 映射关系 |
-|--------------|-------------------|----------|
-| **Episode**（场景存储） | L1 事实层（IT 资产实例） | 存储完整的业务场景（如贷款申请记录） |
-| **Facet**（维度分类） | L2 归类层（个人归类规则） | 从多个维度对场景进行分类（如行业、规模、风险等级） |
-| **FacetPoint**（原子断言） | L3 分析层（指标计算） | 从维度中提取具体的指标值（如信用分=720） |
-| **Entity**（命名实体） | Schema 实体定义 | 跨场景的实体关联（如客户ID、产品代码） |
-
-## 对齐 KAG 的逻辑形式引导推理
-
-| KAG 概念 | OntologyEngine 对应 | 映射关系 |
-|-----------|-------------------|----------|
-| **Logical Form Planner**（逻辑形式规划） | L2 归类层 + L3 分析层 | 将业务问题分解为可执行的逻辑形式（如归类、计算、决策） |
-| **Executor**（执行器） | L4 规则引擎 | 执行逻辑形式，包括 op_deduce（演绎）和 op_retrieval（检索） |
-| **OpenSPG 引擎** | Schema 驱动的图存储 | 统一的本体模型，支持结构化知识推理 |
-| **互索引结构** | IT↔组织资产的双向关联 + 知识碎片↔结构化知识的双向链接 | 四种互索引关系（extracted_from/supported_by/defined_in/trace_to），支持从任一端导航到另一端 |
+| 参考系统 | 核心概念 | 在 OntologyEngine 中的对应 | 架构层次 |
+|----------|---------|--------------------------|---------|
+| **LLM-Wiki-Agent** | ingest 时矛盾检测、预编译 Wiki、两通道图构建 | IngestionService 矛盾检测、Living overview | L1 编译层 |
+| **KAG** | SPG Schema、Expert Rules DSL、AtomicQuery | SchemaLoader、RuleEngine DSL、互索引 | L2/L3 |
+| **m_flow** | Cone Graph、Bundle Search、最小成本路径 | 四层推理 + QueryEngine Bundle Search | L3 |
+| **MAMGA** | 时序多图、causal 链接、长期会话记忆 | 时序实体 valid_from/to、causal 关系边 | L2/L3 |
+| **MemPalace** | verbatim 存储、validity window、wing/room 分层 | Layer-R 原文存储、时序建模、metadata 过滤 | L1/L2 |
+| **Graphify** | 三通道提取、SHA256 缓存、Leiden 社区检测 | ExtractionPipeline 增量处理、Confidence 标签 | L1 |
+| **Understand-Anything** | 多 Agent 并行、可插拔 IndexManager | MCP Agent 协同、并行分析管线 | L4 |
 
 ---
 
-*参考：[M-flow Retrieval Architecture](https://github.com/FlowElement-ai/m_flow/blob/main/docs/RETRIEVAL_ARCHITECTURE.md) | [KAG Core Architecture](https://deepwiki.com/OpenSPG/KAG/2-core-architecture)*
+*参考：[M-flow Retrieval Architecture](https://github.com/FlowElement-ai/m_flow/blob/main/docs/RETRIEVAL_ARCHITECTURE.md) | [KAG Core Architecture](https://deepwiki.com/OpenSPG/KAG/2-core-architecture) | [LLM-Wiki-Agent](https://github.com/DeusData/llm-wiki-agent) | [MemPalace](https://mempalace.info/) | [Graphify](https://github.com/DeusData/graphify) | [Understand-Anything](https://github.com/sweep/understand-anything) | [MAMGA](https://github.com/DeusData/MAMGA)*

@@ -1,6 +1,6 @@
 # 核心概念
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档（术语定义） | **last_verified**: 2026-04-18
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档（术语定义） | **last_verified**: 2026-04-19
 > **[关键设计点]**: 本文档基于 Schema v2 四层架构定义核心术语，作为项目唯一术语规范入口
 > **[单一事实源]**: 术语定义与 Schema v2 规范保持一致，详见 `docs/05-schema-v2/09-canonical-schema-spec.md`
 
@@ -134,7 +134,7 @@ Layer-R 的存储单元，从 Dataset 或非结构化文档中提取的最小可
 | `offset_start` | int | 块在文档中的字符偏移（起点）|
 | `offset_end` | int | 块在文档中的字符偏移（终点）|
 | `text` | string | **原文内容**（Layer-R 核心）|
-| `vector_id` | string | Faiss 向量 ID |
+| `vector_id` | string | ChromaDB/FAISS 向量 ID（按规模选择） |
 | `metadata` | object | author、date、tags 等 |
 | `extraction_status` | enum | pending / extracted / failed |
 

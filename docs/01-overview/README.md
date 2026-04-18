@@ -1,10 +1,34 @@
 # 01-overview 目录说明
 
-> **角色**: 项目认知入口
-> **状态**: accepted
-> **Phase**: mvp + phase1
-> **Source of Truth**: true（仅针对愿景、目标、术语和边界）
-> **最后更新**: 2026-04-18
+> **角色**: 项目认知入口 + 目标设计愿景
+> **status**: accepted
+> **phase**: mvp + phase1
+> **source_of_truth**: true（仅针对愿景、目标、术语和边界）
+> **最后更新**: 2026-04-19
+
+---
+
+## 核心定位
+
+**`01-overview` 是 OntologyEngine 的目标设计愿景文档**，描述"我们要构建什么"，而非"当前已实现什么"。
+
+当前实现基线请查看：[`00-current-baseline/`](./00-current-baseline/)
+
+---
+
+## 五层系统架构
+
+```
+L4: Agent 协同层   ── 多 Agent 编排、跨 Agent 共享记忆
+L3: 推理执行层   ── 检索策略、规则执行、仿真规划
+L2: 知识存储层   ── 向量索引、知识图谱、时序版本、长期记忆
+L1: 知识编译层   ── Raw→Wiki、矛盾检测、增量更新
+L0: 数据源层     ── 文档、表、日志、对话、代码、API、监控
+```
+
+详见：[`01-vision.md`](./01-vision.md) 中的"五层架构总览"章节
+
+---
 
 ## 适合谁看
 
@@ -12,81 +36,107 @@
 - 需要快速建立系统边界感的实现者
 - 需要确认目标 / 非目标的评审者
 - 需要理解 Layer-R / Layer-S 双层认知架构的架构师
+- 需要理解知识引擎如何解决"多源异构→统一知识表示"等 5 个核心问题的决策者
+- 需要规划用户和 Agent 如何与知识引擎交互的产品/运营人员
+
+---
 
 ## 推荐阅读顺序
 
-1. [`01-vision.md`](./01-vision.md) — 愿景与三层资产链接 + Layer-R/S 双层认知
+1. [`01-vision.md`](./01-vision.md) — 愿景 + 5 个核心问题 + 五层架构 + 7 大参考系统 + **6 大关键操作旅程**
 2. [`02-motivation.md`](./02-motivation.md) — 三层资产断裂痛点
-3. [`03-goals.md`](./03-goals.md) — 阶段目标与业务逻辑管理
-4. [`04-modules.md`](./04-modules.md) — 模块架构与上下文栈对齐
+3. [`03-goals.md`](./03-goals.md) — 阶段目标与做/不做清单
+4. [`04-modules.md`](./04-modules.md) — 模块架构与五层架构对照
 5. [`05-concepts.md`](./05-concepts.md) — 核心术语 + Layer-R/S + 互索引 + 时序 + 矛盾检测
-6. [`06-tech-stack.md`](./06-tech-stack.md) — 技术选型与三层资产存储
-7. [`07-project-structure.md`](./07-project-structure.md) — 项目结构（已与代码核验）
+6. [`06-tech-stack.md`](./06-tech-stack.md) — 技术选型与目标存储架构
+7. [`07-project-structure.md`](./07-project-structure.md) — 目标框架结构（模块级，非文件级）
 8. [`08-knowledge-retrieval.md`](./08-knowledge-retrieval.md) — Layer-R/S 检索机制与查询路由
+
+---
 
 ## 目录内文档职责
 
 | 文档 | 主要回答的问题 | 使用边界 |
 |------|----------------|----------|
-| `01-vision.md` | 为什么做、做什么，三层资产链接 + Layer-R/S | 不承载实施细节 |
+| `01-vision.md` | 为什么做、做什么，5 个核心问题 + 五层架构 + 7 大参考系统 + 6 大操作旅程 | 不承载实施细节 |
 | `02-motivation.md` | 三层知识资产断裂是什么、痛点矩阵 | 不承载具体 API / Schema 设计 |
-| `03-goals.md` | 各阶段要达到什么结果、业务逻辑管理目标 | 阶段目标以此为主，不在实施文档重复 |
-| `04-modules.md` | 系统有哪些大模块、上下文栈定位 | 只到模块级边界，不展开模块内实现 |
+| `03-goals.md` | 各阶段要达到什么结果，做与不做清单 | 阶段目标以此为主，不在实施文档重复 |
+| `04-modules.md` | 系统有哪些大模块，五层架构与模块分层对照 | 只到模块级边界，不展开模块内实现 |
 | `05-concepts.md` | 核心术语、Layer-R/S、互索引、时序、矛盾检测 | **[单一事实源]** 需继续与 Schema v2 术语收敛 |
-| `06-tech-stack.md` | 技术路线、三层资产存储策略 | 不直接代表未来平台化能力边界 |
-| `07-project-structure.md` | 代码如何组织 | **[已核对代码]** 与当前仓库结构一致 |
+| `06-tech-stack.md` | 目标技术路线、Layer-R 三通道提取、Bundle Search | 不直接代表未来平台化能力边界 |
+| `07-project-structure.md` | 目标框架结构（模块级） | 非文件级，与实际代码结构分离 |
 | `08-knowledge-retrieval.md` | Layer-R/S 双路检索机制、查询路由、RRF 融合 | 不承载具体存储实现细节 |
+
+---
 
 ## 核心叙事线
 
 ```
+5 个核心问题定义 (01-vision)
+    ↓
 三层知识资产断裂 (02-motivation)
     ↓
-OntologyEngine 的价值定位 (01-vision)
+OntologyEngine 的价值定位 + 五层架构 + 7 大参考系统关键设计 (01-vision)
     ↓
-阶段性解决目标 (03-goals)
+6 大关键操作旅程 (01-vision)
     ↓
-模块架构如何支撑 (04-modules)
+阶段性解决目标 + 做/不做清单 (03-goals)
     ↓
-关键概念定义 (05-concepts) + Layer-R/S 检索 (08)
+模块架构如何支撑 + 五层与模块分层对照 (04-modules)
+    ↓
+关键概念定义 (05-concepts) + 检索机制 (08)
     ↓
 技术选型如何实现 (06-tech-stack)
-    ↓
-代码如何组织 (07-project-structure)
 ```
 
-## 2026-04-18 重构要点
+---
 
-本次重构整合了 OpenSPG KAG、m_flow、MAMGA、MemPalace、LLM-Wiki 等外部调研。
+## 2026-04-19 重构要点
 
-| 维度 | 调研来源 | 关键发现 |
-|------|----------|----------|
-| 双层认知 | MemPalace + LLM-Wiki | 原文存储（Layer-R）与结构化推理（Layer-S）共存，认知分工 |
-| 互索引 | KAG AtomicQuery + m_flow supported_by | 四种关系（extracted_from/supported_by/defined_in/trace_to）实现碎片↔结构化双向溯源 |
-| 边语义 | m_flow Bundle Search | 边承载 edge_text + weight，参与推理成本传播 |
-| 查询路由 | MAMGA | multi-hop/temporal/analytical 等查询类型自适应检索参数 |
-| 时序建模 | MemPalace temporal triple | 实体支持 valid_from/to 时序标注 |
-| 矛盾检测 | LLM-Wiki lint | Ingestion 时阻止矛盾写入 + 后台异步扫描 |
-| 知识编译 | LLM-Wiki | compile-once 避免重复推理，增量维持 |
+本次重构将文档体系**严格分离目标态与当前态**，整合了 7 个参考系统的最新设计，并新增基于 DeepResearchAgent 调研的**五层系统架构**和**5 个核心问题定义**。
+
+**5 个核心问题**：
+1. 多源异构 → 统一可计算的知识表示
+2. 静态 + 动态知识 + 分析逻辑的对齐与长期维护
+3. 从"原文检索"升级为"检索 + 执行 + 仿真"
+4. 知识资产的可观测、可治理、可演化
+5. 支持多 Agent 协同完成端到端任务
 
 ### 主要变更
 
-1. **01-vision.md**: 新增 Layer-R/S 双层认知架构，知识编译一次理念
-2. **03-goals.md**: Phase 1 新增 Dataset + Fragment + 互索引目标；Phase 2 新增 Layer-R/S 协同 + 矛盾检测 + 时序查询目标
-3. **04-modules.md**: QueryEngine 新增 Layer-R/S 双路检索；IngestionService 新增 Dataset 注册 + 矛盾检测
-4. **05-concepts.md**: 重大更新，新增 Layer-R/S、Dataset、KnowledgeFragment、互索引（4种关系）、矛盾检测、时序建模、查询路由分类
-5. **08-knowledge-retrieval.md**: **[新增]** 统一描述检索机制
+1. **新增 `00-current-baseline/`**：迁移 `07-project-structure.md` 为当前实现基线，与目标设计分离
+2. **`03-goals.md`**：简化 Phase 数量，增加做/不做清单，清理 DuckDB 等过时描述
+3. **`01-vision.md`**：移除"已实现"表达，整合 7 大参考系统的关键设计点，新增五层系统架构和 5 个核心问题定义
+4. **`06-tech-stack.md`**：更新为目标架构（Kuzu+SQLite+ChromaDB），整合三通道提取和 Bundle Search
+5. **`07-project-structure.md`**（新建）：目标框架结构（模块级），非文件级实现
+6. **`04-modules.md`**：新增五层系统架构与模块分层对照表，更新参考系统映射
+7. **`08-knowledge-retrieval.md`**：Layer-R 向量存储从 Faiss 更新为 ChromaDB（<100K）
+
+### 7 大参考系统设计来源
+
+| 系统 | 核心贡献 | 引入位置 |
+|------|---------|---------|
+| **LLM-Wiki-Agent** | ingest 时矛盾检测、knowledge 编译一次、两通道图构建 | L1 编译层、矛盾检测 |
+| **KAG** | SPG Schema、Expert Rules DSL、逻辑边计算、IndexManager | L2/L3 架构 |
+| **m_flow** | 倒锥形拓扑、Bundle Search、最小成本路径、边语义参与 | L3 检索机制 |
+| **MAMGA** | 时序多图、causal 链接、长期会话记忆 | L2/L3 时序推理 |
+| **MemPalace** | verbatim 存储、validity window、wing/room 分层、96.6% R@5 | L1/L2 存储 |
+| **Graphify** | 三通道提取（AST+Whisper+LLM）、SHA256 缓存、增量处理 | L1 提取管线 |
+| **Understand-Anything** | 多 Agent 并行、可插拔 IndexManager | L4 Agent 协同 |
+
+---
 
 ## 边界约束
 
-- 本目录只表达 **愿景 / 目标 / 边界 / 术语 / 模块认知 / 双层认知架构**
-- 不在本目录定义详细字段结构、固定接口列表、实现级流程
-- 若需要解释"当前实现"和"未来目标"的差异，应链接到 [`../04-migration-and-gap/README.md`](../04-migration-and-gap/README.md)
+- **本目录只表达愿景 / 目标 / 边界 / 术语 / 模块认知 / 双层认知架构**
+- **不在本目录定义详细字段结构、固定接口列表、实现级流程**
+- **若需要解释"当前实现"和"目标"的差异，应查看 `00-current-baseline/`**
+
+---
 
 ## 重点提示
 
-- **[关键设计点]** 本目录是项目认知入口，不再承担详细设计说明书职责
-- **[关键设计点]** `03-goals.md` 中的阶段目标仍是项目阶段判断的主入口
-- **[关键设计点]** Layer-R（原文优先）+ Layer-S（结构化推理）是 OntologyEngine 的核心差异化能力
-- **[待扩展]** SemanticConcept 层（跨领域顶层概念）对齐 KAG/LLM-Wiki 的 entities/concepts 双轴
-- **[已核对代码]** `07-project-structure.md` 已与 `ontology_engine/` 目录逐项核验
+- **[关键设计点]** `03-goals.md` 中的阶段目标和做/不做清单是项目阶段判断的主入口
+- **[关键设计点]** 五层架构（L0-L4）是 OntologyEngine 的系统级分层，模块分层（L0-L4）是内部实现视图
+- **[关键设计点]** Layer-R（verbatim 原文）+ Layer-S（结构化推理）+ 三通道提取是核心差异化能力
+- **[关键设计点]** 本目录是目标设计愿景，`00-current-baseline/` 目录是当前实现基线

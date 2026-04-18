@@ -1,6 +1,6 @@
 # 知识检索机制
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-18
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
 
 ## 检索架构：Layer-R 与 Layer-S 双路检索
 
@@ -12,11 +12,11 @@ OntologyEngine 的 QueryEngine 支持两条独立的检索路径，以及一条�
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  query_raw(query, filters)     → Layer-R 检索           │
-│  └── FaissVectorStore → fragment 向量检索                 │
+│  └── ChromaVectorStore → fragment 向量检索（<100K）        │
 │      → 返回 FragmentResult                                  │
 │                                                             │
 │  query_structured(query)      → Layer-S 检索            │
-│  └── DuckDB + Kuzu → entity/relation 查询                │
+│  └── SQLite + Kuzu → entity/relation 查询                 │
 │      → 返回 StructuredResult                                │
 │                                                             │
 │  query_hybrid(query)          → 协同模式 [Phase 2]      │
@@ -41,7 +41,7 @@ OntologyEngine 的 QueryEngine 支持两条独立的检索路径，以及一条�
 ```
 query_raw("制造业 担保 风险 客户")
      ↓
-Faiss 向量检索：top_k=10
+ChromaDB 向量检索：top_k=10
      ↓
 metadata 过滤：dataset_id、date、type
      ↓
@@ -175,7 +175,7 @@ Layer-R 回溯（trace_to）：
 
 | 系统 | 检索机制 | OntologyEngine 对齐 |
 |------|---------|---------------------|
-| MemPalace | ChromaDB 向量 + wing/room 元数据过滤 | Layer-R Faiss + Dataset 过滤 |
+| MemPalace | ChromaDB 向量 + wing/room 元数据过滤 | Layer-R ChromaDB + Dataset 过滤 |
 | MAMGA | 多阶段检索 + RRF + 自适应图遍历 | QueryEngine RRF + 查询路由 |
 | m_flow | Bundle Search 成本传播 | Layer-S edge_text 向量参与评分 |
 | KAG | DPR + PPR + RRF 五步混合检索 | Layer-R/S 双路 + RRF 融合 |

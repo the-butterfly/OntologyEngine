@@ -1,7 +1,7 @@
 # 实施 Backlog
 
 > **作用**: `docs/` 下唯一开放事项列表
-> **最后更新**: 2026-04-14
+> **最后更新**: 2026-04-19
 > **说明**: 本文件只保留进行中 / 未完成事项；文档状态看 [`STATUS.md`](./STATUS.md)，阶段路线看 [`ROADMAP.md`](./ROADMAP.md)
 
 ## 已完成事项归档
@@ -9,6 +9,7 @@
 以下事项已完成，归档记录供参考：
 
 ### P0 完成项
+- ✅ 2026-04-19 重构 `01-overview/`：目标态与当前态分离，新增 `00-current-baseline/`；整合 LLM-Wiki/KAG/m_flow/MAMGA/MemPalace/Graphify/Understand-Anything 七个参考系统关键设计点；`03-goals.md` 简化 Phase 数量并清理过时描述
 - ✅ 同步 `05-schema-v2/05-complete-example.md` 到 canonical grammar
 - ✅ 拆清 Current API 与 Target API 的文档边界（ADR-009）
 - ✅ 核验 Expression / Formula 设计与当前代码差异
