@@ -79,16 +79,30 @@ OntologyEngine 在 AI Agent 上下文栈中占据**深度层**，与广度层（
 
 ### 存储层 (L1)
 
-| 模块 | 本地实现 | 预留接口 | 承载资产 | 对齐 m-flow/KAG | 数据位置 |
-|------|----------|----------|----------|------------------|----------|
-| **DuckDBStorage** | ✅ | - | IT 资产 + 组织资产 | 对齐 KAG 的存储层（OpenSPG） | `data/ontology.db` |
-| **FaissVectorStore** | ✅ | pgvector | IT 资产（语义索引） | 对齐 m-flow 的向量存储 | `data/vectors/` |
-| **NetworkXGraph** | 按需加载 | Neo4j | 三层资产链接图 | 对齐 m-flow 的 Cone Graph + KAG 的图存储 | 内存 |
+| 模块 | 本地实现 | 云端扩展 | 承载资产 | 设计来源 |
+|------|----------|----------|----------|----------|
+| **SQLiteStorage** | ✅ | PostgreSQL | Dataset 元数据、Schema 版本、矛盾报告、变更日志 | m_flow FSCache + MAMGA |
+| **KuzuDBStorage** | ✅ | Neo4j | EntityInstance、EdgeInstance、RuleDefinition、互索引边 | m_flow GraphProvider |
+| **ChromaVectorStore** | ✅（<100K）| PGVector | KnowledgeFragment 向量、边向量索引 | MemPalace |
+| **FaissVectorStore** | ✅（>100K）| - | 规模扩展时的向量索引 | - |
+| **FSCacheAdapter** | ✅ | Redis | 指标缓存、会话缓存 | m_flow FSCacheAdapter |
+
+**存储职责矩阵**：
+
+| 数据类型 | 存储引擎 | 原因 |
+|---------|---------|------|
+| 事务 + 元数据 | SQLite | WAL 模式，低延迟写入 |
+| 实体关系 | KuzuDB | 图遍历、边向量、互索引 |
+| 向量检索（<100K）| ChromaDB | 自动持久化 + 元数据过滤 |
+| 向量检索（>100K）| FAISS | IVF+PQ 压缩 |
+| 指标聚合缓存 | SQLite + diskcache | m_flow 模式 |
 
 **边界约束**：
 - 上层只能调用 `storage/base.py` 接口
 - `local/` 只实现接口，不依赖上层
 - 三类资产的链接关系在存储层统一管理
+- **废弃**：~~DuckDBStorage~~（分析引擎不适合高频写入）
+- **废弃**：~~NetworkXGraph~~（内存图，无持久化）
 
 ### 引擎层 (L2)
 
@@ -97,7 +111,7 @@ OntologyEngine 在 AI Agent 上下文栈中占据**深度层**，与广度层（
 | **RuleEngine** | DAG 解析、拓扑执行、回滚 | 组织资产执行 | 对齐 m-flow 的 Procedure Execution + KAG 的 Executor | core/, storage/ |
 | **MetricEngine** | 指标计算、缓存、增量更新 | 个人→组织知识量化 | 对齐 m-flow 的 FacetPoint 计算 + KAG 的指标计算 | core/, storage/ |
 | **CategorizationEngine** | 归类编译、复用规则引擎 | 个人知识结构化 | 对齐 m-flow 的 Facet 归类 + KAG 的概念对齐 | core/, RuleEngine |
-| **QueryEngine** | 图查询、向量检索、混合融合 | 三层资产联合查询 | 对齐 m-flow 的 Bundle Search + KAG 的混合检索 | storage/ |
+| **QueryEngine** | Layer-R/S 双路检索、查询路由、RRF 融合 | 三层资产联合查询 | 对齐 m-flow 的 Bundle Search + KAG 的混合检索 | storage/ |
 | **ExpressionEngine** | L0/L1 两级安全执行 | IT 资产计算安全 | 对齐 KAG 的 Logical Form 执行 | core/ |
 
 **边界约束**：
@@ -112,11 +126,11 @@ OntologyEngine 在 AI Agent 上下文栈中占据**深度层**，与广度层（
 | **SchemaService** | Schema CRUD + 版本管理 | 组织资产生命周期 | 对齐 KAG 的 Schema 管理 |
 | **EntityService** | 实体/关系 CRUD + 快照 | IT 资产实例管理 | 对齐 m-flow 的 Episode 管理 |
 | **AnalysisService** | 指标/规则编排执行 | 个人→组织知识转化 | 对齐 m-flow 的 Episodic 检索 + Procedural 检索 |
-| **QueryService** | 查询路由 + 混合检索 | 三层资产联合访问 | 对齐 m-flow 的 Memory Orchestrator |
-| **IngestionService** | 数据导入 + 增量更新 | IT 资产接入 | 对齐 KAG 的 Builder Pipeline |
+| **QueryService** | 查询路由 + Layer-R/S 双路检索 | 三层资产联合访问 | 对齐 m-flow 的 Memory Orchestrator |
+| **IngestionService** | Dataset 注册 + Fragment 导入 + 矛盾检测 | IT 资产接入 | 对齐 KAG 的 Builder Pipeline |
 | **VisualizationService** | Schema 图/规则链/模拟 | 资产可视化与解释 | 对齐 m-flow 的 Cone Graph 可视化 |
-| **DatasetService** | 数据集管理 + diff | IT 资产版本管理 | 对齐 KAG 的版本管理 |
-| **IncrementalUpdateService** | 变更检测 + 影响分析 | 资产变更传播 | 对齐 KAG 的知识更新机制 |
+| **DatasetService** | 数据集元数据管理 + linkage_targets | IT 资产版本管理 | 对齐 KAG 的版本管理 |
+| **IncrementalUpdateService** | 自动更新 + 主动调用 + 影响分析 + 矛盾扫描 | 资产变更传播 | 对齐 KAG 的知识更新机制 |
 
 ### API 层 (L4)
 
@@ -156,6 +170,53 @@ examples/*/schema.yaml  ← 三类资产定义入口（IT 资产 / 个人资产 
 3. **Schema 驱动**: 业务逻辑在 YAML 定义，非代码
 4. **三层资产统一模型**: IT 资产、个人知识、组织资产使用同一本体（KGML）描述
 5. **资产可链接**: 存储层维护三层资产间的显式关系，引擎层负责推理
+6. **异步更新机制**: IncrementalUpdateService 支持自动轮询 + 主动调用两种模式，矛盾时弹出确认
+
+## 异步更新机制
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  IncrementalUpdateService                                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─────────────┐      ┌─────────────────┐                  │
+│  │ Dataset     │      │ 自动更新        │ ← 定时轮询       │
+│  │ 注册声明     │ ───▶ │ (后台任务)      │                  │
+│  └─────────────┘      └─────────────────┘                  │
+│                              │                              │
+│                              ▼                              │
+│                      ┌───────────────┐                     │
+│                      │ 影响分析       │                     │
+│                      │ (Impact       │                     │
+│                      │  Analysis)    │                     │
+│                      └───────────────┘                     │
+│                              │                              │
+│                              ▼                              │
+│                      ┌───────────────┐                     │
+│                      │ 关键确认点     │ ◀ 矛盾时触发       │
+│                      │ (Critical     │                     │
+│                      │  Checkpoints) │                     │
+│                      └───────────────┘                     │
+│                              │                              │
+│  ┌─────────────┐      ┌───────────────┐                  │
+│  │ API 主动调用 │ ──▶ │ 手动触发      │ ← 用户控制       │
+│  └─────────────┘      └───────────────┘                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**影响分析输出**：
+```json
+{
+  "dataset_id": "ds_001",
+  "affected_entities": ["ent_A", "ent_B"],
+  "affected_rules": ["R001", "R002"],
+  "potential_contradictions": [
+    {"field": "address", "old": "朝阳区", "new": "海淀区"}
+  ],
+  "cascade_depth": 2,
+  "requires_confirmation": true
+}
+```
 
 ## 对齐 m-flow 的四层 Cone Graph
 
