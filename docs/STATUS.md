@@ -1,7 +1,7 @@
 # 文档状态总表
 
 > **作用**: `docs/` 下唯一状态页
-> **最后更新**: 2026-04-17
+> **最后更新**: 2026-04-19
 > **使用规则**: 判断文档是否可信、是否过期、是否仍是当前入口时，以本页为准
 
 ## 状态说明
@@ -22,7 +22,8 @@
 | [`STATUS.md`](./STATUS.md) | 状态页 | accepted | now | 是 | 统一表达文档有效性 |
 | [`ROADMAP.md`](./ROADMAP.md) | 路线图 | accepted | now | 是 | 统一表达阶段目标 |
 | [`TODO.md`](./TODO.md) | backlog | accepted | now | 是 | 只保留开放事项 |
-| [`01-overview/`](./01-overview/README.md) | 项目概览 | accepted | mvp+phase1 | 主题级 | 仅承担愿景、目标、术语、边界说明；**2026-04-17 重构：三层资产链接+上下文栈** |
+| [`00-current-baseline/`](./00-current-baseline/) | 当前实现基线 | accepted | mvp+phase1 | 是 | **2026-04-19 新增**；描述当前实际代码结构，与代码逐一核验；原 `01-overview/07-project-structure.md` 迁入 |
+| [`01-overview/`](./01-overview/README.md) | 项目概览 | accepted | mvp+phase1 | 主题级 | 仅承担愿景、目标、术语、边界说明；**2026-04-19 重构**：目标态与当前态分离；新增 7 大参考系统设计点；`07-project-structure.md` 重构为框架级目标设计 |
 | [`02-design/`](./02-design/README.md) | 当前实现基线 | transitional | mvp | 主题级 | 表达当前实现口径，需持续与代码核验 |
 | [`04-migration-and-gap/`](./04-migration-and-gap/README.md) | 迁移层 | accepted | phase1 | 是 | **2026-04-16 已刷新模块差距总表** |
 | [`05-schema-v2/`](./05-schema-v2/README.md) | 目标架构 | draft | phase1+future | 主题级 | 目标态规范，部分专题仍待冻结 |
