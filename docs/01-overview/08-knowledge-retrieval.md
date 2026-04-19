@@ -110,6 +110,55 @@ Episode 最终得分 = min(所有路径成本)
 
 **直接命中惩罚**：直接命中 Episode Summary 的路径需要额外惩罚，优先使用 FacetPoint 级别的精确证据。
 
+### 技术实现框架
+
+```
+Bundle Search 四阶段算法（参考 m_flow bundle_search.py + bundle_scorer.py）：
+
+Phase 1 — 宽网撒播：
+  查询嵌入同时搜索多个向量集合：
+  [Episode_summary, Facet_search_text, Facet_anchor_text,
+   FacetPoint_search_text, Entity_name, Edge_relationship_name]
+  每个集合返回最多 100 个候选（wide_search_top_k=100）
+  时间查询时候选池翻倍
+
+Phase 2 — 投影到图：
+  命中节点作为入口，提取周围子图，再扩展一跳邻居
+  两阶段投影：命中 ID 投影 → 邻居扩展并按类型优先级排序
+
+Phase 3 — 代价传播：
+  从尖端向基底传播代价，对每个 Episode 评估所有可能路径
+  路径代价 = 起始代价(锚点向量距离) + Σ(边代价 + 跳惩罚 0.05) + 未命中惩罚(0.9)
+  Episode 最终得分 = min(所有路径成本) ← 一条强证据链即可证明相关性
+
+Phase 4 — 排序组装：
+  按 bundle cost 排序取 top-k，根据 display_mode 组装输出
+
+五种路径类型及 OntologyEngine 映射：
+  direct_episode  → 直接命中 EntityInstance（惩罚 0.3）
+  facet           → Categorization → EntityInstance
+  point           → AnalyticalElement → Categorization → EntityInstance
+  entity          → EntityInstance 直接命中
+  facet_entity    → EntityInstance → Categorization → EntityInstance
+
+Facet 近似匹配折扣：
+  当 Facet 向量距离 < 0.1 时，边代价和跳代价大幅折扣（分别降至 0.1 和 0.05）
+
+KAG DPR+PPR+RRF 五步混合检索（参考 KAG 检索文档）：
+  1. DPR 初始检索：向量相似性匹配 Top-k Chunk
+  2. 种子节点聚焦：Top-k KnowledgeUnit + Top-k AtomicQuery + Top-k Entity
+  3. PPR 概率传播：个性化 PageRank 算法，通过路径概率传播识别 Top-k Chunk
+  4. RRF 重排序：DPR 和 PPR 的 Top-k Chunk 通过互惠排名融合全局重排序
+  5. 事实收集：Top-k Chunk + 逻辑形式匹配的 Top-k SPO → 生成答案
+
+QMD BM25+向量混合检索（参考 QMD store.ts）：
+  BM25 搜索：SQLite FTS5 全文索引，BM25 分数转换 |x|/(1+|x|) 映射到 [0,1)
+  向量搜索：sqlite-vec 向量索引，余弦相似度
+  RRF 融合：RRF_score(d) = Σ 1/(k+rank_i)，k=60
+  重排序：本地 GGUF reranker 模型（qwen3-reranker-0.6b）
+  查询扩展：本地 GGUF 微调模型（qmd-query-expansion-1.7B）
+```
+
 ---
 
 ## RRF 融合（Reciprocal Rank Fusion）
@@ -123,6 +172,32 @@ k = 60（经验最优值）
 ```
 
 融合后统一排序，返回 top-k 结果。
+
+### 技术实现框架
+
+```
+RRF 融合实现（参考 KAG + MAMGA + QMD）：
+
+KAG 五步混合检索中的 RRF：
+  - DPR 检索 Top-k Chunk + PPR 检索 Top-k Chunk
+  - 两路结果通过 RRF 融合，k=60
+  - 逻辑形式还被翻译为"模拟命题"查询知识单元节点，实现多路召回互补
+
+MAMGA 多阶段检索中的 RRF：
+  - 向量搜索 → 关键词搜索 → 全扫描 → RRF 融合 → 自适应图遍历 → 重排序
+  - 自适应参数：根据查询类型调整 max_depth、similarity_threshold、scoring_weights
+
+QMD 混合检索中的 RRF：
+  - BM25（FTS5）+ 向量搜索（sqlite-vec）+ HyDE 查询扩展
+  - 三路结果通过 RRF 融合
+  - 本地 GGUF reranker 重排序
+
+OntologyEngine RRF 实现策略：
+  - Layer-R 向量检索 + Layer-S 图遍历 + BM25 关键词检索（三路融合）
+  - RRF k=60，与 KAG/MAMGA/QMD 一致
+  - 查询路由决定各路权重：factual 偏向 Layer-R，multi-hop 偏向 Layer-S
+  - 可选：本地 reranker 重排序（参考 QMD）
+```
 
 ---
 

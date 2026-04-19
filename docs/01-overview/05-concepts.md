@@ -177,6 +177,29 @@ API 响应：每个字段值作为一个 Fragment
 | **语义丰富度** | edge_text | edge_text + weight + attributes |
 | **推理参与** | 无语义权重 | **边语义参与推理成本传播** |
 
+### 技术实现框架
+
+```
+互索引存储实现（参考 KAG KnowledgeUnit + m_flow Episode/Facet）：
+
+KuzuDB 存储：
+  - 互索引边作为独立关系类型存储（EXTRACTED_FROM, SUPPORTED_BY, DEFINED_IN, TRACE_TO）
+  - 每条边携带：source_file, offset_start, offset_end, confidence, edge_text
+  - 边文本向量化后存入 ChromaDB，参与 Bundle Search 评分
+
+KAG 五层图结构对比：
+  Chunk → KnowledgeUnit → AtomicQuery → Entity → SemanticConcept
+  OntologyEngine 对应：
+  KnowledgeFragment → EntityInstance → (互索引边) → RuleDefinition
+
+Cognee DataPoint 溯源模式：
+  source_pipeline: 来源管道
+  source_task: 来源任务
+  source_user: 来源用户
+  source_content_hash: 内容哈希
+  → OntologyEngine 互索引边可复用此模式，增加 source_document_id + offset 信息
+```
+
 ---
 
 ## 矛盾检测（Contradiction Detection）
@@ -219,6 +242,40 @@ Query 结果忠实展示，不主动过滤矛盾。可选返回 `contradiction_w
 }
 ```
 
+### 技术实现框架
+
+```
+矛盾检测实现（参考 LLM-Wiki-Agent + Graphify）：
+
+Ingest 时检测（参考 LLM-Wiki-Agent ingest.py）：
+  - LLM 编译时同时对比现有 Wiki 内容，输出 contradictions 数组
+  - 矛盾在摄入时就被标记，而非查询时才发现
+  - 源页面模板中有专门的 ## Contradictions 区块
+
+Lint 时检测（参考 LLM-Wiki-Agent lint.py）：
+  - 采样 ≤20 页面，截断到 1500 字符
+  - LLM 语义检查：跨页面矛盾、过时内容、数据缺口、概念深度不足
+  - 同时包含确定性检查：孤儿页面、断裂链接、缺失实体页面
+
+Graph-Aware 检测（参考 LLM-Wiki-Agent lint.py）：
+  - Hub Stub 检测：度数 > μ+2σ 但内容 < 500 字符的节点
+  - 脆弱桥检测：社区间仅靠 1 条边连接
+  - 孤立社区检测：零外部连接的知识孤岛
+
+Graphify 验证模式（参考 validate.py）：
+  - validate_extraction() 强制执行 schema
+  - 确保每个节点有 {id, label, file_type, source_file}
+  - 确保每条边有 {source, target, relation, confidence, source_file}
+  - AMBIGUOUS 边标记为需人工审查
+
+OntologyEngine 矛盾检测策略：
+  - Ingest 时：LLM 编译 + SHA256 哈希比对
+  - Lint 时：采样语义检查 + 确定性检查
+  - Graph-Aware：Hub Stub + 脆弱桥 + 孤立社区
+  - 矛盾报告存储：SQLite contradiction_reports 表
+  - 矛盾解决：人工确认后标记 deprecated/rejected/modified
+```
+
 ---
 
 ## 时序建模（Temporal Modeling）
@@ -256,6 +313,32 @@ entity_instance:
 | `query_entity(id, include_history=true)` | 返回所有历史版本 | 全量返回 |
 
 **默认行为**：返回当前版本。若结果为空，调用方显式查询历史版本。
+
+### 技术实现框架
+
+```
+时序存储实现（参考 MAMGA + MemPalace）：
+
+MAMGA 时序共振图模式：
+  - EVENT 节点通过 PRECEDES/SUCCEEDS 链接形成时序链，携带 time_delta 属性
+  - TEMPORALLY_CLOSE 链接携带 time_diff_hours 和 weight（反比衰减）
+  - NARRATIVE 节点：时间窗口内 ≥3 个事件时自动生成叙事聚合
+  - 查询时通过 get_temporal_chain() 沿时序链前向/后向遍历
+
+MemPalace Validity Window 模式：
+  - 每个 triple 携带 valid_from 和 valid_to 时间戳
+  - invalidate() 方法设置 valid_to，标记事实不再为真
+  - 查询时通过 as_of 参数获取特定时间点的事实
+  - 时间线查询：mempalace_kg_timeline 工具
+
+OntologyEngine 时序实现策略：
+  - 静态实体：无时序字段，直接存储
+  - 时序实体：valid_from/valid_to 字段，SQLite 存储 + KuzuDB 索引
+  - 时序链接边：PRECEDES/SUCCEEDS 类型，携带 time_delta
+  - 因果链接边：LEADS_TO/BECAUSE_OF/ENABLES/PREVENTS（参考 MAMGA）
+  - 查询路由：temporal 类型查询自动调整边权重偏好（TEMPORAL×3.0）
+  - 时间增强（参考 m_flow）：查询时间解析 + 时间匹配奖励 + 时间不匹配惩罚 + 候选池扩展
+```
 
 ---
 
@@ -474,6 +557,221 @@ rule_logic:
 | **可评估** | 知识有质量标签供 Agent 判断可信度 | 质量维度 |
 
 Agent 在作业前通过 QueryService 检索，返回数据/规则/指标时附带溯源证据和质量标签。
+
+---
+
+## 语义空间隔离（Semantic Space Isolation）
+
+多域知识通过混合隔离策略管理，域间实体对齐实现跨域协同。
+
+### 隔离策略
+
+| 策略 | 适用场景 | 实现方式 | 参考系统 |
+|------|---------|---------|---------|
+| **逻辑隔离**（默认） | 大多数场景，域间有协同需求 | domain_id 元数据过滤 | MemPalace Wing/Room |
+| **物理隔离**（可选） | 安全要求高的场景，域间完全独立 | 独立 DB 实例 | m_flow DatasetStore |
+| **混合模式** | 按需切换 | 配置驱动，ContextVar 请求级切换 | m_flow ENABLE_BACKEND_ACCESS_CONTROL |
+
+### 域模型
+
+```yaml
+domain:
+  id: "risk_control"
+  name: "风控域"
+  sub_domains:
+    - id: "credit_risk"
+      name: "信用风险"
+    - id: "market_risk"
+      name: "市场风险"
+  isolation: logical  # logical | physical
+  parent_domain: null  # 支持域的层次化组织
+```
+
+### 跨域实体对齐
+
+不同域中相同实体通过 canonical_name + same_entity_as 边互连：
+
+```
+风控域: Company[canonical_name="华为技术有限公司"]
+  ──[same_entity_as, confidence=1.0]──▶
+供应链域: Company[canonical_name="华为技术有限公司"]
+```
+
+查询时自动扩展：在风控域查询"华为"时，通过 same_entity_as 边自动关联供应链域的知识。
+
+### 技术实现框架
+
+```
+参考 m_flow DatasetStoreHandlerInterface + ContextVar 模式：
+
+逻辑隔离实现：
+  - 每个节点/边携带 domain_id 字段
+  - ChromaDB where 过滤：{"domain_id": "risk_control"}
+  - KuzuDB 属性过滤：WHERE n.domain_id = 'risk_control'
+
+物理隔离实现：
+  - DatasetStoreHandlerInterface 适配器模式
+  - create_dataset() / delete_dataset() 生命周期钩子
+  - KuzuDatasetStoreHandler：每个域独立的 .kuzu 文件
+  - LanceDBDatasetStoreHandler：每个域独立的向量库
+
+ContextVar 请求级切换：
+  - _domain_id: ContextVar = ContextVar("_domain_id", default=None)
+  - set_domain_context(domain, user_id)：为当前异步上下文设置域配置
+  - 下游代码通过 get_domain_config() 自动获取，无需显式传参
+  - 协程安全：不同请求并行执行，各自连接到不同的域配置
+```
+
+---
+
+## 知识全链路可管理性（Knowledge Manageability）
+
+自动化只是第一层，知识加工-存储-消费全链路需要可读、可见、可管理、可调整。
+
+### 四层人工介入机制
+
+| 机制 | 人工角色 | 触发条件 | 参考系统 |
+|------|---------|---------|---------|
+| **声明式规则编辑** | 领域专家定义业务规则 | 规则创建/修改时 | KAG Expert Rules DSL（简化版） |
+| **反馈闭环** | 对检索结果评分 | 每次检索后 | Cognee feedback_weight + alpha |
+| **质量检测+自愈** | 审阅检测结果，确认/否决修复 | 定期扫描 + ingest 时 | LLM-Wiki-Agent lint+heal |
+| **知识时效管理** | 标记知识失效 | 知识过时时 | MemPalace invalidate() |
+
+### 规则表达式设计
+
+**设计原则**：结构化配置参数+合理表达式，不使用严格 DSL，降低领域专家使用门槛。
+
+```yaml
+rule_definition:
+  id: "R001_risk_grade"
+  name: "风险等级评定"
+  scope:
+    dimensions: ["risk_assessment"]
+    entity_types: ["finance:Counterparty"]
+  when:
+    expression: "credit_score != null AND debt_ratio != null"
+  then:
+    operator: "SWITCH"
+    cases:
+      - condition: "credit_score >= 85 AND debt_ratio < 0.3"
+        output: { "risk_grade": "A" }
+      - condition: "credit_score >= 70"
+        output: { "risk_grade": "B" }
+  applicability:
+    when_text: "评估交易对手信用风险时"
+    why_text: "监管要求对所有交易对手定期评级"
+    boundary_text: "不适用于同业拆借对手"
+    outcome_text: "产出风险等级 A/B/C/D"
+    prereq_text: "需要信用评分和负债率数据"
+    exception_text: "新客户无历史数据时使用默认评级 C"
+```
+
+### 反馈闭环实现
+
+```
+参考 Cognee apply_feedback_weights.py：
+
+反馈流程：
+  1. 用户对检索结果评分（1-5 分 + 文字反馈）
+  2. 分数归一化：normalize(score) = (score - 1) / 4 → [0, 1]
+  3. 流式更新权重：updated = previous + alpha × (normalized - previous)
+     alpha = 0.1（学习率，可配置）
+  4. 只更新被检索使用过的图元素（used_graph_element_ids）
+  5. 已处理反馈标记，避免重复应用
+
+权重影响：
+  - feedback_weight 参与检索评分：final = λ × semantic + (1-λ) × feedback_weight
+  - 高权重节点/边在检索时获得更高排名
+  - 低权重节点/边逐渐被降级
+```
+
+### 质量检测+自愈循环
+
+```
+参考 LLM-Wiki-Agent lint.py + heal.py + Graphify suggest_questions()：
+
+Lint 检测（定期扫描）：
+  确定性检测：孤儿页面、断裂链接、缺失实体页面
+  图感知检测：Hub Stub（度数 > μ+2σ 且内容 < 500 字符）、脆弱桥、孤立社区
+  语义检测：跨页面矛盾、过时内容、数据缺口
+
+Heal 修复（自动+人工确认）：
+  自动修复：缺失实体页面生成（LLM + 人工校验）
+  引导修复：AMBIGUOUS 边 → "X 和 Y 的确切关系是什么？"
+  建议问题：桥接节点、低内聚社区、孤立节点
+
+闭环：lint → heal → lint → ... 持续改进
+```
+
+---
+
+## 业务逻辑资产化（Business Logic as Knowledge Asset）
+
+风险评估、指标计算、图分析逻辑等业务逻辑是一等知识资产，双层表达。
+
+### 双层表达模型
+
+| 层次 | 表达方式 | 特点 | 参考系统 |
+|------|---------|------|---------|
+| **Schema 内嵌** | 规则定义嵌入 FactObjectDefinition | 逻辑边按需计算，不可编辑 | KAG Expert Rules DSL |
+| **图节点存储** | 规则作为独立图节点 | 可编辑、可版本化、可溯源 | m_flow Procedure + Cognee Rule DataPoint |
+
+### 规则图节点模型
+
+```yaml
+rule_node:
+  id: "rule_001"
+  type: "RuleDefinition"
+  name: "风险等级评定"
+  version: 2
+  status: "active"  # active | deprecated | superseded
+  confidence: "high"  # high | low
+  
+  # 规则适用性六维度（参考 m_flow ContextPack）
+  applicability:
+    when_text: "评估交易对手信用风险时"
+    why_text: "监管要求对所有交易对手定期评级"
+    boundary_text: "不适用于同业拆借对手"
+    outcome_text: "产出风险等级 A/B/C/D"
+    prereq_text: "需要信用评分和负债率数据"
+    exception_text: "新客户无历史数据时使用默认评级 C"
+  
+  # 规则表达式（结构化配置+表达式，非严格 DSL）
+  expression:
+    operator: "SWITCH"
+    cases:
+      - condition: "credit_score >= 85 AND debt_ratio < 0.3"
+        output: { "risk_grade": "A" }
+  
+  # 溯源（参考 Cognee DataPoint）
+  source_pipeline: "rule_editor"
+  source_user: "expert_001"
+  source_content_hash: "sha256:abc123"
+  
+  # 版本链（参考 m_flow supersedes）
+  supersedes: ["rule_001_v1"]
+  evidence_refs: ["doc_003", "doc_007"]
+```
+
+### 规则生命周期
+
+```
+创建 → 验证 → 发布 → 执行 → 反馈 → 演化 → 废弃
+  │      │      │      │      │      │      │
+  ↓      ↓      ↓      ↓      ↓      ↓      ↓
+编辑器  Schema  审批   推理引擎  feedback  版本   标记
+配置   验证    流程   逻辑边   权重更新  管理   deprecated
+```
+
+### 规则与图节点的关联
+
+```
+RuleDefinition[rule_001] ──[defines]──▶ FactObjectDefinition[finance:Counterparty]
+RuleDefinition[rule_001] ──[computes]──▶ AnalyticalElement[credit_score]
+RuleDefinition[rule_001] ──[triggers]──▶ RuleLogic[R001_risk_grade]
+RuleDefinition[rule_001] ──[supersedes]──▶ RuleDefinition[rule_001_v1]
+RuleDefinition[rule_001] ──[evidence_from]──▶ KnowledgeFragment[doc_003]
+```
 
 ---
 
