@@ -4,87 +4,31 @@
 > **最后更新**: 2026-04-19
 > **说明**: 本文件只保留进行中 / 未完成事项；文档状态看 [`STATUS.md`](./STATUS.md)，阶段路线看 [`ROADMAP.md`](./ROADMAP.md)
 
-## 已完成事项归档
-
-以下事项已完成，归档记录供参考：
-
-### P0 完成项
-- ✅ 2026-04-19 重构 `01-overview/`：目标态与当前态分离，新增 `00-current-baseline/`；整合 LLM-Wiki/KAG/m_flow/MAMGA/MemPalace/Graphify/Understand-Anything 七个参考系统关键设计点；`03-goals.md` 简化 Phase 数量并清理过时描述
-- ✅ 同步 `05-schema-v2/05-complete-example.md` 到 canonical grammar
-- ✅ 拆清 Current API 与 Target API 的文档边界（ADR-009）
-- ✅ 核验 Expression / Formula 设计与当前代码差异
-- ✅ 清理模块设计中不稳定的"固定数字真相"
-
-### P1 完成项
-- ✅ 统一术语表并给出对照关系（`01-overview/05-concepts.md`）
-- ✅ 收敛 Rule 模型的历史写法（ADR-008）
-- ✅ 为模块详细设计补充代码映射 / 测试要点
-- ✅ 为关键目标态设计补 `last_verified` / `verified_against` 元数据
-- ✅ 核验 Schema Loading 模块设计与代码差异（`06-module-detailed-design/01-schema-loading.md`）→ 差距已记录到 `04-migration-and-gap/README.md`
-- ✅ 核验 Rule Engine 模块设计与代码差异（`06-module-detailed-design/06-rule-engine.md`）→ 差距已记录到 `04-migration-and-gap/README.md`
-- ✅ 文档与实现一致性审视（docs/09-examples/），发现系统性断裂，详见 `REVIEW_REPORT.md`
-- ✅ Canonical grammar 字段名对齐（element_type→type, target_objects→applies_to 等），代码/schema/example 全部更新
-
-### P2 完成项
-- ✅ DuckDB 新增 API 路由注册 — `server.py:374-376` 三条路由已注册，`tests/unit/services/test_dataset_and_incremental.py` 13 个单元测试覆盖
-- ✅ 冻结空间状态机与版本管理的正式口径（ADR-010）
-- ✅ 收敛平台化扩展边界（能力矩阵）
-- ✅ 补全分层设计文档元数据（01-04 添加 related_adrs）
-- ✅ 更新 `05-schema-v2/README.md` 导航（补充 07-rule-declaration-and-instance.md）
-
-### ADR 新增
-- ✅ ADR-007: L3-L4 计算边界
-- ✅ ADR-008: Rule 模型统一
-- ✅ ADR-009: API 架构演进
-- ✅ ADR-010: 语义空间生命周期
-
----
-
 ## Now
 
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
-| P1 | docs/09-examples/supply_chain_finance.md 重构完成 | ✅ 文档已有完整 deprecated 标注 + 不符点清单，无需重写 |
-| P1 | MCP 工具实现（P1 核心 5 个）| RFC-013 | ✅ `oe_create_space/execute_rule/query/register_dataset/simulate` 已实现；`oe_load_schema`、`oe_trigger_sync` 为 P2 工具一并实现 |
-| P1 | 前端 Playwright 验证 | `ontology-engine-ui/` | ✅ 10 个测试全部通过（space-management 4 / schema-editor 3 / rule-execution 3） |
-| P1 | 全链路 API 验收 | API routes | ✅ 13 个集成测试全部通过（dataset 3 / incremental 3 / category 2 / consumption 5） |
-| P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 graph.networkx_store |
-| P2 | LLMJudgeOperator._call_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
-
-### 代码 Review 遗留（低优先级）
-
-| 优先级 | 事项 | 关联文件 | 备注 |
-|--------|------|----------|------|
-| Low | categories.py 绕过 DI | `api/routes/categories.py` | 无 CategoryService，需新建服务层 |
-| Low | consumption.py:50 `_get_storage()` 重复创建实例 | `api/routes/consumption.py` | 仅影响非分析路由 |
-| Low | MCP 7 工具（含 2 个 P2） | `mcp/server.py` | P2 工具提前实现，非阻塞 |
-| Low | MCP `explain_level` 信息丢失 | `mcp/tools/execution.py` | full/detailed → True 丢失区分度 |
-| Low | 4× `_get_nested_value` 重复实现 | 多文件 | 可提取为 shared util |
-| Low | MCP 每调用创建新 `:memory:` DB | `mcp/tools/*.py` | 隔离执行是故意的 |
-| Low | N+1 查询 in incremental_update.py | `services/incremental_update.py` | 可批量化版本查找 |
+| P0 | 修复跨模块一致性严重问题 S-1~S-5 | `docs-dev/review-reports/consistency-report.md` | TRACE_TO 源端类型、DEFINED_IN 源端、API 旧术语、时序查询参数、时序边表 |
+| P1 | 按 Schema v2 设计实现代码 | `02-design/schema/` | Instance 层 + 互索引边 + 时序建模 |
+| P1 | 按 Storage 设计实现 KuzuDB+ChromaDB+SQLite | `02-design/storage/` | 三引擎迁移 |
+| P1 | 按 Rule Engine 设计实现 DAG 执行 | `02-design/rule-engine/` | DAGBuilder + 并行执行 + 回滚 |
+| P1 | 按 Query Engine 设计实现 Layer-R/S 检索 | `02-design/query-engine/` | Bundle Search + RRF 融合 |
+| P1 | 按 Extraction Pipeline 设计实现三通道提取 | `02-design/extraction-pipeline/` | AST + LLM + SHA256 缓存 |
 
 ## Next
 
 | 优先级 | 事项 | 关联文档 | 备注 |
 |--------|------|----------|------|
-| P2 | Phase 2 RuleExecutor DAG 实现 | RFC-011 | 顺序执行 → steps[] DAG 拓扑排序（Phase 2 最高优先级） |
-| P2 | 规则编排画布功能完善 | `ontology-engine-ui/` | 🔴 未解决：节点拖拽定位持久化、节点配置面板保存、规则链保存到后端 |
-| P2 | Phase 2 kuzu 图存储升级 | RFC-012 | NetworkX → kuzu，支撑 100K 节点规模 |
-| P2 | DuckDB 新增表 CRUD 方法 | `ontology_engine/storage/duckdb/store.py` | datasets/change_batches/entity_versions 等表的完整 CRUD |
-| P3 | KuzuGraphStore 实现（Phase 2 存储） | RFC-012 | 现有 `07-phase1-enhancement/01-graph-storage-extension.md` 中的 kuzu 规划 |
-| P3 | ValueDomainValidator enum 类型集成 Schema | `ontology_engine/engine/validation/value_domain_validator.py` | 当前 enum 验证为占位 |
-
-## Later
-
-| 优先级 | 事项 | 关联文档 | 备注 |
-|--------|------|----------|------|
-| P3 | 关键设计完成实现后回写 accepted 状态 | [`STATUS.md`](./STATUS.md) | 让设计与代码持续闭环 |
-| P3 | 清理旧文档中的 `rule_group` 写法 | `05-schema-v2/*` | 统一改为 canonical model |
+| P2 | 按 Services 设计实现双通道 IngestionService | `02-design/services/` | 快速通道+慢速通道 |
+| P2 | 按 API 设计重构路由 | `02-design/api/` | 新路由结构+301 兼容层 |
+| P2 | 按 Formula 设计实现 L0/L1 执行模型 | `02-design/formula/` | 函数库补全（当前 19%） |
+| P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 |
+| P2 | LLMJudgeOperator._call_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
 
 ## 使用规则
 
-1. 完成项从本文件移除，不在此保留历史完成记录（本次为过渡保留，下次清理）
+1. 完成项从本文件移除，不在此保留历史完成记录
 2. 本文件不再维护端点数、服务数、模块数等容易漂移的数据
 3. 若事项属于"判断文档是否过期"，请更新 [`STATUS.md`](./STATUS.md)
 4. 若事项属于"阶段目标变化"，请更新 [`ROADMAP.md`](./ROADMAP.md)
-5. 若事项属于"当前态与目标态不一致"，先记录到 [`04-migration-and-gap/README.md`](./04-migration-and-gap/README.md)
+5. 若事项属于"当前态与目标态不一致"，先记录到 `docs-dev/04-migration-and-gap/`

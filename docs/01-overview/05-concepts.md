@@ -383,7 +383,7 @@ OntologyEngine 的 QueryEngine 根据查询类型自动选择检索路径。
 | 查询类型 | 特征词 | 检索路径 | 边权重偏好 |
 |----------|--------|---------|-----------|
 | **factual** | 谁/什么/哪个 | Layer-R 向量检索 → extracted_from 扩展 | 无 |
-| **multi-hop** | 为什么/如何/...和...的关系 | Layer-S 图遍历 + ENTITY 边优先 | TEMPORAL×1.0, CAUSAL×2.0 |
+| **multi-hop** | 为什么/如何/...和...的关系 | Layer-S 图遍历 + ENTITY 边优先 | ENTITY×1.0, TEMPORAL×1.0, CAUSAL×2.0 |
 | **temporal** | 什么时候/持续多久/历史变化 | valid_from/to 过滤 + 时序边 | TEMPORAL×3.0 |
 | **analytical** | 计算/分析/占比/趋势 | → L4 RuleEngine 执行 | 无 |
 | **mixed** | 复合查询 | Layer-R → Layer-S → trace_to 回溯 | 自适应 |
@@ -779,10 +779,10 @@ RuleDefinition[rule_001] ──[evidence_from]──▶ KnowledgeFragment[doc_00
 
 | 主题 | 文档位置 |
 |------|----------|
-| Schema v2 完整规范 | `docs/05-schema-v2/09-canonical-schema-spec.md` |
-| 四层架构设计 | `docs/05-schema-v2/README.md` |
-| 规则引擎设计 | `docs/06-module-detailed-design/rule-engine.md` |
-| 存储设计 | `docs/06-module-detailed-design/storage.md` |
+| Schema完整规范 | `docs/02-design/schema/01-canonical-schema-spec.md` |
+| 四层架构设计 | `docs/02-design/schema/L1-L4-declarations.md` |
+| 规则引擎设计 | `docs/02-design/rule-engine/README.md` |
+| 存储设计 | `docs/storage/README.md` |
 | 知识检索设计 | `docs/01-overview/08-knowledge-retrieval.md` |
 | 上下文栈参考 | [AI Memory vs RAG vs Knowledge Graph (Atlan 2026)](https://atlan.com/know/ai-memory-vs-rag-vs-knowledge-graph/) |
 | Agent Memory 架构 | [The Agent Memory Race of 2026 (OSSInsight)](https://ossinsight.io/blog/agent-memory-race-2026) |
