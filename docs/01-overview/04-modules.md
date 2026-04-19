@@ -246,6 +246,50 @@ examples/*/schema.yaml  ← 三类资产定义入口（IT 资产 / 个人资产 
 | **MemPalace** | verbatim 存储、validity window、wing/room 分层 | Layer-R 原文存储、时序建模、metadata 过滤 | L1/L2 |
 | **Graphify** | 三通道提取、SHA256 缓存、Leiden 社区检测 | ExtractionPipeline 增量处理、Confidence 标签 | L1 |
 | **Understand-Anything** | 多 Agent 并行、可插拔 IndexManager | MCP Agent 协同、并行分析管线 | L4 |
+| **Cognee** | ECL 管道、DataPoint 溯源、BaseRetriever 三步管道 | IngestionService 管道、互索引溯源、QueryEngine 检索 | L1/L3 |
+| **codebase-memory-mcp** | RAM-first 管线、Cypher 查询引擎、增量索引 | 存储层 RAM-first 设计、KuzuDB Cypher 查询 | L1 |
+
+## 模块交互模式技术实现框架
+
+```
+参考 Cognee + m_flow + KAG 的模块交互模式：
+
+1. 管道编排模式（参考 Cognee Pipeline）：
+   IngestionService 编排：
+     Task(resolve_data_directories) → Task(ingest_data) → Task(extract_chunks)
+     → Task(extract_graph) → Task(add_data_points) → Task(detect_contradictions)
+   支持 batch_size、enriches、_Drop 信号、PipelineContext 注入
+
+2. 适配器模式（参考 m_flow GraphProvider + Cognee VectorDBInterface）：
+   storage/base.py 定义抽象接口
+   storage/local/kuzu/ → KuzuGraphStore 实现
+   storage/local/chroma/ → ChromaVectorStore 实现
+   storage/adapters/ → Neo4j/LanceDB 等扩展
+
+3. 策略模式（参考 Cognee register_retriever + KAG IndexManager）：
+   QueryEngine 检索器注册：
+     use_retriever(QueryType.FACTUAL, FactualRetriever)
+     use_retriever(QueryType.MULTI_HOP, BundleSearchRetriever)
+     use_retriever(QueryType.TEMPORAL, TemporalRetriever)
+
+4. 双通道处理模式（参考 MAMGA trg_memory.py）：
+   IngestionService 快速通道：同步写入 → 时序链接 → 向量索引 → 入队
+   IngestionService 慢速通道：后台推理 → 因果推断 → 实体边创建
+
+5. 观察者模式（参考 Cognee observability + m_flow _track_changes）：
+   storage/local/kuzu/ 变更追踪 → GraphRelationshipLedger
+   engine/ 执行追踪 → audit_log
+   services/ 业务追踪 → pipeline_runs
+
+6. MCP 工具暴露模式（参考 Cognee MCP + m_flow MCP + MemPalace MCP）：
+   mcp/tools/ 暴露工具：
+     memorize → IngestionService.ingest
+     search → QueryService.search
+     query → QueryService.query
+     categorize → EntityService.categorize
+     execute_rules → AnalysisService.execute_rules
+   双模式：Direct 模式（直接调用库函数）+ API 模式（HTTP 请求远程服务）
+```
 
 ---
 

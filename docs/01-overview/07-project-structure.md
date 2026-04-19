@@ -153,3 +153,54 @@ examples/*/schema.yaml  ← 三类资产定义入口
 4. **三层资产统一模型**：IT 资产、个人知识、组织资产使用同一本体描述
 5. **资产可链接**：存储层维护三层资产间的显式关系，引擎层负责推理
 6. **增量优先**：提取管线按 SHA256 缓存，增量处理变化文件
+
+## 技术实现模式
+
+```
+参考各参考系统的实现模式，OntologyEngine 采用以下技术实现策略：
+
+1. 异步优先（参考 Cognee + m_flow）：
+   - 所有 I/O 操作使用 async/await
+   - KuzuDB 异步包装：ThreadPoolExecutor + run_in_executor
+   - ChromaDB 异步搜索：asyncio.gather 并行多集合检索
+   - 信号量控制并发：asyncio.Semaphore(data_per_batch)
+
+2. 缓存分层（参考 Graphify + LLM-Wiki-Agent + codebase-memory-mcp）：
+   - L0 内存缓存：Python dict/LRU（热数据，<1ms）
+   - L1 文件缓存：diskcache/SQLite（温数据，<10ms）
+   - L2 SHA256 语义缓存：按 source_file 分组，返回 (cached, uncached)
+   - L3 推断检查点：JSONL 格式，支持 resume
+
+3. 增量处理（参考 Graphify + codebase-memory-mcp + LLM-Wiki-Agent）：
+   - 文件级：SHA256(内容+相对路径) 比对，仅处理变化文件
+   - 图级：推断检查点 .inferred_edges.jsonl，支持 resume
+   - 索引级：文件哈希缓存，增量更新向量索引
+   - 原子写入：os.replace() 实现原子替换
+
+4. 置信度标注（参考 Graphify + LLM-Wiki-Agent）：
+   - EXTRACTED：确定性提取，confidence=1.0
+   - INFERRED：LLM 推断，confidence=0.4-0.9
+   - AMBIGUOUS：低置信度，需人工审查
+   - 边去重：双向边合并，保留最高置信度
+
+5. 多集合向量索引（参考 m_flow）：
+   - 按节点类型和字段分集合存储向量
+   - Bundle Search 时并行搜索所有集合
+   - 元数据过滤提供额外检索 boost（参考 MemPalace 34% 提升）
+
+6. 边语义参与检索（参考 m_flow Edge.edge_text）：
+   - 边文本向量化后存入独立集合
+   - 检索时构建 edge_hit_map
+   - 代价传播中：命中边使用向量距离，未命中边使用 miss_penalty=0.9
+
+7. 管道状态持久化（参考 Cognee PipelineRun）：
+   - SQLite pipeline_runs 表记录管道运行状态
+   - 支持 started/completed/errored 三种状态
+   - 后台执行模式：asyncio.create_task + 状态查询
+
+8. MCP 双模式（参考 Cognee MCP + m_flow MCP）：
+   - Direct 模式：直接导入库函数调用
+   - API 模式：通过 HTTP 请求连接远程服务
+   - 传输层：stdio / SSE / HTTP 三种
+   - 后台任务：耗时操作 asyncio.create_task，通过 status 工具查询
+```

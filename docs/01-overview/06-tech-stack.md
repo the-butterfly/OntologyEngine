@@ -60,21 +60,99 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 向量存储选型决策
+### 向量数据库
 
-```
-向量规模判断：
-  │
-  ├── <100K 向量
-  │     └── ChromaDB（自动持久化 + 元数据过滤 + wing/room 过滤）
-  │
-  └── >100K 向量
-        └── FAISS（IndexIVF + PQ 压缩 + 内存映射）
-
-Phase 1 默认 ChromaDB，Phase 2 按规模切换
-```
+| 方案 | 用途 | 选型依据 |
+|------|------|----------|
+| **ChromaDB**（主，<100K） | 知识碎片嵌入 + 语义检索 | 轻量嵌入，支持元数据过滤，Python 原生 |
+| **LanceDB**（>100K） | 大规模向量索引 + 性能优先场景 | GPU 加速，m_flow 默认选择，性能更优 |
+| FAISS（辅） | 离线批量相似度计算 | 高性能，适合离线索引构建 |
 
 **来源依据**：MemPalace 验证 ChromaDB 达到 96.6% R@5；Graphify 验证 FAISS 适合 >100K 规模。
+
+## LLM 与嵌入
+
+### LLM 网关
+
+| 方案 | 用途 | 选型依据 |
+|------|------|----------|
+| **litellm**（主） | 统一 LLM 调用接口 | 支持 OpenAI/Anthropic/Mistral/Groq/Ollama 等 14+ 提供商 |
+| **BAML**（可选） | 结构化输出框架 | 类型安全，适合复杂提取任务 |
+
+### 嵌入引擎（双模式）
+
+| 模式 | 方案 | 用途 | 选型依据 |
+|------|------|------|----------|
+| **云端模式**（默认） | qwen3-embedding-8b | 高质量嵌入 | 质量最优，需配置网络和 API Key |
+| **本地模式** | Fastembed / Ollama | 隐私优先，零网络依赖 | 本地部署场景，384-768 维 |
+
+**配置切换**：
+```yaml
+embedding:
+  mode: cloud  # cloud | local
+  cloud:
+    model: qwen3-embedding-8b
+    dimension: 4096
+  local:
+    model: jina-v5-text-nano
+    dimension: 768
+```
+
+### 存储层技术实现框架
+
+```
+图数据库实现（参考 Cognee KuzuAdapter + m_flow GraphProvider）：
+
+Cognee KuzuAdapter 设计（2400+ 行，最完整的 Kuzu 适配器）：
+  - Schema 设计：仅两张表 Node(id, name, type, created_at, updated_at, properties) + EDGE(FROM Node TO Node, relationship_name, properties)
+  - 动态属性存储在 JSON properties 字段中
+  - 异步执行：ThreadPoolExecutor + run_in_executor 将同步 Kuzu 查询包装为异步
+  - 并发控制：asyncio.Lock 保护连接变更；可选 Redis 分布式锁
+  - 批量操作：UNWIND Cypher 子句实现批量节点/边 MERGE
+  - 反馈权重：节点和边都支持 feedback_weight 属性，用于记忆强化
+  - 子图查询：get_neighborhood() 支持 k-hop 遍历，get_nodeset_subgraph() 支持按类型和名称过滤
+
+m_flow GraphProvider 适配器模式：
+  - GraphProvider 抽象基类，定义 Cypher 查询、节点/边 CRUD、子图提取、邻居遍历等接口
+  - _track_changes 装饰器，自动记录节点/边变更到 GraphRelationshipLedger
+  - 实现：KuzuDB（默认嵌入式）、Neo4j、Neptune
+  - 数据集隔离：DatasetDatabaseHandler 接口，Kuzu 和 LanceDB 各有实现
+
+codebase-memory-mcp RAM-first 设计：
+  - SQLite WAL 模式，ACID 安全
+  - 预编译语句缓存：所有 SQL 语句预编译并缓存，避免重复解析
+  - 空闲驱逐：60 秒无活动后关闭缓存的项目 store，释放 SQLite 内存
+  - 文件哈希：stmt_upsert_file_hash / stmt_get_file_hashes 用于增量索引
+
+向量数据库实现（参考 m_flow VectorProvider + Cognee VectorDBInterface）：
+
+m_flow VectorProvider Protocol：
+  - 定义集合管理、MemoryNode CRUD、语义搜索、嵌入生成
+  - 多租户钩子：create_dataset / delete_dataset
+  - 实现：LanceDB（默认）、ChromaDB、PGVector、Pinecone、Milvus
+
+Cognee VectorDBInterface（Protocol）：
+  - has_collection, create_collection, create_data_points, search, batch_search, embed_data
+  - 上下文感知配置：get_vectordb_context_config() 允许不同异步任务使用不同数据库配置
+  - 多租户隔离：ENABLE_BACKEND_ACCESS_CONTROL=True 时，每个 user+dataset 组合可拥有独立实例
+
+嵌入引擎实现（参考 m_flow + QMD）：
+
+m_flow 嵌入引擎：
+  - LiteLLMEmbeddingEngine（默认 OpenAI）
+  - FastembedEmbeddingEngine（本地）
+  - OllamaEmbeddingEngine
+  - MemoryNode.extract_index_text() 方法将索引字段拼接为 " | " 分隔的字符串进行向量化
+
+QMD 双模型族嵌入格式：
+  EmbeddingGemma（默认）：
+    query: "task: search result | query: {query}"
+    doc:   "title: {title} | text: {content}"
+  Qwen3-Embedding（多语言/CJK）：
+    query: "Instruct: Retrieve relevant documents for the given query\nQuery: {query}"
+    doc:   "{title}\n{content}"  # 无特殊前缀
+  并行嵌入：GPU 根据 VRAM 的 25% 计算并行度（上限 8），CPU 根据数学核心数/4（上限 4）
+```
 
 ---
 
@@ -129,6 +207,30 @@ Kuzu 边向量双写策略：
          + miss_penalty（边未被向量检索命中的惩罚）
 
 Episode 最终得分 = min(所有路径成本)  ← 一条强证据链即可证明相关性
+```
+
+---
+
+## 图算法
+
+| 算法 | 用途 | 选型依据 |
+|------|------|----------|
+| **Leiden**（优先） | 社区检测 | graspologic 实现，社区质量高于 Louvain，Graphify 验证 |
+| **Louvain**（回退） | 社区检测 | NetworkX 内置，graspologic 不可用时回退 |
+| **PageRank** | 节点重要性 | KAG PPR 概率传播检索 |
+| **最短路径** | 关系链分析 | NetworkX 内置 |
+| **BFS/DFS** | 子图遍历 | 图查询基础 |
+
+### 社区检测策略
+
+```
+参考 Graphify cluster.py：
+  - 优先使用 Leiden（graspologic），回退到 Louvain（networkx）
+  - 超大社区拆分：超过图节点 25%（最少 10 个节点）的社区会被二次 Leiden 划分
+  - 孤立节点处理：度为 0 的节点不参与 Leiden，每个孤立节点自成单节点社区
+  - 确定性排序：社区按大小降序重新编号，确保跨运行稳定
+  - 内聚度评分：cohesion_score() = 社区内实际边数 / 最大可能边数
+  - 聚类基于图拓扑（边密度），不使用嵌入向量——语义相似性边已存在于图中
 ```
 
 ---

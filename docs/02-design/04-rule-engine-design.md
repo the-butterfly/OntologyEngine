@@ -241,6 +241,39 @@ class RuleExecutor:
         )
 ```
 
+### DAG 执行技术实现框架
+
+```
+参考 KAG Expert Rules DSL + Cognee Pipeline + m_flow Memory Orchestrator：
+
+KAG 逻辑边实时计算（参考 KAG Schema 文档）：
+  - 逻辑边在图谱 N 度推理时通过推理引擎实时计算生成
+  - 事实数据更新后业务规则推理结果随之更新
+  - STRUCTURE 块定义规则结构模式（从哪些事实边推导逻辑边）
+  - CONSTRAINT 块定义约束条件（支持聚合统计）
+  - 示例：deviceNum = group(s,o).count(d); R1("设备超过5"): deviceNum > 5
+
+Cognee Pipeline 执行模式（参考 cognee/pipelines/）：
+  - Task 三层结构：Task(底层执行) → TaskSpec(装饰器包装) → BoundTask(绑定参数)
+  - batch_size 控制批处理粒度
+  - enriches 标记丰富型任务（失败时返回原始数据而非中断）
+  - _Drop 信号支持（任务可返回 Drop 跳过下游传递）
+  - accepts_ctx 自动检测（通过 inspect.signature 判断是否注入 PipelineContext）
+  - 分布式切换：@override_run_tasks(run_tasks_distributed) 装饰器
+
+m_flow Memory Orchestrator（参考 memory_orchestrator.py）：
+  - 并行检索三种记忆类型：Atomic + Episodic + Procedural
+  - 软路由：根据查询意图动态调整 top_k 预算
+  - 完整 P5 管道：Trigger → QueryBuilder → Recaller → Injector → Formatter
+
+OntologyEngine DAG 执行策略：
+  - 拓扑排序 + 顺序执行（当前实现）
+  - 目标：并行执行无依赖规则（参考 Cognee asyncio.gather + Semaphore）
+  - 逻辑边按需计算（参考 KAG，事实边变更时触发重新推导）
+  - 管道状态持久化（参考 Cognee PipelineRun，支持断点续跑）
+  - 回滚机制：snapshot/restore 上下文状态（参考事务模式）
+```
+
 ---
 
 ## 回滚机制
