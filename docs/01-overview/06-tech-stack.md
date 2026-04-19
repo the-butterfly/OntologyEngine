@@ -23,7 +23,7 @@
 | **事务 + 元数据** | SQLite WAL | PostgreSQL / OpenGauss | Dataset/Schema/版本/矛盾报告 | m_flow FSCache + MAMGA |
 | **实体关系主存储** | KuzuDB | Neo4j | Entity/Edge/Rule/互索引 | m_flow GraphProvider |
 | **向量检索（<100K）** | ChromaDB | PGVector | KnowledgeFragment / 边向量 | MemPalace 96.6% R@5 |
-| **向量检索（>100K）** | FAISS IVF+PQ | - | 规模扩展时的向量索引 | Graphify |
+| **向量检索（>100K）** | LanceDB / FAISS IVF+PQ | - | 规模扩展时的向量索引 | Graphify |
 | **原文存储** | 文件系统 + ChromaDB metadata | S3 / OSS | KnowledgeFragment 原文 | MemPalace Drawer |
 | **指标聚合缓存** | SQLite + diskcache | Redis | 分析结果 | m_flow FSCache 模式 |
 
@@ -50,7 +50,7 @@
 │  ├── RuleDefinition / RuleLogic                                     │
 │  └── 互索引边（extracted_from, trace_to, supported_by, defined_in）│
 │                                                                      │
-│  ChromaDB / FAISS（向量检索）◀──────────────────                  │
+│  ChromaDB / LanceDB / FAISS（向量检索）◀──────────────────                  │
 │  ├── KnowledgeFragment 向量（Layer-R）    │                         │
 │  └── 边向量索引 ◀──────────────────────┘ ── MemPalace 模式        │
 │                                                                      │
@@ -193,7 +193,7 @@ Kuzu 边向量双写策略：
 ```
 写入流程：
   1. 写入 Kuzu（主存储，含 edge_text_embedding）
-  2. 写入 ChromaDB/FAISS（索引加速）
+  2. 写入 ChromaDB/LanceDB/FAISS（索引加速）
   3. 记录 SQLite WAL：{edge_id, vector_id, status}
 
 故障恢复：
@@ -383,7 +383,7 @@ data/
 │   └── kuzu.db
 ├── vectors/                 # 向量索引
 │   ├── fragments/          # KnowledgeFragment 向量（ChromaDB）
-│   └── edges/              # 边向量索引（Faiss）
+│   └── edges/              # 边向量索引（LanceDB）
 ├── cache/                   # diskcache（指标缓存/会话）
 ├── snapshots/               # 版本快照
 └── raw_text/               # KnowledgeFragment 原文
@@ -395,7 +395,7 @@ data/
 
 ```
 Phase 1: SQLite + Kuzu + ChromaDB + diskcache
-Phase 2: SQLite + Kuzu + FAISS（规模 >100K 时切换）
+Phase 2: SQLite + Kuzu + LanceDB/FAISS（规模 >100K 时切换）
 Phase 3: 可选云端扩展（Neo4j + PGVector + PostgreSQL）
 ```
 
