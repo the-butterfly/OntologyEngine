@@ -8,7 +8,8 @@
 | 2 | **API 边界封闭** | 禁止跨层直接调用 | `grep -r "sqlite3\|faiss\|redis" ontology_engine/{api,services,engine}/ --include="*.py"` |
 | 3 | **测试先行** | 实现前必须有测试用例 | `ls tests/unit/$(dirname $file)/test_$(basename $file)` |
 | 4 | **文档同步** | 代码变更必须同步文档 | PR / Session 检查 |
-| 5 | **边界外扩需审批** | 新 API 需先写设计文档 | `docs/api/*.md` 或相关设计文档存在性检查 |
+| 5 | **边界外扩需审批** | 新 API 需先写设计文档 | `docs/02-design/api/*.md` 或相关设计文档存在性检查 |
+| 6 | **RFC 先行** | 关键增量的实施内容实现前必须先冻结 RFC | `docs/03-rfc/*.md` |
 
 ## 模块边界
 
@@ -17,6 +18,9 @@ api/           → services/  (禁止直接调 storage/, engine/)
 services/      → engine/    (禁止直接调 storage/)
 engine/        → storage/base.py  (禁止直接调 local/, adapters/)
 storage/local/ → 仅实现 base.py 接口 (禁止依赖上层)
+
+# Phase 2 扩展
+mcp/           → services/ + storage/  (MCP Server 调用现有 service 层)
 ```
 
 ## 开发流程
@@ -40,6 +44,29 @@ Session 关键决策记录到 discuss/
 
 ## 文档体系治理
 
+### 文档三层结构
+
+```
+docs/                   ← 活跃文档（唯一事实源）
+  ├── 01-overview/     ← 愿景、目标、术语、边界（source_of_truth）
+  ├── 02-design/       ← 模块详细设计（draft/under-review）
+  ├── 03-rfc/          ← RFC 提案
+  ├── 04-adr/          ← 架构决策记录
+  └── [STATUS|ROADMAP|TODO].md
+
+docs-baseline/          ← 历史归档（仅供参考，不可作为设计依据）
+  ├── 00-current-baseline/  ← 重写前实现基线
+  ├── 02-design/            ← 废弃的设计文档（DuckDB/旧API）
+  ├── 05-schema-v2/        ← Schema v2 目标架构（已迁移）
+  └── 06-module-detailed-design/  ← 旧模块详细设计
+
+docs-dev/              ← 开发过程文档
+  ├── 03-rfc/          ← RFC 开发版本
+  ├── 04-migration-and-gap/  ← 当前态→目标态映射
+  ├── discuss/         ← Session 关键决策记录
+  └── review-reports/  ← 审视报告
+```
+
 ### 文档角色分层
 
 | 层级 | 文件 / 目录 | 作用 |
@@ -48,13 +75,10 @@ Session 关键决策记录到 discuss/
 | 状态层 | `docs/STATUS.md` | 文档状态、过期情况、热点风险的唯一状态页 |
 | 路线层 | `docs/ROADMAP.md` | 阶段目标与收敛顺序 |
 | Backlog 层 | `docs/TODO.md` | 只保留进行中 / 未完成事项 |
-| 认知层 | `docs/01-overview/` | 愿景、目标、术语、边界 |
-| 当前态 | `docs/02-design/` | MVP / current baseline |
-| 迁移层 | `docs/04-migration-and-gap/` | 当前态 → 目标态的冲突、缺口、迁移路径 |
-| 目标态 | `docs/05-schema-v2/` | 目标架构与 Schema v2 规范 |
-| 实施层 | `docs/06-module-detailed-design/` | Phase 1 模块设计 |
+| 认知层 | `docs/01-overview/` | 愿景、目标、术语、边界（accepted 状态） |
+| 设计层 | `docs/02-design/` | 各模块详细设计（source_of_truth） |
+| Phase 2 层 | `docs/03-rfc/` | Phase 2 改进 RFC |
 | 规范层 | `docs/development/` | 开发规范、测试、扩展指南 |
-| 决策层 | `docs/03-rfc/`、`docs/architecture/decisions/` | RFC / ADR / 决策记录 |
 
 ### 单一事实源（SoT）约定
 
@@ -63,8 +87,9 @@ Session 关键决策记录到 discuss/
 | 文档有效性 / 是否过期 | `docs/STATUS.md` |
 | 阶段路线与优先级 | `docs/ROADMAP.md` |
 | 开放任务 / backlog | `docs/TODO.md` |
-| 当前态 → 目标态的映射 | `docs/04-migration-and-gap/README.md` |
-| Schema v2 根级 grammar | `docs/05-schema-v2/09-canonical-schema-spec.md` |
+| 当前态 → 目标态的映射 | `docs-dev/04-migration-and-gap/README.md` |
+| Schema v2 根级 grammar | `docs/02-design/schema/01-schema-spec.md` |
+| Phase 2 路线与 RFC 状态 | `docs/03-rfc/RFC-010-phase2-roadmap.md` |
 
 ### 文档写作硬规则
 
@@ -91,27 +116,34 @@ Session 关键决策记录到 discuss/
 
 出现以下情况时，必须同步更新文档：
 
-- **代码结构变更**: 更新对应 current baseline 文档，并检查 `STATUS.md`
-- **目标设计变更**: 更新目标态文档，并检查 `ROADMAP.md` 与迁移层文档
-- **冲突被发现**: 先更新 `docs/04-migration-and-gap/README.md`，再决定是否重写专题文档
+- **代码结构变更**: 更新对应设计文档（docs/02-design/），并检查 `STATUS.md`
+- **目标设计变更**: 更新设计文档，并检查 `ROADMAP.md` 与迁移层文档
+- **冲突被发现**: 先更新 `docs-dev/04-migration-and-gap/README.md`，再决定是否重写专题文档
 - **开放任务变化**: 更新 `docs/TODO.md`
 - **文档入口变化**: 更新 `docs/README.md`
-- **关键结论形成**: 记录到 `discuss/*.md`
+- **关键结论形成**: 记录到 `docs-dev/discuss/*.md`
+
+### 文档迁移规则
+
+1. **废弃文档归档**: 当设计文档被重写或废弃时，将其移动到 `docs-baseline/` 对应目录
+2. **目标态迁移**: `docs/05-schema-v2/` → `docs-baseline/05-schema-v2/`，Schema v2 规范已归档
+3. **旧模块设计迁移**: `docs/06-module-detailed-design/` → `docs-baseline/06-module-detailed-design/`
+4. **迁移层分离**: `docs/04-migration-and-gap/` → `docs-dev/04-migration-and-gap/`
+5. **归档文档标注**: 移动到 docs-baseline 的文档，在文件头添加 `[已过期入口]` 标注
 
 ## 必备文档
 
 | 场景 | 查阅文档 |
 |------|----------|
-| 编写测试用例 | `docs/development/testing.md` |
-| 设计新 API | `docs/development/api-design.md` |
-| 添加存储适配器 | `docs/development/storage-adapter.md` |
-| 添加算子 | `docs/development/operator.md` |
-| 代码规范 | `docs/development/code-style.md` |
-| 沟通风格 | `docs/development/communication.md` |
 | 文档状态判断 | `docs/STATUS.md` |
 | 架构阶段路线 | `docs/ROADMAP.md` |
-| 当前态 / 目标态映射 | `docs/04-migration-and-gap/README.md` |
-| Session 退出后记录关键沟通内容 | `discuss/*.md` |
+| 编写测试用例 | `docs-dev/development/testing.md` |
+| 设计新 API | `docs/02-design/api/README.md` |
+| 代码规范 | `docs-dev/development/code-style.md` |
+| 沟通风格 | `docs-dev/development/communication.md` |
+| 当前态 / 目标态映射 | `docs-dev/04-migration-and-gap/README.md` |
+| 过程中的关键RFC文档(已实施&目标) | `docs-dev/03-rfc/` `docs/03-rfc/`|
+| Session 退出后记录关键沟通内容 | `docs-dev/discuss/*.md` |
 
 ## 质量门禁
 
