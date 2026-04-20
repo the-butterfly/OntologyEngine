@@ -250,6 +250,7 @@ class RuleStep:
     enabled: bool = True
     description: str = ""
     tags: list[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)  # DAG 依赖声明，格式: "rule_group/step_id" 或 "step_id"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -263,6 +264,7 @@ class RuleStep:
             "enabled": self.enabled,
             "description": self.description,
             "tags": self.tags,
+            "depends_on": self.depends_on,
         }
 
     @classmethod
@@ -291,6 +293,8 @@ class RuleStep:
             enabled=data.get("enabled", True),
             description=data.get("description", ""),
             tags=data.get("tags", []),
+            # Support both snake_case (depends_on) and camelCase (dependsOn)
+            depends_on=data.get("depends_on") or data.get("dependsOn") or [],
         )
 
 
