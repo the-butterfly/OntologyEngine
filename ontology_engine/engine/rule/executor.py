@@ -448,7 +448,11 @@ class RuleExecutor:
                     rule_results.append(RuleResult(
                         rule_id=step.id,
                         rule_name=step.name,
-                        passed=not step_result.skipped and not step_result.rejected,
+                        passed=(
+                            not step_result.skipped
+                            and not step_result.rejected
+                            and step_result.error is None
+                        ),
                         output=step_result.output or {},
                         error=step_result.error,
                     ))
