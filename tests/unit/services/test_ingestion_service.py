@@ -11,7 +11,7 @@ from ontology_engine.services.dto import (
     RelationCreateRequest,
 )
 from ontology_engine.services.entity_service import EntityService
-from ontology_engine.storage.duckdb import EntityInstance
+from ontology_engine.storage.base import EntityInstance
 
 
 class TestIngestionService:
@@ -52,7 +52,7 @@ class TestIngestionService:
         request = IngestionRequest(
             entities=[
                 EntityCreateRequest(
-                    concept_type="Supplier",
+                    fact_object="Supplier",
                     entity_id="SUP_001",
                     attributes={"name": "Test Supplier"}
                 ),
@@ -74,7 +74,7 @@ class TestIngestionService:
             entities=[],
             relations=[
                 RelationCreateRequest(
-                    relation_type="has_invoice",
+                    relation_name="has_invoice",
                     from_id="SUP_001",
                     to_id="INV_001",
                     attributes={}
@@ -96,8 +96,8 @@ class TestIngestionService:
 
         request = IngestionRequest(
             entities=[
-                EntityCreateRequest(concept_type="Supplier", entity_id="SUP_001", attributes={}),
-                EntityCreateRequest(concept_type="Supplier", entity_id="SUP_002", attributes={}),
+                EntityCreateRequest(fact_object="Supplier", entity_id="SUP_001", attributes={}),
+                EntityCreateRequest(fact_object="Supplier", entity_id="SUP_002", attributes={}),
             ],
             relations=[]
         )
@@ -113,7 +113,7 @@ class TestIngestionService:
         """Test importing from dictionary format."""
         data = {
             "entities": [
-                {"concept_type": "Supplier", "entity_id": "SUP_001", "attributes": {"name": "Test"}}
+                {"fact_object": "Supplier", "entity_id": "SUP_001", "attributes": {"name": "Test"}}
             ],
             "relations": [
                 {"relation_type": "has_invoice", "from_id": "SUP_001", "to_id": "INV_001"}
@@ -140,12 +140,12 @@ class TestIngestionService:
         """Test validating valid import data."""
         request = IngestionRequest(
             entities=[
-                EntityCreateRequest(concept_type="Supplier", entity_id="SUP_001", attributes={}),
-                EntityCreateRequest(concept_type="Invoice", entity_id="INV_001", attributes={}),
+                EntityCreateRequest(fact_object="Supplier", entity_id="SUP_001", attributes={}),
+                EntityCreateRequest(fact_object="Invoice", entity_id="INV_001", attributes={}),
             ],
             relations=[
                 RelationCreateRequest(
-                    relation_type="has_invoice",
+                    relation_name="has_invoice",
                     from_id="SUP_001",
                     to_id="INV_001",
                     attributes={}
@@ -163,7 +163,7 @@ class TestIngestionService:
         """Test validating with missing entity_id."""
         request = IngestionRequest(
             entities=[
-                EntityCreateRequest(concept_type="Supplier", entity_id="", attributes={}),
+                EntityCreateRequest(fact_object="Supplier", entity_id="", attributes={}),
             ],
             relations=[]
         )
@@ -175,11 +175,11 @@ class TestIngestionService:
         assert "entity_id is required" in invalid[0]["error"]
 
     @pytest.mark.asyncio
-    async def test_validate_import_missing_concept_type(self, service):
-        """Test validating with missing concept_type."""
+    async def test_validate_import_missing_fact_object(self, service):
+        """Test validating with missing fact_object."""
         request = IngestionRequest(
             entities=[
-                EntityCreateRequest(concept_type="", entity_id="SUP_001", attributes={}),
+                EntityCreateRequest(fact_object="", entity_id="SUP_001", attributes={}),
             ],
             relations=[]
         )
@@ -187,18 +187,18 @@ class TestIngestionService:
         valid, invalid = await service.validate_import(request)
 
         assert len(invalid) == 1
-        assert "concept_type is required" in invalid[0]["error"]
+        assert "fact_object is required" in invalid[0]["error"]
 
     @pytest.mark.asyncio
     async def test_validate_import_relation_missing_from_id(self, service):
         """Test validating relation with missing from_id."""
         request = IngestionRequest(
             entities=[
-                EntityCreateRequest(concept_type="Supplier", entity_id="SUP_001", attributes={}),
+                EntityCreateRequest(fact_object="Supplier", entity_id="SUP_001", attributes={}),
             ],
             relations=[
                 RelationCreateRequest(
-                    relation_type="has_invoice",
+                    relation_name="has_invoice",
                     from_id="",
                     to_id="INV_001",
                     attributes={}
@@ -216,11 +216,11 @@ class TestIngestionService:
         """Test validating relation where entity not in entity list."""
         request = IngestionRequest(
             entities=[
-                EntityCreateRequest(concept_type="Supplier", entity_id="SUP_001", attributes={}),
+                EntityCreateRequest(fact_object="Supplier", entity_id="SUP_001", attributes={}),
             ],
             relations=[
                 RelationCreateRequest(
-                    relation_type="has_invoice",
+                    relation_name="has_invoice",
                     from_id="SUP_001",
                     to_id="INV_001",  # Not in entity list
                     attributes={}

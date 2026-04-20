@@ -34,7 +34,7 @@ class TestLocalVectorStore:
         await store.add_vectors(
             ids=["v1", "v2"],
             vectors=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-            metadata=[{"concept_type": "A"}, {"concept_type": "B"}],
+            metadata=[{"fact_object": "A"}, {"fact_object": "B"}],
         )
 
         results = await store.search(query_vector=[1.0, 0.0, 0.0], top_k=1)
@@ -48,13 +48,13 @@ class TestLocalVectorStore:
         await store.add_vectors(
             ids=["v1", "v2"],
             vectors=[[1.0, 0.0, 0.0], [0.99, 0.0, 0.0]],
-            metadata=[{"concept_type": "A"}, {"concept_type": "B"}],
+            metadata=[{"fact_object": "A"}, {"fact_object": "B"}],
         )
 
         results = await store.search(
             query_vector=[1.0, 0.0, 0.0],
             top_k=10,
-            filters={"concept_type": "B"},
+            filters={"fact_object": "B"},
         )
         assert len(results) == 1
         assert results[0].id == "v2"
@@ -102,5 +102,5 @@ class TestLocalVectorStore:
             await store.add_vectors(
                 ids=["v1", "v2"],
                 vectors=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-                metadata=[{"concept_type": "A"}],
+                metadata=[{"fact_object": "A"}],
             )

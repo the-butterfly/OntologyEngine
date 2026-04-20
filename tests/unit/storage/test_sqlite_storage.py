@@ -1,4 +1,4 @@
-"""Tests for DuckDBStorage."""
+"""Tests for SQLiteStorage."""
 
 from __future__ import annotations
 
@@ -7,15 +7,16 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from ontology_engine.storage.duckdb import DuckDBStorage, EntityInstance, RelationInstance
+from ontology_engine.storage.sqlite.store import SQLiteStorage
+from ontology_engine.storage.base import EntityInstance, RelationInstance
 
 
-class TestDuckDBStorage:
-    """Exercise storage behavior against real DuckDB."""
+class TestSQLiteStorage:
+    """Exercise storage behavior against real SQLite."""
 
     @pytest_asyncio.fixture
-    async def storage(self) -> DuckDBStorage:
-        db = DuckDBStorage(":memory:")
+    async def storage(self) -> SQLiteStorage:
+        db = SQLiteStorage(":memory:")
         await db.initialize()
         try:
             yield db
@@ -23,9 +24,9 @@ class TestDuckDBStorage:
             await db.close()
 
     @pytest.mark.asyncio
-    async def test_entity_crud(self, storage: DuckDBStorage) -> None:
+    async def test_entity_crud(self, storage: SQLiteStorage) -> None:
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"company_name": "测试供应商", "status": "ACTIVE"},
         )
@@ -38,7 +39,7 @@ class TestDuckDBStorage:
         assert loaded.data["company_name"] == "测试供应商"
 
     @pytest.mark.asyncio
-    async def test_get_entity_by_id(self, storage: DuckDBStorage) -> None:
+    async def test_get_entity_by_id(self, storage: SQLiteStorage) -> None:
         await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
         await storage.save_entity(EntityInstance("Invoice", "INV_001", {"status": "PAID"}))
 
@@ -51,27 +52,27 @@ class TestDuckDBStorage:
         assert missing is None
 
     @pytest.mark.asyncio
-    async def test_query_entities_supports_all_concepts(self, storage: DuckDBStorage) -> None:
+    async def test_query_entities_supports_all_concepts(self, storage: SQLiteStorage) -> None:
         await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
         await storage.save_entity(EntityInstance("Invoice", "INV_001", {"status": "PAID"}))
 
-        all_entities = await storage.query_entities(concept=None)
-        supplier_entities = await storage.query_entities(concept="Supplier")
+        all_entities = await storage.query_entities(fact_object=None)
+        supplier_entities = await storage.query_entities(fact_object="Supplier")
 
         assert {entity.entity_id for entity in all_entities} == {"SUP_001", "INV_001"}
         assert [entity.entity_id for entity in supplier_entities] == ["SUP_001"]
 
     @pytest.mark.asyncio
-    async def test_query_entities_with_json_filters(self, storage: DuckDBStorage) -> None:
+    async def test_query_entities_with_json_filters(self, storage: SQLiteStorage) -> None:
         await storage.save_entity(EntityInstance("Supplier", "SUP_001", {"status": "ACTIVE"}))
         await storage.save_entity(EntityInstance("Supplier", "SUP_002", {"status": "SUSPENDED"}))
 
-        results = await storage.query_entities(concept="Supplier", filters={"status": "ACTIVE"})
+        results = await storage.query_entities(fact_object="Supplier", filters={"status": "ACTIVE"})
 
         assert [entity.entity_id for entity in results] == ["SUP_001"]
 
     @pytest.mark.asyncio
-    async def test_relations_and_neighbors(self, storage: DuckDBStorage) -> None:
+    async def test_relations_and_neighbors(self, storage: SQLiteStorage) -> None:
         supplier = EntityInstance("Supplier", "SUP_001", {"company_name": "A"})
         invoice = EntityInstance("Invoice", "INV_001", {"amount": {"value": 10}})
         await storage.save_entity(supplier)
@@ -88,7 +89,7 @@ class TestDuckDBStorage:
         assert neighbors[0][1].data["source"] == "demo"
 
     @pytest.mark.asyncio
-    async def test_metric_and_category_persistence(self, storage: DuckDBStorage) -> None:
+    async def test_metric_and_category_persistence(self, storage: SQLiteStorage) -> None:
         await storage.save_metric("SUP_001", "credit_score", 88)
         await storage.save_category_tags("SUP_001", {"risk_level": "LOW"})
 
@@ -96,7 +97,7 @@ class TestDuckDBStorage:
         assert await storage.get_category_tags("SUP_001") == {"risk_level": "LOW"}
 
     @pytest.mark.asyncio
-    async def test_rule_execution_log_accepts_multiple_rows(self, storage: DuckDBStorage) -> None:
+    async def test_rule_execution_log_accepts_multiple_rows(self, storage: SQLiteStorage) -> None:
         await storage.log_rule_execution("SUP_001", "R001", "passed")
         await storage.log_rule_execution("SUP_001", "R002", "failed")
 
@@ -112,8 +113,7 @@ class TestDuckDBStorage:
         assert count == 2
 
     @pytest.mark.asyncio
-    async def test_get_rule_execution_log_returns_all(self, storage: DuckDBStorage) -> None:
-        """Test get_rule_execution_log returns all records for an entity."""
+    async def test_get_rule_execution_log_returns_all(self, storage: SQLiteStorage) -> None:
         await storage.log_rule_execution("SUP_001", "R001", "passed")
         await storage.log_rule_execution("SUP_001", "R002", "failed")
         await storage.log_rule_execution("SUP_002", "R001", "passed")
@@ -127,8 +127,7 @@ class TestDuckDBStorage:
         assert results == {"passed", "failed"}
 
     @pytest.mark.asyncio
-    async def test_get_rule_execution_log_filter_by_rule_id(self, storage: DuckDBStorage) -> None:
-        """Test get_rule_execution_log filters by rule_id."""
+    async def test_get_rule_execution_log_filter_by_rule_id(self, storage: SQLiteStorage) -> None:
         await storage.log_rule_execution("SUP_001", "R001", "passed")
         await storage.log_rule_execution("SUP_001", "R002", "failed")
         await storage.log_rule_execution("SUP_001", "R001", "passed_again")
@@ -139,8 +138,7 @@ class TestDuckDBStorage:
         assert all(r["rule_id"] == "R001" for r in result)
 
     @pytest.mark.asyncio
-    async def test_get_rule_execution_log_empty(self, storage: DuckDBStorage) -> None:
-        """Test get_rule_execution_log returns empty list when no records."""
+    async def test_get_rule_execution_log_empty(self, storage: SQLiteStorage) -> None:
         result = await storage.get_rule_execution_log("NONEXISTENT")
 
         assert result == []

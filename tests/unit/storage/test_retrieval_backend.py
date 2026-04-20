@@ -55,7 +55,7 @@ class TestDefaultRetrievalBackend:
     @pytest.mark.asyncio
     async def test_semantic_search_with_embedder(self, storage, vector_store):
         vector_store.search.return_value = [
-            VectorSearchResult(id="e1", score=0.9, metadata={"concept_type": "A"}),
+            VectorSearchResult(id="e1", score=0.9, metadata={"fact_object": "A"}),
         ]
         embedder = lambda text: [1.0, 0.0]  # noqa: E731
         r = DefaultRetrievalBackend(
@@ -69,14 +69,14 @@ class TestDefaultRetrievalBackend:
     @pytest.mark.asyncio
     async def test_semantic_search_concept_filter(self, storage, vector_store):
         vector_store.search.return_value = [
-            VectorSearchResult(id="e1", score=0.9, metadata={"concept_type": "A"}),
-            VectorSearchResult(id="e2", score=0.8, metadata={"concept_type": "B"}),
+            VectorSearchResult(id="e1", score=0.9, metadata={"fact_object": "A"}),
+            VectorSearchResult(id="e2", score=0.8, metadata={"fact_object": "B"}),
         ]
         embedder = lambda text: [1.0, 0.0]  # noqa: E731
         r = DefaultRetrievalBackend(
             storage=storage, vector_store=vector_store, embedder=embedder
         )
-        results = await r.semantic_search("hello", concept_type="A")
+        results = await r.semantic_search("hello", fact_object="A")
         assert len(results) == 1
         assert results[0].id == "e1"
 
@@ -196,7 +196,7 @@ class TestDefaultRetrievalBackend:
     async def test_graph_pattern_match_empty_pattern(self, storage):
         from ontology_engine.storage.base import EntityInstance
         storage.query_entities.return_value = [
-            EntityInstance(concept="Company", entity_id="c1", data={"name": "A"}),
+            EntityInstance(_fact_object="Company", entity_id="c1", data={"name": "A"}),
         ]
         r = DefaultRetrievalBackend(storage=storage)
         results = await r.graph_pattern_match("Company", [])
@@ -208,7 +208,7 @@ class TestDefaultRetrievalBackend:
         """Test short path (<=2 hops) uses get_neighbors."""
         from ontology_engine.storage.base import EntityInstance
         storage.query_entities.return_value = [
-            EntityInstance(concept="Company", entity_id="c1", data={}),
+            EntityInstance(_fact_object="Company", entity_id="c1", data={}),
         ]
         graph_store.get_neighbors.return_value = [
             {"neighbor_id": "c2", "edge_type": "guarantees"},
@@ -229,7 +229,7 @@ class TestDefaultRetrievalBackend:
         """Test long path (>2 hops) uses Cypher."""
         from ontology_engine.storage.base import EntityInstance
         storage.query_entities.return_value = [
-            EntityInstance(concept="Company", entity_id="c1", data={}),
+            EntityInstance(_fact_object="Company", entity_id="c1", data={}),
         ]
         # 3-hop pattern triggers Cypher path
         graph_store.execute_cypher.return_value = [
@@ -251,14 +251,14 @@ class TestDefaultRetrievalBackend:
 
     @pytest.mark.asyncio
     async def test_graph_pattern_match_with_fallback(self, storage):
-        """Test fallback to DuckDB when no graph store."""
+        """Test fallback to MetaStore when no graph store."""
         from ontology_engine.storage.base import EntityInstance, RelationInstance
         storage.query_entities.return_value = [
-            EntityInstance(concept="Company", entity_id="c1", data={}),
+            EntityInstance(_fact_object="Company", entity_id="c1", data={}),
         ]
         storage.get_neighbors.return_value = [
             (
-                EntityInstance(concept="Invoice", entity_id="i1", data={}),
+                EntityInstance(_fact_object="Invoice", entity_id="i1", data={}),
                 RelationInstance("has_invoice", "c1", "i1"),
             )
         ]
@@ -276,7 +276,7 @@ class TestDefaultRetrievalBackend:
     async def test_graph_pattern_match_no_match(self, storage, graph_store):
         from ontology_engine.storage.base import EntityInstance
         storage.query_entities.return_value = [
-            EntityInstance(concept="Company", entity_id="c1", data={}),
+            EntityInstance(_fact_object="Company", entity_id="c1", data={}),
         ]
         graph_store.get_neighbors.return_value = []
         r = DefaultRetrievalBackend(storage=storage, graph_store=graph_store)

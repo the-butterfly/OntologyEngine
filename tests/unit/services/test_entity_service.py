@@ -10,7 +10,7 @@ from ontology_engine.services.dto import (
     ConceptNotDefinedError,
     EntityNotFoundError,
 )
-from ontology_engine.storage.duckdb import EntityInstance
+from ontology_engine.storage.base import EntityInstance
 from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata, ConceptDefinition
 
 
@@ -47,19 +47,19 @@ class TestEntityService:
     async def test_create_entity(self, service, storage):
         """Test creating an entity."""
         request = EntityCreateRequest(
-            concept_type="Supplier",
+            fact_object="Supplier",
             entity_id="SUP_001",
             attributes={"name": "Test Supplier"}
         )
 
         result = await service.create_entity(
-            concept_type=request.concept_type,
+            fact_object=request.fact_object,
             entity_id=request.entity_id,
             attributes=request.attributes
         )
 
         assert result.entity_id == "SUP_001"
-        assert result.concept_type == "Supplier"
+        assert result.fact_object == "Supplier"
         assert result.attributes == {"name": "Test Supplier"}
         storage.save_entity.assert_called_once()
 
@@ -67,14 +67,14 @@ class TestEntityService:
     async def test_create_entity_concept_not_defined(self, service):
         """Test creating entity with undefined concept raises error."""
         request = EntityCreateRequest(
-            concept_type="UnknownConcept",
+            fact_object="UnknownConcept",
             entity_id="ENT_001",
             attributes={}
         )
 
         with pytest.raises(ConceptNotDefinedError):
             await service.create_entity(
-                concept_type=request.concept_type,
+                fact_object=request.fact_object,
                 entity_id=request.entity_id,
                 attributes=request.attributes
             )
@@ -83,8 +83,8 @@ class TestEntityService:
     async def test_batch_create(self, service, storage):
         """Test batch entity creation."""
         requests = [
-            EntityCreateRequest(concept_type="Supplier", entity_id="SUP_001", attributes={}),
-            EntityCreateRequest(concept_type="Supplier", entity_id="SUP_002", attributes={}),
+            EntityCreateRequest(fact_object="Supplier", entity_id="SUP_001", attributes={}),
+            EntityCreateRequest(fact_object="Supplier", entity_id="SUP_002", attributes={}),
         ]
 
         result = await service.batch_create(requests)
@@ -97,8 +97,8 @@ class TestEntityService:
     async def test_batch_create_partial_failure(self, service, storage):
         """Test batch creation with partial failure."""
         requests = [
-            EntityCreateRequest(concept_type="Supplier", entity_id="SUP_001", attributes={}),
-            EntityCreateRequest(concept_type="UnknownConcept", entity_id="ENT_002", attributes={}),
+            EntityCreateRequest(fact_object="Supplier", entity_id="SUP_001", attributes={}),
+            EntityCreateRequest(fact_object="UnknownConcept", entity_id="ENT_002", attributes={}),
         ]
 
         result = await service.batch_create(requests)
@@ -111,7 +111,7 @@ class TestEntityService:
     async def test_get_entity(self, service, storage):
         """Test getting an entity."""
         storage.get_entity.return_value = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"name": "Test"}
         )
@@ -120,7 +120,7 @@ class TestEntityService:
 
         assert result is not None
         assert result.entity_id == "SUP_001"
-        assert result.concept_type == "Supplier"
+        assert result.fact_object == "Supplier"
 
     @pytest.mark.asyncio
     async def test_get_entity_not_found(self, service, storage):
@@ -135,34 +135,34 @@ class TestEntityService:
     async def test_query_entities(self, service, storage):
         """Test querying entities."""
         storage.query_entities.return_value = [
-            EntityInstance(concept="Supplier", entity_id="SUP_001", data={}),
-            EntityInstance(concept="Supplier", entity_id="SUP_002", data={}),
+            EntityInstance(_fact_object="Supplier", entity_id="SUP_001", data={}),
+            EntityInstance(_fact_object="Supplier", entity_id="SUP_002", data={}),
         ]
 
-        result = await service.query_entities(concept_type="Supplier")
+        result = await service.query_entities(fact_object="Supplier")
 
         assert len(result) == 2
-        storage.query_entities.assert_called_once_with(concept="Supplier", filters=None)
+        storage.query_entities.assert_called_once_with(fact_object="Supplier", filters=None)
 
     @pytest.mark.asyncio
     async def test_query_entities_with_filters(self, service, storage):
         """Test querying entities with filters."""
         filters = {"status": "active"}
-        result = await service.query_entities(concept_type="Supplier", filters=filters)
+        result = await service.query_entities(fact_object="Supplier", filters=filters)
 
-        storage.query_entities.assert_called_once_with(concept="Supplier", filters=filters)
+        storage.query_entities.assert_called_once_with(fact_object="Supplier", filters=filters)
 
     @pytest.mark.asyncio
     async def test_create_relation(self, service, storage):
         """Test creating a relation."""
         result = await service.create_relation(
-            relation_type="has_invoice",
+            relation_name="has_invoice",
             from_id="SUP_001",
             to_id="INV_001",
             attributes={"amount": 100000}
         )
 
-        assert result.relation_type == "has_invoice"
+        assert result.relation_name == "has_invoice"
         assert result.from_id == "SUP_001"
         assert result.to_id == "INV_001"
         assert result.attributes == {"amount": 100000}
@@ -171,7 +171,7 @@ class TestEntityService:
     async def test_get_neighbors(self, service, storage):
         """Test getting neighboring entities."""
         neighbor_entity = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_001",
             data={"amount": 100000}
         )

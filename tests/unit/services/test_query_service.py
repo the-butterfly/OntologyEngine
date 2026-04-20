@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.services.query_service import QueryService
 from ontology_engine.storage.base import VectorSearchResult
-from ontology_engine.storage.duckdb import EntityInstance
+from ontology_engine.storage.base import EntityInstance
 
 
 class TestQueryService:
@@ -40,14 +40,14 @@ class TestQueryService:
         result = await service.pattern_match("Supplier")
 
         assert len(result) == 0
-        storage.query_entities.assert_called_once_with(concept="Supplier", filters=None)
+        storage.query_entities.assert_called_once_with(fact_object="Supplier", filters=None)
 
     @pytest.mark.asyncio
     async def test_pattern_match_with_results(self, service, storage):
         """Test pattern match with results."""
         entities = [
-            EntityInstance(concept="Supplier", entity_id="SUP_001", data={"name": "Supplier A"}),
-            EntityInstance(concept="Supplier", entity_id="SUP_002", data={"name": "Supplier B"}),
+            EntityInstance(_fact_object="Supplier", entity_id="SUP_001", data={"name": "Supplier A"}),
+            EntityInstance(_fact_object="Supplier", entity_id="SUP_002", data={"name": "Supplier B"}),
         ]
         storage.query_entities.return_value = entities
 
@@ -63,7 +63,7 @@ class TestQueryService:
         await service.pattern_match("Supplier", patterns={"status": "active"})
 
         storage.query_entities.assert_called_once_with(
-            concept="Supplier",
+            fact_object="Supplier",
             filters={"status": "active"}
         )
 
@@ -71,8 +71,8 @@ class TestQueryService:
     async def test_graph_traverse(self, service, storage):
         """Test graph traversal."""
         neighbors = [
-            (EntityInstance(concept="Invoice", entity_id="INV_001", data={}), MagicMock()),
-            (EntityInstance(concept="Invoice", entity_id="INV_002", data={}), MagicMock()),
+            (EntityInstance(_fact_object="Invoice", entity_id="INV_001", data={}), MagicMock()),
+            (EntityInstance(_fact_object="Invoice", entity_id="INV_002", data={}), MagicMock()),
         ]
         storage.get_neighbors.return_value = neighbors
 
@@ -94,7 +94,7 @@ class TestQueryService:
 
         storage.get_neighbors.assert_called_once_with(
             entity_id="INV_001",
-            relation_type="has_invoice",
+            relation_name="has_invoice",
             direction="incoming"
         )
 
@@ -130,7 +130,7 @@ class TestQueryService:
         """Test finding paths between entities."""
         # First call returns neighbor
         storage.get_neighbors.side_effect = [
-            [(EntityInstance(concept="Invoice", entity_id="INV_001", data={}), MagicMock())],
+            [(EntityInstance(_fact_object="Invoice", entity_id="INV_001", data={}), MagicMock())],
             []  # Second level has no neighbors
         ]
 
@@ -169,10 +169,10 @@ class TestQueryServicePhase2Retrieval:
         retrieval.semantic_search.return_value = [
             VectorSearchResult(id="e1", score=0.9, metadata={}),
         ]
-        result = await service.semantic_search("query", top_k=5, concept_type="Company")
+        result = await service.semantic_search("query", top_k=5, fact_object="Company")
         assert len(result) == 1
         retrieval.semantic_search.assert_awaited_once_with(
-            query_text="query", top_k=5, concept_type="Company"
+            query_text="query", top_k=5, fact_object="Company"
         )
 
     @pytest.mark.asyncio
@@ -223,7 +223,7 @@ class TestQueryServicePhase2Retrieval:
     async def test_graph_pattern_match_fallback_without_retrieval(self, storage):
         from ontology_engine.storage.base import EntityInstance
         storage.query_entities.return_value = [
-            EntityInstance(concept="Company", entity_id="c1", data={}),
+            EntityInstance(_fact_object="Company", entity_id="c1", data={}),
         ]
         storage.get_neighbors.return_value = []
         service = QueryService(storage=storage)
