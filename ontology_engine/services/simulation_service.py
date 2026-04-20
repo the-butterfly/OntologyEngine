@@ -59,6 +59,54 @@ class SimulationService:
         """Initialize SimulationService."""
         self._evaluator = ExpressionEvaluator()
 
+    @staticmethod
+    def create_expression_engine() -> Any:
+        """Create an ExpressionEngine instance.
+
+        Factory method to avoid direct engine imports in the API layer.
+        Follows the module boundary rule: api/ → services/ only.
+        """
+        from ontology_engine.engine.expression.engine import ExpressionEngine
+        return ExpressionEngine()
+
+    @staticmethod
+    def create_execution_context(
+        entity_id: str = "",
+        dimension: str = "",
+        entity_data: dict[str, Any] | None = None,
+        computed_metrics: dict[str, Any] | None = None,
+    ) -> Any:
+        """Create an ExecutionContext instance.
+
+        Factory method to avoid direct engine imports in the API layer.
+        Follows the module boundary rule: api/ → services/ only.
+        """
+        from ontology_engine.engine.rule.models import ExecutionContext
+        return ExecutionContext(
+            entity_id=entity_id,
+            dimension=dimension,
+            entity_data=entity_data or {},
+            computed_metrics=computed_metrics or {},
+        )
+
+    @staticmethod
+    def list_operator_schemas() -> list[Any]:
+        """List all available operator schemas.
+
+        Factory method to avoid direct engine imports in the API layer.
+        """
+        from ontology_engine.engine.rule.operators import build_operator_schemas
+        return build_operator_schemas()
+
+    @staticmethod
+    def get_operator_schema(name: str) -> Any:
+        """Get a specific operator schema by name.
+
+        Factory method to avoid direct engine imports in the API layer.
+        """
+        from ontology_engine.engine.rule.operators.registry import get_operator_schema
+        return get_operator_schema(name)
+
     async def simulate_rule_group(
         self,
         rule_group: RuleGroupDefinition,

@@ -54,7 +54,7 @@ class IngestionService:
         for entity_data in request.entities:
             try:
                 entity = EntityInstance(
-                    concept=entity_data.concept_type,
+                    _fact_object=entity_data.fact_object,
                     entity_id=entity_data.entity_id,
                     data=entity_data.attributes if entity_data.attributes else {}
                 )
@@ -70,7 +70,7 @@ class IngestionService:
         for rel_data in request.relations:
             try:
                 relation = RelationInstance(
-                    relation_type=rel_data.relation_type,
+                    relation_name=rel_data.relation_name,
                     from_entity_id=rel_data.from_id,
                     to_entity_id=rel_data.to_id,
                     data=rel_data.attributes if rel_data.attributes else {}
@@ -81,7 +81,7 @@ class IngestionService:
                 errors.append({
                     "from_id": rel_data.from_id,
                     "to_id": rel_data.to_id,
-                    "relation_type": rel_data.relation_type,
+                    "relation_name": rel_data.relation_name,
                     "error": str(e)
                 })
 
@@ -118,7 +118,7 @@ class IngestionService:
         """
         entities = [
             EntityCreateRequest(
-                concept_type=e.get("concept_type", ""),
+                fact_object=e.get("fact_object", "") or e.get("concept_type", ""),
                 entity_id=e.get("entity_id", ""),
                 attributes=e.get("attributes", {})
             )
@@ -128,7 +128,7 @@ class IngestionService:
         from ontology_engine.services.dto import RelationCreateRequest
         relations = [
             RelationCreateRequest(
-                relation_type=r.get("relation_type", ""),
+                relation_name=r.get("relation_name", "") or r.get("relation_type", ""),
                 from_id=r.get("from_id", ""),
                 to_id=r.get("to_id", ""),
                 attributes=r.get("attributes", {})
@@ -167,11 +167,11 @@ class IngestionService:
                     "error": "entity_id is required"
                 })
                 continue
-            if not entity_data.concept_type:
+            if not entity_data.fact_object:
                 invalid_reasons.append({
                     "entity_id": entity_data.entity_id,
                     "type": "entity",
-                    "error": "concept_type is required"
+                    "error": "fact_object is required"
                 })
                 continue
             valid_entities.append(entity_data.entity_id)

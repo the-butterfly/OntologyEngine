@@ -8,33 +8,31 @@ This migration:
 2. Prints current rule_declarations count for verification
 """
 
+import sqlite3
 import sys
-import duckdb
 
 
 def migrate(db_path: str) -> None:
-    conn = duckdb.connect(db_path, read_only=False)
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
 
-    # Check rule_declarations table exists
-    tables = conn.execute("SHOW TABLES").fetchall()
-    table_names = [t[0] for t in tables]
-
-    if "rule_declarations" not in table_names:
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='rule_declarations'"
+    )
+    if cursor.fetchone() is None:
         print("No rule_declarations table found — nothing to migrate")
         conn.close()
         return
 
-    # Count old records
     old_count = conn.execute("SELECT COUNT(*) FROM rule_declarations").fetchone()[0]
     print(f"Found {old_count} rule_declarations")
 
     new_count = conn.execute("SELECT COUNT(*) FROM rule_groups").fetchone()[0]
     print(f"Found {new_count} rule_groups")
 
-    # Migration: add source_declaration_id column if not exists
     try:
         conn.execute(
-            "ALTER TABLE rule_groups ADD COLUMN IF NOT EXISTS source_declaration_id VARCHAR"
+            "ALTER TABLE rule_groups ADD COLUMN source_declaration_id TEXT"
         )
         print("Added source_declaration_id column to rule_groups")
     except Exception as e:

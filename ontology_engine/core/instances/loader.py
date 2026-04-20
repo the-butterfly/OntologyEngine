@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import yaml
-from ontology_engine.storage.duckdb import EntityInstance, RelationInstance
+from ontology_engine.storage.base import EntityInstance, RelationInstance
 
 
 class InstanceLoadError(Exception):
@@ -49,18 +49,17 @@ class InstanceLoader:
                         continue
 
                     # Add concept to data for reference
-                    data["_concept"] = concept
+                    data["_fact_object"] = concept
 
                     entities.append(EntityInstance(
-                        concept=concept,
+                        _fact_object=concept,
                         entity_id=entity_id,
                         data=data
                     ))
 
-                    # Extract relations
                     for rel_data in data.get("has_invoice", []):
                         relations.append(RelationInstance(
-                            relation_type="has_invoice",
+                            relation_name="has_invoice",
                             from_entity_id=entity_id,
                             to_entity_id=rel_data.get("invoice_no"),
                             data={}
@@ -68,7 +67,7 @@ class InstanceLoader:
 
                     for rel_data in data.get("supplies_to", []):
                         relations.append(RelationInstance(
-                            relation_type="supplies_to",
+                            relation_name="supplies_to",
                             from_entity_id=entity_id,
                             to_entity_id=rel_data.get("enterprise_id"),
                             data={}
@@ -76,19 +75,18 @@ class InstanceLoader:
 
                     for rel_data in data.get("guaranteed_by", []):
                         relations.append(RelationInstance(
-                            relation_type="guaranteed_by",
+                            relation_name="guaranteed_by",
                             from_entity_id=entity_id,
                             to_entity_id=rel_data.get("supplier_id"),
                             data={}
                         ))
             else:
-                # Handle data as a single dict (fallback)
                 data = data_list
                 entity_id = self._extract_entity_id(concept, data)
                 if entity_id:
-                    data["_concept"] = concept
+                    data["_fact_object"] = concept
                     entities.append(EntityInstance(
-                        concept=concept,
+                        _fact_object=concept,
                         entity_id=entity_id,
                         data=data
                     ))

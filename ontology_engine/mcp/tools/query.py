@@ -2,7 +2,7 @@
 
 from ontology_engine.mcp import mcp_response
 from ontology_engine.services.query_service import QueryService
-from ontology_engine.storage.duckdb.store import DuckDBStorage
+from ontology_engine.storage.sqlite.store import SQLiteStorage
 
 
 async def oe_query(
@@ -21,7 +21,7 @@ async def oe_query(
         MCP 统一格式: {success, data, error}
     """
     try:
-        storage = DuckDBStorage(db_path=":memory:")
+        storage = SQLiteStorage(db_path=":memory:")
         await storage.initialize()
         service = QueryService(storage=storage)
 
@@ -39,7 +39,7 @@ async def oe_query(
                 "results": [
                     {
                         "entity_id": r.entity_id,
-                        "concept_type": r.concept_type,
+                        "fact_object": r.fact_object,
                         "score": r.score,
                         "attributes": r.attributes,
                     }

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ontology_engine.core.schema import KGMLSchema, SchemaLoader
 from ontology_engine.core.instances import InstanceLoader
-from ontology_engine.storage import DuckDBStorage
+from ontology_engine.storage import SQLiteStorage
 from ontology_engine.engine.rule import RuleExecutor
 from ontology_engine.engine.rule.models import AnalysisResult
 
@@ -26,7 +26,7 @@ class OntologyEngine:
     def __init__(
         self,
         schema: KGMLSchema,
-        storage: DuckDBStorage,
+        storage: SQLiteStorage,
         rule_executor: RuleExecutor,
     ):
         self.schema = schema
@@ -52,7 +52,7 @@ class OntologyEngine:
             import warnings
             warnings.warn(f"Schema validation issues: {issues}")
 
-        storage = DuckDBStorage(":memory:")
+        storage = SQLiteStorage(":memory:")
 
         rule_executor = RuleExecutor(schema)
 

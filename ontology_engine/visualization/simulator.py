@@ -7,7 +7,7 @@ import math
 import re
 import time
 import traceback
-from dataclasses import asdict, fields, is_dataclass
+from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -15,7 +15,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from ontology_engine.core.schema.models import KGMLSchema, RuleDefinition
-from ontology_engine.engine.rule.evaluator import ExpressionEvaluator
 from ontology_engine.engine.rule.executor import RuleExecutor
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
@@ -87,10 +86,10 @@ class RuleChainSimulator:
             entity = await self._find_entity(entity_id)
             if entity is None:
                 raise EntityNotFoundError(entity_id)
-            logger.info(f"Found entity: {entity_id}, concept: {entity.concept}")
+            logger.info(f"Found entity: {entity_id}, fact_object: {entity._fact_object}")
 
             entity_data = dict(entity.data)
-            entity_data["_concept"] = entity.concept
+            entity_data["_fact_object"] = entity._fact_object
 
             # 2. Baseline execution for What-if comparison
             baseline_result: SimulationResult | None = None
@@ -670,7 +669,7 @@ def convert_to_json_safe(obj: Any) -> Any:
     try:
         # Use JSON round-trip to convert all types
         return json.loads(json.dumps(obj, cls=JSONSafeEncoder))
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError):
         # If JSON conversion fails, try to convert to string
         try:
             return str(obj)

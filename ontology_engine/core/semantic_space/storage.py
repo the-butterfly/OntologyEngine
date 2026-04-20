@@ -6,13 +6,11 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from ontology_engine.core.semantic_space import (
     SemanticSpace,
     SpaceMetadata,
     SpaceVersion,
-    SpaceStatus,
 )
 
 
