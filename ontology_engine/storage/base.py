@@ -13,21 +13,31 @@ class StorageError(Exception):
 
 @dataclass
 class EntityInstance:
-    """Entity instance with concept and payload data."""
+    """Entity instance with fact object type and payload data."""
 
-    concept: str
+    _fact_object: str
     entity_id: str
     data: dict[str, Any]
+
+    @property
+    def concept(self) -> str:
+        """Backward-compatible alias for _fact_object."""
+        return self._fact_object
 
 
 @dataclass
 class RelationInstance:
     """Relation between two entities."""
 
-    relation_type: str
+    relation_name: str
     from_entity_id: str
     to_entity_id: str
     data: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def relation_type(self) -> str:
+        """Backward-compatible alias for relation_name."""
+        return self.relation_name
 
 
 class StorageBackend(ABC):
@@ -46,20 +56,20 @@ class StorageBackend(ABC):
         """Persist an entity and return its identifier."""
 
     @abstractmethod
-    async def get_entity(self, concept: str, entity_id: str) -> EntityInstance | None:
-        """Load one entity by concept and identifier."""
+    async def get_entity(self, fact_object: str, entity_id: str) -> EntityInstance | None:
+        """Load one entity by fact object type and identifier."""
 
     @abstractmethod
     async def get_entity_by_id(self, entity_id: str) -> EntityInstance | None:
-        """Load one entity by identifier only (across all concepts)."""
+        """Load one entity by identifier only (across all fact object types)."""
 
     @abstractmethod
     async def query_entities(
         self,
-        concept: str | None,
+        fact_object: str | None,
         filters: dict[str, Any] | None = None,
     ) -> list[EntityInstance]:
-        """Query entities, optionally across all concepts."""
+        """Query entities, optionally across all fact object types."""
 
     @abstractmethod
     async def save_relation(self, relation: RelationInstance) -> None:
@@ -69,7 +79,7 @@ class StorageBackend(ABC):
     async def get_relations(
         self,
         from_entity_id: str,
-        relation_type: str | None = None,
+        relation_name: str | None = None,
     ) -> list[RelationInstance]:
         """Load relations from one entity."""
 
@@ -77,7 +87,7 @@ class StorageBackend(ABC):
     async def get_neighbors(
         self,
         entity_id: str,
-        relation_type: str,
+        relation_name: str,
         direction: str = "outgoing",
     ) -> list[tuple[EntityInstance, RelationInstance]]:
         """Traverse one hop of graph neighbors."""
@@ -152,7 +162,7 @@ class StorageBackend(ABC):
         self,
         entity_id: str,
         dataset_id: str,
-        concept: str,
+        fact_object: str,
         is_primary: bool = False,
         source_line: int | None = None,
     ) -> None:
@@ -162,7 +172,7 @@ class StorageBackend(ABC):
     async def get_dataset_entities(
         self,
         dataset_id: str,
-        concept: str | None = None,
+        fact_object: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get entities in a dataset."""
 
@@ -283,7 +293,7 @@ class StorageBackend(ABC):
         self,
         batch_id: str,
         entity_id: str,
-        concept: str,
+        fact_object: str,
         change_type: str,
         field_changes: list[dict[str, Any]] | None = None,
         old_data: dict[str, Any] | None = None,
@@ -299,7 +309,7 @@ class StorageBackend(ABC):
     async def save_entity_version(
         self,
         entity_id: str,
-        concept: str,
+        fact_object: str,
         version: int,
         data: dict[str, Any],
         updated_by: str = "system",
@@ -321,6 +331,36 @@ class StorageBackend(ABC):
     @abstractmethod
     async def delete_entity_version(self, entity_id: str, version: int) -> None:
         """Delete a specific entity version."""
+
+    @abstractmethod
+    async def get_entity_at(
+        self,
+        entity_id: str,
+        as_of: Any,
+    ) -> EntityInstance | None:
+        """Get entity state at a specific point in time.
+
+        Args:
+            entity_id: Entity identifier
+            as_of: Timestamp for point-in-time query
+
+        Returns:
+            EntityInstance if found at that time, None otherwise
+        """
+
+    @abstractmethod
+    async def get_entity_history(
+        self,
+        entity_id: str,
+    ) -> list[EntityInstance]:
+        """Get all historical versions of an entity.
+
+        Args:
+            entity_id: Entity identifier
+
+        Returns:
+            List of EntityInstance objects ordered by valid_from
+        """
 
 
 class GraphQueryError(StorageError):
@@ -559,7 +599,7 @@ class VectorStoreBackend(ABC):
 class RetrievalBackend(ABC):
     """Unified retrieval facade that coordinates storage backends.
 
-    Phase 2 design goal: DuckDB (entity/attribute) + GraphStore (topology)
+    Phase 2 design goal: MetaStore (entity/attribute) + GraphStore (topology)
     + VectorStore (semantics) work together through a single repository
     interface.  This is the abstraction referenced in
     ``docs/05-schema-v2/query-engine-target.md`` as the "统一 Repository 接口".
@@ -570,14 +610,14 @@ class RetrievalBackend(ABC):
         self,
         query_text: str,
         top_k: int = 10,
-        concept_type: str | None = None,
+        fact_object: str | None = None,
     ) -> list[VectorSearchResult]:
         """Pure vector/semantic search.
 
         Args:
             query_text: Raw text query.
             top_k: Maximum number of results.
-            concept_type: Optional concept filter.
+            fact_object: Optional fact object type filter.
 
         Returns:
             Vector search results.

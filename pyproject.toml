@@ -5,7 +5,6 @@ description = "A toolchain for knowledge graph based analysis"
 requires-python = ">=3.11"
 dependencies = [
     "pyyaml>=6.0",
-    "duckdb>=0.9.0",
     "pydantic>=2.0",
     "simpleeval>=0.9.13",
     "asteval>=0.9.29",
@@ -20,6 +19,9 @@ dev = [
 ]
 kuzu = [
     "kuzu>=0.4.0",
+]
+chroma = [
+    "chromadb>=0.4.0",
 ]
 
 [build-system]

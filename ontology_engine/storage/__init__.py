@@ -11,26 +11,44 @@ from ontology_engine.storage.base import (
     VectorSearchResult,
     VectorStoreBackend,
 )
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.config import (
+    StorageConfig,
+    create_graph_store,
+    create_meta_store,
+    create_vector_store,
+)
+from ontology_engine.storage.sqlite import SQLiteStorage
 from ontology_engine.storage.dual_write import DualWriteCoordinator
-from ontology_engine.storage.graph import NetworkXGraphStore
+from ontology_engine.storage.graph import KuzuGraphStore, NetworkXGraphStore
 from ontology_engine.storage.retrieval import DefaultRetrievalBackend
 from ontology_engine.storage.vector import LocalVectorStore
 
 __all__ = [
     "DefaultRetrievalBackend",
-    "DuckDBStorage",
     "DualWriteCoordinator",
     "EntityInstance",
     "GraphQueryError",
     "GraphStoreBackend",
     "HybridSearchResult",
+    "KuzuGraphStore",
     "LocalVectorStore",
     "NetworkXGraphStore",
     "RelationInstance",
     "RetrievalBackend",
+    "SQLiteStorage",
     "StorageBackend",
+    "StorageConfig",
     "StorageError",
     "VectorSearchResult",
     "VectorStoreBackend",
+    "create_graph_store",
+    "create_meta_store",
+    "create_vector_store",
 ]
+
+try:
+    from ontology_engine.storage.vector.chroma_store import ChromaVectorStore
+
+    __all__.append("ChromaVectorStore")
+except ImportError:
+    ChromaVectorStore = None  # type: ignore[assignment, misc]
