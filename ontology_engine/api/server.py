@@ -24,12 +24,9 @@ from ontology_engine.services import (
 from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.config import create_meta_store
 from ontology_engine.core.schema import SchemaLoader
 from ontology_engine.core.instances import InstanceLoader
-from ontology_engine.engine.metric.engine import MetricEngine, MetricCache
-from ontology_engine.engine.categorization.engine import CategorizationEngine
-from ontology_engine.engine.rule.executor import RuleExecutor
 from ontology_engine.api import dependencies
 from ontology_engine.core.semantic_space import (
     SemanticSpace,
@@ -147,12 +144,11 @@ async def _load_example_case_as_space(
             for entity in entities:
                 entity_dict: dict[str, Any] = {
                     "entity_id": entity.entity_id,
-                    "_concept": entity.concept,
+                    "_fact_object": entity._fact_object,
                 }
-                # Flatten entity data attributes
                 if hasattr(entity, "data") and isinstance(entity.data, dict):
                     for k, v in entity.data.items():
-                        if k not in ("_concept",):
+                        if k not in ("_fact_object",):
                             entity_dict[k] = v
                 space.instances.entities.append(entity_dict)
 
@@ -219,7 +215,7 @@ async def _load_example_case_as_space(
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     """Application lifespan handler."""
     # Initialize storage
-    storage = DuckDBStorage(db_path=":memory:")
+    storage = create_meta_store()
     await storage.initialize()
 
     # Initialize schema/instance loaders
@@ -264,7 +260,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     except FileNotFoundError:
         pass
 
-    # Load instance data into DuckDB storage (for legacy routes)
+    # Load instance data into storage (for legacy routes)
     try:
         instances_path = "examples/supply_chain_finance/instances.yaml"
         entities, relations = instance_loader.load(instances_path)
@@ -273,33 +269,22 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         for relation in relations:
             await storage.save_relation(relation)
         logger.info(
-            f"Loaded {len(entities)} entities and {len(relations)} relations into DuckDB storage"
+            f"Loaded {len(entities)} entities and {len(relations)} relations into storage"
         )
     except Exception as exc:
         import traceback
-        logger.error(f"Failed to load instances into DuckDB: {exc}")
+        logger.error(f"Failed to load instances into storage: {exc}")
         logger.error(traceback.format_exc())
 
-    # Initialize engines
-    metric_cache = MetricCache() if schema else None
-    metric_engine = MetricEngine(schema=schema, storage=storage, cache=metric_cache) if schema else None
-    rule_executor = RuleExecutor(schema=schema) if schema else None
-    categorization_engine = CategorizationEngine(
-        schema=schema, storage=storage, rule_executor=rule_executor
-    ) if schema and rule_executor else None
-
-    # Initialize services with engines
+    # Initialize services
     services: dict[str, Any] = {}
     services["schema"] = SchemaService(storage=storage)
     services["entity"] = EntityService(storage=storage, schema=schema)
     services["analysis"] = AnalysisService(
-        categorization_engine=categorization_engine,
-        metric_engine=metric_engine,
-        rule_executor=rule_executor,
         storage=storage,
         schema=schema,
     )
-    services["query"] = QueryService(storage=storage, rule_executor=rule_executor)
+    services["query"] = QueryService(storage=storage, rule_executor=services["analysis"].rule_executor)
     services["ingestion"] = IngestionService(
         storage=storage,
         entity_service=services["entity"],

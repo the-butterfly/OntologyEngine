@@ -21,7 +21,6 @@ from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.rule_service import RuleService, RuleServiceError
 from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
-from ontology_engine.engine.rule.operators import build_operator_schemas
 
 router = APIRouter(prefix="/v1", tags=["Rules"])
 
@@ -152,11 +151,11 @@ async def create_rule_group(
 
 @router.get("/rule-groups")
 async def list_rule_groups(
-    schema_id: str = Query(..., description="Semantic space ID (required)"),
+    schema_id: str | None = Query(None, description="Semantic space ID (optional, lists all if not provided)"),
     enabled: bool | None = None,
     service: RuleService = Depends(get_rule_service)
 ):
-    """List all rule groups in a semantic space."""
+    """List all rule groups, optionally filtered by semantic space."""
     try:
         rule_groups = await service.list_rule_groups(schema_id=schema_id, enabled=enabled)
         return success_response(data={
@@ -477,7 +476,7 @@ async def export_rule_group(
 async def list_operators():
     """List all available operators with their schemas."""
     try:
-        schemas = build_operator_schemas()
+        schemas = SimulationService.list_operator_schemas()
         return success_response(data={
             "operators": [s.to_dict() for s in schemas]
         })
@@ -488,8 +487,7 @@ async def list_operators():
 @router.get("/operators/{name}/schema")
 async def get_operator_schema(name: str):
     """Get the JSON Schema for an operator."""
-    from ontology_engine.engine.rule.operators.registry import get_operator_schema
-    schema = get_operator_schema(name)
+    schema = SimulationService.get_operator_schema(name)
     if schema is None:
         return error_response(code="NOT_FOUND", message=f"Operator '{name}' not found")
     return success_response(data={"schema": schema})

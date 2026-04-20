@@ -592,7 +592,7 @@ async def list_entities(
 
     entities = space.instances.entities
     if concept:
-        entities = [e for e in entities if e.get("_concept") == concept]
+        entities = [e for e in entities if e.get("_fact_object") == concept or e.get("_concept") == concept]
 
     return success_response(data=entities)
 
@@ -607,8 +607,8 @@ async def create_entity(space_id: str, entity: dict):
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
     # Check required fields
-    if "entity_id" not in entity or "_concept" not in entity:
-        return error_response(code="VALIDATION_ERROR", message="entity_id and _concept are required")
+    if "entity_id" not in entity or ("_concept" not in entity and "_fact_object" not in entity):
+        return error_response(code="VALIDATION_ERROR", message="entity_id and _fact_object (or _concept) are required")
 
     space.instances.entities.append(entity)
     await storage.save(space)
@@ -638,8 +638,11 @@ async def create_relation(space_id: str, relation: dict):
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
     # Check required fields
-    if "relation_type" not in relation or "from_entity_id" not in relation or "to_entity_id" not in relation:
-        return error_response(code="VALIDATION_ERROR", message="relation_type, from_entity_id, and to_entity_id are required")
+    if "relation_name" not in relation or "from_entity_id" not in relation or "to_entity_id" not in relation:
+        if "relation_type" in relation and "relation_name" not in relation:
+            relation["relation_name"] = relation.pop("relation_type")
+        else:
+            return error_response(code="VALIDATION_ERROR", message="relation_name (or relation_type), from_entity_id, and to_entity_id are required")
 
     space.instances.relations.append(relation)
     await storage.save(space)
@@ -706,7 +709,7 @@ async def get_schema_graph(
                 "type": "relation",
                 "data": {
                     "label": rel.get("display_name") or rel.get("name", ""),
-                    "relation_type": rel.get("relation_type", ""),
+                    "relation_name": rel.get("relation_name", "") or rel.get("relation_type", ""),
                 }
             })
 
@@ -932,7 +935,7 @@ async def execute_analyze(space_id: str, request: ExecuteAnalyzeRequest):
     steps = []
     final_outputs = {}
     entity_data = dict(entity)
-    entity_data["_concept"] = entity.get("_concept", "Unknown")
+    entity_data["_fact_object"] = entity.get("_fact_object") or entity.get("_concept", "Unknown")
 
     for rule in space.layers.L4_business_logic.rule_definitions:
         rule_id = rule["id"]
@@ -1071,7 +1074,7 @@ async def execute_simulate(space_id: str, request: ExecuteSimulateRequest):
     baseline_steps = []
     baseline_outputs = {}
     entity_data = dict(entity)
-    entity_data["_concept"] = entity.get("_concept", "Unknown")
+    entity_data["_fact_object"] = entity.get("_fact_object") or entity.get("_concept", "Unknown")
 
     for rule in space.layers.L4_business_logic.rule_definitions:
         rule_id = rule["id"]
@@ -1103,7 +1106,7 @@ async def execute_simulate(space_id: str, request: ExecuteSimulateRequest):
 
     # Apply overrides and execute simulated analysis
     simulated_data = dict(entity)
-    simulated_data["_concept"] = entity.get("_concept", "Unknown")
+    simulated_data["_fact_object"] = entity.get("_fact_object") or entity.get("_concept", "Unknown")
     if request.overrides:
         simulated_data.update(request.overrides)
 

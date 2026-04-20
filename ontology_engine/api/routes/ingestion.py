@@ -23,14 +23,14 @@ class MissingParameterError(Exception):
 
 class EntityCreateItem(BaseModel):
     """Entity item for ingestion."""
-    concept_type: str
+    fact_object: str
     entity_id: str
     attributes: dict[str, Any] | None = None
 
 
 class RelationCreateItem(BaseModel):
     """Relation item for ingestion."""
-    relation_type: str
+    relation_name: str
     from_id: str
     to_id: str
     attributes: dict[str, Any] | None = None
@@ -72,7 +72,7 @@ async def import_instances(
             attrs = dict(e.attributes) if e.attributes else {}
             attrs["_space_id"] = space_id
             entities_with_space.append(ECDTO(
-                concept_type=e.concept_type,
+                fact_object=e.fact_object,
                 entity_id=e.entity_id,
                 attributes=attrs
             ))
@@ -80,7 +80,7 @@ async def import_instances(
             instances_path=body.instances_path,
             entities=entities_with_space,
             relations=[RCDTO(
-                relation_type=r.relation_type,
+                relation_name=r.relation_name,
                 from_id=r.from_id,
                 to_id=r.to_id,
                 attributes=r.attributes
@@ -104,10 +104,10 @@ async def import_from_dict(
     Expected format:
     {
         "entities": [
-            {"concept_type": "Supplier", "entity_id": "S001", "attributes": {...}}
+            {"fact_object": "Supplier", "entity_id": "S001", "attributes": {...}}
         ],
         "relations": [
-            {"relation_type": "has_invoice", "from_id": "S001", "to_id": "INV001", ...}
+            {"relation_name": "has_invoice", "from_id": "S001", "to_id": "INV001", ...}
         ]
     }
 
@@ -165,7 +165,7 @@ async def validate_import(
             attrs = dict(e.attributes) if e.attributes else {}
             attrs["_space_id"] = space_id
             entities_with_space.append(ECDTO(
-                concept_type=e.concept_type,
+                fact_object=e.fact_object,
                 entity_id=e.entity_id,
                 attributes=attrs
             ))
@@ -173,7 +173,7 @@ async def validate_import(
             instances_path=body.instances_path,
             entities=entities_with_space,
             relations=[RCDTO(
-                relation_type=r.relation_type,
+                relation_name=r.relation_name,
                 from_id=r.from_id,
                 to_id=r.to_id,
                 attributes=r.attributes

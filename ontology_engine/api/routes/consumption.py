@@ -18,8 +18,7 @@ from ontology_engine.core.semantic_space import (
     SpaceType,
     SemanticSpaceStorage,
 )
-from ontology_engine.engine.expression.engine import ExpressionEngine
-from ontology_engine.engine.rule.models import ExecutionContext
+from ontology_engine.services.simulation_service import SimulationService
 
 router = APIRouter(prefix="/v1", tags=["Consumption"])
 
@@ -144,7 +143,7 @@ async def list_view_entities(
 
     entities = space.instances.entities
     if concept:
-        entities = [e for e in entities if e.get("_concept") == concept]
+        entities = [e for e in entities if (e.get("_fact_object") or e.get("_concept")) == concept]
 
     return success_response(data=entities)
 
@@ -490,7 +489,7 @@ async def get_rules_for_entity(
     if not entity:
         return error_response(code="NOT_FOUND", message=f"Entity {entity_id} not found")
 
-    entity_concept = entity.get("_concept", "")
+    entity_concept = entity.get("_fact_object") or entity.get("_concept", "")
     rules = space.layers.L4_business_logic.rule_definitions
     rule_logics = space.layers.L4_business_logic.rule_logics
 
@@ -945,13 +944,13 @@ async def _run_full_analysis(
     This ensures that when rule A's output is rule B's input, A always executes
     before B, regardless of priority settings.
     """
-    expression_engine = ExpressionEngine()
+    expression_engine = SimulationService.create_expression_engine()
 
     entity_data = dict(entity)
-    entity_data["_concept"] = entity.get("_concept", "Unknown")
+    entity_data["_fact_object"] = entity.get("_fact_object") or entity.get("_concept", "Unknown")
     entity_data.update(overrides)
 
-    context = ExecutionContext(
+    context = SimulationService.create_execution_context(
         entity_id=entity.get("entity_id", ""),
         dimension=dimension,
         entity_data=entity_data,
@@ -1043,7 +1042,7 @@ async def _run_full_analysis(
         level_rules.sort(key=lambda r: r.get("priority", 100), reverse=True)
 
         # Check target objects filter first
-        entity_type = entity_data.get("_concept", "")
+        entity_type = entity_data.get("_fact_object") or entity_data.get("_concept", "")
 
         for rule in level_rules:
             # Additional filter: check if entity type matches target_objects
@@ -1080,8 +1079,8 @@ async def _execute_single_rule(
     rule: dict,
     space: SemanticSpace,
     entity_data: dict,
-    context: ExecutionContext,
-    expression_engine: ExpressionEngine,
+    context: Any,
+    expression_engine: Any,
     step_num: int,
     include_trace: bool,
 ) -> dict:
@@ -1185,7 +1184,7 @@ def _build_result(
     dimension: str,
     steps: list,
     final_outputs: dict,
-    context: ExecutionContext,
+    context: Any,
 ) -> dict:
     """Build the final result dict from execution steps."""
     # Determine final decision
@@ -1260,7 +1259,7 @@ def _explain_conditions(
     when_obj: dict,
     entity_data: dict,
     computed: dict,
-    expression_engine: ExpressionEngine,
+    expression_engine: Any,
 ) -> list[dict]:
     """Explain condition evaluation sub-conditions."""
     sub_conditions = []
@@ -1319,7 +1318,7 @@ def _execute_action(
     action: dict,
     entity_data: dict,
     computed: dict,
-    expression_engine: ExpressionEngine,
+    expression_engine: Any,
 ) -> dict[str, Any]:
     """Execute an action and return produced outputs."""
     outputs: dict[str, Any] = {}

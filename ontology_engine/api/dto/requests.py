@@ -1,6 +1,7 @@
 # ontology_engine/api/dto/requests.py
 """API request models."""
 
+from datetime import datetime
 from typing import Any
 from pydantic import BaseModel, Field
 
@@ -14,9 +15,11 @@ class SchemaLoadRequest(BaseModel):
 class EntityCreateRequest(BaseModel):
     """Request to create an entity."""
 
-    concept_type: str
+    fact_object: str = Field(alias="concept_type")
     entity_id: str
     attributes: dict[str, Any] | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class EntityBatchCreateRequest(BaseModel):
@@ -28,19 +31,25 @@ class EntityBatchCreateRequest(BaseModel):
 class EntityQueryRequest(BaseModel):
     """Request to query entities."""
 
-    concept_type: str | None = None
+    fact_object: str | None = Field(default=None, alias="concept_type")
     filter: dict[str, Any] | None = None
     limit: int = Field(default=100, ge=1, le=1000)
     offset: int = Field(default=0, ge=0)
+    as_of: datetime | None = Field(default=None, description="Point-in-time query: return entity state as of this timestamp")
+    include_history: bool = Field(default=False, description="If true, include all historical versions")
+
+    model_config = {"populate_by_name": True}
 
 
 class RelationCreateRequest(BaseModel):
     """Request to create a relation."""
 
-    relation_type: str
+    relation_name: str = Field(alias="relation_type")
     from_id: str
     to_id: str
     attributes: dict[str, Any] | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class RuleExecuteRequest(BaseModel):
@@ -57,8 +66,10 @@ class VectorSearchRequest(BaseModel):
     """Request for vector search."""
 
     text: str
-    concept_type: str | None = None
+    fact_object: str | None = Field(default=None, alias="concept_type")
     top_k: int = Field(default=10, ge=1, le=100)
+
+    model_config = {"populate_by_name": True}
 
 
 class HybridSearchRequest(BaseModel):
@@ -66,9 +77,12 @@ class HybridSearchRequest(BaseModel):
 
     query: str
     match_mode: str = "hybrid"
-    concept_type: str | None = None
+    fact_object: str | None = Field(default=None, alias="concept_type")
     filters: dict[str, Any] | None = None
     top_k: int = Field(default=10, ge=1, le=100)
+    as_of: datetime | None = Field(default=None, description="Point-in-time query for temporal entities")
+
+    model_config = {"populate_by_name": True}
 
 
 class GraphQueryRequest(BaseModel):
@@ -78,3 +92,5 @@ class GraphQueryRequest(BaseModel):
     traverse: list[dict[str, Any]]
     return_: dict[str, Any] | None = Field(None, alias="return")
     limit: int = Field(default=50, ge=1, le=1000)
+    as_of: datetime | None = Field(default=None, description="Point-in-time query for temporal entities")
+    include_history: bool = Field(default=False, description="If true, include all historical versions")
