@@ -25,7 +25,7 @@ from ontology_engine.storage.base import (
     RelationInstance,
     VectorSearchResult,
 )
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.sqlite.store import SQLiteStorage
 from ontology_engine.storage.graph import NetworkXGraphStore
 from ontology_engine.storage.retrieval import DefaultRetrievalBackend
 
@@ -249,8 +249,8 @@ async def main():
 
     # 1. Initialize storage backends
     print("\n[1] 初始化存储后端...")
-    duckdb_store = DuckDBStorage(db_path=":memory:")
-    await duckdb_store.initialize()
+    sqlite_store = SQLiteStorage(db_path=":memory:")
+    await sqlite_store.initialize()
 
     graph_store = NetworkXGraphStore()
     await graph_store.initialize()
@@ -261,13 +261,13 @@ async def main():
     # 2. Load example data into DuckDB
     print("\n[2] 加载实体数据到 DuckDB...")
     for entity in ENTITIES:
-        await duckdb_store.save_entity(entity)
+        await sqlite_store.save_entity(entity)
     print(f"    已加载 {len(ENTITIES)} 个实体")
 
     # 3. Load example data into Graph Store
     print("\n[3] 加载关系数据到图存储...")
     for rel in RELATIONS:
-        await duckdb_store.save_relation(rel)
+        await sqlite_store.save_relation(rel)
         await graph_store.upsert_node(
             node_id=rel.from_entity_id,
             labels=["Supplier" if rel.from_entity_id.startswith("SUP") else "CoreEnterprise"],
@@ -314,7 +314,7 @@ async def main():
     # 5. Initialize retrieval backend
     print("\n[5] 初始化检索后端...")
     retrieval = DefaultRetrievalBackend(
-        storage=duckdb_store,
+        storage=sqlite_store,
         graph_store=graph_store,
         vector_store=vector_store,
         embedder=mock_embedder,
@@ -491,7 +491,7 @@ async def main():
         print(f"  - {r.id}: 得分={r.score:.4f}")
 
     # Cleanup
-    await duckdb_store.close()
+    await sqlite_store.close()
     await graph_store.close()
     await vector_store.close()
 
