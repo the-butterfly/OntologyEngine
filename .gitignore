@@ -67,6 +67,7 @@ venv.bak/
 # AI tools
 .claude/
 .workbuddy/
+.trae/
 
 # OS
 .DS_Store
