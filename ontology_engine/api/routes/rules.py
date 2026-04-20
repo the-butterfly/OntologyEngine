@@ -16,6 +16,7 @@ from ontology_engine.api.dependencies import (
     get_simulation_service,
 )
 from ontology_engine.api.dto.responses import success_response, error_response
+from ontology_engine.engine.rule.dag_builder import DAGBuilder
 from ontology_engine.services.schema_service import SchemaService
 from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.rule_service import RuleService, RuleServiceError
@@ -546,5 +547,107 @@ async def get_metric_dag(
             depth=depth,
         )
         return success_response(data=graph_data)
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
+
+
+# =============================================================================
+# Rule Group DAG Visualization
+# =============================================================================
+
+
+@router.get("/rule-groups/{name}/dag")
+async def get_rule_group_dag(
+    name: str,
+    schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
+    service: RuleService = Depends(get_rule_service),
+):
+    """Get DAG structure for a rule group for visualization.
+
+    Returns the rule steps organized in topological layers showing
+    dependencies between steps.
+    """
+    try:
+        # Get rule group and steps
+        rule_group = await service.get_rule_group(name, schema_id=schema_id)
+        if rule_group is None:
+            return error_response(code="NOT_FOUND", message=f"Rule group '{name}' not found")
+
+        steps = await service.list_rule_steps(name, schema_id=schema_id)
+        if not steps:
+            return success_response(data={
+                "rule_group_name": name,
+                "total_steps": 0,
+                "total_layers": 0,
+                "layers": [],
+            })
+
+        # Build DAG
+        dag_builder = DAGBuilder()
+        execution_dag = dag_builder.build(steps)
+
+        # Format response
+        layers = []
+        for layer in execution_dag.layers:
+            layer_steps = []
+            for node in layer.nodes:
+                step = node.step
+                layer_steps.append({
+                    "id": step.id,
+                    "name": step.name,
+                    "depends_on": step.depends_on,
+                    "in_degree": node.in_degree,
+                })
+            layers.append({
+                "index": layer.index,
+                "steps": layer_steps,
+            })
+
+        return success_response(data={
+            "rule_group_name": name,
+            "total_steps": len(steps),
+            "total_layers": len(execution_dag.layers),
+            "layers": layers,
+        })
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
+
+
+# =============================================================================
+# Rule Group Locate (Cross-Group Search)
+# =============================================================================
+
+
+@router.get("/rule-groups/locate")
+async def locate_rule_groups(
+    output: str = Query(..., description="Output element name to search for"),
+    schema_id: str | None = Query(None, description="Semantic space ID (optional, searches all if not provided)"),
+    service: RuleService = Depends(get_rule_service),
+):
+    """Locate rule groups that produce a specific output element.
+
+    Searches across all rule groups (optionally filtered by semantic space)
+    to find those that define the specified output element.
+    """
+    try:
+        # Get all rule groups
+        rule_groups = await service.list_rule_groups(schema_id=schema_id)
+
+        # Find rule groups that have this output
+        matching_groups = []
+        for rg in rule_groups:
+            for out in rg.outputs:
+                if out.name == output:
+                    matching_groups.append({
+                        "name": rg.name,
+                        "outputs": [{"name": o.name, "type": o.type} for o in rg.outputs],
+                        "depends_on": [],  # Rule groups don't have cross-group dependencies in this context
+                    })
+                    break  # Only list each rule group once
+
+        return success_response(data={
+            "output": output,
+            "rule_groups": matching_groups,
+        })
     except Exception as e:
         return error_response(code="INTERNAL_ERROR", message=str(e))
