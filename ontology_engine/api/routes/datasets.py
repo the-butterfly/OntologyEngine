@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from ontology_engine.api.dependencies import get_dataset_service, get_storage
+from ontology_engine.api.dependencies import get_dataset_service
 from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.dataset_service import DatasetService
 

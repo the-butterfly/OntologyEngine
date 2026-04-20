@@ -157,7 +157,7 @@ class CreateVersionSnapshotRequest(BaseModel):
 
 class CreateEntityInstanceRequest(BaseModel):
     entity_id: str
-    concept: str
+    fact_object: str = Field(validation_alias=AliasChoices("fact_object", "concept"))
     properties: dict | None = None
     relations: list[dict] | None = None
 
@@ -1004,7 +1004,7 @@ async def list_entities(
 
     entities = space.instances.entities
     if concept:
-        entities = [e for e in entities if e.get("_concept") == concept]
+        entities = [e for e in entities if e.get("_fact_object") == concept or e.get("_concept") == concept]
 
     return success_response(data=entities)
 
@@ -1025,7 +1025,7 @@ async def add_entity(space_id: str, request: CreateEntityInstanceRequest):
 
     entity = {
         "entity_id": request.entity_id,
-        "_concept": request.concept,
+        "_fact_object": request.fact_object,
         **({"properties": request.properties} if request.properties else {}),
         **({"relations": request.relations} if request.relations else {}),
     }
@@ -1244,7 +1244,7 @@ async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYaml
         eid = entity.entity_id
         entity_dict = {
             "entity_id": eid,
-            "_concept": entity.concept,
+            "_fact_object": entity._fact_object,
         }
         # Add all attributes from data dict
         if hasattr(entity, 'data') and entity.data:

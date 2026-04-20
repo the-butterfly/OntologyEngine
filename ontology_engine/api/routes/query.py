@@ -1,9 +1,10 @@
 # ontology_engine/api/routes/query.py
 """Query endpoints."""
 
+from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from ontology_engine.api.dependencies import get_query_service
@@ -14,6 +15,14 @@ from ontology_engine.services.query_service import QueryService
 router = APIRouter(prefix="/v1/query", tags=["Query"])
 
 
+class SearchRequest(BaseModel):
+    """Request body for semantic search."""
+    text: str
+    fact_object: str | None = None
+    top_k: int = 10
+    filters: dict[str, Any] | None = None
+
+
 class PatternMatchRequest(BaseModel):
     """Request body for pattern match."""
     concept: str
@@ -22,7 +31,7 @@ class PatternMatchRequest(BaseModel):
 
 class TraverseRequest(BaseModel):
     """Request body for graph traverse."""
-    relation_type: str = "has_invoice"
+    relation_name: str = "has_invoice"
     direction: str = "outgoing"
     depth: int = 1
 
@@ -34,7 +43,47 @@ class PathQueryRequest(BaseModel):
     max_depth: int = 3
 
 
-@router.post("/vector")
+@router.post("/search")
+async def semantic_search(
+    body: SearchRequest,
+    service: QueryService = Depends(get_query_service)
+):
+    """Semantic search for entities.
+
+    Uses vector similarity to find entities matching the query text.
+    Requires a configured vector store (ChromaDB or LocalVectorStore).
+
+    Args:
+        body: Search request with text query, optional filters and top_k
+
+    Returns:
+        Search results with relevance scores
+    """
+    try:
+        results = await service.semantic_search(
+            query_text=body.text,
+            top_k=body.top_k,
+            fact_object=body.fact_object,
+        )
+        formatted = [
+            {
+                "entity_id": r.id,
+                "concept_type": r.metadata.get("_fact_object", r.metadata.get("concept", "")),
+                "relevance_score": r.score,
+                "attributes": r.metadata,
+            }
+            for r in results
+        ]
+        return success_response(data={
+            "results": formatted,
+            "total": len(formatted),
+            "query_type": "semantic",
+        })
+    except Exception as e:
+        return error_response(code="QUERY_ERROR", message=str(e))
+
+
+@router.post("/vector", deprecated=True)
 async def vector_search(
     body: VectorSearchRequest,
     service: QueryService = Depends(get_query_service)
@@ -49,7 +98,7 @@ async def vector_search(
     """
     try:
         results = await service.pattern_match(
-            concept=body.concept_type or "",
+            concept=body.fact_object or "",
             patterns={"text": body.text}
         )
         return success_response(data={"results": results})
@@ -75,7 +124,7 @@ async def hybrid_search(
         if body.query:
             filters["text"] = body.query
         results = await service.pattern_match(
-            concept=body.concept_type or "",
+            concept=body.fact_object or "",
             patterns=filters
         )
         return success_response(data={"results": results})
@@ -107,13 +156,13 @@ async def graph_query(
 
         # Extract traversal params
         traverse = body.traverse[0] if body.traverse else {}
-        relation_type = traverse.get("relation_type", "has_invoice")
+        relation_name = traverse.get("relation_name") or traverse.get("relation_type", "has_invoice")
         direction = traverse.get("direction", "outgoing")
         depth = traverse.get("max_hops", 1)
 
         results = await service.graph_traverse(
             entity_id=start_entity,
-            relation_type=relation_type,
+            relation_type=relation_name,
             direction=direction,
             depth=depth
         )
@@ -172,18 +221,22 @@ async def pattern_match_post(
 @router.get("/traverse/{entity_id}")
 async def graph_traverse_get(
     entity_id: str,
-    relation_type: str = "has_invoice",
+    relation_name: str = Query(default="has_invoice", alias="relation_type"),
     direction: str = "outgoing",
     depth: int = 1,
+    as_of: datetime | None = None,
+    include_history: bool = False,
     service: QueryService = Depends(get_query_service)
 ):
     """Traverse graph from entity via relations.
 
     Args:
         entity_id: Starting entity ID
-        relation_type: Relation type to traverse
+        relation_name: Relation name to traverse (alias: relation_type)
         direction: "outgoing" or "incoming"
         depth: Traversal depth (max 2 in Phase 1)
+        as_of: Point-in-time query for temporal entities
+        include_history: If true, include all historical versions
 
     Returns:
         List of traversed entities
@@ -191,7 +244,7 @@ async def graph_traverse_get(
     try:
         results = await service.graph_traverse(
             entity_id=entity_id,
-            relation_type=relation_type,
+            relation_type=relation_name,
             direction=direction,
             depth=depth
         )
@@ -212,7 +265,7 @@ async def graph_traverse_post(
 
     Args:
         entity_id: Starting entity ID
-        body: Traverse request with relation_type, direction, depth
+        body: Traverse request with relation_name, direction, depth
 
     Returns:
         List of traversed entities
@@ -220,7 +273,7 @@ async def graph_traverse_post(
     try:
         results = await service.graph_traverse(
             entity_id=entity_id,
-            relation_type=body.relation_type,
+            relation_type=body.relation_name,
             direction=body.direction,
             depth=body.depth
         )

@@ -3,7 +3,7 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -20,14 +20,14 @@ router = APIRouter(prefix="/v1/entities", tags=["Entities"])
 
 class EntityCreateRequestBody(BaseModel):
     """Request body for entity creation."""
-    concept_type: str
+    fact_object: str
     entity_id: str
     attributes: dict[str, Any] | None = None
 
 
 class EntityQueryRequestBody(BaseModel):
     """Request body for entity query."""
-    concept_type: str | None = None
+    fact_object: str | None = None
     filter: dict[str, Any] | None = None
     limit: int = 100
     offset: int = 0
@@ -48,7 +48,7 @@ async def create_entity(
     """
     try:
         result = await service.create_entity(
-            concept_type=body.concept_type,
+            fact_object=body.fact_object,
             entity_id=body.entity_id,
             attributes=body.attributes
         )
@@ -75,7 +75,7 @@ async def batch_create_entities(
     """
     requests = [
         EntityCreateRequest(
-            concept_type=b.concept_type,
+            fact_object=b.fact_object,
             entity_id=b.entity_id,
             attributes=b.attributes
         )
@@ -89,24 +89,24 @@ async def batch_create_entities(
 @router.get("/{entity_id}")
 async def get_entity(
     entity_id: str,
-    concept: str | None = None,
+    fact_object: str | None = None,
     service: EntityService = Depends(get_entity_service)
 ):
     """Get entity by ID.
 
     Args:
         entity_id: Entity ID
-        concept: Concept type (optional, helps narrow down)
+        fact_object: Fact object type (optional, helps narrow down)
 
     Returns:
         EntityResponse if found
     """
-    if concept is None:
+    if fact_object is None:
         return error_response(
-            code="CONCEPT_REQUIRED",
-            message="Query parameter 'concept' is required"
+            code="FACT_OBJECT_REQUIRED",
+            message="Query parameter 'fact_object' is required"
         )
-    result = await service.get_entity(concept, entity_id)
+    result = await service.get_entity(fact_object, entity_id)
     if result is None:
         return error_response(
             code="ENTITY_NOT_FOUND",
@@ -131,7 +131,7 @@ async def query_entities(
         List of EntityResponse objects
     """
     results = await service.query_entities(
-        concept_type=body.concept_type,
+        fact_object=body.fact_object,
         filters=body.filter
     )
     response = success_response(data={"entities": results})
@@ -141,7 +141,7 @@ async def query_entities(
 @router.get("/{entity_id}/neighbors")
 async def get_neighbors(
     entity_id: str,
-    relation_type: str | None = None,
+    relation_name: str | None = None,
     depth: int = 1,
     service: EntityService = Depends(get_entity_service)
 ):
@@ -149,7 +149,7 @@ async def get_neighbors(
 
     Args:
         entity_id: Source entity ID
-        relation_type: Optional relation type filter
+        relation_name: Optional relation name filter
         depth: Traversal depth (max 2 in Phase 1)
 
     Returns:
@@ -158,7 +158,7 @@ async def get_neighbors(
     try:
         results = await service.get_neighbors(
             entity_id=entity_id,
-            relation_type=relation_type,
+            relation_name=relation_name,
             depth=depth
         )
         response = success_response(data={"neighbors": results})
