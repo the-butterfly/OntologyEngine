@@ -40,7 +40,13 @@ class KuzuGraphStore(GraphStoreBackend):
 
         Args:
             db_path: Database path. Defaults to ``~/.ontology_engine/data/{space_id}/graph.kuzu``.
+
+        Raises:
+            GraphQueryError: If already initialized or kuzu not installed.
         """
+        if self._initialized:
+            raise GraphQueryError("KuzuGraphStore already initialized")
+
         try:
             import kuzu
         except ImportError as exc:
@@ -59,27 +65,212 @@ class KuzuGraphStore(GraphStoreBackend):
         logger.info("Kuzu graph store initialized at %s", path)
 
     async def _ensure_schema(self) -> None:
-        """Create node/rel tables if they don't exist."""
+        """Create node/rel tables if they don't exist.
+
+        Schema v2 tables:
+        - Entity: core entity node table
+        - ExecutionStepSnapshot: for TRACE_TO source (S-1)
+        - MetricDeclaration: for DEFINED_IN source (S-2)
+        - CategoryTag: categorization node
+        - MetricValue: metric value node
+        - Relation: general business relation edge
+        - EXTRACTED_FROM / SUPPORTED_BY / DEFINED_IN / TRACE_TO: mutual index edges
+        - CATEGORIZED_AS / HAS_METRIC: classification edges
+        - PRECEDES / SUCCEEDS / LEADS_TO / BECAUSE_OF / ENABLES / PREVENTS / same_entity_as: temporal edges (S-5)
+        """
         self._ensure_initialized()
 
-        # Create Entity node table
         self._conn.execute("""
             CREATE NODE TABLE IF NOT EXISTS Entity(
                 entity_id STRING PRIMARY KEY,
-                concept STRING NOT NULL,
-                space_id STRING NOT NULL,
+                concept STRING,
+                space_id STRING,
                 properties JSON
             )
         """)
 
-        # Create Relation rel table
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS ExecutionStepSnapshot(
+                id STRING PRIMARY KEY,
+                pipeline_run_id STRING,
+                step_name STRING,
+                step_index INT,
+                status STRING,
+                started_at STRING,
+                finished_at STRING,
+                context_snapshot JSON,
+                error_message STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS MetricDeclaration(
+                id STRING PRIMARY KEY,
+                name STRING,
+                metric_type STRING,
+                value_type STRING,
+                source STRING,
+                formula STRING,
+                domain_id STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS CategoryTag(
+                id STRING PRIMARY KEY,
+                entity_id STRING,
+                dimension_name STRING,
+                value_code STRING,
+                assigned_at STRING,
+                assigned_by STRING,
+                confidence DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS MetricValue(
+                id STRING PRIMARY KEY,
+                entity_id STRING,
+                metric_name STRING,
+                value DOUBLE,
+                computed_at STRING,
+                valid_from STRING,
+                valid_to STRING,
+                computed_by STRING,
+                computation_snapshot JSON
+            )
+        """)
+
         self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS Relation(
                 FROM Entity TO Entity,
-                relation_type STRING NOT NULL,
+                relation_type STRING,
                 relation_id STRING,
-                properties JSON,
-                PRIMARY KEY(FROM, TO, relation_type)
+                properties JSON
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS EXTRACTED_FROM(
+                FROM Entity TO Entity,
+                edge_type STRING DEFAULT 'EXTRACTED_FROM',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS SUPPORTED_BY(
+                FROM Entity TO Entity,
+                edge_type STRING DEFAULT 'SUPPORTED_BY',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS DEFINED_IN(
+                FROM Entity TO Entity,
+                edge_type STRING DEFAULT 'DEFINED_IN',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS TRACE_TO(
+                FROM ExecutionStepSnapshot TO Entity,
+                edge_type STRING DEFAULT 'TRACE_TO',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS CATEGORIZED_AS(
+                FROM Entity TO CategoryTag,
+                assigned_at STRING,
+                confidence DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS HAS_METRIC(
+                FROM Entity TO MetricValue,
+                computed_at STRING,
+                confidence DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS PRECEDES(
+                FROM Entity TO Entity,
+                time_delta DOUBLE,
+                confidence DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS SUCCEEDS(
+                FROM Entity TO Entity,
+                time_delta DOUBLE,
+                confidence DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS LEADS_TO(
+                FROM Entity TO Entity,
+                confidence DOUBLE,
+                evidence STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS BECAUSE_OF(
+                FROM Entity TO Entity,
+                confidence DOUBLE,
+                evidence STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS ENABLES(
+                FROM Entity TO Entity,
+                confidence DOUBLE,
+                evidence STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS PREVENTS(
+                FROM Entity TO Entity,
+                confidence DOUBLE,
+                evidence STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS same_entity_as(
+                FROM Entity TO Entity,
+                confidence DOUBLE,
+                source_pipeline STRING
             )
         """)
 
@@ -135,7 +326,7 @@ class KuzuGraphStore(GraphStoreBackend):
 
         return {
             "id": row["id"],
-            "concept": row["concept"],
+            "fact_object": row["concept"],
             "space_id": row["space_id"],
             "properties": json.loads(row["properties"]) if row["properties"] else {},
         }
@@ -245,16 +436,22 @@ class KuzuGraphStore(GraphStoreBackend):
 
         Args:
             node_concept: When provided, kuzu pushes this filter into the WHERE clause
-                          to avoid returning nodes that don't match the concept, eliminating
-                          the need for post-filtering via DuckDB lookups.
+                          to avoid returning nodes that don't match the fact_object, eliminating
+                          the need for post-filtering via MetaStore lookups.
         """
         self._ensure_initialized()
 
-        arrow = {
-            "outgoing": "->",
-            "incoming": "<-",
-            "both": "-",
-        }[direction]
+        arrow_left = ""
+        arrow_right = ""
+        if direction == "outgoing":
+            arrow_left = "-"
+            arrow_right = "->"
+        elif direction == "incoming":
+            arrow_left = "<-"
+            arrow_right = "-"
+        else:
+            arrow_left = "-"
+            arrow_right = "-"
 
         rel_match = (
             f"[r:Relation {{relation_type: '{edge_type}'}}]"
@@ -270,10 +467,10 @@ class KuzuGraphStore(GraphStoreBackend):
         where_clause = "WHERE " + " AND ".join(where_parts) if where_parts else ""
 
         cypher = f"""
-            MATCH (src:Entity {{entity_id: '{node_id}'}}){arrow}{rel_match}{arrow}(n:Entity)
+            MATCH (src:Entity {{entity_id: '{node_id}'}}){arrow_left}{rel_match}{arrow_right}(n:Entity)
             {where_clause}
             RETURN n.entity_id AS neighbor_id, r.relation_type AS edge_type,
-                   r.relation_id AS edge_id, type(r) AS rel_table
+                   r.relation_id AS edge_id, label(r) AS rel_table
             LIMIT {limit}
         """
         result = self._conn.execute(cypher)
@@ -301,25 +498,16 @@ class KuzuGraphStore(GraphStoreBackend):
         self._ensure_initialized()
 
         if target_id:
-            # Find all simple paths up to max_depth
-            rel_constraint = ""
-            if edge_types:
-                type_list = " | ".join(f"r{i}.relation_type = '{et}'" for i, et in enumerate(edge_types))
-                rel_constraint = f" WHERE {type_list}"
-
             cypher = f"""
-                MATCH path = (src:Entity {{entity_id: '$src'}})-{rel_constraint}*1..{max_depth}-
-                (tgt:Entity {{entity_id: '$tgt'}})
-                RETURN path
+                MATCH (src:Entity {{entity_id: $src}})-[r*1..{max_depth}]-(tgt:Entity {{entity_id: $tgt}})
+                RETURN src.entity_id AS source, tgt.entity_id AS target
                 LIMIT 50
             """
             result = self._conn.execute(cypher, {"src": source_id, "tgt": target_id})
         else:
-            # BFS from source
             cypher = f"""
-                MATCH (src:Entity {{entity_id: '$src'}})-[r*1..{max_depth}]-(n:Entity)
-                RETURN src.entity_id AS source, n.entity_id AS target,
-                       [rel IN r | rel.relation_type] AS edge_types
+                MATCH (src:Entity {{entity_id: $src}})-[r*1..{max_depth}]-(n:Entity)
+                RETURN src.entity_id AS source, n.entity_id AS target
                 LIMIT 50
             """
             result = self._conn.execute(cypher, {"src": source_id})
@@ -330,19 +518,10 @@ class KuzuGraphStore(GraphStoreBackend):
 
         paths: list[list[dict[str, Any]]] = []
         for _, row in df.iterrows():
-            if "path" in row:
-                # Full path objects from Cypher
-                path_obj = row["path"]
-                nodes = [dict(n) for n in path_obj.nodes]
-                edges = [dict(r) for r in path_obj.rels]
-                paths.append(nodes + [{"_edge": edges}])
-            else:
-                # Simplified result
-                paths.append([
-                    {"node_id": row["source"]},
-                    {"edge_types": row.get("edge_types", [])},
-                    {"node_id": row["target"]},
-                ])
+            paths.append([
+                {"node_id": row["source"]},
+                {"node_id": row["target"]},
+            ])
         return paths
 
     async def detect_cycles(
@@ -416,6 +595,7 @@ class KuzuGraphStore(GraphStoreBackend):
         algorithm: str,
         node_id: str | None = None,
         config: dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Execute a graph algorithm (centrality, community, etc.).
 
@@ -426,6 +606,7 @@ class KuzuGraphStore(GraphStoreBackend):
         """
         self._ensure_initialized()
         config = config or {}
+        config.update(kwargs)
 
         if algorithm == "centrality":
             metric = config.get("metric", "degree")
@@ -516,3 +697,416 @@ class KuzuGraphStore(GraphStoreBackend):
                 edges_written += 1
 
         return {"nodes_written": nodes_written, "edges_written": edges_written}
+
+    # --- Schema v2 Extended Methods ---
+
+    async def get_neighborhood(
+        self,
+        node_id: str,
+        depth: int = 1,
+        limit: int = 100,
+        min_confidence: float = 0.0,
+    ) -> dict[str, Any]:
+        """Get neighborhood subgraph around a node.
+
+        Args:
+            node_id: Center node ID.
+            depth: Traversal depth (1-3).
+            limit: Max nodes to return.
+            min_confidence: Minimum confidence filter on edges.
+
+        Returns:
+            Dict with "nodes" and "edges" lists.
+        """
+        self._ensure_initialized()
+        import json
+
+        cypher = f"""
+            MATCH path = (center:Entity {{entity_id: $id}})-[r*1..{depth}]-(n)
+            RETURN DISTINCT n.entity_id AS id, n.concept AS concept,
+                   n.space_id AS space_id, n.properties AS properties,
+                   [rel IN relationships(path) | {{
+                       from_id: startNode(rel).entity_id,
+                       to_id: endNode(rel).entity_id,
+                       type: type(rel),
+                       props: rel.properties
+                   }}] AS edges
+            LIMIT {limit}
+        """
+        result = self._conn.execute(cypher, {"id": node_id})
+        df = result.get_as_df()
+        if df.empty:
+            return {"nodes": [], "edges": []}
+
+        nodes: list[dict[str, Any]] = []
+        edges: list[dict[str, Any]] = []
+        seen_nodes: set[str] = {node_id}
+        seen_edges: set[str] = set()
+
+        center_result = self._conn.execute(
+            "MATCH (c:Entity {entity_id: $id}) RETURN c.entity_id AS id, "
+            "c.concept AS concept, c.space_id AS space_id, c.properties AS properties",
+            {"id": node_id},
+        )
+        center_df = center_result.get_as_df()
+        if not center_df.empty:
+            row = center_df.iloc[0]
+            nodes.append({
+                "id": row["id"],
+                "fact_object": row["concept"],
+                "space_id": row["space_id"],
+                "properties": json.loads(row["properties"]) if row["properties"] else {},
+            })
+
+        for _, row in df.iterrows():
+            nid = row["id"]
+            if nid not in seen_nodes:
+                seen_nodes.add(nid)
+                nodes.append({
+                    "id": nid,
+                    "fact_object": row["concept"],
+                    "space_id": row["space_id"],
+                    "properties": json.loads(row["properties"]) if row["properties"] else {},
+                })
+            for edge_info in row.get("edges", []):
+                edge_key = f"{edge_info.get('from_id')}:{edge_info.get('to_id')}:{edge_info.get('type')}"
+                if edge_key not in seen_edges:
+                    seen_edges.add(edge_key)
+                    props = edge_info.get("props")
+                    if isinstance(props, str):
+                        try:
+                            props = json.loads(props)
+                        except (json.JSONDecodeError, TypeError):
+                            props = {}
+                    confidence = (props or {}).get("confidence", 1.0)
+                    if confidence >= min_confidence:
+                        edges.append({
+                            "from_id": edge_info.get("from_id"),
+                            "to_id": edge_info.get("to_id"),
+                            "type": edge_info.get("type"),
+                            "properties": props or {},
+                        })
+
+        return {"nodes": nodes, "edges": edges}
+
+    async def get_entity_at(
+        self,
+        fact_object: str,
+        as_of: str,
+        domain_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Temporal slice query: get entities at a specific point in time.
+
+        Args:
+            fact_object: Entity type filter.
+            as_of: Timestamp for point-in-time query.
+            domain_id: Optional domain filter.
+
+        Returns:
+            List of node records valid at the given time.
+        """
+        self._ensure_initialized()
+        import json
+
+        where_parts = ["n.concept = $concept"]
+        params: dict[str, Any] = {"concept": fact_object}
+
+        if domain_id:
+            where_parts.append("n.space_id = $domain")
+            params["domain"] = domain_id
+
+        where = "WHERE " + " AND ".join(where_parts)
+        cypher = f"""
+            MATCH (n:Entity)
+            {where}
+            RETURN n.entity_id AS id, n.concept AS concept,
+                   n.space_id AS space_id, n.properties AS properties
+        """
+        result = self._conn.execute(cypher, params)
+        df = result.get_as_df()
+        if df.empty:
+            return []
+
+        records = []
+        for _, row in df.iterrows():
+            props = json.loads(row["properties"]) if row["properties"] else {}
+            valid_from = props.get("valid_from")
+            valid_to = props.get("valid_to")
+            if valid_from and valid_from > as_of:
+                continue
+            if valid_to and valid_to <= as_of:
+                continue
+            records.append({
+                "id": row["id"],
+                "fact_object": row["concept"],
+                "space_id": row["space_id"],
+                "properties": props,
+            })
+        return records
+
+    async def get_edge_at(
+        self,
+        relation_name: str,
+        as_of: str,
+        min_confidence: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Temporal slice query: get edges at a specific point in time.
+
+        Args:
+            relation_name: Edge type filter.
+            as_of: Timestamp for point-in-time query.
+            min_confidence: Minimum confidence filter.
+
+        Returns:
+            List of edge records valid at the given time.
+        """
+        self._ensure_initialized()
+        import json
+
+        cypher = """
+            MATCH (a:Entity)-[r:Relation {relation_type: $rtype}]->(b:Entity)
+            RETURN a.entity_id AS from_id, b.entity_id AS to_id,
+                   r.relation_type AS edge_type, r.relation_id AS edge_id,
+                   r.properties AS properties
+        """
+        result = self._conn.execute(cypher, {"rtype": relation_name})
+        df = result.get_as_df()
+        if df.empty:
+            return []
+
+        records = []
+        for _, row in df.iterrows():
+            props = json.loads(row["properties"]) if row["properties"] else {}
+            valid_from = props.get("valid_from")
+            valid_to = props.get("valid_to")
+            if valid_from and valid_from > as_of:
+                continue
+            if valid_to and valid_to <= as_of:
+                continue
+            confidence = props.get("confidence", 1.0)
+            if confidence < min_confidence:
+                continue
+            records.append({
+                "from_id": row["from_id"],
+                "to_id": row["to_id"],
+                "edge_type": row["edge_type"],
+                "edge_id": row["edge_id"],
+                "properties": props,
+            })
+        return records
+
+    async def get_by_source_pipeline(
+        self,
+        source_pipeline: str,
+        label: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Traceability query: get entities by source pipeline.
+
+        Args:
+            source_pipeline: Source pipeline identifier.
+            label: Optional entity type filter.
+
+        Returns:
+            List of node records from the given pipeline.
+        """
+        self._ensure_initialized()
+        import json
+
+        where_parts = ["n.properties CONTAINS $pipeline"]
+        params: dict[str, Any] = {"pipeline": source_pipeline}
+
+        if label:
+            where_parts.append("n.concept = $label")
+            params["label"] = label
+
+        where = "WHERE " + " AND ".join(where_parts)
+        cypher = f"""
+            MATCH (n:Entity)
+            {where}
+            RETURN n.entity_id AS id, n.concept AS concept,
+                   n.space_id AS space_id, n.properties AS properties
+        """
+        result = self._conn.execute(cypher, params)
+        df = result.get_as_df()
+        if df.empty:
+            return []
+
+        records = []
+        for _, row in df.iterrows():
+            props = json.loads(row["properties"]) if row["properties"] else {}
+            if props.get("source_pipeline") != source_pipeline:
+                continue
+            records.append({
+                "id": row["id"],
+                "fact_object": row["concept"],
+                "space_id": row["space_id"],
+                "properties": props,
+            })
+        return records
+
+    async def create_mutual_index_edge(
+        self,
+        edge_type: str,
+        from_id: str,
+        to_id: str,
+        properties: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a mutual-index edge (EXTRACTED_FROM, SUPPORTED_BY, DEFINED_IN, TRACE_TO).
+
+        Args:
+            edge_type: One of EXTRACTED_FROM, SUPPORTED_BY, DEFINED_IN, TRACE_TO.
+            from_id: Source node ID.
+            to_id: Target node ID.
+            properties: Edge properties (confidence, edge_text, source_file, etc.).
+
+        Returns:
+            Created edge record.
+        """
+        self._ensure_initialized()
+
+        valid_types = {"EXTRACTED_FROM", "SUPPORTED_BY", "DEFINED_IN", "TRACE_TO"}
+        if edge_type not in valid_types:
+            raise GraphQueryError(f"Invalid mutual-index edge type: {edge_type}. Must be one of {valid_types}")
+
+        from_label = "ExecutionStepSnapshot" if edge_type == "TRACE_TO" else "Entity"
+        to_label = "Entity"
+
+        props_parts = []
+        params: dict[str, Any] = {"from_id": from_id, "to_id": to_id}
+        for k, v in properties.items():
+            props_parts.append(f"{k}: ${k}")
+            params[k] = v
+
+        props_str = ", ".join(props_parts) if props_parts else ""
+
+        cypher = f"""
+            MATCH (a:{from_label} {{entity_id: $from_id}}), (b:{to_label} {{entity_id: $to_id}})
+            MERGE (a)-[r:{edge_type}]->(b)
+            {"SET " + props_str if props_str else ""}
+            RETURN label(r) AS edge_type, a.entity_id AS from_id, b.entity_id AS to_id
+        """
+        self._conn.execute(cypher, params)
+        return {
+            "edge_type": edge_type,
+            "from_id": from_id,
+            "to_id": to_id,
+            "properties": properties,
+        }
+
+    async def get_mutual_index_edges(
+        self,
+        node_id: str,
+        edge_type: str | None = None,
+        direction: str = "both",
+    ) -> list[dict[str, Any]]:
+        """Get mutual-index edges for a node.
+
+        Args:
+            node_id: Node ID to query.
+            edge_type: Optional specific edge type filter.
+            direction: "outgoing", "incoming", or "both".
+
+        Returns:
+            List of mutual-index edge records.
+        """
+        self._ensure_initialized()
+        import json
+
+        mutual_types = ["EXTRACTED_FROM", "SUPPORTED_BY", "DEFINED_IN", "TRACE_TO"]
+        if edge_type:
+            mutual_types = [edge_type]
+
+        results: list[dict[str, Any]] = []
+        for mtype in mutual_types:
+            if direction in ("outgoing", "both"):
+                cypher = f"""
+                    MATCH (a:Entity {{entity_id: $id}})-[r:{mtype}]->(b)
+                    RETURN a.entity_id AS from_id, b.entity_id AS to_id,
+                           label(r) AS edge_type, r AS props
+                """
+                try:
+                    result = self._conn.execute(cypher, {"id": node_id})
+                    df = result.get_as_df()
+                    for _, row in df.iterrows():
+                        props = row.get("props", {})
+                        if isinstance(props, str):
+                            try:
+                                props = json.loads(props)
+                            except (json.JSONDecodeError, TypeError):
+                                props = {}
+                        results.append({
+                            "from_id": row["from_id"],
+                            "to_id": row["to_id"],
+                            "edge_type": row["edge_type"],
+                            "direction": "outgoing",
+                            "properties": props if isinstance(props, dict) else {},
+                        })
+                except Exception:
+                    pass
+
+            if direction in ("incoming", "both"):
+                cypher = f"""
+                    MATCH (a)-[r:{mtype}]->(b:Entity {{entity_id: $id}})
+                    RETURN a.entity_id AS from_id, b.entity_id AS to_id,
+                           label(r) AS edge_type, r AS props
+                """
+                try:
+                    result = self._conn.execute(cypher, {"id": node_id})
+                    df = result.get_as_df()
+                    for _, row in df.iterrows():
+                        props = row.get("props", {})
+                        if isinstance(props, str):
+                            try:
+                                props = json.loads(props)
+                            except (json.JSONDecodeError, TypeError):
+                                props = {}
+                        results.append({
+                            "from_id": row["from_id"],
+                            "to_id": row["to_id"],
+                            "edge_type": row["edge_type"],
+                            "direction": "incoming",
+                            "properties": props if isinstance(props, dict) else {},
+                        })
+                except Exception:
+                    pass
+
+        return results
+
+    async def update_feedback_weight(
+        self,
+        entity_id: str,
+        feedback: float,
+        learning_rate: float = 0.1,
+    ) -> None:
+        """Update feedback weight for an entity (memory reinforcement).
+
+        Uses exponential moving average:
+            new_weight = (1 - lr) * old_weight + lr * feedback
+
+        Args:
+            entity_id: Entity to update.
+            feedback: New feedback value (0.0 to 1.0).
+            learning_rate: Learning rate for EMA.
+        """
+        self._ensure_initialized()
+        import json
+
+        cypher = """
+            MATCH (n:Entity {entity_id: $id})
+            RETURN n.properties AS props
+        """
+        result = self._conn.execute(cypher, {"id": entity_id})
+        df = result.get_as_df()
+        if df.empty:
+            return
+
+        props_str = df.iloc[0]["props"]
+        props = json.loads(props_str) if props_str else {}
+        old_weight = props.get("feedback_weight", 0.5)
+        new_weight = (1 - learning_rate) * old_weight + learning_rate * feedback
+        props["feedback_weight"] = new_weight
+
+        self._conn.execute(
+            "MATCH (n:Entity {entity_id: $id}) SET n.properties = $props",
+            {"id": entity_id, "props": json.dumps(props)},
+        )

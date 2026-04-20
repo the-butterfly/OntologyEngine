@@ -15,15 +15,15 @@ from ontology_engine.storage.base import (
 
 
 class DefaultRetrievalBackend(RetrievalBackend):
-    """Coordinates DuckDB + GraphStore + VectorStore for unified retrieval.
+    """Coordinates MetaStore + GraphStore + VectorStore for unified retrieval.
 
     This is the concrete implementation of the "统一 Repository 接口"
     described in ``docs/05-schema-v2/query-engine-target.md``.
 
     Write flow:
-        1. Attributes -> StorageBackend (DuckDB)
+        1. Attributes -> StorageBackend (MetaStore)
         2. Topology  -> GraphStoreBackend (NetworkX / kuzu)
-        3. Vectors   -> VectorStoreBackend (LocalVectorStore / Faiss)
+        3. Vectors   -> VectorStoreBackend (ChromaDB / LocalVectorStore)
 
     Read flow:
         1. Structured queries -> StorageBackend
@@ -48,7 +48,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
         self,
         query_text: str,
         top_k: int = 10,
-        concept_type: str | None = None,
+        fact_object: str | None = None,
     ) -> list[VectorSearchResult]:
         """Pure vector search.
 
@@ -65,9 +65,9 @@ class DefaultRetrievalBackend(RetrievalBackend):
             )
         query_vector = self._embedder(query_text)
         results = await self.vector.search(query_vector, top_k=top_k)
-        if concept_type:
+        if fact_object:
             results = [
-                r for r in results if r.metadata.get("concept_type") == concept_type
+                r for r in results if r.metadata.get("fact_object") == fact_object
             ]
         return results
 
@@ -391,24 +391,24 @@ class DefaultRetrievalBackend(RetrievalBackend):
         Strategy:
         - Short paths (<=2 hops): get_neighbors multi-hop (lower latency)
         - Long paths (>2 hops): Cypher native MATCH (kuzu optimizer global optimization)
-        - No graph store: DuckDB fallback
+        - No graph store: MetaStore fallback
         """
         if not path_pattern:
             # Degenerate case: just query start nodes
             entities = await self.storage.query_entities(
-                concept=start_concept,
+                fact_object=start_concept,
                 filters=start_filters,
             )
             return [
-                {"nodes": [{"entity_id": e.entity_id, "concept": e.concept}]}
+                {"nodes": [{"entity_id": e.entity_id, "fact_object": e._fact_object}]}
                 for e in entities[:limit]
             ]
 
         path_length = len(path_pattern)
 
         if self.graph is None:
-            # DuckDB fallback
-            return await self._graph_pattern_match_duckdb(
+            # MetaStore fallback
+            return await self._graph_pattern_match_storage(
                 start_concept, path_pattern, start_filters, limit
             )
 
@@ -423,16 +423,16 @@ class DefaultRetrievalBackend(RetrievalBackend):
                 start_concept, path_pattern, start_filters, limit
             )
 
-    async def _graph_pattern_match_duckdb(
+    async def _graph_pattern_match_storage(
         self,
         start_concept: str,
         path_pattern: list[tuple[str, str]],
         start_filters: dict[str, Any] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        """Fallback pattern match using DuckDB."""
+        """Fallback pattern match using MetaStore."""
         candidates = await self.storage.query_entities(
-            concept=start_concept,
+            fact_object=start_concept,
             filters=start_filters,
         )
 
@@ -440,7 +440,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
         for entity in candidates:
             if len(results) >= limit:
                 break
-            path = await self._traverse_pattern_duckdb(
+            path = await self._traverse_pattern_storage(
                 entity.entity_id, path_pattern
             )
             if path:
@@ -457,7 +457,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
         """Short path pattern match using get_neighbors with node_concept."""
         # Find candidate start nodes
         candidates = await self.storage.query_entities(
-            concept=start_concept,
+            fact_object=start_concept,
             filters=start_filters,
         )
 
@@ -477,7 +477,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
         start_id: str,
         path_pattern: list[tuple[str, str]],
     ) -> dict[str, Any] | None:
-        """Traverse using get_neighbors with node_concept filter (no DuckDB lookup needed)."""
+        """Traverse using get_neighbors with node_concept filter (no MetaStore lookup needed)."""
         if self.graph is None:
             return None
         nodes: list[dict[str, Any]] = [{"entity_id": start_id}]
@@ -507,12 +507,12 @@ class DefaultRetrievalBackend(RetrievalBackend):
 
         return {"nodes": nodes, "edges": edges}
 
-    async def _traverse_pattern_duckdb(
+    async def _traverse_pattern_storage(
         self,
         start_id: str,
         path_pattern: list[tuple[str, str]],
     ) -> dict[str, Any] | None:
-        """Traverse using DuckDB get_neighbors (fallback when no graph store)."""
+        """Traverse using StorageBackend get_neighbors (fallback when no graph store)."""
         nodes: list[dict[str, Any]] = [{"entity_id": start_id}]
         edges: list[dict[str, Any]] = []
         current_id = start_id
@@ -520,14 +520,14 @@ class DefaultRetrievalBackend(RetrievalBackend):
         for rel_type, target_concept in path_pattern:
             db_neighbors = await self.storage.get_neighbors(
                 entity_id=current_id,
-                relation_type=rel_type,
+                relation_name=rel_type,
                 direction="outgoing",
             )
             found = False
             for db_ent, db_rel in db_neighbors:
-                if db_ent.concept == target_concept:
-                    nodes.append({"entity_id": db_ent.entity_id, "concept": db_ent.concept})
-                    edges.append({"relation_type": db_rel.relation_type})
+                if db_ent._fact_object == target_concept:
+                    nodes.append({"entity_id": db_ent.entity_id, "fact_object": db_ent._fact_object})
+                    edges.append({"relation_name": db_rel.relation_name})
                     current_id = db_ent.entity_id
                     found = True
                     break

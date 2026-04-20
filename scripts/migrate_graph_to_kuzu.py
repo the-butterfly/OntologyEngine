@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Migrate graph data from DuckDB to kuzu.
+"""Migrate graph data from SQLite to kuzu.
 
-This script bulk-loads all entity and relation data from DuckDB into kuzu,
-enabling a one-time migration from DuckDB-based graph storage to the
+This script bulk-loads all entity and relation data from SQLite into kuzu,
+enabling a one-time migration from SQLite-based graph storage to the
 native kuzu graph database.
 
 Usage:
-    python scripts/migrate_graph_to_kuzu.py --db-path ~/.ontology_engine/data/default.db
+    python scripts/migrate_graph_to_kuzu.py --db-path ~/.ontology_engine/data/meta.db
 
 The script will:
-1. Load all Entity records from DuckDB
-2. Load all Relation records from DuckDB
+1. Load all Entity records from SQLite
+2. Load all Relation records from SQLite
 3. Batch upsert all nodes and edges into kuzu
 4. Report migration statistics
 
 After migration, kuzu will be the primary graph store for queries,
-while DuckDB continues to serve entity/attribute storage.
+while SQLite continues to serve entity/attribute storage.
 """
 
 from __future__ import annotations
@@ -26,10 +26,9 @@ import logging
 import sys
 from pathlib import Path
 
-# Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ontology_engine.storage.duckdb import DuckDBStorage
+from ontology_engine.storage.sqlite.store import SQLiteStorage
 from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
 
 logging.basicConfig(
@@ -40,15 +39,15 @@ logger = logging.getLogger(__name__)
 
 
 async def migrate_graph_data(
-    duckdb_path: str,
+    sqlite_path: str,
     kuzu_db_path: str,
     batch_size: int = 1000,
     space_id: str = "default",
 ) -> dict[str, int]:
-    """Migrate graph data from DuckDB to kuzu.
+    """Migrate graph data from SQLite to kuzu.
 
     Args:
-        duckdb_path: Path to the DuckDB database file.
+        sqlite_path: Path to the SQLite database file.
         kuzu_db_path: Path for the kuzu database.
         batch_size: Number of records to process per batch.
         space_id: Space identifier for the graph.
@@ -56,19 +55,17 @@ async def migrate_graph_data(
     Returns:
         Migration statistics dict.
     """
-    logger.info(f"Starting migration: DuckDB={duckdb_path} -> kuzu={kuzu_db_path}")
+    logger.info(f"Starting migration: SQLite={sqlite_path} -> kuzu={kuzu_db_path}")
 
-    # Initialize storage backends
-    duckdb_store = DuckDBStorage(db_path=duckdb_path)
-    await duckdb_store.initialize()
+    sqlite_store = SQLiteStorage(db_path=sqlite_path)
+    await sqlite_store.initialize()
 
     kuzu_store = KuzuGraphStore()
     await kuzu_store.initialize(db_path=kuzu_db_path)
 
     try:
-        # Phase 1: Migrate nodes
         logger.info("Phase 1: Migrating nodes...")
-        all_entities = await duckdb_store.query_entities(concept=None)
+        all_entities = await sqlite_store.query_entities(fact_object=None)
 
         total_nodes = len(all_entities)
         logger.info(f"Found {total_nodes} entities to migrate")
@@ -90,19 +87,18 @@ async def migrate_graph_data(
 
         logger.info(f"Phase 1 complete: {nodes_written} nodes written")
 
-        # Phase 2: Migrate edges
         logger.info("Phase 2: Migrating edges...")
         edges_written = 0
         total_edges = 0
 
         for entity in all_entities:
-            relations = await duckdb_store.get_relations(entity.entity_id)
+            relations = await sqlite_store.get_relations(entity.entity_id)
             total_edges += len(relations)
 
         logger.info(f"Found {total_edges} relations to migrate")
 
         for entity in all_entities:
-            relations = await duckdb_store.get_relations(entity.entity_id)
+            relations = await sqlite_store.get_relations(entity.entity_id)
             if not relations:
                 continue
 
@@ -123,7 +119,6 @@ async def migrate_graph_data(
 
         logger.info(f"Phase 2 complete: {edges_written} edges written")
 
-        # Summary
         summary = {
             "nodes_written": nodes_written,
             "edges_written": edges_written,
@@ -134,19 +129,19 @@ async def migrate_graph_data(
         return summary
 
     finally:
-        await duckdb_store.close()
+        await sqlite_store.close()
         await kuzu_store.close()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Migrate graph data from DuckDB to kuzu"
+        description="Migrate graph data from SQLite to kuzu"
     )
     parser.add_argument(
         "--db-path",
         type=str,
-        default="~/.ontology_engine/data/default.db",
-        help="Path to DuckDB database (default: ~/.ontology_engine/data/default.db)",
+        default="~/.ontology_engine/data/meta.db",
+        help="Path to SQLite database (default: ~/.ontology_engine/data/meta.db)",
     )
     parser.add_argument(
         "--kuzu-path",
@@ -169,17 +164,15 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Expand user paths
     db_path = str(Path(args.db_path).expanduser())
     kuzu_path = str(Path(args.kuzu_path).expanduser())
 
-    # Ensure kuzu parent directory exists
     kuzu_parent = Path(kuzu_path).parent
     kuzu_parent.mkdir(parents=True, exist_ok=True)
 
     try:
         summary = asyncio.run(migrate_graph_data(
-            duckdb_path=db_path,
+            sqlite_path=db_path,
             kuzu_db_path=kuzu_path,
             batch_size=args.batch_size,
             space_id=args.space_id,
