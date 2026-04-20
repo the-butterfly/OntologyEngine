@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from ontology_engine.core.schema.models import MetricDefinition, KGMLSchema, SchemaMetadata
 from ontology_engine.engine.metric.engine import MetricEngine, MetricCache
 from ontology_engine.engine.metric.errors import MetricNotFoundError, MetricNotComputableError
-from ontology_engine.storage.duckdb import EntityInstance
+from ontology_engine.storage.base import EntityInstance
 
 
 class TestMetricCache:
@@ -103,7 +103,7 @@ class TestMetricEngine:
     async def test_compute_metric_not_found(self, engine):
         """Test error when metric doesn't exist."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -114,7 +114,7 @@ class TestMetricEngine:
     async def test_compute_atomic_from_entity_data(self, engine):
         """Test atomic metric from entity data."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"total_invoice_amount_90d": {"value": 500000, "currency": "CNY"}}
         )
@@ -127,12 +127,12 @@ class TestMetricEngine:
         """Test atomic metric with invoice aggregation."""
         # Mock related invoices
         invoice1 = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_001",
             data={"amount": {"value": 100000}, "issue_date": str(date.today() - timedelta(days=30))}
         )
         invoice2 = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_002",
             data={"amount": {"value": 200000}, "issue_date": str(date.today() - timedelta(days=60))}
         )
@@ -141,7 +141,7 @@ class TestMetricEngine:
         ]
 
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -155,12 +155,12 @@ class TestMetricEngine:
         """Test atomic overdue_invoice_amount aggregation."""
         # Mock invoices - one overdue, one not
         invoice1 = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_001",
             data={"amount": {"value": 100000}, "status": "OVERDUE"}
         )
         invoice2 = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_002",
             data={"amount": {"value": 200000}, "status": "PAID"}
         )
@@ -169,7 +169,7 @@ class TestMetricEngine:
         ]
 
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -185,7 +185,7 @@ class TestMetricEngine:
         engine.cache.set("SUP_001", "overdue_invoice_amount", {"value": 100000, "currency": "CNY"})
 
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -205,7 +205,7 @@ class TestMetricEngine:
         engine.cache.set("SUP_001", "overdue_invoice_amount", {"value": 100000, "currency": "CNY"})
 
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -223,7 +223,7 @@ class TestMetricEngine:
     async def test_compute_uses_cache(self, engine, storage):
         """Test that cached values are used."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -241,7 +241,7 @@ class TestMetricEngine:
     async def test_compute_composite_with_formula(self, engine, storage):
         """Test composite metric with formula."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"total_invoice_amount_90d": {"value": 5000000, "currency": "CNY"}}
         )
@@ -254,12 +254,12 @@ class TestMetricEngine:
         """Test invoice_count_90d atomic metric."""
         # Mock invoices - only one within 90 days
         old_invoice = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_OLD",
             data={"amount": {"value": 100000}, "issue_date": str(date.today() - timedelta(days=100))}
         )
         recent_invoice = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_NEW",
             data={"amount": {"value": 200000}, "issue_date": str(date.today() - timedelta(days=30))}
         )
@@ -268,7 +268,7 @@ class TestMetricEngine:
         ]
 
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -305,12 +305,12 @@ class TestMetricEngineContractAmount:
     async def test_aggregate_contract_amount(self, schema_with_contract, storage):
         """Test total_contract_amount aggregation."""
         contract1 = EntityInstance(
-            concept="Contract",
+            _fact_object="Contract",
             entity_id="CTR_001",
             data={"contract_amount": {"value": 1000000}}
         )
         contract2 = EntityInstance(
-            concept="Contract",
+            _fact_object="Contract",
             entity_id="CTR_002",
             data={"contract_amount": {"value": 2000000}}
         )
@@ -319,7 +319,7 @@ class TestMetricEngineContractAmount:
         ]
 
         engine = MetricEngine(schema=schema_with_contract, storage=storage)
-        entity = EntityInstance(concept="Supplier", entity_id="SUP_001", data={})
+        entity = EntityInstance(_fact_object="Supplier", entity_id="SUP_001", data={})
 
         result = await engine.compute("total_contract_amount", entity)
         assert result["value"] == 3000000
@@ -358,7 +358,7 @@ class TestMetricEngineEdgeCases:
             )
         ]
         engine = MetricEngine(schema=schema, storage=storage)
-        entity = EntityInstance(concept="Supplier", entity_id="SUP_001", data={})
+        entity = EntityInstance(_fact_object="Supplier", entity_id="SUP_001", data={})
 
         # Ensure storage returns None for get_metric
         storage.get_metric.return_value = None

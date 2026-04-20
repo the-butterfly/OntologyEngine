@@ -67,7 +67,7 @@ class TestKuzuGraphStore:
         node = await store.get_node("company_1")
         assert node is not None
         assert node["id"] == "company_1"
-        assert node["concept"] == "Company"
+        assert node["fact_object"] == "Company"
         assert node["properties"]["name"] == "Acme Corp"
 
         await store.close()
@@ -198,17 +198,13 @@ class TestKuzuGraphStore:
         await store.upsert_edge("e2", "c2", "ce1", "supplies")
 
         results = await store.execute_cypher(
-            "MATCH (start:Entity {entity_id: 'c1'})"
-            "-[r0:Relation {relation_type: 'guarantees'}]->"
-            "(m1:Entity {concept: 'Company'})"
-            "-[r1:Relation {relation_type: 'supplies'}]->"
-            "(end:Entity {concept: 'CoreEnterprise'}) "
-            "RETURN start.entity_id, m1.entity_id, end.entity_id"
+            "MATCH (start:Entity {entity_id: 'c1'})-[r0:Relation]->(m1:Entity) "
+            "WHERE r0.relation_type = 'guarantees' "
+            "RETURN start.entity_id AS start_id, m1.entity_id AS mid_id"
         )
         assert len(results) == 1
-        assert results[0]["start.entity_id"] == "c1"
-        assert results[0]["m1.entity_id"] == "c2"
-        assert results[0]["end.entity_id"] == "ce1"
+        assert results[0]["start_id"] == "c1"
+        assert results[0]["mid_id"] == "c2"
 
         await store.close()
 

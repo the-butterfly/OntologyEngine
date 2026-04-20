@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 @pytest.fixture
 def mock_storage():
-    """Create a mock DuckDB storage."""
+    """Create a mock storage."""
     storage = AsyncMock()
     storage.get_entity = AsyncMock(return_value=None)
     storage.save_entity = AsyncMock()

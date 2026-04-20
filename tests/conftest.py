@@ -8,15 +8,15 @@ pytest_plugins = ["pytest_asyncio"]
 from httpx import AsyncClient, ASGITransport
 
 from ontology_engine.api.server import create_app
-from ontology_engine.storage.duckdb.store import DuckDBStorage
+from ontology_engine.storage.sqlite.store import SQLiteStorage
 from ontology_engine.services.dataset_service import DatasetService
 from ontology_engine.services.incremental_update import IncrementalUpdateService
 
 
 @pytest_asyncio.fixture
 async def storage():
-    """In-memory DuckDB storage for each test."""
-    s = DuckDBStorage(db_path=":memory:")
+    """In-memory SQLite storage for each test."""
+    s = SQLiteStorage(db_path=":memory:")
     await s.initialize()
     try:
         yield s

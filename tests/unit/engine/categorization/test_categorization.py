@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.engine.categorization.models import CategoryTags
 from ontology_engine.engine.categorization.engine import CategorizationEngine
-from ontology_engine.storage.duckdb import EntityInstance
+from ontology_engine.storage.base import EntityInstance
 
 
 class TestCategoryTags:
@@ -137,7 +137,7 @@ class TestCategorizationEngine:
     async def test_categorize_hierarchical_industry(self, engine, mock_storage):
         """Test hierarchical categorization by industry."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={
                 "industry_type": "MANUFACTURING",
@@ -154,7 +154,7 @@ class TestCategorizationEngine:
     async def test_categorize_empty_dimensions(self, engine):
         """Test categorization with empty dimensions list."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"industry_type": "MANUFACTURING"}
         )
@@ -168,7 +168,7 @@ class TestCategorizationEngine:
     async def test_categorize_stores_tags(self, engine, mock_storage):
         """Test that categorization persists tags to storage."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={
                 "industry_type": "MANUFACTURING",
@@ -207,7 +207,7 @@ class TestCategorizationEngine:
     def test_hierarchical_direct_attribute(self, engine):
         """Test hierarchical categorization with direct attribute match."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"industry_type": "RETAIL"}
         )
@@ -219,7 +219,7 @@ class TestCategorizationEngine:
     def test_hierarchical_nested_value(self, engine):
         """Test hierarchical categorization with nested value dict."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"industry_type": {"value": "MANUFACTURING", "code": "C"}}
         )
@@ -231,7 +231,7 @@ class TestCategorizationEngine:
     def test_hierarchical_mapped_attribute(self, engine):
         """Test hierarchical categorization with attribute name mapping."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"industry": "WHOLESALE"}  # Using 'industry' but dimension is 'industry_type'
         )
@@ -244,7 +244,7 @@ class TestCategorizationEngine:
     def test_hierarchical_not_found(self, engine):
         """Test hierarchical categorization when attribute not found."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"name": "Test Company"}
         )
@@ -263,7 +263,7 @@ class TestCategorizationEngine:
         mock_rule_executor.execute_dimension.return_value = mock_result
 
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"annual_revenue": 500000000}
         )
@@ -277,7 +277,7 @@ class TestCategorizationEngine:
     def test_tags_same_as_hierarchical(self, engine):
         """Test that tags categorization is same as hierarchical in Phase 1."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"risk_level": "LOW"}
         )

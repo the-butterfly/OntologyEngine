@@ -1,12 +1,12 @@
 # tests/unit/services/test_dataset_and_incremental.py
-"""Tests for DatasetService and IncrementalUpdateService with DuckDB persistence."""
+"""Tests for DatasetService and IncrementalUpdateService with SQLite persistence."""
 
 from __future__ import annotations
 
 import pytest
 import pytest_asyncio
 
-from ontology_engine.storage.duckdb.store import DuckDBStorage
+from ontology_engine.storage.sqlite.store import SQLiteStorage
 from ontology_engine.services.dataset_service import DatasetService
 from ontology_engine.services.incremental_update import (
     IncrementalUpdateService,
@@ -18,9 +18,9 @@ class BaseServiceTest:
     """Base class with shared async storage fixture."""
 
     @pytest_asyncio.fixture
-    async def storage(self) -> DuckDBStorage:
-        """Create an in-memory DuckDB storage for testing."""
-        s = DuckDBStorage(db_path=":memory:")
+    async def storage(self) -> SQLiteStorage:
+        """Create an in-memory SQLite storage for testing."""
+        s = SQLiteStorage(db_path=":memory:")
         await s.initialize()
         try:
             yield s
@@ -35,7 +35,7 @@ class BaseServiceTest:
 class TestDatasetService(BaseServiceTest):
 
     @pytest.mark.asyncio
-    async def test_create_and_get_dataset(self, storage: DuckDBStorage):
+    async def test_create_and_get_dataset(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         ds = await service.create_dataset(name="Test DS", description="desc")
         assert ds["name"] == "Test DS"
@@ -46,7 +46,7 @@ class TestDatasetService(BaseServiceTest):
         assert fetched["name"] == "Test DS"
 
     @pytest.mark.asyncio
-    async def test_list_datasets(self, storage: DuckDBStorage):
+    async def test_list_datasets(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         await service.create_dataset(name="DS 1")
         await service.create_dataset(name="DS 2")
@@ -54,7 +54,7 @@ class TestDatasetService(BaseServiceTest):
         assert len(datasets) == 2
 
     @pytest.mark.asyncio
-    async def test_add_entities(self, storage: DuckDBStorage):
+    async def test_add_entities(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         ds = await service.create_dataset(name="With Entities")
         count = await service.add_entities(
@@ -71,7 +71,7 @@ class TestDatasetService(BaseServiceTest):
         assert len(members) == 2
 
     @pytest.mark.asyncio
-    async def test_intersection(self, storage: DuckDBStorage):
+    async def test_intersection(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         ds_a = await service.create_dataset(name="A")
         ds_b = await service.create_dataset(name="B")
@@ -84,7 +84,7 @@ class TestDatasetService(BaseServiceTest):
         assert "e2" in result["intersection_entities"]
 
     @pytest.mark.asyncio
-    async def test_diff(self, storage: DuckDBStorage):
+    async def test_diff(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         ds_a = await service.create_dataset(name="A")
         ds_b = await service.create_dataset(name="B")
@@ -98,7 +98,7 @@ class TestDatasetService(BaseServiceTest):
         assert "e2" in result["common"]
 
     @pytest.mark.asyncio
-    async def test_snapshot(self, storage: DuckDBStorage):
+    async def test_snapshot(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         ds = await service.create_dataset(name="Snap Test")
         await service.add_entities(
@@ -110,7 +110,7 @@ class TestDatasetService(BaseServiceTest):
         assert snap["description"] == "baseline"
 
     @pytest.mark.asyncio
-    async def test_delete_dataset(self, storage: DuckDBStorage):
+    async def test_delete_dataset(self, storage: SQLiteStorage):
         service = DatasetService(storage=storage)
         ds = await service.create_dataset(name="To Delete")
         await service.delete_dataset(ds["dataset_id"])
@@ -124,7 +124,7 @@ class TestDatasetService(BaseServiceTest):
 class TestIncrementalUpdateService(BaseServiceTest):
 
     @pytest.mark.asyncio
-    async def test_detect_changes(self, storage: DuckDBStorage):
+    async def test_detect_changes(self, storage: SQLiteStorage):
         service = IncrementalUpdateService(storage=storage)
         old = {
             "e1": {"_concept": "Enterprise", "name": "Co A", "revenue": 100},
@@ -142,7 +142,7 @@ class TestIncrementalUpdateService(BaseServiceTest):
         assert ChangeType.UNCHANGED in types
 
     @pytest.mark.asyncio
-    async def test_import_with_diff_dry_run(self, storage: DuckDBStorage):
+    async def test_import_with_diff_dry_run(self, storage: SQLiteStorage):
         service = IncrementalUpdateService(storage=storage)
         new_entities = {
             "e1": {"_concept": "Enterprise", "name": "New Co"},
@@ -156,7 +156,7 @@ class TestIncrementalUpdateService(BaseServiceTest):
         assert result["stats"]["created"] == 2
 
     @pytest.mark.asyncio
-    async def test_import_with_diff_persist(self, storage: DuckDBStorage):
+    async def test_import_with_diff_persist(self, storage: SQLiteStorage):
         service = IncrementalUpdateService(storage=storage)
         new_entities = {
             "e1": {"_concept": "Enterprise", "name": "Co A"},
@@ -176,7 +176,7 @@ class TestIncrementalUpdateService(BaseServiceTest):
         assert batch["status"] == "applied"
 
     @pytest.mark.asyncio
-    async def test_entity_version_persisted(self, storage: DuckDBStorage):
+    async def test_entity_version_persisted(self, storage: SQLiteStorage):
         service = IncrementalUpdateService(storage=storage)
         new_entities = {
             "e_ver": {"_concept": "Enterprise", "name": "Versioned Co", "revenue": 500},
@@ -187,7 +187,7 @@ class TestIncrementalUpdateService(BaseServiceTest):
         assert versions[0]["data"]["name"] == "Versioned Co"
 
     @pytest.mark.asyncio
-    async def test_rollback_actions(self, storage: DuckDBStorage):
+    async def test_rollback_actions(self, storage: SQLiteStorage):
         service = IncrementalUpdateService(storage=storage)
         new_entities = {
             "e_new": {"_concept": "Enterprise", "name": "New Co"},
@@ -204,7 +204,7 @@ class TestIncrementalUpdateService(BaseServiceTest):
         assert "restore" in action_types  # e_del was deleted
 
     @pytest.mark.asyncio
-    async def test_impact_analysis(self, storage: DuckDBStorage):
+    async def test_impact_analysis(self, storage: SQLiteStorage):
         service = IncrementalUpdateService(storage=storage)
         from ontology_engine.services.incremental_update import EntityChange
         changes = [

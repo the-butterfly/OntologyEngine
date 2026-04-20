@@ -9,20 +9,29 @@ async def test_import_with_diff_dry_run(client):
     resp = await client.post(
         "/v1/incremental/import",
         json={
-            "dataset_id": "any_id",
+            "dataset_id": "test_ds",
             "dry_run": True,
-            "changes": [
-                {
-                    "entity_id": "E001",
-                    "change_type": "upsert",
-                    "concept": "Supplier",
-                    "properties": {"name": "Supplier A"},
-                }
-            ],
+            "entities": {
+                "E001": {"entity_id": "E001", "_fact_object": "Supplier", "name": "Supplier A"},
+            },
         },
     )
-    # Accept 200 (success) or 400 (dataset not found in test env) but not 500
-    assert resp.status_code in (200, 400), f"Got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    assert body["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_import_with_diff_missing_entities(client):
+    """POST /v1/incremental/import without entities returns error."""
+    resp = await client.post(
+        "/v1/incremental/import",
+        json={"dataset_id": "test_ds", "dry_run": True},
+    )
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["success"] is False
+    assert "INVALID_REQUEST" in body["error"]["code"]
 
 
 @pytest.mark.asyncio
@@ -30,7 +39,9 @@ async def test_list_change_batches(client):
     """GET /v1/incremental/batches returns batch list."""
     resp = await client.get("/v1/incremental/batches")
     assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
-    assert "data" in resp.json()
+    body = resp.json()
+    assert body["success"] is True
+    assert "data" in body
 
 
 @pytest.mark.asyncio
@@ -38,6 +49,13 @@ async def test_impact_analysis(client):
     """POST /v1/incremental/impact."""
     resp = await client.post(
         "/v1/incremental/impact",
-        json={"entity_ids": ["E001", "E002"], "change_type": "delete"},
+        json={
+            "changes": [
+                {"entity_id": "E001", "concept": "Supplier", "change_type": "UPDATED"},
+                {"entity_id": "E002", "concept": "Invoice", "change_type": "DELETED"},
+            ],
+        },
     )
-    assert resp.status_code in (200, 400), f"Got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+    assert body["success"] is True

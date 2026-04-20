@@ -46,12 +46,12 @@ def service(schema: KGMLSchema) -> VisualizationService:
 async def test_list_entities_filters_by_dimension(service: VisualizationService) -> None:
     service.storage.query_entities.return_value = [
         EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"company_name": "正常供应商", "active_dimensions": ["credit_assessment"]},
         ),
         EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_002",
             data={"company_name": "其他实体", "active_dimensions": ["transaction_monitoring"]},
         ),

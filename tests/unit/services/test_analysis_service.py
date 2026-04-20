@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.dto import EntityNotFoundError
-from ontology_engine.storage.duckdb import EntityInstance
+from ontology_engine.storage.base import EntityInstance
 from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata, MetricDefinition
 
 
@@ -81,14 +81,18 @@ class TestAnalysisService:
 
     @pytest.fixture
     def service(self, mock_categorization_engine, mock_metric_engine, mock_rule_executor, storage, schema):
-        """Create AnalysisService instance."""
-        return AnalysisService(
-            categorization_engine=mock_categorization_engine,
-            metric_engine=mock_metric_engine,
-            rule_executor=mock_rule_executor,
-            storage=storage,
-            schema=schema
-        )
+        """Create AnalysisService instance with mocked engines."""
+        with patch(
+            "ontology_engine.services.analysis_service.AnalysisService.__init__",
+            return_value=None,
+        ):
+            svc = AnalysisService.__new__(AnalysisService)
+            svc.storage = storage
+            svc.schema = schema
+            svc.categorization_engine = mock_categorization_engine
+            svc.metric_engine = mock_metric_engine
+            svc.rule_executor = mock_rule_executor
+            return svc
 
     @pytest.mark.asyncio
     async def test_execute_analysis_entity_not_found(self, service, storage):
@@ -103,7 +107,7 @@ class TestAnalysisService:
     async def test_execute_analysis_success(self, service, storage, mock_categorization_engine, mock_metric_engine, mock_rule_executor):
         """Test successful analysis execution."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={"name": "Test Supplier"}
         )
@@ -112,7 +116,7 @@ class TestAnalysisService:
         result = await service.execute_analysis("SUP_001", "credit_assessment")
 
         assert result.entity_id == "SUP_001"
-        assert result.concept_type == "Supplier"
+        assert result.fact_object == "Supplier"
         assert result.dimension == "credit_assessment"
         assert result.decision == "APPROVED"
         mock_categorization_engine.categorize.assert_called_once()
@@ -122,7 +126,7 @@ class TestAnalysisService:
     async def test_execute_analysis_with_context(self, service, storage, mock_metric_engine):
         """Test analysis with context override."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -138,7 +142,7 @@ class TestAnalysisService:
     async def test_execute_dry_run(self, service, storage):
         """Test dry run analysis."""
         entity = EntityInstance(
-            concept="Supplier",
+            _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
@@ -153,11 +157,11 @@ class TestAnalysisService:
     async def test_find_entity_try_concepts(self, service, storage):
         """Test _find_entity tries various concept types."""
         entity = EntityInstance(
-            concept="Invoice",
+            _fact_object="Invoice",
             entity_id="INV_001",
             data={}
         )
-        storage.get_entity.side_effect = [None, entity]  # First concept fails, second succeeds
+        storage.get_entity.side_effect = [None, entity]
 
         result = await service._find_entity("INV_001")
 
@@ -169,13 +173,11 @@ class TestAnalysisService:
     async def test_find_entity_query_all(self, service, storage):
         """Test _find_entity queries all entities as fallback."""
         entity = EntityInstance(
-            concept="Contract",
+            _fact_object="Contract",
             entity_id="CTR_001",
             data={}
         )
-        # All individual lookups fail
         storage.get_entity.side_effect = [None, None, None, None, None]
-        # Query all returns the entity
         storage.query_entities.return_value = [entity]
 
         result = await service._find_entity("CTR_001")
@@ -193,15 +195,14 @@ class TestAnalysisService:
     @pytest.mark.asyncio
     async def test_collect_required_metrics_no_schema(self):
         """Test collecting metrics when no schema."""
-        service = AnalysisService(
-            categorization_engine=AsyncMock(),
-            metric_engine=AsyncMock(),
-            rule_executor=AsyncMock(),
-            storage=AsyncMock(),
-            schema=None
-        )
+        svc = AnalysisService.__new__(AnalysisService)
+        svc.storage = AsyncMock()
+        svc.schema = None
+        svc.categorization_engine = None
+        svc.metric_engine = None
+        svc.rule_executor = None
 
-        metrics = service._collect_required_metrics("credit_assessment")
+        metrics = svc._collect_required_metrics("credit_assessment")
 
         assert metrics == []
 
