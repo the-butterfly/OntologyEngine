@@ -11,13 +11,23 @@ class EntityCreateRequest:
 
     def __init__(
         self,
-        concept_type: str,
+        fact_object: str,
         entity_id: str,
-        attributes: dict[str, Any] | None = None
+        attributes: dict[str, Any] | None = None,
+        *,
+        concept_type: str | None = None,
     ):
-        self.concept_type = concept_type
+        self._fact_object = concept_type or fact_object
         self.entity_id = entity_id
         self.attributes = attributes if attributes else {}
+
+    @property
+    def fact_object(self) -> str:
+        return self._fact_object
+
+    @property
+    def concept_type(self) -> str:
+        return self._fact_object
 
 
 class RelationCreateRequest:
@@ -25,15 +35,25 @@ class RelationCreateRequest:
 
     def __init__(
         self,
-        relation_type: str,
+        relation_name: str,
         from_id: str,
         to_id: str,
-        attributes: dict[str, Any] | None = None
+        attributes: dict[str, Any] | None = None,
+        *,
+        relation_type: str | None = None,
     ):
-        self.relation_type = relation_type
+        self._relation_name = relation_type or relation_name
         self.from_id = from_id
         self.to_id = to_id
         self.attributes = attributes if attributes else {}
+
+    @property
+    def relation_name(self) -> str:
+        return self._relation_name
+
+    @property
+    def relation_type(self) -> str:
+        return self._relation_name
 
 
 class AnalysisRequest:
@@ -57,15 +77,25 @@ class QueryRequest:
         self,
         query: str,
         match_mode: str = "hybrid",
-        concept_type: str | None = None,
+        fact_object: str | None = None,
         filters: dict[str, Any] | None = None,
-        top_k: int = 10
+        top_k: int = 10,
+        *,
+        concept_type: str | None = None,
     ):
         self.query = query
         self.match_mode = match_mode
-        self.concept_type = concept_type
+        self._fact_object = concept_type or fact_object
         self.filters = filters if filters else {}
         self.top_k = top_k
+
+    @property
+    def fact_object(self) -> str | None:
+        return self._fact_object
+
+    @property
+    def concept_type(self) -> str | None:
+        return self._fact_object
 
 
 class IngestionRequest:

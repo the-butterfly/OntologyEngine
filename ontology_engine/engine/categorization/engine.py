@@ -10,12 +10,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ontology_engine.engine.categorization.models import CategoryTags
-from ontology_engine.storage.duckdb import DuckDBStorage
 
 if TYPE_CHECKING:
     from ontology_engine.core.schema.models import KGMLSchema
     from ontology_engine.engine.rule.executor import RuleExecutor
-    from ontology_engine.storage.duckdb import EntityInstance
+    from ontology_engine.storage.base import EntityInstance, StorageBackend
 
 
 class CategorizationEngine:
@@ -40,7 +39,7 @@ class CategorizationEngine:
 
         Args:
             schema: KGMLSchema with concept definitions
-            storage: DuckDBStorage for persistence
+            storage: StorageBackend for persistence
             rule_executor: RuleExecutor for derived categorization
         """
         self.schema = schema
@@ -193,7 +192,7 @@ class CategorizationEngine:
         """
         # Build entity data dict
         entity_data = dict(entity.data) if hasattr(entity, 'data') else {}
-        entity_data["_concept"] = entity.concept
+        entity_data["_fact_object"] = entity._fact_object
 
         # Execute rules with L2_ prefix dimension
         l2_dimension = f"L2_{dimension}"

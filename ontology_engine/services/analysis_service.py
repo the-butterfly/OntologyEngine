@@ -14,9 +14,6 @@ from ontology_engine.services.dto import (
 from ontology_engine.storage.base import StorageBackend
 
 if TYPE_CHECKING:
-    from ontology_engine.engine.categorization import CategorizationEngine
-    from ontology_engine.engine.metric import MetricEngine
-    from ontology_engine.engine.rule import RuleExecutor
     from ontology_engine.core.schema.models import KGMLSchema
 
 
@@ -27,30 +24,43 @@ class AnalysisService:
 
     This is the core service that orchestrates the complete analysis flow
     for supply chain finance credit assessment.
+
+    Engines are created internally from schema + storage, keeping the
+    API layer free of direct engine imports (module boundary rule).
     """
 
     def __init__(
         self,
-        categorization_engine: CategorizationEngine,
-        metric_engine: MetricEngine,
-        rule_executor: RuleExecutor,
         storage: StorageBackend,
         schema: KGMLSchema | None = None,
     ):
         """Initialize AnalysisService.
 
+        Creates engine instances internally from schema and storage,
+        following the module boundary rule: api/ → services/ only.
+
         Args:
-            categorization_engine: L2 categorization engine
-            metric_engine: L3 metric computation engine
-            rule_executor: L4 rule execution engine
             storage: StorageBackend for entity retrieval
-            schema: Optional schema for validation
+            schema: Optional schema for engine initialization
         """
-        self.categorization_engine = categorization_engine
-        self.metric_engine = metric_engine
-        self.rule_executor = rule_executor
         self.storage = storage
         self.schema = schema
+
+        self.categorization_engine: Any = None
+        self.metric_engine: Any = None
+        self.rule_executor: Any = None
+
+        if schema:
+            from ontology_engine.engine.metric.engine import MetricEngine, MetricCache
+            from ontology_engine.engine.categorization.engine import CategorizationEngine
+            from ontology_engine.engine.rule.executor import RuleExecutor
+
+            metric_cache = MetricCache()
+            self.metric_engine = MetricEngine(schema=schema, storage=storage, cache=metric_cache)
+            self.rule_executor = RuleExecutor(schema=schema)
+            self.categorization_engine = CategorizationEngine(
+                schema=schema, storage=storage, rule_executor=self.rule_executor,
+            )
 
     async def execute_analysis(
         self,
@@ -102,7 +112,7 @@ class AnalysisService:
 
         # 4. L4 Rule execution
         entity_data = dict(entity.data) if hasattr(entity, 'data') else {}
-        entity_data["_concept"] = entity.concept
+        entity_data["_fact_object"] = entity._fact_object
 
         # Add computed metrics to entity data for rule evaluation
         for key, value in computed_metrics.items():
@@ -119,7 +129,7 @@ class AnalysisService:
         rule_results = [
             RuleResultResponse(
                 rule_id=r.rule_id if hasattr(r, 'rule_id') else '',
-                rule_name=r.rule_name if hasattr(r, 'rule_name') else '',
+                rule_name=str(r.rule_name) if hasattr(r, 'rule_name') and r.rule_name else '',
                 passed=r.passed if hasattr(r, 'passed') else False,
                 output=r.output if hasattr(r, 'output') else {},
                 error=getattr(r, 'error', None)
@@ -139,7 +149,7 @@ class AnalysisService:
 
         return AnalysisResponse(
             entity_id=entity_id,
-            concept_type=entity.concept,
+            fact_object=entity._fact_object,
             dimension=dimension,
             category_tags=category_tags_dict,
             computed_metrics=analysis_result.computed_metrics,
@@ -172,7 +182,7 @@ class AnalysisService:
     async def _find_entity(self, entity_id: str):
         """Find entity by ID.
 
-        Since DuckDBStorage.get_entity requires concept type,
+        Since StorageBackend.get_entity requires concept type,
         we try common concepts.
 
         Args:
@@ -181,16 +191,14 @@ class AnalysisService:
         Returns:
             EntityInstance if found, None otherwise
         """
-        # Try common concept types
         concept_types = ["Supplier", "Invoice", "Contract", "Enterprise", "Company"]
 
         for concept in concept_types:
-            entity = await self.storage.get_entity(concept, entity_id)
+            entity = await self.storage.get_entity(fact_object=concept, entity_id=entity_id)
             if entity:
                 return entity
 
-        # Try querying all entities
-        entities = await self.storage.query_entities(concept=None, filters=None)
+        entities = await self.storage.query_entities(fact_object=None, filters=None)
         for entity in entities:
             if entity.entity_id == entity_id:
                 return entity

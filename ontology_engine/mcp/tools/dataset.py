@@ -2,7 +2,7 @@
 
 from ontology_engine.mcp import mcp_response
 from ontology_engine.services.dataset_service import DatasetService
-from ontology_engine.storage.duckdb.store import DuckDBStorage
+from ontology_engine.storage.sqlite.store import SQLiteStorage
 
 
 async def oe_register_dataset(
@@ -23,7 +23,7 @@ async def oe_register_dataset(
         MCP 统一格式: {success, data, error}
     """
     try:
-        storage = DuckDBStorage(db_path=":memory:")
+        storage = SQLiteStorage(db_path=":memory:")
         await storage.initialize()
         service = DatasetService(storage=storage)
         result = await service.create_dataset(
@@ -49,7 +49,7 @@ async def oe_trigger_sync(dataset_id: str, space_id: str, mode: str | None = Non
         MCP 统一格式: {success, data, error}
     """
     try:
-        storage = DuckDBStorage(db_path=":memory:")
+        storage = SQLiteStorage(db_path=":memory:")
         await storage.initialize()
         service = DatasetService(storage=storage)
         # Trigger sync adds entities from dataset to space

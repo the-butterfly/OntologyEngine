@@ -1,8 +1,7 @@
 # ontology_engine/services/incremental_update.py
 """Incremental data update service with change detection and diff analysis.
 
-Persists change batches and entity versions to DuckDB storage.
-"""
+Persists change batches and entity versions to MetaStore."""
 
 from __future__ import annotations
 
@@ -107,8 +106,7 @@ class IncrementalUpdateService:
     """Service for incremental entity data updates.
 
     Persists change batches, entity changes, and entity versions
-    to DuckDB storage.
-    """
+    to MetaStore."""
 
     def __init__(self, storage: StorageBackend):
         self._storage = storage
@@ -199,7 +197,7 @@ class IncrementalUpdateService:
                 "changes": [
                     {
                         "entity_id": c.entity_id,
-                        "concept": c.concept,
+                        "fact_object": c.concept,
                         "change_type": c.change_type.value,
                         "field_changes": [{"field": fc.field_name, "old": fc.old_value, "new": fc.new_value} for fc in c.field_changes],
                     }
@@ -219,7 +217,7 @@ class IncrementalUpdateService:
             await self._storage.save_entity_changes(
                 batch_id=batch_id,
                 entity_id=change.entity_id,
-                concept=change.concept,
+                fact_object=change.concept,
                 change_type=change.change_type.value,
                 field_changes=[
                     {"field_name": fc.field_name, "old_value": fc.old_value, "new_value": fc.new_value}
@@ -229,13 +227,12 @@ class IncrementalUpdateService:
                 new_data=change.new_data,
             )
 
-            # Save entity version for CREATED/UPDATED
             if change.change_type in (ChangeType.CREATED, ChangeType.UPDATED) and change.new_data:
                 existing_versions = await self._storage.list_entity_versions(change.entity_id)
                 version = len(existing_versions) + 1
                 await self._storage.save_entity_version(
                     entity_id=change.entity_id,
-                    concept=change.concept,
+                    fact_object=change.concept,
                     version=version,
                     data=change.new_data,
                 )
@@ -310,24 +307,25 @@ class IncrementalUpdateService:
         actions: list[dict[str, Any]] = []
         for cd in changes_data:
             change_type = cd.get("change_type", "")
+            concept = cd.get("fact_object") or cd.get("concept", "")
             if change_type == "CREATED":
                 actions.append({
                     "action": "delete",
                     "entity_id": cd["entity_id"],
-                    "concept": cd["concept"],
+                    "concept": concept,
                 })
             elif change_type == "DELETED":
                 actions.append({
                     "action": "restore",
                     "entity_id": cd["entity_id"],
-                    "concept": cd["concept"],
+                    "concept": concept,
                     "data": cd.get("old_data"),
                 })
             elif change_type == "UPDATED":
                 actions.append({
                     "action": "restore_data",
                     "entity_id": cd["entity_id"],
-                    "concept": cd["concept"],
+                    "concept": concept,
                     "data": cd.get("old_data"),
                 })
         return actions
@@ -341,20 +339,20 @@ class IncrementalUpdateService:
                 actions.append({
                     "action": "delete",
                     "entity_id": change.entity_id,
-                    "concept": change.concept,
+                    "fact_object": change.concept,
                 })
             elif change.change_type == ChangeType.DELETED:
                 actions.append({
                     "action": "restore",
                     "entity_id": change.entity_id,
-                    "concept": change.concept,
+                    "fact_object": change.concept,
                     "data": change.old_data,
                 })
             elif change.change_type == ChangeType.UPDATED:
                 actions.append({
                     "action": "restore_data",
                     "entity_id": change.entity_id,
-                    "concept": change.concept,
+                    "fact_object": change.concept,
                     "data": change.old_data,
                 })
         return actions

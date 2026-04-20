@@ -37,7 +37,7 @@ class QueryService:
         """Initialize QueryService.
 
         Args:
-            storage: DuckDBStorage instance
+            storage: StorageBackend instance
             rule_executor: Optional RuleExecutor for rule tracing
             retrieval: Optional unified retrieval backend
             graph_store: Optional graph store for native graph queries
@@ -64,14 +64,14 @@ class QueryService:
             List of matching SearchResultResponse
         """
         entities = await self.storage.query_entities(
-            concept=concept,
+            fact_object=concept,
             filters=patterns,
         )
 
         return [
             SearchResultResponse(
                 entity_id=e.entity_id,
-                concept_type=e.concept,
+                fact_object=e._fact_object,
                 score=1.0,
                 attributes=e.data,
             )
@@ -108,7 +108,7 @@ class QueryService:
             for current_id, _rel_data in current_level:
                 neighbors = await self.storage.get_neighbors(
                     entity_id=current_id,
-                    relation_type=relation_type,
+                    relation_name=relation_type,
                     direction=direction,
                 )
 
@@ -118,11 +118,11 @@ class QueryService:
                         results.append(
                             SearchResultResponse(
                                 entity_id=entity.entity_id,
-                                concept_type=entity.concept,
+                                fact_object=entity._fact_object,
                                 score=1.0,
                                 attributes={
                                     **entity.data,
-                                    "_relation_type": relation.relation_type,
+                                    "_relation_name": relation.relation_name,
                                     "_related_from": current_id,
                                 },
                             )
@@ -181,7 +181,7 @@ class QueryService:
             visited.add(current)
             neighbors = await self.storage.get_neighbors(
                 entity_id=current,
-                relation_type="has_invoice",  # Default relation
+                relation_name="has_invoice",
                 direction="outgoing",
             )
 
@@ -204,14 +204,14 @@ class QueryService:
         self,
         query_text: str,
         top_k: int = 10,
-        concept_type: str | None = None,
+        fact_object: str | None = None,
     ) -> list[VectorSearchResult]:
         """Pure semantic (vector) search.
 
         Args:
             query_text: Raw text query
             top_k: Maximum number of results
-            concept_type: Optional concept filter
+            fact_object: Optional fact object type filter
 
         Returns:
             Vector search results
@@ -223,7 +223,7 @@ class QueryService:
             return await self.retrieval.semantic_search(
                 query_text=query_text,
                 top_k=top_k,
-                concept_type=concept_type,
+                fact_object=fact_object,
             )
         raise NotImplementedError(
             "semantic_search requires a RetrievalBackend with an embedder. "
@@ -301,7 +301,7 @@ class QueryService:
                 start_filters=start_filters,
                 limit=limit,
             )
-        # Fallback: use DuckDB traversal
+        # Fallback: use MetaStore traversal
         from ontology_engine.storage.retrieval import DefaultRetrievalBackend
 
         fallback = DefaultRetrievalBackend(

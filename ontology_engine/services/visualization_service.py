@@ -13,7 +13,6 @@ from ontology_engine.visualization.models import (
     VisualizationEntityOption,
 )
 from ontology_engine.visualization.simulator import (
-    EntityNotFoundError,
     RuleChainSimulator,
     SchemaNotLoadedError,
 )
@@ -67,7 +66,7 @@ class VisualizationService:
         concept: str | None = "Supplier",
         dimension: str | None = None,
     ) -> list[VisualizationEntityOption]:
-        entities = await self.storage.query_entities(concept=concept, filters=None)
+        entities = await self.storage.query_entities(fact_object=concept, filters=None)
         options: list[VisualizationEntityOption] = []
         for entity in entities:
             active_dimensions = self._extract_active_dimensions(entity)
@@ -76,7 +75,7 @@ class VisualizationService:
             options.append(
                 VisualizationEntityOption(
                     entity_id=entity.entity_id,
-                    concept_type=entity.concept,
+                    concept_type=entity._fact_object,
                     label=self._build_entity_label(entity),
                     active_dimensions=active_dimensions,
                 )

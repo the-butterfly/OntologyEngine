@@ -7,7 +7,6 @@ from typing import Any
 from ontology_engine.core.schema.models import KGMLSchema, RuleWhen
 from ontology_engine.engine.rule.evaluator import ExpressionEvaluator
 from ontology_engine.visualization.models import (
-    ComparisonResult,
     ConditionDetail,
     DiffEntry,
     ImpactChain,

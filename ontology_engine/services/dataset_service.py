@@ -2,8 +2,7 @@
 """Dataset management service.
 
 Provides CRUD operations for datasets, entity membership tracking,
-snapshots, and dataset comparison. Persists to DuckDB storage.
-"""
+snapshots, and dataset comparison. Persists to SQLite storage."""
 
 from __future__ import annotations
 
@@ -89,11 +88,11 @@ class DatasetService:
         for idx, entity in enumerate(entities):
             eid = entity.get("entity_id", entity.get("id"))
             if eid:
-                entity_concept = concept or entity.get("_concept", entity.get("concept", ""))
+                entity_concept = concept or entity.get("_fact_object", entity.get("_concept", entity.get("concept", "")))
                 await self._storage.add_entity_to_dataset(
                     entity_id=eid,
                     dataset_id=dataset_id,
-                    concept=entity_concept,
+                    fact_object=entity_concept,
                     is_primary=is_primary,
                     source_line=entity.get("source_line", idx + 1),
                 )
