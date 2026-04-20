@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from ontology_engine.engine.rule.models import Alert
+from ontology_engine.engine.rule.models import Alert, ExecutionContext
 
 
 @dataclass
@@ -21,19 +21,6 @@ class ContextSnapshot:
     flags: dict[str, Any]
     alerts: list[Alert]
     categories: dict[str, str]
-
-
-@dataclass
-class ExecutionContext:
-    """Context for rule execution."""
-    entity_id: str
-    dimension: str
-    entity_data: dict[str, Any]
-    computed_metrics: dict[str, Any] = field(default_factory=dict)
-    rule_results: list = field(default_factory=list)
-    alerts: list[Alert] = field(default_factory=list)
-    flags: dict[str, Any] = field(default_factory=dict)
-    categories: dict[str, str] = field(default_factory=dict)
 
 
 class RuleTransaction:

@@ -13,6 +13,8 @@ class ExecutionContext:
     computed_metrics: dict[str, Any] = field(default_factory=dict)
     rule_results: list[RuleResult] = field(default_factory=list)
     alerts: list[Alert] = field(default_factory=list)
+    flags: dict[str, Any] = field(default_factory=dict)
+    categories: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
