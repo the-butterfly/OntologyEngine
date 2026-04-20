@@ -306,6 +306,9 @@ class DAGExecutor:
         Returns:
             True if condition passes, False otherwise.
         """
+        if condition is None:
+            return True
+
         if condition.type == "expression":
             if not condition.expression:
                 return True

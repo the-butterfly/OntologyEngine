@@ -12,6 +12,10 @@ from ontology_engine.engine.rule.evaluator import ExpressionEvaluator
 # Import operators to register them
 from ontology_engine.engine.rule.operators import OperatorRegistry
 
+# Import DAG components for execute_rule_group
+from ontology_engine.engine.rule.dag_builder import DAGBuilder
+from ontology_engine.engine.rule.dag_executor import DAGExecutor, ErrorStrategy
+
 
 # Action type constants
 ACTION_APPROVE_ELIGIBILITY = "approve_eligibility"
@@ -403,6 +407,261 @@ class RuleExecutor:
             if score >= threshold:
                 return grade
         return CREDIT_GRADE_DEFAULT
+
+    async def execute_rule_group(
+        self,
+        rule_group: "RuleGroupDefinition",
+        steps: list["RuleStep"],
+        context: ExecutionContext,
+    ) -> AnalysisResult:
+        """Execute rules using DAG topology (new) or priority (legacy).
+
+        When RuleSteps have depends_on declarations, use DAGExecutor for
+        topological execution. Otherwise, fall back to priority-based
+        execution for backward compatibility.
+
+        Args:
+            rule_group: The rule group definition containing metadata.
+            steps: List of RuleSteps to execute.
+            context: The ExecutionContext for rule execution.
+
+        Returns:
+            AnalysisResult with all rule results and computed metrics.
+        """
+        # Check if any step has dependencies
+        has_dependencies = any(len(step.depends_on) > 0 for step in steps)
+
+        if has_dependencies:
+            # Use DAG execution for steps with dependencies
+            builder = DAGBuilder()
+            dag = builder.build(steps)
+
+            executor = DAGExecutor()
+
+            result = await executor.execute(dag, context)
+
+            # Convert StepResult -> RuleResult
+            rule_results = []
+            for step in steps:
+                step_result = result.results.get(step.id)
+                if step_result:
+                    rule_results.append(RuleResult(
+                        rule_id=step.id,
+                        rule_name=step.name,
+                        passed=not step_result.skipped and not step_result.rejected,
+                        output=step_result.output or {},
+                        error=step_result.error,
+                    ))
+                else:
+                    # Step was not executed (shouldn't happen in normal flow)
+                    rule_results.append(RuleResult(
+                        rule_id=step.id,
+                        rule_name=step.name,
+                        passed=False,
+                        output={},
+                        error=f"Step '{step.id}' was not executed",
+                    ))
+
+            return AnalysisResult(
+                entity_id=context.entity_id,
+                dimension=context.dimension,
+                rule_results=rule_results,
+                computed_metrics=context.computed_metrics,
+                alerts=context.alerts,
+                decision=context.computed_metrics.get("final_decision"),
+                decision_reasoning=context.computed_metrics.get("decision_reasoning"),
+            )
+        else:
+            # Fall back to priority-based execution (backward compatibility)
+            return await self._execute_with_priority(rule_group, steps, context)
+
+    async def _execute_with_priority(
+        self,
+        rule_group: "RuleGroupDefinition",
+        steps: list["RuleStep"],
+        context: ExecutionContext,
+    ) -> AnalysisResult:
+        """Execute steps sorted by priority (legacy mode).
+
+        Args:
+            rule_group: The rule group definition.
+            steps: List of RuleSteps to execute.
+            context: The ExecutionContext for rule execution.
+
+        Returns:
+            AnalysisResult with all rule results and computed metrics.
+        """
+        # Sort by priority and order
+        sorted_steps = sorted(steps, key=lambda s: (-s.order, -rule_group.priority))
+
+        for step in sorted_steps:
+            if not step.enabled:
+                continue
+
+            # Evaluate condition
+            condition_passed = await self._evaluate_step_condition(step, context)
+
+            if condition_passed:
+                # Execute then clause
+                output = await self._execute_step_action(step.then, context)
+                rule_result = RuleResult(
+                    rule_id=step.id,
+                    rule_name=step.name,
+                    passed=True,
+                    output=output,
+                )
+            else:
+                # Execute else clause if condition is false
+                if step.else_:
+                    output = await self._execute_step_action(step.else_, context)
+                    rule_result = RuleResult(
+                        rule_id=step.id,
+                        rule_name=step.name,
+                        passed=False,
+                        output=output,
+                    )
+                else:
+                    rule_result = RuleResult(
+                        rule_id=step.id,
+                        rule_name=step.name,
+                        passed=False,
+                        output={"skipped": "condition not met"},
+                    )
+
+            context.rule_results.append(rule_result)
+
+            # Check if step output indicates rejection
+            if rule_result.output.get("rejected") or rule_result.output.get("eligible") is False:
+                # Early termination on rejection
+                break
+
+        return AnalysisResult(
+            entity_id=context.entity_id,
+            dimension=context.dimension,
+            rule_results=context.rule_results,
+            computed_metrics=context.computed_metrics,
+            alerts=context.alerts,
+            decision=context.computed_metrics.get("final_decision"),
+            decision_reasoning=context.computed_metrics.get("decision_reasoning"),
+        )
+
+    async def _evaluate_step_condition(
+        self,
+        step: "RuleStep",
+        context: ExecutionContext,
+    ) -> bool:
+        """Evaluate a RuleStep's when condition.
+
+        Args:
+            step: The RuleStep to evaluate.
+            context: The ExecutionContext.
+
+        Returns:
+            True if condition passes or has no condition, False otherwise.
+        """
+        when = step.when
+        if not when:
+            return True
+
+        if when.type == "expression":
+            if not when.expression:
+                return True
+            eval_context = self._get_eval_context(context)
+            try:
+                return bool(self.evaluator.evaluate(when.expression, eval_context))
+            except Exception:
+                return False
+
+        elif when.type == "all_of":
+            for sub_expr in when.sub_conditions:
+                eval_context = self._get_eval_context(context)
+                try:
+                    if not bool(self.evaluator.evaluate(sub_expr, eval_context)):
+                        return False
+                except Exception:
+                    return False
+            return True
+
+        elif when.type == "any_of":
+            for sub_expr in when.sub_conditions:
+                eval_context = self._get_eval_context(context)
+                try:
+                    if bool(self.evaluator.evaluate(sub_expr, eval_context)):
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        return True
+
+    async def _execute_step_action(
+        self,
+        action: "ActionClause",
+        context: ExecutionContext,
+    ) -> dict:
+        """Execute a RuleStep's action clause.
+
+        Args:
+            action: The ActionClause to execute.
+            context: The ExecutionContext.
+
+        Returns:
+            Output dict from the operator execution.
+        """
+        operator_name = action.operator
+
+        # Build context for operator
+        eval_context = self._get_eval_context(context)
+        operator_context = {
+            **eval_context,
+            "entity_id": context.entity_id,
+            "dimension": context.dimension,
+            "entity_data": context.entity_data,
+            "computed_metrics": context.computed_metrics,
+            "flags": context.flags,
+            "alerts": [a.__dict__ for a in context.alerts],
+            "categories": context.categories,
+        }
+
+        try:
+            operator = OperatorRegistry.get(operator_name)
+            output = await operator.execute(
+                inputs=action.params,
+                config={},
+                context=operator_context,
+            )
+        except Exception as e:
+            output = {"error": str(e)}
+
+        # Apply output mapping if present
+        if action.output_mapping:
+            mapped_output = {}
+            for target_key, source_key in action.output_mapping.items():
+                if source_key in output:
+                    mapped_output[target_key] = output[source_key]
+                else:
+                    mapped_output[target_key] = output.get(target_key)
+            output = mapped_output
+
+        # Update context with computed metrics from operator output
+        for key, value in output.items():
+            if key not in ("error", "alert_triggered", "alerts"):
+                if isinstance(value, bool):
+                    context.flags[key] = value
+                else:
+                    context.computed_metrics[key] = value
+
+        # Handle alert triggering
+        if output.get("alert_triggered"):
+            alert = Alert(
+                level=output.get("level", "info"),
+                type=output.get("type", "general"),
+                message=output.get("message", ""),
+                data=output.get("data", {}),
+            )
+            context.alerts.append(alert)
+
+        return output
 
     async def execute_dimension(
         self,
