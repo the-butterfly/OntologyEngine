@@ -1,6 +1,6 @@
 # 逻辑边按需计算
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档（逻辑边机制） | **last_verified**: 2026-04-19
+> **status**: draft | **phase**: design-only | **source_of_truth**: 本文档（逻辑边机制） | **last_verified**: 2026-04-20
 
 ---
 
@@ -303,7 +303,11 @@ v2.supersedes = [v1.id]
 
 ---
 
-## 与查询引擎协同
+## 实现状态
+
+> **2026-04-20 更新**: 逻辑边持久化暂未实现。当前 DAGExecutor 执行时会在 context 中维护推理结果，但尚不写入 KuzuDB 的 `logical_type=inference` 边。后续将按本文档设计实现按需计算和持久化。
+
+### 与查询引擎协同
 
 ### 查询路由
 

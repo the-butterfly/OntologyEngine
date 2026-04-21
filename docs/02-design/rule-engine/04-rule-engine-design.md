@@ -33,27 +33,54 @@ class RuleParser:
 
 ### 2. DAGBuilder
 
-> **当前实现状态**: ❌ 未实现 (2026-04-16)
-> 实际 `RuleExecutor` 使用 `priority` 降序排序替代 DAG 拓扑执行。
+> **当前实现状态**: ✅ 已实现 (2026-04-20)
+> 使用 Kahn 算法进行拓扑排序，支持 `depends_on` 字段声明依赖关系。
 
 构建规则依赖图 (目标设计)。
 
 ```python
 class DAGBuilder:
-    def build(self, rules: list[Rule]) -> nx.DiGraph:
+    def build(self, steps: list[Step]) -> ExecutionDAG:
         G = nx.DiGraph()
+        step_map = {}
 
-        for rule in rules:
-            G.add_node(rule.id, rule=rule)
+        # 1. 创建节点
+        for step in steps:
+            G.add_node(step.id, step=step)
+            step_map[step.id] = DAGNode(
+                step_id=step.id,
+                step=step,
+                in_degree=0,
+                dependents=[]
+            )
 
-        for rule in rules:
-            for dep in rule.dependencies:
-                G.add_edge(dep, rule.id)
+        # 2. 解析 depends_on，建立边
+        for step in steps:
+            if step.depends_on:
+                for dep in step.depends_on:
+                    G.add_edge(dep, step.id)
+                    step_map[step.id].in_degree += 1
+                    step_map[dep].dependents.append(step.id)
 
-        if not nx.is_directed_acyclic_graph(G):
-            raise CycleError("规则存在循环依赖")
+        # 3. Kahn 算法拓扑分层
+        layers = []
+        while G.nodes():
+            # 找出所有入度为0的节点（当前层）
+            layer_nodes = [n for n in G.nodes() if G.in_degree(n) == 0]
+            if not layer_nodes:
+                raise CycleError("规则存在循环依赖")
 
-        return G
+            layers.append([step_map[n] for n in layer_nodes])
+
+            # 移除当前层节点及其出边
+            for n in layer_nodes:
+                G.remove_node(n)
+
+            # 重新计算入度
+            for n in G.nodes():
+                step_map[n].in_degree = G.in_degree(n)
+
+        return ExecutionDAG(layers=layers, step_map=step_map)
 ```
 
 ### 3. ExpressionEngine
@@ -243,6 +270,9 @@ class RuleExecutor:
 
 ### DAG 执行技术实现框架
 
+> **当前实现状态**: ✅ 已实现 (2026-04-20)
+> DAGExecutor 支持层内并行执行 + STOP_LAYER/CONTINUE/ABORT_ALL 错误策略。
+
 ```
 参考 KAG Expert Rules DSL + Cognee Pipeline + m_flow Memory Orchestrator：
 
@@ -266,30 +296,47 @@ m_flow Memory Orchestrator（参考 memory_orchestrator.py）：
   - 软路由：根据查询意图动态调整 top_k 预算
   - 完整 P5 管道：Trigger → QueryBuilder → Recaller → Injector → Formatter
 
-OntologyEngine DAG 执行策略：
-  - 拓扑排序 + 顺序执行（当前实现）
-  - 目标：并行执行无依赖规则（参考 Cognee asyncio.gather + Semaphore）
-  - 逻辑边按需计算（参考 KAG，事实边变更时触发重新推导）
-  - 管道状态持久化（参考 Cognee PipelineRun，支持断点续跑）
-  - 回滚机制：snapshot/restore 上下文状态（参考事务模式）
+OntologyEngine DAG 执行策略（已实现）：
+  - ✅ Kahn 算法拓扑分层
+  - ✅ 层内并行执行无依赖规则（asyncio.gather + Semaphore）
+  - ✅ STOP_LAYER / CONTINUE / ABORT_ALL 错误策略
+  - ✅ RuleTransaction 按层快照/回滚
+  - ✅ PipelineStateManager 内存状态管理（暂不持久化）
+  - 待实现：逻辑边按需计算 + 持久化
 ```
 
 ---
 
 ## 回滚机制
 
-> **当前实现状态**: ❌ 未实现 (2026-04-16)
-> 当前仅捕获异常并继续执行后续规则，无 snapshot/restore 机制。
+> **当前实现状态**: ✅ 已实现 (2026-04-20)
+> `RuleTransaction` 提供按 DAG 层粒度的快照/回滚机制。
 
 ```python
-@contextmanager
-def rule_transaction():
-    snapshot = context.snapshot()
-    try:
-        yield
-    except Exception:
-        context.restore(snapshot)
-        raise
+class RuleTransaction:
+    def __init__(self, context: ExecutionContext):
+        self.context = context
+        self._snapshots: list[ContextSnapshot] = []
+
+    def snapshot(self) -> ContextSnapshot:
+        snap = ContextSnapshot(
+            timestamp=iso_now(),
+            computed_metrics=deepcopy(self.context.computed_metrics),
+            flags=deepcopy(self.context.flags),
+            alerts=list(self.context.alerts),
+            categories=deepcopy(self.context.categories),
+        )
+        self._snapshots.append(snap)
+        return snap
+
+    def restore(self, snapshot: ContextSnapshot) -> None:
+        self.context.computed_metrics = snapshot.computed_metrics
+        self.context.flags = snapshot.flags
+        self.context.alerts = snapshot.alerts
+        self.context.categories = snapshot.categories
+
+    def commit(self) -> None:
+        self._snapshots.clear()
 ```
 
 ---
