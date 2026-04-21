@@ -124,7 +124,7 @@ async def update_simulation_inputs(session_id: str, body: UpdateSimulationReques
     # Check if all required inputs are filled
     missing = _get_missing_inputs(session)
     result = None
-    if not missing:
+    if not missing and session.execution_tree.get("total_steps", 0) > 0:
         result = await _run_simulation(session)
 
     return success_response(data={
@@ -191,5 +191,4 @@ async def _run_simulation(session: SimulationSession) -> dict[str, Any]:
     Returns:
         Simulation result dictionary
     """
-    # TODO: Integrate with DAGExecutor for actual rule execution
-    return {"final_output": {}, "steps": [], "errors": []}
+    raise NotImplementedError("Simulation execution requires DAGExecutor integration")
