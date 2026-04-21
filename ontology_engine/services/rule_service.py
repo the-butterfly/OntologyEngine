@@ -133,6 +133,36 @@ class RuleService:
         rows = await self._storage.list_rule_groups(schema_id=schema_id, enabled=enabled)
         return [RuleGroupDefinition.from_dict(r) for r in rows]
 
+    async def locate_rule_groups(
+        self,
+        output_name: str,
+        schema_id: str | None = None,
+    ) -> list[RuleGroupDefinition]:
+        """Locate rule groups that produce a specific output element.
+
+        Searches across all rule groups (optionally filtered by semantic space)
+        to find those that define the specified output element.
+
+        Args:
+            output_name: Output element name to search for
+            schema_id: Semantic space ID (optional, searches all if not provided)
+
+        Returns:
+            List of RuleGroupDefinition that produce the specified output
+        """
+        # Get all rule groups
+        rule_groups = await self.list_rule_groups(schema_id=schema_id)
+
+        # Find rule groups that have this output
+        matching_groups = []
+        for rg in rule_groups:
+            for out in rg.outputs:
+                if out.name == output_name:
+                    matching_groups.append(rg)
+                    break  # Only list each rule group once
+
+        return matching_groups
+
     async def update_rule_group(
         self,
         identifier: str,
