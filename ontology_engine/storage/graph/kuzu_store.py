@@ -30,6 +30,23 @@ class KuzuGraphStore(GraphStoreBackend):
         self._conn: Any | None = None  # kuzu.Connection
         self._initialized = False
 
+    # Pre-defined query specs for mutual index relations (class-level constant)
+    _MUTUAL_INDEX_QUERIES: dict[str, list[dict[str, str]]] = {
+        "EXTRACTED_FROM": [
+            {"rel": "EXTRACTED_FROM", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+        ],
+        "SUPPORTED_BY": [
+            {"rel": "SUPPORTED_BY", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+        ],
+        "DEFINED_IN": [
+            {"rel": "DEFINED_IN", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+            {"rel": "DEFINED_IN_FROM_METRIC", "from_label": "MetricDeclaration", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
+        ],
+        "TRACE_TO": [
+            {"rel": "TRACE_TO", "from_label": "ExecutionStepSnapshot", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
+        ],
+    }
+
     def _default_path(self) -> str:
         """Return default kuzu database path."""
         base = os.path.expanduser("~/.ontology_engine/data")
@@ -1058,25 +1075,9 @@ class KuzuGraphStore(GraphStoreBackend):
         if edge_type:
             mutual_types = [edge_type]
 
-        _MUTUAL_INDEX_QUERIES: dict[str, list[dict[str, str]]] = {
-            "EXTRACTED_FROM": [
-                {"rel": "EXTRACTED_FROM", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
-            ],
-            "SUPPORTED_BY": [
-                {"rel": "SUPPORTED_BY", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
-            ],
-            "DEFINED_IN": [
-                {"rel": "DEFINED_IN", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
-                {"rel": "DEFINED_IN_FROM_METRIC", "from_label": "MetricDeclaration", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
-            ],
-            "TRACE_TO": [
-                {"rel": "TRACE_TO", "from_label": "ExecutionStepSnapshot", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
-            ],
-        }
-
         results: list[dict[str, Any]] = []
         for mtype in mutual_types:
-            query_specs = _MUTUAL_INDEX_QUERIES.get(mtype, [])
+            query_specs = self._MUTUAL_INDEX_QUERIES.get(mtype, [])
             for spec in query_specs:
                 rel_name = spec["rel"]
                 fl = spec["from_label"]
