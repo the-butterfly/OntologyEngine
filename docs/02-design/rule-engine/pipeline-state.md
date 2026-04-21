@@ -1,6 +1,6 @@
 # 管道状态持久化
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档（管道状态模型） | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: partially-implemented | **source_of_truth**: 本文档（管道状态模型） | **last_verified**: 2026-04-20
 
 ---
 
@@ -155,6 +155,10 @@ ExecutionStepSnapshot:
 ### 职责
 
 管理 PipelineRun 和 ExecutionStepSnapshot 的生命周期，提供断点续跑和审计查询接口。
+
+### 实现状态
+
+> **2026-04-20 更新**: `PipelineStateManager` 已实现，采用内存管理模式，暂不持久化到 SQLite。后续将支持 SQLite 持久化以实现断点续跑。
 
 ### 接口
 

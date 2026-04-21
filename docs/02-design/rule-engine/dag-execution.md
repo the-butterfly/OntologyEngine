@@ -1,6 +1,6 @@
 # DAG 执行设计
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档（DAG 执行机制） | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: implemented | **source_of_truth**: 本文档（DAG 执行机制） | **last_verified**: 2026-04-20
 
 ---
 
@@ -266,6 +266,14 @@ class DAGExecutor:
 
         raise UnknownActionTypeError(action.type)
 ```
+
+### 实现状态
+
+> **2026-04-20 更新**: DAGExecutor 已实现，支持：
+> - Kahn 算法拓扑分层
+> - 层内并行执行（asyncio.gather + Semaphore）
+> - 三种错误策略：STOP_LAYER / CONTINUE / ABORT_ALL
+> - RuleTransaction 按层快照/回滚
 
 ### 与 Cognee Pipeline Task 对齐
 

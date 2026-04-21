@@ -62,7 +62,7 @@
 |------|------|------|----------|
 | 跨模块一致性 | **[关键设计点]** | ⚠️ 5 个严重问题待修复 | `docs-dev/review-reports/consistency-report.md` |
 | Schema v2 grammar 与 overview 对齐 | **[关键设计点]** | ✅ 审视重写完成 | `02-design/schema/` |
-| Rule Engine DAG | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/rule-engine/` |
+| Rule Engine DAG | **[关键设计点]** | ✅ 实现完成 | `02-design/rule-engine/` |
 | Query Engine | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/query-engine/` |
 | Storage 迁移 | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/storage/` |
 | API 路由统一 | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/api/` |
