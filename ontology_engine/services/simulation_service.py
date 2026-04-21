@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -398,8 +399,8 @@ class SimulationService:
         """
         try:
             # Extract variable names from expression
-            import re
-            var_names = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_.]*)\b', expression)
+            from ontology_engine.engine.expression.engine import ExpressionEngine
+            var_names = ExpressionEngine._FIELD_PATTERN.findall(expression)
 
             explanations = []
             for name in var_names:
@@ -631,7 +632,7 @@ class SimulationService:
         Returns:
             Dict mapping variable names to their sources
         """
-        import re
+        from ontology_engine.engine.expression.engine import ExpressionEngine
 
         sources = {}
 
@@ -640,7 +641,7 @@ class SimulationService:
 
         # Extract variables from condition expression
         if condition.type == "expression" and condition.expression:
-            var_names = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_.]*)\b', condition.expression)
+            var_names = ExpressionEngine._FIELD_PATTERN.findall(condition.expression)
             for name in var_names:
                 if name in computed:
                     sources[name] = "computed_metrics"
