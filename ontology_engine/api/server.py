@@ -348,6 +348,7 @@ def create_app() -> FastAPI:
         datasets,
         incremental,
         categories,
+        simulation,
     )
 
     app.include_router(schema.router, tags=["Schema"])
@@ -365,6 +366,8 @@ def create_app() -> FastAPI:
     app.include_router(datasets.router, tags=["Datasets"])
     app.include_router(incremental.router, tags=["Incremental Update"])
     app.include_router(categories.router, tags=["Categories"])
+    # Phase 2 routes
+    app.include_router(simulation.router, tags=["Simulation"])
 
     @app.get("/health")
     async def health_check():
