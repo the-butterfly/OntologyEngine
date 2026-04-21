@@ -1,0 +1,81 @@
+{
+  "simulation_id": "sim_20260421_001",
+  "scenario_id": "scenario_A",
+  "scenario_name": "香港总部模式",
+  "space_id": "space.tax_apac_2026",
+
+  "scenario_parameters": {
+    "hq_location": "香港",
+    "ip_location": "香港",
+    "operation_location": "中国",
+    "royalty_rate": 0.05,
+    "dividend_wht": 0.05,
+    "qdmt_applicable": true,
+    "qdmt_jurisdiction": "香港"
+  },
+
+  "results": {
+    "effective_tax_rate": 0.132,
+    "effective_tax_rate_display": "13.2%",
+    "annual_tax_cost_cny": 45000000,
+    "annual_tax_cost_display": "4,500万元",
+    "beps_risk_level": "LOW",
+    "beps_risk_score": 35,
+    "pillar2_exposure": false,
+    "pillar2_globe_rate": 0.148,
+    "topup_tax_amount_cny": 0,
+    "tax_efficiency_score": 82,
+
+    "subsidiary_details": [
+      {
+        "subsidiary_id": "SUB_HK",
+        "jurisdiction": "香港",
+        "function": "IP_HOLDING",
+        "effective_tax_rate": 0.148,
+        "annual_revenue_cny": 800000000
+      },
+      {
+        "subsidiary_id": "SUB_SG",
+        "jurisdiction": "新加坡",
+        "function": "OPERATION",
+        "effective_tax_rate": 0.14,
+        "annual_revenue_cny": 2000000000
+      },
+      {
+        "subsidiary_id": "SUB_CN",
+        "jurisdiction": "中国大陆",
+        "function": "MANUFACTURING",
+        "effective_tax_rate": 0.22,
+        "annual_revenue_cny": 6000000000
+      }
+    ],
+
+    "transfer_pricing_summary": {
+      "total_transactions": 6,
+      "compliant_transactions": 4,
+      "non_compliant_transactions": 2,
+      "adjustments_required_cny": 3900000,
+      "compliance_rate": "66.7%"
+    },
+
+    "recommendation": {
+      "preferred": true,
+      "score": 82,
+      "pros": [
+        "税务效率综合得分最高(82分)",
+        "BEPS风险等级为低",
+        "支柱二无补税风险",
+        "合规复杂度最低"
+      ],
+      "cons": [
+        "有效税率(13.2%)略高于场景C"
+      ]
+    }
+  },
+
+  "execution_metadata": {
+    "execution_time_ms": 234,
+    "dry_run": true,
+    "persistence": false
+  }
+}

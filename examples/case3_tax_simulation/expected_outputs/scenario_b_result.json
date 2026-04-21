@@ -1,0 +1,75 @@
+{
+  "simulation_id": "sim_20260421_001",
+  "scenario_id": "scenario_B",
+  "scenario_name": "新加坡总部模式",
+  "space_id": "space.tax_apac_2026",
+
+  "scenario_parameters": {
+    "hq_location": "新加坡",
+    "ip_location": "新加坡",
+    "operation_location": "中国",
+    "royalty_rate": 0.07,
+    "dividend_wht": 0.05,
+    "qdmt_applicable": true,
+    "qdmt_jurisdiction": "新加坡"
+  },
+
+  "results": {
+    "effective_tax_rate": 0.141,
+    "effective_tax_rate_display": "14.1%",
+    "annual_tax_cost_cny": 52000000,
+    "annual_tax_cost_display": "5,200万元",
+    "beps_risk_level": "LOW",
+    "beps_risk_score": 38,
+    "pillar2_exposure": false,
+    "pillar2_globe_rate": 0.141,
+    "topup_tax_amount_cny": 0,
+    "tax_efficiency_score": 78,
+
+    "subsidiary_details": [
+      {
+        "subsidiary_id": "SUB_SG",
+        "jurisdiction": "新加坡",
+        "function": "OPERATION",
+        "effective_tax_rate": 0.14,
+        "annual_revenue_cny": 2800000000
+      },
+      {
+        "subsidiary_id": "SUB_CN",
+        "jurisdiction": "中国大陆",
+        "function": "MANUFACTURING",
+        "effective_tax_rate": 0.22,
+        "annual_revenue_cny": 6000000000
+      }
+    ],
+
+    "transfer_pricing_summary": {
+      "total_transactions": 6,
+      "compliant_transactions": 4,
+      "non_compliant_transactions": 2,
+      "adjustments_required_cny": 3900000,
+      "compliance_rate": "66.7%"
+    },
+
+    "recommendation": {
+      "preferred": false,
+      "score": 78,
+      "pros": [
+        "BEPS风险等级为低",
+        "支柱二无补税风险",
+        "运营总部位于新加坡，金融中心优势明显"
+      ],
+      "cons": [
+        "特许权费率较高(7% vs 5%)",
+        "年税务成本最高(5,200万元)",
+        "有效税率(14.1%)高于其他方案"
+      ]
+    }
+  },
+
+  "execution_metadata": {
+    "execution_time_ms": 198,
+    "dry_run": true,
+    "persistence": false
+  }
+}

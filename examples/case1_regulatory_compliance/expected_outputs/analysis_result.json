@@ -1,0 +1,70 @@
+{
+  "analysis_id": "analysis_20260421_001",
+  "space_id": "space.supply_chain_finance",
+  "period": "Q1-2026",
+  "regulatory_reference": "银发〔2025〕77号",
+  "entities_analyzed": 5,
+  "results": [
+    {
+      "entity_id": "SUP_C1",
+      "company_name": "深圳恒通科技有限公司",
+      "compliance_status": "PASSED",
+      "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
+      "score": 95,
+      "details": {
+        "core_enterprise_whitelist": "PASS",
+        "invoice_authenticity_rate": "98%",
+        "guarantee_ratio": "5%",
+        "risk_concentration": "30%"
+      }
+    },
+    {
+      "entity_id": "SUP_C2",
+      "company_name": "上海贸易有限公司",
+      "compliance_status": "FAILED",
+      "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
+      "score": 45,
+      "failed_rules": ["RD_C23_001"],
+      "failure_reasons": ["核心企业'XX集团'不在白名单内"],
+      "regulatory_article": "银发〔2025〕77号 第八条"
+    },
+    {
+      "entity_id": "SUP_C3",
+      "company_name": "广州制造有限公司",
+      "compliance_status": "FAILED",
+      "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
+      "score": 50,
+      "failed_rules": ["RD_C23_002"],
+      "failure_reasons": ["发票真实性核验通过率60%，低于95%阈值"],
+      "regulatory_article": "银发〔2025〕77号 第十二条"
+    },
+    {
+      "entity_id": "SUP_C4",
+      "company_name": "北京担保有限公司",
+      "compliance_status": "FAILED",
+      "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
+      "score": 40,
+      "failed_rules": ["RD_C23_003"],
+      "failure_reasons": ["担保金额1,500万超过注册资本1亿的10%上限(1,000万)"],
+      "regulatory_article": "银发〔2025〕77号 第十五条"
+    },
+    {
+      "entity_id": "SUP_C5",
+      "company_name": "成都供应链有限公司",
+      "compliance_status": "FAILED",
+      "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
+      "score": 35,
+      "failed_rules": ["RD_C23_004"],
+      "failure_reasons": ["风险集中度65%超过50%阈值"],
+      "regulatory_article": "银发〔2025〕77号 第十八条"
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "passed": 1,
+    "failed": 4,
+    "pass_rate": "20%",
+    "average_score": 53,
+    "analysis_timestamp": "2026-04-21T14:30:00Z"
+  }
+}

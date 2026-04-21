@@ -1,0 +1,395 @@
+# ============================================================
+# RD_circular23_compliance.yaml
+# Circular 23 (《供应链金融票据业务监管办法》) 合规规则包
+#
+# 发布日期: 2026-04-18
+# 生效日期: 2026-04-20
+# 发布单位: 风险管理部
+#
+# 规则hot-update特性:
+#   - 加载方式: POST /api/v1/rules/load
+#   - 生效时间: ~2秒（无需系统重启）
+#   - 版本管理: 支持多版本共存，按version_id激活
+#   - 回滚支持: 可通过 /api/v1/rules/rollback 回退
+#
+# 追踪特性:
+#   - extracted_from: 记录证据来源事实对象
+#   - trace_to: 记录下游消费该输出的规则
+#   - decision_id: 每次决策生成唯一追踪ID
+# ============================================================
+
+rule_group:
+  name: "RD_circular23_compliance"
+  description: "央行23号文供应链金融合规检查规则包"
+  type: "constraint"
+  priority: 150
+  enabled: true
+  version: "1.0.0"
+  effective_date: "2026-04-20"
+  regulation_reference: "银发〔2026〕23号"
+
+  applies_to:
+    fact_objects:
+      - "Supplier"
+    categories:
+      - "circular23_compliance_check"
+      - "credit_assessment"
+
+  # 合规规则元数据
+  compliance_metadata:
+    regulation_name: "《供应链金融票据业务监管办法》"
+    issuing_authority: "中国人民银行"
+    article_count: 4
+    articles:
+      - article_8: "核心企业白名单管理"
+      - article_12: "发票真实性核验"
+      - article_15: "担保限额管理"
+      - article_18: "风险集中度控制"
+
+# ============================================================
+# 规则1: 核心企业白名单检查 (Article 8)
+# ============================================================
+rule_steps:
+  - id: "c23-step-1-whitelist"
+    name: "核心企业白名单校验"
+    order: 1
+    enabled: true
+    description: |
+      Article 8: 供应链金融业务中，核心企业应在监管机构公布的白名单内。
+      检查供应商供货的核心企业是否全部在白名单中。
+    tags: ["circular23", "core_enterprise", "whitelist", "article_8"]
+
+    when:
+      type: "expression"
+      expression: |
+        # 当存在核心企业引用时，检查是否全部在白名单
+        total_core_enterprise_count > 0 
+        AND whitelisted_core_enterprise_count < total_core_enterprise_count
+
+    then:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_core_enterprise_compliant"
+        flag_value: false
+      output_mapping:
+        core_enterprise_rejection_reason: |
+          "核心企业不合规：" + 
+          str(total_core_enterprise_count - whitelisted_core_enterprise_count) + 
+          "家不在监管白名单中。依据：Circular 23 Article 8"
+
+    else:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_core_enterprise_compliant"
+        flag_value: true
+      output_mapping:
+        core_enterprise_rejection_reason: ""
+
+    # 证据追溯
+    traceability:
+      extracted_from:
+        - entity: "CoreEnterprise"
+          attribute: "is_in_regulatory_whitelist"
+          filter: "CoreEnterprise.is_in_regulatory_whitelist == true"
+        - entity: "Supplier"
+          attribute: "supplies_to"
+          relation: true
+      trace_to:
+        - rule_id: "c23-step-5-comprehensive"
+          consumed_as: "is_core_enterprise_compliant"
+      decision_path:
+        - "Supplier.supplies_to --> CoreEnterprise"
+        - "CoreEnterprise.is_in_regulatory_whitelist"
+
+# ============================================================
+# 规则2: 发票真实性核验 (Article 12)
+# ============================================================
+  - id: "c23-step-2-invoice-auth"
+    name: "发票真实性核验"
+    order: 2
+    enabled: true
+    description: |
+      Article 12: 供应链金融平台应对发票进行真实性核验，
+      近180天发票核验通过率应 >= 95%。
+    tags: ["circular23", "invoice", "authenticity", "article_12"]
+
+    when:
+      type: "expression"
+      expression: "invoice_authenticity_pass_rate < 95"
+
+    then:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_invoice_authentic"
+        flag_value: false
+      output_mapping:
+        invoice_rejection_reason: |
+          "发票真实性核验不通过：近180天核验通过率" + 
+          str(invoice_authenticity_pass_rate) + 
+          "%，低于95%阈值要求。依据：Circular 23 Article 12"
+
+    else:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_invoice_authentic"
+        flag_value: true
+      output_mapping:
+        invoice_rejection_reason: ""
+
+    traceability:
+      extracted_from:
+        - entity: "Invoice"
+          attribute: "authenticity_verified"
+          filter: "Invoice.issue_date >= today() - 180d"
+        - entity: "Invoice"
+          attribute: "issue_date"
+      trace_to:
+        - rule_id: "c23-step-5-comprehensive"
+          consumed_as: "is_invoice_authentic"
+      decision_path:
+        - "Supplier.has_invoice --> Invoice"
+        - "Invoice.authenticity_verified"
+
+# ============================================================
+# 规则3: 担保限额检查 (Article 15)
+# ============================================================
+  - id: "c23-step-3-guarantee-limit"
+    name: "担保限额检查"
+    order: 3
+    enabled: true
+    description: |
+      Article 15: 单笔担保金额不得超过担保人注册资本的10%。
+      用于防范担保圈风险和过度担保。
+    tags: ["circular23", "guarantee", "limit", "article_15"]
+
+    when:
+      type: "expression"
+      expression: "max_single_guarantee_ratio > 10"
+
+    then:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_guarantee_compliant"
+        flag_value: false
+      output_mapping:
+        guarantee_rejection_reason: |
+          "担保限额不合规：最大单笔担保占比" + 
+          str(max_single_guarantee_ratio) + 
+          "%，超过10%上限。依据：Circular 23 Article 15"
+
+    else:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_guarantee_compliant"
+        flag_value: true
+      output_mapping:
+        guarantee_rejection_reason: ""
+
+    traceability:
+      extracted_from:
+        - entity: "GuaranteeRelation"
+          attribute: "guarantee_amount"
+          filter: "GuaranteeRelation.status == 'ACTIVE'"
+        - entity: "Supplier"
+          attribute: "registered_capital"
+      trace_to:
+        - rule_id: "c23-step-5-comprehensive"
+          consumed_as: "is_guarantee_compliant"
+      decision_path:
+        - "Supplier (as guarantor) --> GuaranteeRelation"
+        - "GuaranteeRelation.guarantee_amount"
+        - "Supplier.registered_capital"
+
+# ============================================================
+# 规则4: 风险集中度检查 (Article 18)
+# ============================================================
+  - id: "c23-step-4-risk-concentration"
+    name: "风险集中度检查"
+    order: 4
+    enabled: true
+    description: |
+      Article 18: 供应商对单一核心企业的销售占比不得超过50%，
+      以避免过度依赖单一大客户。
+    tags: ["circular23", "risk", "concentration", "article_18"]
+
+    when:
+      type: "expression"
+      expression: "max_risk_concentration_ratio >= 50"
+
+    then:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_risk_concentration_compliant"
+        flag_value: false
+      output_mapping:
+        concentration_alert_level: |
+          if max_risk_concentration_ratio >= 70:
+            "CRITICAL"
+          elif max_risk_concentration_ratio >= 60:
+            "HIGH"
+          else:
+            "MEDIUM"
+        concentration_warning_message: |
+          "风险集中度超限：对单一核心企业销售占比" + 
+          str(max_risk_concentration_ratio) + 
+          "%，超过50%阈值。依据：Circular 23 Article 18"
+
+    else:
+      operator: "SET_FLAG"
+      params:
+        flag_name: "is_risk_concentration_compliant"
+        flag_value: true
+      output_mapping:
+        concentration_alert_level: "LOW"
+        concentration_warning_message: ""
+
+    traceability:
+      extracted_from:
+        - entity: "Supplier"
+          attribute: "risk_concentration_ratio"
+      trace_to:
+        - rule_id: "c23-step-5-comprehensive"
+          consumed_as: "is_risk_concentration_compliant"
+      decision_path:
+        - "Supplier.risk_concentration_ratio"
+
+# ============================================================
+# 规则5: 综合合规判定
+# ============================================================
+  - id: "c23-step-5-comprehensive"
+    name: "Circular 23 综合合规判定"
+    order: 5
+    enabled: true
+    description: |
+      综合上述四项检查结果，输出最终 Circular 23 合规状态。
+      任意一项不合规则整体不合规，生成完整的合规报告供审计使用。
+    tags: ["circular23", "comprehensive", "decision", "audit"]
+
+    when:
+      type: "all_of"
+      sub_conditions:
+        - "is_core_enterprise_compliant == true"
+        - "is_invoice_authentic == true"
+        - "is_guarantee_compliant == true"
+        - "is_risk_concentration_compliant == true"
+
+    then:
+      operator: "COMPUTE"
+      params:
+        computation: |
+          {
+            'is_circular23_compliant': True,
+            'compliance_score': compliance_score_circular23,
+            'compliance_status': 'COMPLIANT',
+            'compliance_rejection_reason': '',
+            'failed_checks': []
+          }
+      output_mapping:
+        is_circular23_compliant: true
+        compliance_rejection_reason: ""
+
+    else:
+      operator: "COMPUTE"
+      params:
+        computation: |
+          failed_checks = []
+          if not is_core_enterprise_compliant:
+            failed_checks.append({
+              'check': 'core_enterprise_whitelist',
+              'article': 'Article 8',
+              'reason': core_enterprise_rejection_reason
+            })
+          if not is_invoice_authentic:
+            failed_checks.append({
+              'check': 'invoice_authenticity',
+              'article': 'Article 12',
+              'reason': invoice_rejection_reason
+            })
+          if not is_guarantee_compliant:
+            failed_checks.append({
+              'check': 'guarantee_limit',
+              'article': 'Article 15',
+              'reason': guarantee_rejection_reason
+            })
+          if not is_risk_concentration_compliant:
+            failed_checks.append({
+              'check': 'risk_concentration',
+              'article': 'Article 18',
+              'reason': concentration_warning_message
+            })
+          {
+            'is_circular23_compliant': False,
+            'compliance_score': compliance_score_circular23,
+            'compliance_status': 'NON_COMPLIANT',
+            'compliance_rejection_reason': '; '.join([c['reason'] for c in failed_checks]),
+            'failed_checks': failed_checks
+          }
+      output_mapping:
+        is_circular23_compliant: false
+        compliance_rejection_reason: "见failed_checks详情"
+
+    traceability:
+      extracted_from:
+        - entity: "RD_CIRCULAR23_core_enterprise_whitelist"
+          attribute: "is_core_enterprise_compliant"
+        - entity: "RD_CIRCULAR23_invoice_authenticity"
+          attribute: "is_invoice_authentic"
+        - entity: "RD_CIRCULAR23_guarantee_limit"
+          attribute: "is_guarantee_compliant"
+        - entity: "RD_CIRCULAR23_risk_concentration"
+          attribute: "is_risk_concentration_compliant"
+      trace_to:
+        - rule_id: "RD006_final_decision"
+          consumed_as: "is_circular23_compliant"
+      audit_metadata:
+        reportable: true
+        audit_trail_id: "CIRCULAR23_COMPLIANCE_AUDIT"
+        retention_years: 7
+        regulatory_reference: "银发〔2026〕23号 Article 8/12/15/18"
+
+# ============================================================
+# 证据链配置
+# ============================================================
+evidence_chain:
+  enabled: true
+  auto_capture: true
+  storage: "audit_log"
+
+  # 证据节点类型定义
+  node_types:
+    - type: "fact_attribute"
+      description: "从事实对象属性提取的证据"
+    - type: "computed_metric"
+      description: "计算指标的结果证据"
+    - type: "rule_decision"
+      description: "规则执行的决策证据"
+    - type: "external_verification"
+      description: "外部系统核验证据"
+
+  # 证据关联边类型
+  edge_types:
+    - type: "extracted_from"
+      direction: "bidirectional"
+      description: "证据来源于哪些事实"
+    - type: "trace_to"
+      direction: "downstream"
+      description: "证据被哪些下游规则消费"
+
+# ============================================================
+# 热更新配置
+# ============================================================
+hot_update_config:
+  enabled: true
+  reload_trigger: "manual"  # manual / automatic / scheduled
+  validation_required: true
+  validation_rules:
+    - "schema_compliance"
+    - "semantic_validation"
+    - "priority_conflict_detection"
+  rollback_on_failure: true
+  notification:
+    on_load: ["risk_control_manager"]
+    on_failure: ["risk_control_manager", "system_admin"]
+  performance:
+    load_time_ms: 2000
+    max_concurrent_evaluations: 1000

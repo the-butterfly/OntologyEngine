@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from pydantic import BaseModel
 
-from ontology_engine.services.simulation_session import SessionManager
+from ontology_engine.services.simulation_session import SessionManager, SimulationSession
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
 from ontology_engine.api.dto.responses import success_response, error_response
 
@@ -90,13 +90,13 @@ async def get_simulation_session(session_id: str):
     """
     session = _session_manager.get_session(session_id)
     if not session:
-        return error_response(code="NOT_FOUND", message=f"Session {session_id} not found")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
     return success_response(data={
         "session_id": session.session_id,
         "execution_tree": session.execution_tree,
         "current_inputs": session.current_inputs,
-        "current_result": session.current_result,
+        "result": session.current_result,
     })
 
 
@@ -113,7 +113,7 @@ async def update_simulation_inputs(session_id: str, body: UpdateSimulationReques
     """
     session = _session_manager.get_session(session_id)
     if not session:
-        return error_response(code="NOT_FOUND", message=f"Session {session_id} not found")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
     _session_manager.update_inputs(
         session_id,
@@ -147,11 +147,11 @@ async def delete_simulation_session(session_id: str):
     """
     deleted = _session_manager.delete_session(session_id)
     if not deleted:
-        return error_response(code="NOT_FOUND", message=f"Session {session_id} not found")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     return success_response(data={"deleted": True})
 
 
-def _extract_required_inputs(tree: dict) -> list:
+def _extract_required_inputs(tree: dict) -> list[str]:
     """Extract required input elements from execution tree.
 
     Args:
@@ -169,7 +169,7 @@ def _extract_required_inputs(tree: dict) -> list:
     return inputs
 
 
-def _get_missing_inputs(session) -> list:
+def _get_missing_inputs(session: SimulationSession) -> list[str]:
     """Get list of missing required inputs.
 
     Args:
@@ -182,7 +182,7 @@ def _get_missing_inputs(session) -> list:
     return [inp for inp in required if inp not in session.current_inputs]
 
 
-async def _run_simulation(session):
+async def _run_simulation(session: SimulationSession) -> dict[str, Any]:
     """Run simulation with current inputs.
 
     Args:

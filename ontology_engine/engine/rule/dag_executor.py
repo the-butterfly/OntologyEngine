@@ -7,15 +7,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from ontology_engine.engine.rule.dag_builder import ExecutionDAG, DAGNode
+from ontology_engine.engine.rule.dag_builder import ExecutionDAG, DAGNode, DAGLayer
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
-    RuleStep,
     ConditionClause,
     ActionClause,
     Alert,
 )
-from ontology_engine.engine.rule.transaction import RuleTransaction
+from ontology_engine.engine.rule.transaction import RuleTransaction, ContextSnapshot
 from ontology_engine.engine.expression.engine import ExpressionEngine
 from ontology_engine.engine.rule.operators.base import OperatorRegistry
 

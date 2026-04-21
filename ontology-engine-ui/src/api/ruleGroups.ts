@@ -387,6 +387,52 @@ export const ruleGroupsApi = {
     );
     return loadResponse.data;
   },
+
+  // ===== DAG Visualization =====
+
+  /**
+   * Get DAG structure for a rule group
+   * Returns layers with topological ordering for visualization
+   */
+  getDag: async (name: string, schemaId: string): Promise<{
+    rule_group_name: string;
+    total_steps: number;
+    total_layers: number;
+    layers: Array<{
+      index: number;
+      steps: Array<{
+        id: string;
+        name: string;
+        depends_on: string[];
+        in_degree: number;
+      }>;
+    }>;
+  }> => {
+    const response = await apiClient.get(
+      `/rule-groups/${name}/dag?schema_id=${schemaId}`
+    );
+    return response.data.data;
+  },
+
+  // ===== Rule Location (Cross-Group Search) =====
+
+  /**
+   * Locate rule groups that produce a specific output element
+   */
+  locateRuleGroups: async (output: string, schemaId?: string): Promise<{
+    output: string;
+    rule_groups: Array<{
+      name: string;
+      outputs: Array<{ name: string; type: string }>;
+      depends_on: string[];
+    }>;
+  }> => {
+    const query = schemaId ? `?schema_id=${schemaId}` : '';
+    const response = await apiClient.get(
+      `/rule-groups/locate?output=${encodeURIComponent(output)}${query}`
+    );
+    return response.data.data;
+  },
 };
 
 export default ruleGroupsApi;

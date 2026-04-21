@@ -1,0 +1,817 @@
+# ============================================================
+# OntologyEngine Schema v2 - 供应链金融监管合规 (Circular 23)
+# 扩展自 supply_chain_finance schema，添加监管合规层
+# 场景：满足央行23号文《供应链金融票据业务监管办法》合规要求
+# ============================================================
+
+schema_version: "2.0"
+
+semantic_space:
+  id: "space.supply_chain_finance_circular23"
+  name: "供应链金融监管合规语义空间"
+  description: |
+    以供应商为核心，融合发票交易、担保关系、税务合规及监管合规数据，
+    通过四层知识模型驱动合规授信决策推理。
+    新增 Circular 23 合规检查：核心企业白名单、发票真实性、担保限额、风险集中度
+  type: management
+  status: ACTIVE
+
+# ============================================================
+# L1: Fact Objects（事实对象层）
+# 继承 supply_chain_finance 基础实体，扩展合规相关字段
+# ============================================================
+fact_objects:
+
+  # ---------- 共享类型 ----------
+  shared_types:
+    - name: Money
+      description: "带货币的金额"
+      base_type: object
+      properties:
+        value: { type: decimal, description: "数值（元）" }
+        currency: { type: string, default: CNY }
+
+    - name: Address
+      base_type: object
+      properties:
+        province: { type: string }
+        city: { type: string }
+        district: { type: string }
+        detail: { type: string }
+
+  # ---------- 枚举 ----------
+  enums:
+    - name: SupplierStatus
+      values:
+        - { id: ACTIVE,    label: "正常经营" }
+        - { id: SUSPENDED, label: "暂停经营" }
+        - { id: REVOKED,   label: "吊销/注销" }
+        - { id: ABNORMAL,  label: "经营异常" }
+
+    - name: IndustryType
+      values:
+        - { id: MANUFACTURING, label: "制造业" }
+        - { id: RETAIL,        label: "批发零售" }
+        - { id: TECHNOLOGY,    label: "科技业" }
+        - { id: LOGISTICS,     label: "物流业" }
+        - { id: AGRICULTURE,   label: "农业" }
+        - { id: OTHER,         label: "其他" }
+
+    - name: GuaranteeType
+      values:
+        - { id: JOINT_LIABILITY, label: "连带责任担保" }
+        - { id: MORTGAGE,        label: "抵押担保" }
+        - { id: PLEDGE,          label: "质押担保" }
+
+    - name: ComplianceStatus
+      values:
+        - { id: COMPLIANT,         label: "合规" }
+        - { id: NON_COMPLIANT,     label: "不合规" }
+        - { id: PENDING_VERIFY,    label: "待核实" }
+        - { id: EXEMPT,           label: "豁免" }
+
+  # ---------- 实体对象 ----------
+  entities:
+
+    - id: Supplier
+      name: "供应商"
+      description: "供应链中的供应商/卖方企业，是本空间核心分析对象"
+      attributes:
+        - name: supplier_id
+          type: string
+          required: true
+          unique: true
+          description: "供应商唯一标识"
+
+        - name: company_name
+          type: string
+          required: true
+          description: "企业名称"
+
+        - name: unified_credit_code
+          type: string
+          required: true
+          unique: true
+          description: "统一社会信用代码（18位）"
+          validation:
+            pattern: "^[A-Z0-9]{18}$"
+
+        - name: registered_capital
+          type: Money
+          required: true
+          description: "注册资本"
+
+        - name: establishment_date
+          type: date
+          required: true
+          description: "成立日期"
+
+        - name: industry_type
+          type: IndustryType
+          required: true
+          description: "所属行业"
+
+        - name: company_size
+          type: string
+          enum: [LARGE, MEDIUM, SMALL, MICRO]
+          description: "企业规模"
+
+        - name: address
+          type: Address
+          description: "注册地址"
+
+        - name: status
+          type: SupplierStatus
+          required: true
+          default: ACTIVE
+          description: "当前经营状态"
+
+        # 外部数据直接注入的原子字段
+        - name: tax_compliance_score
+          type: integer
+          description: "税务合规评分（0-100，由税务系统提供）"
+          range: [0, 100]
+
+        - name: negative_news_count_90d
+          type: integer
+          description: "近90天负面新闻数量（由舆情系统提供）"
+          default: 0
+
+        # --- Circular 23 新增字段 ---
+        - name: circular23_compliance_status
+          type: ComplianceStatus
+          description: "Circular 23 合规状态"
+          default: PENDING_VERIFY
+
+        - name: risk_concentration_ratio
+          type: decimal
+          description: "对单一核心企业销售占比（%），Circular 23 要求 < 50%"
+          range: [0, 100]
+
+      relations:
+        - name: supplies_to
+          target: CoreEnterprise
+          cardinality: "0..*"
+          description: "为核心企业供货"
+
+        - name: has_invoice
+          target: Invoice
+          cardinality: "0..*"
+          description: "持有的发票"
+
+        - name: has_contract
+          target: Contract
+          cardinality: "0..*"
+          description: "持有的采购合同"
+
+    - id: CoreEnterprise
+      name: "核心企业"
+      description: "供应链中的采购方/核心买家，其信用为供应链金融提供底层支撑"
+      attributes:
+        - name: enterprise_id
+          type: string
+          required: true
+          unique: true
+
+        - name: company_name
+          type: string
+          required: true
+
+        - name: credit_rating
+          type: string
+          description: "外部主体信用评级（如 AAA/AA+）"
+
+        - name: annual_procurement_volume
+          type: Money
+          description: "年采购额"
+
+        # --- Circular 23 新增字段 ---
+        - name: is_in_regulatory_whitelist
+          type: boolean
+          description: "是否在监管白名单中（央行23号文要求）"
+          default: false
+
+        - name: whitelist_expiry_date
+          type: date
+          description: "白名单有效期"
+
+    - id: Invoice
+      name: "发票"
+      description: "增值税发票，记录供应商与核心企业的交易凭证"
+      attributes:
+        - name: invoice_no
+          type: string
+          required: true
+          unique: true
+          description: "发票号码"
+
+        - name: invoice_type
+          type: string
+          enum: [SPECIAL, NORMAL, ELECTRONIC]
+          description: "发票类型"
+
+        - name: amount
+          type: Money
+          required: true
+          description: "发票金额"
+
+        - name: issue_date
+          type: date
+          required: true
+          description: "开票日期"
+
+        - name: due_date
+          type: date
+          description: "应付款日期"
+
+        - name: status
+          type: string
+          enum: [PENDING, PAID, OVERDUE, CANCELLED]
+          default: PENDING
+          description: "付款状态"
+
+        # --- Circular 23 新增字段 ---
+        - name: authenticity_verified
+          type: boolean
+          description: "发票真实性是否已核验（税务系统接口）"
+          default: false
+
+        - name: authenticity_verify_date
+          type: date
+          description: "真实性核验日期"
+
+        - name: authenticity_source
+          type: string
+          description: "核验来源系统（如：国家税务总局发票查验平台）"
+
+      relations:
+        - name: issued_by
+          target: Supplier
+          cardinality: "1"
+          inverse: has_invoice
+
+        - name: issued_to
+          target: CoreEnterprise
+          cardinality: "1"
+
+    - id: Contract
+      name: "采购合同"
+      description: "供应商与核心企业签订的采购合同"
+      attributes:
+        - name: contract_no
+          type: string
+          required: true
+          unique: true
+
+        - name: contract_amount
+          type: Money
+          required: true
+          description: "合同总金额"
+
+        - name: start_date
+          type: date
+          required: true
+
+        - name: end_date
+          type: date
+          required: true
+
+        - name: status
+          type: string
+          enum: [DRAFT, ACTIVE, COMPLETED, TERMINATED]
+          default: ACTIVE
+
+      relations:
+        - name: signed_by
+          target: Supplier
+          cardinality: "1"
+          inverse: has_contract
+
+        - name: signed_with
+          target: CoreEnterprise
+          cardinality: "1"
+
+  # ---------- 关系对象 ----------
+  relations:
+
+    - id: GuaranteeRelation
+      name: "担保关系"
+      description: "供应商之间的互保/连保关系，是图风险分析的核心边类型"
+      from: Supplier
+      to: Supplier
+      attributes:
+        - name: guarantee_amount
+          type: Money
+          required: true
+          description: "担保金额"
+
+        - name: guarantee_type
+          type: GuaranteeType
+          description: "担保方式"
+
+        - name: start_date
+          type: date
+          required: true
+
+        - name: end_date
+          type: date
+          description: "到期日（null 表示无固定期限）"
+
+        - name: status
+          type: string
+          enum: [ACTIVE, EXPIRED, RELEASED]
+          default: ACTIVE
+
+        # --- Circular 23 新增字段 ---
+        - name: circular23_compliant
+          type: boolean
+          description: "是否符合Circular 23担保限额要求（不超过担保人注册资本10%）"
+          default: true
+
+
+# ============================================================
+# L2: Categorizations（分类层）
+# ============================================================
+categorizations:
+
+  - id: credit_assessment
+    name: "融资授信评估"
+    description: |
+      供应商融资申请时触发的信用评估视角。
+      关注偿债能力、合同履约、担保风险，输出授信额度与决策建议。
+    applicable_to: [Supplier]
+    triggers:
+      - event: financing_application_submitted
+        entity: Supplier
+      - event: periodic_credit_review
+        entity: Supplier
+    filters:
+      - attribute: status
+        operator: EQ
+        value: ACTIVE
+
+  - id: circular23_compliance_check
+    name: "Circular 23 合规检查"
+    description: |
+      央行23号文合规性检查，触发时机：
+      1. 融资申请提交时（前置检查）
+      2. 季度审计批量检查
+      3. 监管报表生成时
+    applicable_to: [Supplier]
+    triggers:
+      - event: financing_application_submitted
+        entity: Supplier
+      - event: quarterly_audit_batch
+        entity: Supplier
+      - event: regulatory_report_generation
+        entity: Supplier
+    filters:
+      - attribute: circular23_compliance_status
+        operator: NE
+        value: EXEMPT
+
+
+# ============================================================
+# L3: Analytical Elements（分析要素层）
+# 扩展合规相关指标
+# ============================================================
+analytical_elements:
+
+  metrics:
+    # ========== 原有原子指标 ==========
+    - id: total_invoice_amount_90d
+      name: "近90天发票总金额"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --has_invoice--> Invoice"
+        filter: "Invoice.issue_date >= today() - 90d"
+        aggregate: "SUM(Invoice.amount.value)"
+      unit: CNY
+      overridable: false
+
+    - id: overdue_invoice_amount
+      name: "逾期发票金额"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --has_invoice--> Invoice"
+        filter: "Invoice.status == 'OVERDUE'"
+        aggregate: "SUM(Invoice.amount.value)"
+      unit: CNY
+      overridable: false
+
+    - id: core_enterprise_count
+      name: "合作核心企业数量"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --supplies_to--> CoreEnterprise"
+        aggregate: "COUNT(CoreEnterprise)"
+      overridable: false
+
+    - id: tax_compliance_score
+      name: "税务合规评分"
+      type: atomic
+      source:
+        type: fact_attribute
+        entity: Supplier
+        attribute: tax_compliance_score
+      range: [0, 100]
+      overridable: true
+
+    # ========== Circular 23 新增指标 ==========
+    - id: max_single_guarantee_ratio
+      name: "最大单笔担保占比"
+      description: "单笔担保金额占担保人注册资本的比例，Circular 23 要求 <= 10%"
+      type: derived
+      dependencies: []
+      formula: |
+        MAX(
+          guarantees.map(g => g.guarantee_amount.value / guarantor.registered_capital.value * 100)
+        )
+      unit: "%"
+      range: [0, 100]
+      overridable: false
+
+    - id: invoice_authenticity_pass_rate
+      name: "发票真实性核验通过率"
+      description: "近180天发票真实性核验通过比例，Circular 23 要求 >= 95%"
+      type: derived
+      dependencies: []
+      formula: |
+        verified_count = invoices.filter(
+          i => i.issue_date >= today() - 180d AND i.authenticity_verified == true
+        ).count()
+        total_count = invoices.filter(
+          i => i.issue_date >= today() - 180d
+        ).count()
+        verified_count / total_count * 100
+      unit: "%"
+      range: [0, 100]
+      overridable: false
+
+    - id: max_risk_concentration_ratio
+      name: "最大风险集中度"
+      description: "对单一核心企业销售占比，Circular 23 要求 < 50%"
+      type: atomic
+      source:
+        type: fact_attribute
+        entity: Supplier
+        attribute: risk_concentration_ratio
+      unit: "%"
+      range: [0, 100]
+      overridable: true
+
+    - id: whitelisted_core_enterprise_count
+      name: "白名单核心企业数量"
+      description: "供应商供货的核心企业中，处于监管白名单的数量"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --supplies_to--> CoreEnterprise"
+        filter: "CoreEnterprise.is_in_regulatory_whitelist == true"
+        aggregate: "COUNT(CoreEnterprise)"
+      overridable: false
+
+    - id: total_core_enterprise_count
+      name: "合作核心企业总数"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Supplier
+        traversal: "Supplier --supplies_to--> CoreEnterprise"
+        aggregate: "COUNT(CoreEnterprise)"
+      overridable: false
+
+    - id: compliance_score_circular23
+      name: "Circular 23 综合合规评分"
+      description: "综合评估四项合规指标，得分 >= 80 为合格"
+      type: composite
+      overridable: false
+      components:
+        - metric: invoice_authenticity_pass_rate
+          weight: 0.30
+          transform: "value / 100"
+
+        - metric: max_risk_concentration_ratio
+          weight: 0.25
+          transform: "1 - value / 100"    # 越低越好
+
+        - metric: max_single_guarantee_ratio
+          weight: 0.25
+          transform: "1 - min(value / 10, 1)"   # 10%为满分
+
+        - metric: whitelisted_core_enterprise_count
+          weight: 0.20
+          transform: "min(value / total_core_enterprise_count, 1)"   # 全部白名单得满分
+
+      formula: "SUM(transform(component) * weight) * 100"
+      range: [0, 100]
+      thresholds:
+        warning: 60.0
+        critical: 40.0
+
+  indicators:
+
+    - id: is_eligible
+      name: "是否满足准入条件"
+      type: variable
+      output_type: boolean
+      default: false
+
+    - id: is_circular23_compliant
+      name: "是否通过Circular 23合规检查"
+      type: variable
+      output_type: boolean
+      default: false
+
+    - id: compliance_rejection_reason
+      name: "合规检查拒绝原因"
+      type: variable
+      output_type: string
+
+
+# ============================================================
+# L4: Business Logic（业务逻辑层）
+# 新增 Circular 23 合规规则
+# ============================================================
+business_logic:
+
+  # ----------------------------------------------------------
+  # Rule Definitions（规则声明）
+  # ----------------------------------------------------------
+  rule_definitions:
+
+    # --- Circular 23 合规规则 ---
+
+    - id: RD_CIRCULAR23_core_enterprise_whitelist
+      name: "核心企业白名单检查"
+      description: |
+        Circular 23 Article 8: 供应链金融业务中，核心企业应在监管机构公布的白名单内。
+        核查供应商供货的核心企业是否全部在白名单中。
+      rule_type: constraint
+      priority: 150
+      applies_to: [Supplier]
+      applicable_categorizations: [circular23_compliance_check, credit_assessment]
+      inputs:
+        - { id: core_enterprise_list,    name: "核心企业列表",     type: relation }
+        - { id: total_core_enterprise_count, name: "核心企业总数", type: metric }
+        - { id: whitelisted_core_enterprise_count, name: "白名单核心企业数", type: metric }
+      outputs:
+        - { id: is_core_enterprise_compliant, name: "核心企业是否合规", type: flag }
+        - { id: core_enterprise_rejection_reason, name: "核心企业不合规原因", type: computed_value }
+      logic_ids: [RL_C23_whitelist_check]
+      enabled: true
+      regulation_reference: "Circular 23 Article 8"
+
+    - id: RD_CIRCULAR23_invoice_authenticity
+      name: "发票真实性核验"
+      description: |
+        Circular 23 Article 12: 供应链金融平台应对发票进行真实性核验，
+        近180天发票核验通过率应 >= 95%。
+      rule_type: constraint
+      priority: 145
+      applies_to: [Supplier]
+      applicable_categorizations: [circular23_compliance_check, credit_assessment]
+      inputs:
+        - { id: invoice_authenticity_pass_rate, name: "发票核验通过率", type: metric }
+      outputs:
+        - { id: is_invoice_authentic, name: "发票是否通过真实性核验", type: flag }
+        - { id: invoice_rejection_reason, name: "发票不合规原因", type: computed_value }
+      logic_ids: [RL_C23_invoice_authenticity_check]
+      enabled: true
+      regulation_reference: "Circular 23 Article 12"
+
+    - id: RD_CIRCULAR23_guarantee_limit
+      name: "担保限额检查"
+      description: |
+        Circular 23 Article 15: 单笔担保金额不得超过担保人注册资本的10%。
+        用于防范担保圈风险和过度担保。
+      rule_type: constraint
+      priority: 140
+      applies_to: [Supplier]
+      applicable_categorizations: [circular23_compliance_check, credit_assessment]
+      inputs:
+        - { id: max_single_guarantee_ratio, name: "最大单笔担保占比", type: metric }
+        - { id: registered_capital_value,   name: "注册资本",        type: attribute }
+      outputs:
+        - { id: is_guarantee_compliant, name: "担保是否合规", type: flag }
+        - { id: guarantee_rejection_reason, name: "担保不合规原因", type: computed_value }
+      logic_ids: [RL_C23_guarantee_limit_check]
+      enabled: true
+      regulation_reference: "Circular 23 Article 15"
+
+    - id: RD_CIRCULAR23_risk_concentration
+      name: "风险集中度检查"
+      description: |
+        Circular 23 Article 18: 供应商对单一核心企业的销售占比不得超过50%，
+        以避免过度依赖单一大客户。
+      rule_type: constraint
+      priority: 135
+      applies_to: [Supplier]
+      applicable_categorizations: [circular23_compliance_check, credit_assessment]
+      inputs:
+        - { id: max_risk_concentration_ratio, name: "最大风险集中度", type: metric }
+      outputs:
+        - { id: is_risk_concentration_compliant, name: "风险集中度是否合规", type: flag }
+        - { id: concentration_alert_level,       name: "集中度预警级别",   type: computed_value }
+      logic_ids: [RL_C23_risk_concentration_check]
+      enabled: true
+      regulation_reference: "Circular 23 Article 18"
+
+    - id: RD_CIRCULAR23_comprehensive_compliance
+      name: "综合合规判定"
+      description: |
+        综合上述四项检查结果，输出最终 Circular 23 合规状态。
+        任意一项不合规则整体不合规。
+      rule_type: decision
+      priority: 130
+      applies_to: [Supplier]
+      applicable_categorizations: [circular23_compliance_check, credit_assessment]
+      inputs:
+        - { id: is_core_enterprise_compliant,      name: "核心企业合规",      type: flag }
+        - { id: is_invoice_authentic,               name: "发票真实性合规",    type: flag }
+        - { id: is_guarantee_compliant,             name: "担保合规",          type: flag }
+        - { id: is_risk_concentration_compliant,   name: "风险集中度合规",    type: flag }
+        - { id: compliance_score_circular23,       name: "综合合规评分",      type: metric }
+      outputs:
+        - { id: is_circular23_compliant,           name: "Circular 23 合规",  type: flag }
+        - { id: compliance_rejection_reason,       name: "合规拒绝原因",      type: computed_value }
+        - { id: compliance_score,                  name: "合规评分",          type: computed_value }
+      logic_ids: [RL_C23_comprehensive_check]
+      enabled: true
+
+  # ----------------------------------------------------------
+  # Rule Logics（规则逻辑）
+  # ----------------------------------------------------------
+  rule_logics:
+
+    # ---- RL_C23: 核心企业白名单检查 ----
+    - id: RL_C23_whitelist_check
+      definition_id: RD_CIRCULAR23_core_enterprise_whitelist
+      name: "核心企业白名单校验逻辑"
+      description: "所有核心企业必须在白名单中，否则拒绝"
+      applicable_conditions: []
+      when:
+        expression: |
+          total_core_enterprise_count > 0
+          AND whitelisted_core_enterprise_count < total_core_enterprise_count
+      then_action:
+        action_type: set_flag
+        output:
+          is_core_enterprise_compliant: false
+          core_enterprise_rejection_reason: |
+            "核心企业不合规：{total_core_enterprise_count - whitelisted_core_enterprise_count}家不在监管白名单中"
+      else_action:
+        action_type: set_flag
+        output:
+          is_core_enterprise_compliant: true
+      priority: 100
+      version: 1
+      environment: default
+      traceability:
+        extracted_from:
+          - CoreEnterprise.is_in_regulatory_whitelist
+          - Supplier.supplies_to
+        trace_to:
+          - RL_C23_comprehensive_check
+
+    # ---- RL_C23: 发票真实性核验 ----
+    - id: RL_C23_invoice_authenticity_check
+      definition_id: RD_CIRCULAR23_invoice_authenticity
+      name: "发票真实性核验逻辑"
+      description: "近180天发票核验通过率必须 >= 95%"
+      applicable_conditions: []
+      when:
+        expression: "invoice_authenticity_pass_rate < 95"
+      then_action:
+        action_type: set_flag
+        output:
+          is_invoice_authentic: false
+          invoice_rejection_reason: |
+            "发票真实性核验不通过：近180天核验通过率{invoice_authenticity_pass_rate:.1f}%，低于95%阈值"
+      else_action:
+        action_type: set_flag
+        output:
+          is_invoice_authentic: true
+      priority: 100
+      version: 1
+      environment: default
+      traceability:
+        extracted_from:
+          - Invoice.authenticity_verified
+          - Invoice.issue_date
+        trace_to:
+          - RL_C23_comprehensive_check
+
+    # ---- RL_C23: 担保限额检查 ----
+    - id: RL_C23_guarantee_limit_check
+      definition_id: RD_CIRCULAR23_guarantee_limit
+      name: "担保限额校验逻辑"
+      description: "单笔担保金额不得超过注册资本的10%"
+      applicable_conditions: []
+      when:
+        expression: "max_single_guarantee_ratio > 10"
+      then_action:
+        action_type: set_flag
+        output:
+          is_guarantee_compliant: false
+          guarantee_rejection_reason: |
+            "担保限额不合规：最大单笔担保占比{max_single_guarantee_ratio:.1f}%，超过10%上限"
+      else_action:
+        action_type: set_flag
+        output:
+          is_guarantee_compliant: true
+      priority: 100
+      version: 1
+      environment: default
+      traceability:
+        extracted_from:
+          - GuaranteeRelation.guarantee_amount
+          - Supplier.registered_capital
+        trace_to:
+          - RL_C23_comprehensive_check
+
+    # ---- RL_C23: 风险集中度检查 ----
+    - id: RL_C23_risk_concentration_check
+      definition_id: RD_CIRCULAR23_risk_concentration
+      name: "风险集中度校验逻辑"
+      description: "单一核心企业销售占比不得超过50%"
+      applicable_conditions: []
+      when:
+        expression: "max_risk_concentration_ratio >= 50"
+      then_action:
+        action_type: set_flag
+        output:
+          is_risk_concentration_compliant: false
+          concentration_alert_level: |
+            if max_risk_concentration_ratio >= 70:
+              "CRITICAL"
+            elif max_risk_concentration_ratio >= 60:
+              "HIGH"
+            else:
+              "MEDIUM"
+      else_action:
+        action_type: set_flag
+        output:
+          is_risk_concentration_compliant: true
+          concentration_alert_level: "LOW"
+      priority: 100
+      version: 1
+      environment: default
+      traceability:
+        extracted_from:
+          - Supplier.risk_concentration_ratio
+        trace_to:
+          - RL_C23_comprehensive_check
+
+    # ---- RL_C23: 综合合规判定 ----
+    - id: RL_C23_comprehensive_check
+      definition_id: RD_CIRCULAR23_comprehensive_compliance
+      name: "Circular 23 综合合规判定"
+      description: "四项检查全部通过方为合规，任意一项失败则不合规"
+      applicable_conditions: []
+      when:
+        expression: |
+          is_core_enterprise_compliant == true
+          AND is_invoice_authentic == true
+          AND is_guarantee_compliant == true
+          AND is_risk_concentration_compliant == true
+      then_action:
+        action_type: compute
+        output:
+          is_circular23_compliant: true
+          compliance_score: "compliance_score_circular23"
+          compliance_rejection_reason: ""
+      else_action:
+        action_type: compute
+        output:
+          is_circular23_compliant: false
+          compliance_score: "compliance_score_circular23"
+          compliance_rejection_reason: |
+            reasons = []
+            if not is_core_enterprise_compliant:
+              reasons.append("核心企业白名单不合规")
+            if not is_invoice_authentic:
+              reasons.append("发票真实性核验不通过")
+            if not is_guarantee_compliant:
+              reasons.append("担保限额超出规定")
+            if not is_risk_concentration_compliant:
+              reasons.append("风险集中度超限")
+            "; ".join(reasons)
+      priority: 100
+      version: 1
+      environment: default
+      traceability:
+        extracted_from:
+          - RD_CIRCULAR23_core_enterprise_whitelist.is_core_enterprise_compliant
+          - RD_CIRCULAR23_invoice_authenticity.is_invoice_authentic
+          - RD_CIRCULAR23_guarantee_limit.is_guarantee_compliant
+          - RD_CIRCULAR23_risk_concentration.is_risk_concentration_compliant
+        trace_to:
+          - RD006_final_decision

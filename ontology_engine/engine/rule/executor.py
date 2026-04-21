@@ -6,6 +6,9 @@ from ontology_engine.engine.rule.models import (
     RuleResult,
     Alert,
     AnalysisResult,
+    RuleGroupDefinition,
+    RuleStep,
+    ActionClause,
 )
 from ontology_engine.engine.rule.evaluator import ExpressionEvaluator
 
@@ -14,7 +17,7 @@ from ontology_engine.engine.rule.operators import OperatorRegistry
 
 # Import DAG components for execute_rule_group
 from ontology_engine.engine.rule.dag_builder import DAGBuilder
-from ontology_engine.engine.rule.dag_executor import DAGExecutor, ErrorStrategy
+from ontology_engine.engine.rule.dag_executor import DAGExecutor
 
 
 # Action type constants

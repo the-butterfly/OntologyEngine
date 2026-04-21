@@ -3,11 +3,13 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Card, Row, Col, Spin, message, Button } from 'antd';
+import { Card, Row, Col, Spin, message, Button, Tabs, Space } from 'antd';
 import { RuleGroupLayout } from './RuleGroupLayout';
 import RuleGroupForm from '../../components/rule/RuleGroupForm';
 import RuleStepList from '../../components/rule/RuleStepList';
-import RuleChainDAG from '../../components/rule/RuleChainDAG';
+import RuleChainLayeredDAG from '../../components/rule/RuleChainLayeredDAG';
+import RuleLocatePanel from '../../components/rule/RuleLocatePanel';
+import SimulationPanel from '../../components/rule/SimulationPanel';
 import { useRuleGroups } from '../../hooks/useRuleGroups';
 import { ruleGroupsApi } from '../../api/ruleGroups';
 import type { RuleGroup, RuleStep } from '../../types/rule';
@@ -24,7 +26,7 @@ export const RuleGroupDetailPage: React.FC = () => {
   const [loadingSteps, setLoadingSteps] = useState(false);
   const [currentGroup, setCurrentGroup] = useState<RuleGroup | null>(null);
   const [initialEditStep, setInitialEditStep] = useState<RuleStep | null>(null);
-  const [highlightNodeId, setHighlightNodeId] = useState<string | undefined>(undefined);
+  const [highlightStepId, setHighlightStepId] = useState<string | undefined>(undefined);
   // Guard flag so the deep-link effect only fires on mount (editStepId in URL)
   const editStepIdProcessedRef = React.useRef(false);
 
@@ -69,7 +71,7 @@ export const RuleGroupDetailPage: React.FC = () => {
     }
   }, [searchParams, currentGroup]);
 
-  // Transform steps + inputs + outputs to RuleChainGraphData for the DAG
+  // Legacy DAG data (element dependency - heuristic based)
   const dagData = useMemo((): RuleChainGraphData | null => {
     if (!currentGroup || !steps.length) return null;
 
@@ -166,6 +168,7 @@ export const RuleGroupDetailPage: React.FC = () => {
     if (nodeId.startsWith('INPUT:') || nodeId.startsWith('OUTPUT:')) return;
     const step = steps.find(s => s.id === nodeId);
     if (step) {
+      setHighlightStepId(nodeId);
       setInitialEditStep(step);
       // Allow the deep-link effect to fire again for this new step
       editStepIdProcessedRef.current = false;
@@ -178,6 +181,7 @@ export const RuleGroupDetailPage: React.FC = () => {
       const step = steps.find(s => s.id === editStepId);
       if (step) {
         setInitialEditStep(step);
+        setHighlightStepId(editStepId);
         editStepIdProcessedRef.current = true;
       }
     }
@@ -193,7 +197,7 @@ export const RuleGroupDetailPage: React.FC = () => {
   };
 
   const handleStepHover = (stepId: string | undefined) => {
-    setHighlightNodeId(stepId);
+    setHighlightStepId(stepId);
   };
 
   const handleSaveGroup = async (data: Partial<RuleGroup>) => {
@@ -257,50 +261,86 @@ export const RuleGroupDetailPage: React.FC = () => {
           </Card>
         </Col>
 
-        {/* Middle column: Rule step list */}
+        {/* Middle column: Rule step list + Simulation */}
         <Col span={10}>
-          {loadingSteps ? (
-            <Card title="规则实例">
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <Spin />
-              </div>
-            </Card>
-          ) : (
-            <RuleStepList
-              schemaId={schemaId}
-              ruleGroupName={currentGroup.name}
-              steps={steps}
-              inputs={currentGroup.inputs}
-              outputs={currentGroup.outputs}
-              onStepsChange={handleStepsChange}
-              onDeleteStep={handleDeleteStep}
-              onReorder={handleReorder}
-              initialEditStep={initialEditStep}
-              onHoverStep={handleStepHover}
-            />
-          )}
+          <Tabs
+            defaultActiveKey="steps"
+            items={[
+              {
+                key: 'steps',
+                label: '规则实例',
+                children: loadingSteps ? (
+                  <Card title="规则实例">
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                      <Spin />
+                    </div>
+                  </Card>
+                ) : (
+                  <RuleStepList
+                    schemaId={schemaId}
+                    ruleGroupName={currentGroup.name}
+                    steps={steps}
+                    inputs={currentGroup.inputs}
+                    outputs={currentGroup.outputs}
+                    onStepsChange={handleStepsChange}
+                    onDeleteStep={handleDeleteStep}
+                    onReorder={handleReorder}
+                    initialEditStep={initialEditStep}
+                    onHoverStep={handleStepHover}
+                  />
+                ),
+              },
+              {
+                key: 'simulation',
+                label: '模拟执行',
+                children: (
+                  <SimulationPanel
+                    schemaId={schemaId}
+                    ruleGroupName={currentGroup.name}
+                    inputs={currentGroup.inputs}
+                  />
+                ),
+              },
+            ]}
+          />
         </Col>
 
-        {/* Right column: Element DAG */}
+        {/* Right column: DAG Visualization */}
         <Col span={6}>
-          <Card title="要素依赖图" style={{ height: '100%' }}>
-            {dagData && dagData.nodes.length > 0 ? (
-              <RuleChainDAG
-                chainData={dagData}
-                onNodeClick={handleDAGNodeClick}
-                highlightNodeId={highlightNodeId}
-                editable={true}
-                onReorder={handleReorder}
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-                <p>要素依赖图</p>
-                <p style={{ fontSize: 12 }}>
-                  配置 I/O 要素后自动展示要素依赖关系
-                </p>
-              </div>
-            )}
-          </Card>
+          <Tabs
+            defaultActiveKey="dag"
+            items={[
+              {
+                key: 'dag',
+                label: 'DAG执行图',
+                children: (
+                  <Card title="执行层 DAG" style={{ height: '100%' }}>
+                    <RuleChainLayeredDAG
+                      ruleGroupName={currentGroup.name}
+                      schemaId={schemaId}
+                      ruleGroup={currentGroup}
+                      highlightStepId={highlightStepId}
+                      onStepClick={handleDAGNodeClick}
+                    />
+                  </Card>
+                ),
+              },
+              {
+                key: 'locate',
+                label: '规则定位',
+                children: (
+                  <Card title="跨规则组查找">
+                    <RuleLocatePanel
+                      schemaId={schemaId}
+                      onSelectRuleGroup={(name) => {
+                        message.info(`规则组「${name}」定位完成`);
+                      }}
+                    />
+                  </Card>
+                ),
+              },
+            ]}
+          />
         </Col>
       </Row>
     </RuleGroupLayout>

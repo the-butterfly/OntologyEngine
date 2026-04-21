@@ -7,6 +7,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+class SessionNotFoundError(KeyError):
+    """Raised when a session is not found."""
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        super().__init__(f"Session not found: {session_id}")
+
+
 @dataclass
 class SimulationSession:
     """Simulation session state."""
@@ -26,11 +34,10 @@ class SimulationSession:
 
 
 class SessionManager:
-    """In-memory session manager with TTL support."""
+    """In-memory session manager."""
 
-    def __init__(self, ttl_seconds: int = 3600):
+    def __init__(self):
         self._sessions: dict[str, SimulationSession] = {}
-        self._ttl = ttl_seconds
 
     def create_session(
         self,
@@ -59,6 +66,8 @@ class SessionManager:
         inputs: dict[str, Any],
         partial: bool = True,
     ) -> SimulationSession:
+        if session_id not in self._sessions:
+            raise SessionNotFoundError(session_id)
         session = self._sessions[session_id]
         if partial:
             session.current_inputs.update(inputs)

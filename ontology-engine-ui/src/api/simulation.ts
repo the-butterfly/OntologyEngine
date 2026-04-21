@@ -16,6 +16,13 @@ export interface CreateSimulationResponse {
   current_inputs: Record<string, unknown>;
 }
 
+export interface GetSessionResponse {
+  session_id: string;
+  execution_tree: ExecutionTree;
+  current_inputs: Record<string, unknown>;
+  result: SimulationResult | null;
+}
+
 export interface UpdateSimulationResponse {
   session_id: string;
   updated_inputs: Record<string, unknown>;
@@ -35,7 +42,7 @@ export const simulationApi = {
   /**
    * Get current simulation session state
    */
-  getSession: async (sessionId: string): Promise<CreateSimulationResponse> => {
+  getSession: async (sessionId: string): Promise<GetSessionResponse> => {
     const response = await apiClient.get(`/simulation/${sessionId}`);
     return response.data.data;
   },

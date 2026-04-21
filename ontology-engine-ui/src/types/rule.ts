@@ -126,3 +126,35 @@ export interface CreateRuleStepRequest {
 }
 
 export type UpdateRuleStepRequest = Partial<CreateRuleStepRequest>;
+
+// DAG Execution Types (aligned with backend ExecutionDAG)
+export interface DAGNode {
+  id: string;
+  name: string;
+  depends_on: string[];
+  in_degree: number;
+}
+
+export interface DAGLayer {
+  index: number;
+  steps: DAGNode[];
+}
+
+export interface RuleGroupDagResponse {
+  rule_group_name: string;
+  total_steps: number;
+  total_layers: number;
+  layers: DAGLayer[];
+}
+
+// Rule Location (Cross-Group Search)
+export interface RuleGroupLocateResult {
+  name: string;
+  outputs: Array<{ name: string; type: string }>;
+  depends_on: string[];
+}
+
+export interface LocateRuleGroupsResponse {
+  output: string;
+  rule_groups: RuleGroupLocateResult[];
+}

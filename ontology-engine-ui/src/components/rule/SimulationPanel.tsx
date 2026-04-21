@@ -2,12 +2,13 @@
 // Component for testing rule execution with input data and result display
 
 import React, { useState } from 'react';
-import { Card, Input, Button, Space, Table, Tag, Spin, message, Collapse, Alert } from 'antd';
-import { PlayCircleOutlined, ClearOutlined } from '@ant-design/icons';
+import { Card, Input, Button, Space, Table, Tag, Spin, message, Collapse, Alert, Tooltip, Typography } from 'antd';
+import { PlayCircleOutlined, ClearOutlined, InfoCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import { ruleGroupsApi } from '../../api/ruleGroups';
 import type { SimulationResult, StepResult } from '../../types/rule';
 
 const { TextArea } = Input;
+const { Text } = Typography;
 
 interface SimulationPanelProps {
   schemaId: string;
@@ -69,41 +70,85 @@ export default function SimulationPanel({
     return '未知';
   };
 
+  const getStatusTag = (step: StepResult) => {
+    if (step.error) return <Tag color="red" icon={<WarningOutlined />}>错误</Tag>;
+    if (step.condition_result === false) return <Tag color="orange">跳过</Tag>;
+    return <Tag color="green">执行</Tag>;
+  };
+
   const stepColumns = [
     {
       title: '步骤',
       dataIndex: 'step_name',
       key: 'step_name',
-      width: '25%',
-    },
-    {
-      title: '条件结果',
-      key: 'condition_result',
-      width: '15%',
-      render: (_: unknown, record: StepResult) => (
-        <Tag color={getConditionResultColor(record.condition_result)}>
-          {getConditionResultText(record.condition_result)}
-        </Tag>
+      width: '20%',
+      render: (name: string, record: StepResult) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{name}</div>
+          <div style={{ fontSize: 10, color: '#999' }}>{record.step_id.substring(0, 8)}...</div>
+        </div>
       ),
     },
     {
-      title: '执行动作',
+      title: '状态',
+      key: 'status',
+      width: '10%',
+      render: (_: unknown, record: StepResult) => getStatusTag(record),
+    },
+    {
+      title: '条件',
+      key: 'condition',
+      width: '15%',
+      render: (_: unknown, record: StepResult) => {
+        if (!record.condition_detail) {
+          return <Tag color={getConditionResultColor(record.condition_result)}>
+            {getConditionResultText(record.condition_result)}
+          </Tag>;
+        }
+        return (
+          <Tooltip title={
+            <div>
+              <div>表达式: {record.condition_detail.expression || 'N/A'}</div>
+              <div>类型: {record.condition_detail.type}</div>
+              {record.condition_detail.explain && <div>说明: {record.condition_detail.explain}</div>}
+            </div>
+          }>
+            <Tag color={getConditionResultColor(record.condition_result)}>
+              {getConditionResultText(record.condition_result)}
+            </Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '动作',
       dataIndex: 'action_taken',
       key: 'action_taken',
-      width: '20%',
+      width: '15%',
+      render: (action: string) => action ? <Text style={{ fontSize: 11 }} copyable={{ text: action }}>{action}</Text> : '-',
     },
     {
       title: '耗时',
       dataIndex: 'duration_ms',
       key: 'duration_ms',
       width: '10%',
-      render: (ms: number) => formatDuration(ms),
+      render: (ms: number) => (
+        <Text type="secondary" style={{ fontSize: 11 }}>
+          {formatDuration(ms)}
+        </Text>
+      ),
     },
     {
       title: '输出',
       key: 'output',
       render: (_: unknown, record: StepResult) => (
-        <code style={{ fontSize: 11 }}>{JSON.stringify(record.output || {})}</code>
+        <div>
+          {record.error ? (
+            <Text type="danger" style={{ fontSize: 11 }}>{record.error}</Text>
+          ) : (
+            <code style={{ fontSize: 10 }}>{JSON.stringify(record.output || {}).slice(0, 50)}...</code>
+          )}
+        </div>
       ),
     },
   ];
@@ -127,7 +172,14 @@ export default function SimulationPanel({
     ? [
         {
           key: 'steps',
-          label: `执行步骤 (${result.steps.length} 步)`,
+          label: (
+            <Space>
+              <span>执行步骤 ({result.steps.length} 步)</span>
+              {result.errors.length > 0 && (
+                <Tag color="red">{result.errors.length} 错误</Tag>
+              )}
+            </Space>
+          ),
           children: (
             <Table
               size="small"
@@ -142,33 +194,49 @@ export default function SimulationPanel({
           key: 'final-output',
           label: '最终输出',
           children: (
-            <pre style={{ background: '#f5f5f5', padding: 12, borderRadius: 4, fontSize: 12 }}>
-              {JSON.stringify(result.final_output, null, 2)}
-            </pre>
+            <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 4 }}>
+              <pre style={{ fontSize: 12, margin: 0 }}>
+                {JSON.stringify(result.final_output, null, 2)}
+              </pre>
+            </div>
           ),
         },
-        ...(result.alerts.length > 0
+        ...(result.alerts && result.alerts.length > 0
           ? [
               {
                 key: 'alerts',
-                label: `预警 (${result.alerts.length})`,
+                label: (
+                  <Space>
+                    <WarningOutlined />
+                    <span>预警 ({result.alerts.length})</span>
+                  </Space>
+                ),
                 children: (
-                  <pre style={{ background: '#fff7e6', padding: 12, borderRadius: 4, fontSize: 12 }}>
-                    {JSON.stringify(result.alerts, null, 2)}
-                  </pre>
+                  <div style={{ background: '#fffbe6', padding: 12, borderRadius: 4 }}>
+                    <pre style={{ fontSize: 12, margin: 0 }}>
+                      {JSON.stringify(result.alerts, null, 2)}
+                    </pre>
+                  </div>
                 ),
               },
             ]
           : []),
-        ...(result.errors.length > 0
+        ...(result.errors && result.errors.length > 0
           ? [
               {
                 key: 'errors',
-                label: `错误 (${result.errors.length})`,
+                label: (
+                  <Space>
+                    <InfoCircleOutlined />
+                    <span>错误 ({result.errors.length})</span>
+                  </Space>
+                ),
                 children: (
-                  <pre style={{ background: '#fff1f0', padding: 12, borderRadius: 4, fontSize: 12 }}>
-                    {result.errors.join('\n')}
-                  </pre>
+                  <div style={{ background: '#fff1f0', padding: 12, borderRadius: 4 }}>
+                    <pre style={{ fontSize: 12, margin: 0, color: '#ff4d4f' }}>
+                      {result.errors.join('\n')}
+                    </pre>
+                  </div>
                 ),
               },
             ]
@@ -180,13 +248,19 @@ export default function SimulationPanel({
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Card
         size="small"
-        title="模拟执行"
+        title={
+          <Space>
+            <PlayCircleOutlined style={{ color: '#1890ff' }} />
+            <span>模拟执行</span>
+          </Space>
+        }
         extra={
           <Space>
             <Button
               icon={<ClearOutlined />}
               onClick={handleClear}
               disabled={disabled || loading}
+              size="small"
             >
               清空
             </Button>
@@ -196,6 +270,7 @@ export default function SimulationPanel({
               onClick={handleRun}
               loading={loading}
               disabled={disabled}
+              size="small"
             >
               执行模拟
             </Button>
@@ -212,9 +287,9 @@ export default function SimulationPanel({
                 onChange={(e) => setInputJson(e.target.value)}
                 disabled={disabled}
                 rows={4}
-                style={{ flex: 1 }}
+                style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
               />
-              <Button onClick={() => setInputJson(generateInputTemplate())} disabled={disabled}>
+              <Button onClick={() => setInputJson(generateInputTemplate())} disabled={disabled} size="small">
                 生成模板
               </Button>
             </Space>

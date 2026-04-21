@@ -22,7 +22,6 @@
 | P2 | 按 Services 设计实现双通道 IngestionService | `02-design/services/` | 快速通道+慢速通道 |
 | P2 | 按 API 设计重构路由 | `02-design/api/` | 新路由结构+301 兼容层 |
 | P2 | 按 Formula 设计实现 L0/L1 执行模型 | `02-design/formula/` | 函数库补全（当前 19%） |
-| P2 | NetworkXGraphStore 导出到 storage/__init__.py | `ontology_engine/storage/__init__.py` | 当前需直接导入 |
 | P2 | LLMJudgeOperator._call_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
 
 ## 使用规则

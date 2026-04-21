@@ -34,6 +34,8 @@ class TraverseRequest(BaseModel):
     relation_name: str = "has_invoice"
     direction: str = "outgoing"
     depth: int = 1
+    as_of: datetime | None = None
+    include_history: bool = False
 
 
 class PathQueryRequest(BaseModel):
@@ -164,7 +166,9 @@ async def graph_query(
             entity_id=start_entity,
             relation_type=relation_name,
             direction=direction,
-            depth=depth
+            depth=depth,
+            as_of=body.as_of,
+            include_history=body.include_history,
         )
         return success_response(data={"results": results})
     except ValueError as e:
@@ -246,7 +250,9 @@ async def graph_traverse_get(
             entity_id=entity_id,
             relation_type=relation_name,
             direction=direction,
-            depth=depth
+            depth=depth,
+            as_of=as_of,
+            include_history=include_history,
         )
         return success_response(data={"results": results})
     except ValueError as e:
@@ -275,7 +281,9 @@ async def graph_traverse_post(
             entity_id=entity_id,
             relation_type=body.relation_name,
             direction=body.direction,
-            depth=body.depth
+            depth=body.depth,
+            as_of=body.as_of,
+            include_history=body.include_history,
         )
         return success_response(data={"results": results})
     except ValueError as e:

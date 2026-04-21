@@ -383,6 +383,8 @@ class SQLiteStorage(StorageBackend):
         entity_id: str,
         relation_name: str,
         direction: str = "outgoing",
+        as_of: str | None = None,
+        include_history: bool = False,
     ) -> list[tuple[EntityInstance, RelationInstance]]:
         self._ensure_initialized()
         assert self._conn is not None
@@ -390,28 +392,34 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             def _fetch() -> list[tuple[str, str, str, str, str, str, str | None]]:
                 results: list[tuple[str, str, str, str, str, str, str | None]] = []
+                temporal_where = ""
+                temporal_params: list[str] = []
+                if as_of and not include_history:
+                    temporal_where = " AND (e.data NOT LIKE '%valid_from%' OR (json_extract(e.data, '$.valid_from') IS NULL OR json_extract(e.data, '$.valid_from') <= ?)) AND (json_extract(e.data, '$.valid_to') IS NULL OR json_extract(e.data, '$.valid_to') > ?)"
+                    temporal_params = [as_of, as_of]
+
                 if direction in ("outgoing", "both"):
                     cursor = self._conn.execute(
-                        """
+                        f"""
                         SELECT r.relation_type, r.from_entity_id, r.to_entity_id,
                                e.concept, e.entity_id, e.data, r.data
                         FROM relations r
                         JOIN entities e ON r.to_entity_id = e.entity_id
-                        WHERE r.from_entity_id = ? AND r.relation_type = ?
+                        WHERE r.from_entity_id = ? AND r.relation_type = ?{temporal_where}
                         """,
-                        [entity_id, relation_name],
+                        [entity_id, relation_name] + temporal_params,
                     )
                     results.extend(cursor.fetchall())
                 if direction in ("incoming", "both"):
                     cursor = self._conn.execute(
-                        """
+                        f"""
                         SELECT r.relation_type, r.from_entity_id, r.to_entity_id,
                                e.concept, e.entity_id, e.data, r.data
                         FROM relations r
                         JOIN entities e ON r.from_entity_id = e.entity_id
-                        WHERE r.to_entity_id = ? AND r.relation_type = ?
+                        WHERE r.to_entity_id = ? AND r.relation_type = ?{temporal_where}
                         """,
-                        [entity_id, relation_name],
+                        [entity_id, relation_name] + temporal_params,
                     )
                     results.extend(cursor.fetchall())
                 return results
