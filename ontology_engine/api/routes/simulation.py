@@ -9,7 +9,7 @@ from fastapi import APIRouter
 
 from pydantic import BaseModel
 
-from ontology_engine.services.simulation_session import SessionManager, SessionNotFoundError
+from ontology_engine.services.simulation_session import SessionManager
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
 from ontology_engine.api.dto.responses import success_response, error_response
 
