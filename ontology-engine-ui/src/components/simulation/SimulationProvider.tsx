@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { SimulationResult } from '../../types/simulation';
 
 interface SimulationContextValue {
@@ -21,11 +21,11 @@ export function SimulationProvider({
   const sessionIdRef = useRef<string | null>(null);
 
   // postMessage预留 - 未来Agent集成
-  const postMessage = (type: string, payload: unknown) => {
+  const postMessage = useCallback((type: string, payload: unknown) => {
     if (typeof window !== 'undefined' && window.parent !== window) {
       window.parent.postMessage({ type, payload }, '*');
     }
-  };
+  }, []);
 
   // Listen for postMessage from parent (AGUI预留)
   useEffect(() => {
@@ -38,12 +38,12 @@ export function SimulationProvider({
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  const value: SimulationContextValue = {
+  const value = useMemo<SimulationContextValue>(() => ({
     schemaId,
     sessionId: sessionIdRef.current,
     result: null,
     postMessage,
-  };
+  }), [schemaId, postMessage]);
 
   return (
     <SimulationContext.Provider value={value}>

@@ -27,6 +27,7 @@ import RuleExecutionPage from './pages/consumption/RuleExecutionPage';
 import SimulationPage from './pages/SimulationPage'; // Reuse existing
 import ConsumptionViewPage from './pages/ConsumptionViewPage';
 import ConsumptionViewListPage from './pages/consumption/ConsumptionViewListPage';
+import SimulationEmbedPage from './pages/simulation/SimulationEmbedPage';
 
 // Rule Pages —— 保留独立路由以兼容直链 / 外部工具跳转 (Phase 2 遗留)
 import { RuleGroupListPage } from './pages/rules/RuleGroupListPage';
@@ -96,6 +97,7 @@ function App() {
             {/* ── 消费面路由 ── */}
             <Route path="/consumption" element={<ConsumptionViewListPage />} />
             <Route path="/consumption/:viewId" element={<ConsumptionViewPage />} />
+            <Route path="/simulation/embed" element={<SimulationEmbedPage />} />
 
             {/*
              * ── 独立规则管理路由（兼容保留）──────────────────────────────────────

@@ -89,8 +89,18 @@ class StorageBackend(ABC):
         entity_id: str,
         relation_name: str,
         direction: str = "outgoing",
+        as_of: str | None = None,
+        include_history: bool = False,
     ) -> list[tuple[EntityInstance, RelationInstance]]:
-        """Traverse one hop of graph neighbors."""
+        """Traverse one hop of graph neighbors.
+
+        Args:
+            entity_id: Starting entity ID.
+            relation_name: Relation type to traverse.
+            direction: "outgoing" or "incoming".
+            as_of: Optional point-in-time timestamp for temporal filtering.
+            include_history: If true, include all historical versions.
+        """
 
     @abstractmethod
     async def save_metric(self, entity_id: str, metric_name: str, value: Any) -> None:
@@ -441,12 +451,16 @@ class GraphStoreBackend(ABC):
         limit: int = 100,
         filter_props: dict[str, Any] | None = None,
         node_concept: str | None = None,
+        as_of: str | None = None,
+        include_history: bool = False,
     ) -> list[dict[str, Any]]:
         """Get 1-hop neighbors of a node.
 
         Args:
             node_concept: Optional concept filter applied at the storage layer
                          (e.g. kuzu WHERE n.concept = ...). Ignored if not supported.
+            as_of: Optional point-in-time timestamp for temporal filtering.
+            include_history: If true, include all historical versions.
         """
 
     @abstractmethod

@@ -24,16 +24,17 @@ export interface ExecutionLayer {
   input_requirements: InputRequirement[];
 }
 
+export type Condition =
+  | { type: 'expression'; expression: string }
+  | { type: 'all_of'; sub_conditions: string[] }
+  | { type: 'any_of'; sub_conditions: string[] };
+
 export interface ExecutableStep {
   step_id: string;
   step_name: string;
   rule_group_name: string;
   rule_group_type: 'constraint' | 'inference' | 'alert' | 'decision';
-  condition: {
-    type: 'expression' | 'all_of' | 'any_of';
-    expression?: string;
-    sub_conditions?: string[];
-  };
+  condition: Condition;
   action: {
     operator: string;
     params: Record<string, unknown>;
@@ -59,17 +60,17 @@ export interface SimulationResult {
   execution_time_ms: number;
 }
 
+export type ConditionDetail =
+  | { type: 'expression'; expression: string; result: boolean; explanation: string }
+  | { type: 'all_of'; sub_conditions: string[]; result: boolean; explanation: string }
+  | { type: 'any_of'; sub_conditions: string[]; result: boolean; explanation: string };
+
 export interface StepExecutionResult {
   step_id: string;
   step_name: string;
   layer_index: number;
   condition_result: boolean;
-  condition_detail?: {
-    type: string;
-    expression?: string;
-    result: boolean;
-    explanation: string;
-  };
+  condition_detail?: ConditionDetail;
   action_taken: string;
   output: Record<string, unknown>;
   input_values_used: Record<string, unknown>;

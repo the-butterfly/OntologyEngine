@@ -1,12 +1,8 @@
 // ontology-engine-ui/src/pages/simulation/SimulationEmbedPage.tsx
-import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, Button, Space, message, Spin } from 'antd';
-import { PlayCircleOutlined } from '@ant-design/icons';
-import { simulationApi } from '../../api/simulation';
 import { SimulationProvider } from '../../components/simulation/SimulationProvider';
 import { SimulationPanel } from '../../components/simulation/SimulationPanel';
-import type { ExecutionTree, SimulationResult } from '../../types/simulation';
+import type { SimulationResult } from '../../types/simulation';
 
 interface SimulationEmbedPageProps {
   schemaId?: string;

@@ -74,16 +74,11 @@ async def test_delete_simulation_session(client):
 
     # Verify it's gone
     get_resp = await client.get(f"/v1/simulation/{session_id}")
-    assert get_resp.status_code == 200
-    assert get_resp.json()["success"] is False
-    assert get_resp.json()["error"]["code"] == "NOT_FOUND"
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_create_simulation_session_not_found(client):
-    """Test GET /v1/simulation/{session_id} returns NOT_FOUND for unknown session."""
+    """Test GET /v1/simulation/{session_id} returns 404 for unknown session."""
     response = await client.get("/v1/simulation/nonexistent-session-id")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is False
-    assert data["error"]["code"] == "NOT_FOUND"
+    assert response.status_code == 404

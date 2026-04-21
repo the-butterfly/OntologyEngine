@@ -1,0 +1,606 @@
+# ============================================================
+# OntologyEngine Schema v2 - 亚太区总部税务架构分析
+# 遵循 canonical grammar spec
+# 场景：基于转让定价的亚太区税务架构What-If模拟
+# ============================================================
+
+schema_version: "2.0"
+
+semantic_space:
+  id: "space.tax_apac_2026"
+  name: "亚太区总部税务架构分析语义空间"
+  description: |
+    以转让定价为核心，分析亚太区总部架构重组的税务影响。
+    覆盖香港、新加坡、中国大陆三地税务优化场景。
+  type: management
+  status: ACTIVE
+
+# ============================================================
+# L1: Fact Objects（事实对象层）
+# ============================================================
+fact_objects:
+
+  # ---------- 枚举 ----------
+  enums:
+    - name: TransactionType
+      values:
+        - { id: IP_LICENSE, label: "知识产权授权" }
+        - { id: MANAGEMENT_SERVICE, label: "管理服务" }
+        - { id: DISTRIBUTION, label: "分销服务" }
+        - { id: MANUFACTURING, label: "委托制造" }
+        - { id: FINANCING, label: "关联方融资" }
+
+    - name: TPMethod
+      values:
+        - { id: CUP, label: "可比非受控价格法" }
+        - { id: COST_PLUS, label: "成本加成法" }
+        - { id: RESALE_PRICE, label: "再销售价格法" }
+        - { id: TNMM, label: "交易净利润法" }
+        - { id: PROFIT_SPLIT, label: "利润分割法" }
+
+    - name: RiskLevel
+      values:
+        - { id: LOW, label: "低风险" }
+        - { id: MEDIUM, label: "中等风险" }
+        - { id: HIGH, label: "高风险" }
+        - { id: CRITICAL, label: "严重风险" }
+
+    - name: Jurisdiction
+      values:
+        - { id: HK, label: "香港" }
+        - { id: SG, label: "新加坡" }
+        - { id: CN, label: "中国大陆" }
+
+  # ---------- 实体对象 ----------
+  entities:
+
+    - id: Subsidiary
+      name: "子公司"
+      description: "集团旗下各地区子公司"
+      attributes:
+        - name: subsidiary_id
+          type: string
+          required: true
+          unique: true
+
+        - name: company_name
+          type: string
+          required: true
+
+        - name: jurisdiction
+          type: Jurisdiction
+          required: true
+
+        - name: function
+          type: string
+          description: "功能定位：IP_HOLDING / OPERATION / MANUFACTURING"
+
+        - name: employee_count
+          type: integer
+
+        - name: annual_revenue
+          type: decimal
+
+        - name: statutory_tax_rate
+          type: decimal
+          range: [0, 1]
+
+        - name: effective_tax_rate
+          type: decimal
+          range: [0, 1]
+
+      relations:
+        - name: holds_shares_in
+          target: Subsidiary
+          cardinality: "0..*"
+          description: "持股关系"
+
+        - name: has_transaction
+          target: IntercompanyTransaction
+          cardinality: "0..*"
+
+        - name: has_treaty
+          target: TaxTreaty
+          cardinality: "0..*"
+
+    - id: IntercompanyTransaction
+      name: "关联交易"
+      description: "关联方之间的交易记录"
+      attributes:
+        - name: transaction_id
+          type: string
+          required: true
+          unique: true
+
+        - name: transaction_type
+          type: TransactionType
+          required: true
+
+        - name: description
+          type: string
+
+        - name: amount
+          type: decimal
+
+        - name: currency
+          type: string
+          default: CNY
+
+        - name: transaction_date
+          type: date
+
+      relations:
+        - name: transacts_from
+          target: Subsidiary
+          cardinality: "1"
+          inverse: has_transaction
+
+        - name: transacts_to
+          target: Subsidiary
+          cardinality: "1"
+
+        - name: has_pricing
+          target: TransferPricingRecord
+          cardinality: "1"
+
+    - id: TransferPricingRecord
+      name: "转让定价记录"
+      description: "关联交易定价文档"
+      attributes:
+        - name: record_id
+          type: string
+          required: true
+          unique: true
+
+        - name: tp_method
+          type: TPMethod
+          required: true
+
+        - name: arm_length_rate
+          type: decimal
+          description: "独立市场费率"
+
+        - name: applied_rate
+          type: decimal
+          description: "适用费率"
+
+        - name: adjustment_required
+          type: boolean
+          default: false
+
+        - name: adjustment_amount
+          type: decimal
+
+        - name: beps_compliant
+          type: boolean
+          default: true
+
+      relations:
+        - name: documents_transaction
+          target: IntercompanyTransaction
+          cardinality: "1"
+          inverse: has_pricing
+
+    - id: TaxTreaty
+      name: "税收协定"
+      description: "双边税收协定"
+      attributes:
+        - name: treaty_id
+          type: string
+          required: true
+
+        - name: jurisdiction_a
+          type: Jurisdiction
+
+        - name: jurisdiction_b
+          type: Jurisdiction
+
+        - name: dividend_rate
+          type: decimal
+          description: "股息预提税税率"
+
+        - name: royalty_rate
+          type: decimal
+          description: "特许权使用费预提税税率"
+
+        - name: interest_rate
+          type: decimal
+          description: "利息预提税税率"
+
+      relations:
+        - name: applies_to
+          target: Subsidiary
+          cardinality: "0..*"
+
+    - id: TaxAuthority
+      name: "税务机关"
+      description: "各辖区税务机关"
+      attributes:
+        - name: authority_id
+          type: string
+
+        - name: jurisdiction
+          type: Jurisdiction
+
+        - name: name
+          type: string
+
+        - name: website
+          type: string
+
+    - id: PermanentEstablishment
+      name: "常设机构"
+      description: "BEPS常设机构认定"
+      attributes:
+        - name: pe_id
+          type: string
+
+        - name: jurisdiction
+          type: Jurisdiction
+
+        - name: pe_type
+          type: string
+          description: "常设机构类型"
+
+        - name: risk_assessment
+          type: RiskLevel
+
+# ============================================================
+# L2: Categorizations（分类层）
+# ============================================================
+categorizations:
+
+  - id: transfer_pricing_analysis
+    name: "转让定价分析"
+    description: "关联方交易转让定价合规性分析"
+    applicable_to: [IntercompanyTransaction, TransferPricingRecord]
+
+  - id: tax_efficiency_assessment
+    name: "税务效率评估"
+    description: "各辖区税务效率综合评估"
+    applicable_to: [Subsidiary]
+
+  - id: beps_risk_assessment
+    name: "BEPS风险评估"
+    description: "支柱二GloBE规则合规评估"
+    applicable_to: [Subsidiary, PermanentEstablishment]
+
+  - id: pillar_two_analysis
+    name: "支柱二分析"
+    description: "全球最低税影响分析"
+    applicable_to: [Subsidiary]
+
+# ============================================================
+# L3: Analytical Elements（分析要素层）
+# ============================================================
+analytical_elements:
+
+  metrics:
+
+    - id: effective_tax_rate
+      name: "有效税率"
+      type: atomic
+      source:
+        type: fact_attribute
+        entity: Subsidiary
+        attribute: effective_tax_rate
+      range: [0, 1]
+      overridable: true
+
+    - id: arm_length_profit_margin
+      name: "独立市场利润率"
+      type: derived
+      dependencies: []
+      formula: "0"
+      description: "由转让定价记录计算"
+
+    - id: treaty_benefit_rate
+      name: "协定优惠税率"
+      type: derived
+      dependencies: []
+      formula: "0"
+      description: "基于税收协定计算"
+
+    - id: beps_risk_score
+      name: "BEPS风险评分"
+      type: composite
+      overridable: false
+      components:
+        - metric: adjustment_required_score
+          weight: 0.4
+        - metric: pe_risk_score
+          weight: 0.3
+        - metric: substance_risk_score
+          weight: 0.3
+      formula: "SUM(transform(component) * weight)"
+      range: [0, 100]
+
+    - id: pillar_two_globe_rate
+      name: "GloBE有效税率"
+      type: atomic
+      source:
+        type: calculation
+        formula: "effective_tax_rate"
+      range: [0, 1]
+      overridable: true
+
+    - id: topup_tax_amount
+      name: "支柱二补足税金额"
+      type: derived
+      dependencies: [pillar_two_globe_rate]
+      formula: |
+        if pillar_two_globe_rate < 0.15:
+            (0.15 - pillar_two_globe_rate) * annual_revenue
+        else:
+            0
+      unit: CNY
+
+    - id: annual_tax_cost
+      name: "年税务成本"
+      type: derived
+      dependencies: [effective_tax_rate, annual_revenue]
+      formula: "effective_tax_rate * annual_revenue"
+      unit: CNY
+
+    - id: tax_efficiency_score
+      name: "税务效率得分"
+      type: composite
+      overridable: false
+      components:
+        - metric: effective_tax_rate
+          weight: 0.5
+          transform: "(1 - value) * 100"  # 低税率=高分
+        - metric: beps_risk_score
+          weight: 0.3
+          transform: "(100 - value)"  # 低风险=高分
+        - metric: pillar_two_globe_rate
+          weight: 0.2
+          transform: "value * 100"  # 高GloBE=高分
+      formula: "SUM(transform(component) * weight)"
+      range: [0, 100]
+
+  indicators:
+
+    - id: pillar_two_exposure
+      name: "支柱二触发"
+      type: variable
+      output_type: boolean
+      default: false
+
+    - id: qdmtt_applicable
+      name: "QDMTT适用"
+      type: variable
+      output_type: boolean
+      default: false
+
+# ============================================================
+# L4: Business Logic（业务逻辑层）
+# ============================================================
+business_logic:
+
+  rule_definitions:
+
+    - id: RD_TP_001
+      name: "转让定价方法选择"
+      description: "根据交易类型选择合适的转让定价方法"
+      rule_type: inference
+      priority: 100
+      applies_to: [TransferPricingRecord]
+      applicable_categorizations: [transfer_pricing_analysis]
+      inputs:
+        - { id: transaction_type, name: "交易类型", type: attribute }
+        - { id: arm_length_rate, name: "独立市场费率", type: attribute }
+      outputs:
+        - { id: recommended_method, name: "推荐方法", type: computed_value }
+        - { id: compliance_status, name: "合规状态", type: computed_value }
+      logic_ids: [RL_TP_001_method_selection]
+      enabled: true
+
+    - id: RD_TP_002
+      name: "转让定价调整计算"
+      description: "计算需要调整的转让定价差异"
+      rule_type: inference
+      priority: 90
+      applies_to: [TransferPricingRecord]
+      applicable_categorizations: [transfer_pricing_analysis]
+      inputs:
+        - { id: arm_length_rate, name: "独立市场费率", type: attribute }
+        - { id: applied_rate, name: "适用费率", type: attribute }
+        - { id: transaction_amount, name: "交易金额", type: attribute }
+      outputs:
+        - { id: adjustment_required, name: "需调整", type: computed_value }
+        - { id: adjustment_amount, name: "调整金额", type: computed_value }
+      logic_ids: [RL_TP_002_adjustment]
+      enabled: true
+
+    - id: RD_TAX_001
+      name: "有效税率计算"
+      description: "计算各子公司有效税率"
+      rule_type: inference
+      priority: 80
+      applies_to: [Subsidiary]
+      applicable_categorizations: [tax_efficiency_assessment]
+      inputs:
+        - { id: statutory_tax_rate, name: "法定税率", type: attribute }
+        - { id: treaty_benefits, name: "协定优惠", type: metric }
+      outputs:
+        - { id: effective_tax_rate, name: "有效税率", type: computed_value }
+      logic_ids: [RL_TAX_001_etr_calculation]
+      enabled: true
+
+    - id: RD_BEPS_001
+      name: "BEPS风险评分"
+      description: "评估BEPS Action 8-10合规风险"
+      rule_type: alert
+      priority: 70
+      applies_to: [Subsidiary, TransferPricingRecord]
+      applicable_categorizations: [beps_risk_assessment]
+      inputs:
+        - { id: adjustment_required, name: "需调整", type: computed_value }
+        - { id: beps_compliant, name: "BEPS合规", type: attribute }
+      outputs:
+        - { id: beps_risk_score, name: "BEPS风险评分", type: computed_value }
+        - { id: risk_level, name: "风险等级", type: computed_value }
+      logic_ids: [RL_BEPS_001_risk_scoring]
+      enabled: true
+
+    - id: RD_P2_001
+      name: "支柱二GloBE评估"
+      description: "评估支柱二全球最低税影响"
+      rule_type: alert
+      priority: 60
+      applies_to: [Subsidiary]
+      applicable_categorizations: [pillar_two_analysis]
+      inputs:
+        - { id: effective_tax_rate, name: "有效税率", type: computed_value }
+        - { id: annual_revenue, name: "年收入", type: attribute }
+      outputs:
+        - { id: pillar_two_exposure, name: "支柱二触发", type: computed_value }
+        - { id: topup_tax_amount, name: "补足税金额", type: computed_value }
+      logic_ids: [RL_P2_001_globe_assessment]
+      enabled: true
+
+    - id: RD_DEC_001
+      name: "税务架构决策"
+      description: "综合评估生成税务架构推荐"
+      rule_type: decision
+      priority: 50
+      applies_to: [Subsidiary]
+      applicable_categorizations: [tax_efficiency_assessment]
+      inputs:
+        - { id: tax_efficiency_score, name: "税务效率得分", type: metric }
+        - { id: beps_risk_score, name: "BEPS风险评分", type: metric }
+        - { id: pillar_two_exposure, name: "支柱二触发", type: computed_value }
+      outputs:
+        - { id: recommendation, name: "推荐方案", type: computed_value }
+        - { id: reasoning, name: "推荐理由", type: computed_value }
+      logic_ids: [RL_DEC_001_final_recommendation]
+      enabled: true
+
+  rule_logics:
+
+    - id: RL_TP_001_method_selection
+      definition_id: RD_TP_001
+      name: "转让定价方法选择逻辑"
+      when:
+        expression: "true"
+      then_action:
+        action_type: compute
+        output:
+          recommended_method: |
+            if transaction_type == 'IP_LICENSE':
+                'CUP'
+            elif transaction_type == 'MANAGEMENT_SERVICE':
+                'COST_PLUS'
+            elif transaction_type == 'DISTRIBUTION':
+                'RESALE_PRICE'
+            elif transaction_type == 'MANUFACTURING':
+                'TNMM'
+            else:
+                'PROFIT_SPLIT'
+          compliance_status: |
+            if adjustment_required == false:
+                'COMPLIANT'
+            else:
+                'NEEDS_REVIEW'
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL_TP_002_adjustment
+      definition_id: RD_TP_002
+      name: "转让定价调整计算逻辑"
+      when:
+        expression: "arm_length_rate IS NOT NULL AND applied_rate IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          adjustment_required: "abs(arm_length_rate - applied_rate) > 0.01"
+          adjustment_amount: "(arm_length_rate - applied_rate) * transaction_amount"
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL_TAX_001_etr_calculation
+      definition_id: RD_TAX_001
+      name: "有效税率计算逻辑"
+      when:
+        expression: "statutory_tax_rate IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          effective_tax_rate: "statutory_tax_rate * 0.85"  # 简化计算
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL_BEPS_001_risk_scoring
+      definition_id: RD_BEPS_001
+      name: "BEPS风险评分逻辑"
+      when:
+        expression: "true"
+      then_action:
+        action_type: compute
+        output:
+          beps_risk_score: |
+            score = 20
+            if adjustment_required == true:
+                score += 40
+            if beps_compliant == false:
+                score += 40
+            min(score, 100)
+          risk_level: |
+            if beps_risk_score >= 80:
+                'CRITICAL'
+            elif beps_risk_score >= 60:
+                'HIGH'
+            elif beps_risk_score >= 40:
+                'MEDIUM'
+            else:
+                'LOW'
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL_P2_001_globe_assessment
+      definition_id: RD_P2_001
+      name: "支柱二GloBE评估逻辑"
+      when:
+        expression: "effective_tax_rate IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          pillar_two_exposure: "effective_tax_rate < 0.15"
+          topup_tax_amount: |
+            if effective_tax_rate < 0.15:
+                (0.15 - effective_tax_rate) * annual_revenue
+            else:
+                0
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL_DEC_001_final_recommendation
+      definition_id: RD_DEC_001
+      name: "最终推荐逻辑"
+      when:
+        expression: "tax_efficiency_score IS NOT NULL"
+      then_action:
+        action_type: compute
+        output:
+          recommendation: |
+            if beps_risk_score > 60:
+                'HIGH_RISK_NOT_RECOMMENDED'
+            elif pillar_two_exposure == true:
+                'PILLAR2_IMPACT_REQUIRES_REVIEW'
+            elif tax_efficiency_score >= 80:
+                'RECOMMENDED'
+            elif tax_efficiency_score >= 60:
+                'CONSIDERED'
+            else:
+                'NOT_RECOMMENDED'
+          reasoning: |
+            '税务效率得分:{tax_efficiency_score:.0f}, BEPS风险:{beps_risk_score:.0f}, 支柱二:{pillar_two_exposure}'
+      priority: 100
+      version: 1
+      environment: default

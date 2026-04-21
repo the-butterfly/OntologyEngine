@@ -1,0 +1,555 @@
+# ============================================================
+# Circular 23 合规场景 - API调用示例与测试查询
+#
+# 包含三大类测试：
+#   1. Rule Hot-Update: 规则热更新演示
+#   2. Decision Traceability: 决策追溯查询
+#   3. Evidence Chain: 证据链演示
+#
+# ============================================================
+
+test_suite:
+  id: "circular23_compliance_scenario"
+  name: "央行23号文合规场景验收"
+  schema: "examples/case1_regulatory_compliance/schema.yaml"
+  instances: "examples/case1_regulatory_compliance/instances.yaml"
+  rules: "examples/case1_regulatory_compliance/rules/RD_circular23_compliance.yaml"
+
+# ============================================================
+# Section 1: Rule Hot-Update API
+# 演示规则如何在秒级生效，无需系统重启
+# ============================================================
+api_tests:
+
+  # ---- 1.1 加载新规则（热更新）----
+  - id: "API-001"
+    name: "加载Circular 23合规规则包"
+    category: "rule_hot_update"
+    api_endpoint: "/api/v1/rules/load"
+    method: "POST"
+    request:
+      rule_file: "rules/RD_circular23_compliance.yaml"
+      activate: true
+      validation: true
+      notification_enabled: true
+    expected_response:
+      status: "success"
+      rule_id: "RD_circular23_compliance"
+      version: "1.0.0"
+      load_time_ms: 2000
+      rules_activated:
+        - "RD_CIRCULAR23_core_enterprise_whitelist"
+        - "RD_CIRCULAR23_invoice_authenticity"
+        - "RD_CIRCULAR23_guarantee_limit"
+        - "RD_CIRCULAR23_risk_concentration"
+        - "RD_CIRCULAR23_comprehensive_compliance"
+    performance_benchmark:
+      traditional_approach_weeks: 2
+      ontology_engine_seconds: 2
+      speedup_factor: 302400
+
+  # ---- 1.2 查询已加载规则 ----
+  - id: "API-002"
+    name: "查询已加载的规则列表"
+    category: "rule_hot_update"
+    api_endpoint: "/api/v1/rules/list"
+    method: "GET"
+    query_params:
+      status: "active"
+      category: "circular23_compliance_check"
+    expected_response:
+      total_count: 5
+      rules:
+        - id: "RD_CIRCULAR23_core_enterprise_whitelist"
+          priority: 150
+          enabled: true
+          loaded_at: "2026-04-20T10:00:02Z"
+        - id: "RD_CIRCULAR23_invoice_authenticity"
+          priority: 145
+          enabled: true
+          loaded_at: "2026-04-20T10:00:02Z"
+        - id: "RD_CIRCULAR23_guarantee_limit"
+          priority: 140
+          enabled: true
+          loaded_at: "2026-04-20T10:00:02Z"
+        - id: "RD_CIRCULAR23_risk_concentration"
+          priority: 135
+          enabled: true
+          loaded_at: "2026-04-20T10:00:02Z"
+        - id: "RD_CIRCULAR23_comprehensive_compliance"
+          priority: 130
+          enabled: true
+          loaded_at: "2026-04-20T10:00:02Z"
+
+  # ---- 1.3 规则版本切换（回滚演示）----
+  - id: "API-003"
+    name: "规则版本切换"
+    category: "rule_hot_update"
+    api_endpoint: "/api/v1/rules/switch_version"
+    method: "POST"
+    request:
+      rule_id: "RD_CIRCULAR23_compliance"
+      target_version: "1.0.0"
+      reason: "监管机构补充解释说明"
+    expected_response:
+      status: "success"
+      previous_version: "1.0.0"
+      current_version: "1.0.0"
+      switched_at: "2026-04-20T10:05:00Z"
+
+# ============================================================
+# Section 2: Decision Traceability API
+# 演示如何查询特定供应商的完整决策链路
+# ============================================================
+
+  # ---- 2.1 查询供应商C1决策追溯（合规供应商）----
+  - id: "API-004"
+    name: "查询C1供应商决策追溯"
+    category: "decision_traceability"
+    api_endpoint: "/api/v1/query/trace"
+    method: "POST"
+    request:
+      entity_id: "SUP_C1"
+      entity_type: "Supplier"
+      trace_depth: "full"
+      include_evidence: true
+      include_rule_details: true
+    expected_response:
+      entity_id: "SUP_C1"
+      entity_name: "深圳恒通科技有限公司"
+      decision_result: "APPROVE"
+      is_circular23_compliant: true
+      compliance_score: 95
+      trace_id: "TRACE-20260420-SUP_C1-001"
+      trace_timestamp: "2026-04-20T10:15:30Z"
+      trace_nodes:
+        - node_id: "c23-step-1-whitelist"
+          rule_id: "RD_CIRCULAR23_core_enterprise_whitelist"
+          result: "PASS"
+          is_core_enterprise_compliant: true
+          evidence:
+            - type: "fact_attribute"
+              source: "CoreEnterprise.is_in_regulatory_whitelist"
+              value: true
+              entities:
+                - "CE_WHITELISTED_001 (华为技术有限公司)"
+                - "CE_WHITELISTED_002 (比亚迪股份有限公司)"
+          extracted_from:
+            - "Supplier.supplies_to --> CoreEnterprise"
+            - "CoreEnterprise.is_in_regulatory_whitelist = true"
+          trace_to:
+            - "c23-step-5-comprehensive"
+
+        - node_id: "c23-step-2-invoice-auth"
+          rule_id: "RD_CIRCULAR23_invoice_authenticity"
+          result: "PASS"
+          is_invoice_authentic: true
+          evidence:
+            invoice_authenticity_pass_rate: 100
+            total_invoices: 3
+            verified_invoices: 3
+          extracted_from:
+            - "Invoice.authenticity_verified = true (3张)"
+            - "Invoice.issue_date (近180天)"
+          trace_to:
+            - "c23-step-5-comprehensive"
+
+        - node_id: "c23-step-3-guarantee-limit"
+          rule_id: "RD_CIRCULAR23_guarantee_limit"
+          result: "PASS"
+          is_guarantee_compliant: true
+          evidence:
+            max_single_guarantee_ratio: 1
+            registered_capital: 50000000
+            guarantee_amount: 5000000
+            threshold: 10
+          extracted_from:
+            - "GuaranteeRelation.guarantee_amount = 5000000"
+            - "Supplier.registered_capital = 50000000"
+            - "ratio = 5/500 * 100 = 1%"
+          trace_to:
+            - "c23-step-5-comprehensive"
+
+        - node_id: "c23-step-4-risk-concentration"
+          rule_id: "RD_CIRCULAR23_risk_concentration"
+          result: "PASS"
+          is_risk_concentration_compliant: true
+          evidence:
+            max_risk_concentration_ratio: 35
+            threshold: 50
+          extracted_from:
+            - "Supplier.risk_concentration_ratio = 35"
+          trace_to:
+            - "c23-step-5-comprehensive"
+
+        - node_id: "c23-step-5-comprehensive"
+          rule_id: "RD_CIRCULAR23_comprehensive_compliance"
+          result: "COMPLIANT"
+          is_circular23_compliant: true
+          failed_checks: []
+          trace_to:
+            - "RD006_final_decision"
+
+  # ---- 2.2 查询供应商C4决策追溯（担保限额不合规）----
+  - id: "API-005"
+    name: "查询C4供应商决策追溯（担保限额超标）"
+    category: "decision_traceability"
+    api_endpoint: "/api/v1/query/trace"
+    method: "POST"
+    request:
+      entity_id: "SUP_C4"
+      entity_type: "Supplier"
+      trace_depth: "full"
+      include_evidence: true
+    expected_response:
+      entity_id: "SUP_C4"
+      entity_name: "北京担保有限公司"
+      decision_result: "REJECT"
+      is_circular23_compliant: false
+      compliance_score: 65
+      trace_id: "TRACE-20260420-SUP_C4-001"
+      trace_timestamp: "2026-04-20T10:20:15Z"
+      failed_check_detail:
+        check: "guarantee_limit"
+        article: "Article 15"
+        node_id: "c23-step-3-guarantee-limit"
+      failed_check_evidence:
+        max_single_guarantee_ratio: 15
+        registered_capital: 100000000
+        guarantee_amount: 15000000
+        threshold: 10
+        actual_exceeds_by_percent: 5
+      compliance_rejection_reason: "担保限额不合规：最大单笔担保占比15.0%，超过10%上限。依据：Circular 23 Article 15"
+      extracted_from_edges:
+        - edge: "GuaranteeRelation.guarantee_amount"
+          value: 15000000
+          entity_id: "GR_C4_001"
+        - edge: "Supplier.registered_capital"
+          value: 100000000
+          entity_id: "SUP_C4"
+      trace_to_edges:
+        - downstream_rule: "RD006_final_decision"
+          consumed_as: "is_circular23_compliant = false"
+
+# ============================================================
+# Section 3: Evidence Chain Demonstration
+# 演示证据链的完整结构
+# ============================================================
+
+  # ---- 3.1 证据链完整结构查询 ----
+  - id: "API-006"
+    name: "获取证据链完整结构"
+    category: "evidence_chain"
+    api_endpoint: "/api/v1/query/evidence_chain"
+    method: "POST"
+    request:
+      entity_id: "SUP_C4"
+      entity_type: "Supplier"
+      decision_id: "TRACE-20260420-SUP_C4-001"
+      include_source_facts: true
+      include_intermediate_results: true
+    expected_response:
+      evidence_chain:
+        decision_id: "TRACE-20260420-SUP_C4-001"
+        decision_outcome: "NON_COMPLIANT"
+        regulation: "Circular 23 (银发〔2026〕23号)"
+
+        nodes:
+          - node_type: "rule_decision"
+            node_id: "c23-step-3-guarantee-limit"
+            label: "担保限额检查"
+            outcome: "FAIL"
+            extracted_from:
+              - type: "fact_attribute"
+                source_entity: "GuaranteeRelation"
+                source_id: "GR_C4_001"
+                source_attribute: "guarantee_amount"
+                raw_value: 15000000
+                unit: "CNY"
+                extraction_timestamp: "2026-04-20T10:20:14Z"
+              - type: "fact_attribute"
+                source_entity: "Supplier"
+                source_id: "SUP_C4"
+                source_attribute: "registered_capital"
+                raw_value: 100000000
+                unit: "CNY"
+                extraction_timestamp: "2026-04-20T10:20:14Z"
+
+            computed_values:
+              - name: "max_single_guarantee_ratio"
+                formula: "guarantee_amount / registered_capital * 100"
+                result: 15
+                unit: "%"
+                threshold: 10
+                comparison: "EXCEEDS"
+
+            trace_to:
+              - rule_id: "c23-step-5-comprehensive"
+                edge_type: "consumed_as"
+                consumed_value: "is_guarantee_compliant = false"
+
+            confidence: 0.95
+            audit_metadata:
+              reportable: true
+              regulatory_reference: "Article 15"
+              retention_years: 7
+
+  # ---- 3.2 批量供应商合规状态查询 ----
+  - id: "API-007"
+    name: "批量供应商合规状态查询"
+    category: "evidence_chain"
+    api_endpoint: "/api/v1/query/batch_compliance"
+    method: "POST"
+    request:
+      supplier_ids:
+        - "SUP_C1"
+        - "SUP_C2"
+        - "SUP_C3"
+        - "SUP_C4"
+        - "SUP_C5"
+      compliance_rules:
+        - "RD_CIRCULAR23_compliance"
+      include_traces: true
+      summary_only: false
+    expected_response:
+      batch_id: "BATCH-20260420-001"
+      total_count: 5
+      compliant_count: 1
+      non_compliant_count: 4
+      results:
+        - supplier_id: "SUP_C1"
+          supplier_name: "深圳恒通科技有限公司"
+          is_circular23_compliant: true
+          compliance_score: 95
+          failed_checks: []
+
+        - supplier_id: "SUP_C2"
+          supplier_name: "上海贸易有限公司"
+          is_circular23_compliant: false
+          compliance_score: 60
+          failed_checks:
+            - article: "Article 8"
+              reason: "核心企业不在监管白名单"
+              evidence_count: 1
+
+        - supplier_id: "SUP_C3"
+          supplier_name: "广州制造有限公司"
+          is_circular23_compliant: false
+          compliance_score: 35
+          failed_checks:
+            - article: "Article 12"
+              reason: "发票真实性核验通过率60%，低于95%"
+              evidence_count: 5
+
+        - supplier_id: "SUP_C4"
+          supplier_name: "北京担保有限公司"
+          is_circular23_compliant: false
+          compliance_score: 65
+          failed_checks:
+            - article: "Article 15"
+              reason: "担保限额占比15%，超过10%"
+              evidence_count: 1
+
+        - supplier_id: "SUP_C5"
+          supplier_name: "成都供应链有限公司"
+          is_circular23_compliant: false
+          compliance_score: 55
+          failed_checks:
+            - article: "Article 18"
+              reason: "风险集中度65%，超过50%"
+              evidence_count: 1
+
+# ============================================================
+# Section 4: Audit Report API
+# 用于季度审计准备的API
+# ============================================================
+
+  # ---- 4.1 生成合规审计报告 ----
+  - id: "API-008"
+    name: "生成Circular 23合规审计报告"
+    category: "audit"
+    api_endpoint: "/api/v1/audit/compliance-report"
+    method: "POST"
+    request:
+      report_type: "Circular_23_Compliance"
+      period:
+        start_date: "2026-01-01"
+        end_date: "2026-03-31"
+      include_traces: true
+      include_evidence_details: true
+      format: "pdf"
+      recipients:
+        - "risk_control_manager@company.com"
+        - "compliance_audit@company.com"
+    expected_response:
+      report_id: "AUDIT-C23-2026-Q1-001"
+      status: "generating"
+      estimated_completion_seconds: 30
+      report_metadata:
+        total_suppliers_evaluated: 5
+        compliant_count: 1
+        non_compliant_count: 4
+        rule_update_events:
+          - rule_id: "RD_circular23_compliance"
+            loaded_at: "2026-04-20T10:00:02Z"
+            loaded_by: "risk_control_manager"
+        average_decision_latency_ms: 350
+        compliance_score_distribution:
+          - range: "90-100"
+            count: 1
+          - range: "60-89"
+            count: 2
+          - range: "40-59"
+            count: 1
+          - range: "0-39"
+            count: 1
+
+  # ---- 4.2 审计追踪查询 ----
+  - id: "API-009"
+    name: "查询规则更新历史"
+    category: "audit"
+    api_endpoint: "/api/v1/audit/rule_history"
+    method: "GET"
+    query_params:
+      rule_id: "RD_circular23_compliance"
+      period_start: "2026-04-01"
+      period_end: "2026-04-30"
+    expected_response:
+      rule_id: "RD_circular23_compliance"
+      rule_name: "央行23号文合规检查规则包"
+      events:
+        - event_id: "EVT-001"
+          event_type: "RULE_LOADED"
+          timestamp: "2026-04-20T10:00:02Z"
+          operator: "risk_control_manager"
+          version: "1.0.0"
+          status: "success"
+          load_time_ms: 1850
+          rules_activated:
+            - "RD_CIRCULAR23_core_enterprise_whitelist"
+            - "RD_CIRCULAR23_invoice_authenticity"
+            - "RD_CIRCULAR23_guarantee_limit"
+            - "RD_CIRCULAR23_risk_concentration"
+            - "RD_CIRCULAR23_comprehensive_compliance"
+
+# ============================================================
+# Section 5: Performance Comparison
+# 展示OntologyEngine相对传统方式的优势
+# ============================================================
+
+performance_tests:
+
+  - id: "PERF-001"
+    name: "规则热更新性能对比"
+    description: "对比传统IT部署 vs OntologyEngine热更新"
+    traditional_approach:
+      process:
+        - "业务部门提出规则变更需求"
+        - "风控部门编写规则规格说明书"
+        - "IT部门评审需求"
+        - "开发团队实现规则逻辑"
+        - "QA团队编写测试用例"
+        - "UAT测试"
+        - "预发布环境验证"
+        - "生产环境发布窗口"
+        - "回滚计划准备"
+      total_duration_days: 14
+      resource_cost: "3人月"
+      risk_level: "HIGH"
+    ontology_engine_approach:
+      process:
+        - "业务部门上传YAML规则文件"
+        - "系统自动校验语法和语义"
+        - "一键激活"
+      total_duration_seconds: 2
+      resource_cost: "0.1人月"
+      risk_level: "LOW"
+    speedup_factor: 302400
+    cost_reduction_percent: 97
+
+  - id: "PERF-002"
+    name: "决策追溯性能对比"
+    description: "对比手工文档 vs 自动证据链"
+    traditional_approach:
+      process:
+        - "风控经理手工整理决策文档"
+        - "调取多个系统数据"
+        - "关联发票、合同、担保数据"
+        - "编写证据链说明"
+        - "律师审核"
+      total_duration_hours: 8
+      manual_steps: 15
+      error_rate_percent: 12
+    ontology_engine_approach:
+      process:
+        - "API查询决策追溯"
+        - "自动生成证据链"
+      total_duration_seconds: 0.5
+      manual_steps: 0
+      error_rate_percent: 0
+    speedup_factor: 57600
+
+# ============================================================
+# Test Case Mappings
+# 将API测试映射到具体测试用例
+# ============================================================
+
+test_case_mappings:
+
+  TC-C1:
+    name: "完全合规供应商"
+    entity_id: "SUP_C1"
+    api_tests:
+      - "API-004"
+    expected:
+      is_circular23_compliant: true
+      compliance_score_range: [90, 100]
+      failed_checks: []
+
+  TC-C2:
+    name: "核心企业不在白名单"
+    entity_id: "SUP_C2"
+    api_tests:
+      - "API-005"
+    expected:
+      is_circular23_compliant: false
+      compliance_score_range: [50, 70]
+      failed_checks:
+        - article: "Article 8"
+          reason_contains: "白名单"
+
+  TC-C3:
+    name: "发票真实性核验失败"
+    entity_id: "SUP_C3"
+    api_tests:
+      - "API-005"
+    expected:
+      is_circular23_compliant: false
+      compliance_score_range: [30, 45]
+      failed_checks:
+        - article: "Article 12"
+          reason_contains: "真实性"
+
+  TC-C4:
+    name: "担保限额超出"
+    entity_id: "SUP_C4"
+    api_tests:
+      - "API-005"
+    expected:
+      is_circular23_compliant: false
+      compliance_score_range: [60, 75]
+      failed_checks:
+        - article: "Article 15"
+          reason_contains: "担保限额"
+
+  TC-C5:
+    name: "风险集中度超限"
+    entity_id: "SUP_C5"
+    api_tests:
+      - "API-005"
+    expected:
+      is_circular23_compliant: false
+      compliance_score_range: [50, 65]
+      failed_checks:
+        - article: "Article 18"
+          reason_contains: "风险集中度"

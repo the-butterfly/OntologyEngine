@@ -190,6 +190,19 @@ class KuzuGraphStore(GraphStoreBackend):
         """)
 
         self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS DEFINED_IN_FROM_METRIC(
+                FROM MetricDeclaration TO Entity,
+                edge_type STRING DEFAULT 'DEFINED_IN',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS TRACE_TO(
                 FROM ExecutionStepSnapshot TO Entity,
                 edge_type STRING DEFAULT 'TRACE_TO',
@@ -431,6 +444,8 @@ class KuzuGraphStore(GraphStoreBackend):
         limit: int = 100,
         filter_props: dict[str, Any] | None = None,
         node_concept: str | None = None,
+        as_of: str | None = None,
+        include_history: bool = False,
     ) -> list[dict[str, Any]]:
         """Get 1-hop neighbors of a node.
 
@@ -438,6 +453,8 @@ class KuzuGraphStore(GraphStoreBackend):
             node_concept: When provided, kuzu pushes this filter into the WHERE clause
                           to avoid returning nodes that don't match the fact_object, eliminating
                           the need for post-filtering via MetaStore lookups.
+            as_of: Optional point-in-time timestamp for temporal filtering.
+            include_history: If true, include all historical versions.
         """
         self._ensure_initialized()
 
@@ -470,22 +487,34 @@ class KuzuGraphStore(GraphStoreBackend):
             MATCH (src:Entity {{entity_id: '{node_id}'}}){arrow_left}{rel_match}{arrow_right}(n:Entity)
             {where_clause}
             RETURN n.entity_id AS neighbor_id, r.relation_type AS edge_type,
-                   r.relation_id AS edge_id, label(r) AS rel_table
+                   r.relation_id AS edge_id, label(r) AS rel_table,
+                   n.properties AS properties
             LIMIT {limit}
         """
         result = self._conn.execute(cypher)
         df = result.get_as_df()
         if df.empty:
             return []
-        return [
-            {
+
+        import json
+        filtered_rows = []
+        for _, row in df.iterrows():
+            if as_of and not include_history:
+                props_raw = row.get("properties")
+                props = json.loads(props_raw) if isinstance(props_raw, str) else (props_raw or {})
+                valid_from = props.get("valid_from")
+                valid_to = props.get("valid_to")
+                if valid_from and valid_from > as_of:
+                    continue
+                if valid_to and valid_to <= as_of:
+                    continue
+            filtered_rows.append({
                 "neighbor_id": row["neighbor_id"],
                 "edge_id": row["edge_id"],
                 "edge_type": row["edge_type"],
                 "direction": direction if direction != "both" else "outgoing",
-            }
-            for _, row in df.iterrows()
-        ]
+            })
+        return filtered_rows
 
     async def find_paths(
         self,
@@ -968,8 +997,21 @@ class KuzuGraphStore(GraphStoreBackend):
         if edge_type not in valid_types:
             raise GraphQueryError(f"Invalid mutual-index edge type: {edge_type}. Must be one of {valid_types}")
 
-        from_label = "ExecutionStepSnapshot" if edge_type == "TRACE_TO" else "Entity"
+        if edge_type == "TRACE_TO":
+            from_label = "ExecutionStepSnapshot"
+            from_id_field = "id"
+        elif edge_type == "DEFINED_IN" and from_id.startswith("metric:"):
+            from_label = "MetricDeclaration"
+            from_id_field = "id"
+        else:
+            from_label = "Entity"
+            from_id_field = "entity_id"
         to_label = "Entity"
+        to_id_field = "entity_id"
+
+        rel_label = "DEFINED_IN_FROM_METRIC" if (
+            edge_type == "DEFINED_IN" and from_label == "MetricDeclaration"
+        ) else edge_type
 
         props_parts = []
         params: dict[str, Any] = {"from_id": from_id, "to_id": to_id}
@@ -980,10 +1022,10 @@ class KuzuGraphStore(GraphStoreBackend):
         props_str = ", ".join(props_parts) if props_parts else ""
 
         cypher = f"""
-            MATCH (a:{from_label} {{entity_id: $from_id}}), (b:{to_label} {{entity_id: $to_id}})
-            MERGE (a)-[r:{edge_type}]->(b)
+            MATCH (a:{from_label} {{{from_id_field}: $from_id}}), (b:{to_label} {{{to_id_field}: $to_id}})
+            MERGE (a)-[r:{rel_label}]->(b)
             {"SET " + props_str if props_str else ""}
-            RETURN label(r) AS edge_type, a.entity_id AS from_id, b.entity_id AS to_id
+            RETURN label(r) AS edge_type, a.{from_id_field} AS from_id, b.{to_id_field} AS to_id
         """
         self._conn.execute(cypher, params)
         return {
@@ -1016,59 +1058,83 @@ class KuzuGraphStore(GraphStoreBackend):
         if edge_type:
             mutual_types = [edge_type]
 
+        _MUTUAL_INDEX_QUERIES: dict[str, list[dict[str, str]]] = {
+            "EXTRACTED_FROM": [
+                {"rel": "EXTRACTED_FROM", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+            ],
+            "SUPPORTED_BY": [
+                {"rel": "SUPPORTED_BY", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+            ],
+            "DEFINED_IN": [
+                {"rel": "DEFINED_IN", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+                {"rel": "DEFINED_IN_FROM_METRIC", "from_label": "MetricDeclaration", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
+            ],
+            "TRACE_TO": [
+                {"rel": "TRACE_TO", "from_label": "ExecutionStepSnapshot", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
+            ],
+        }
+
         results: list[dict[str, Any]] = []
         for mtype in mutual_types:
-            if direction in ("outgoing", "both"):
-                cypher = f"""
-                    MATCH (a:Entity {{entity_id: $id}})-[r:{mtype}]->(b)
-                    RETURN a.entity_id AS from_id, b.entity_id AS to_id,
-                           label(r) AS edge_type, r AS props
-                """
-                try:
-                    result = self._conn.execute(cypher, {"id": node_id})
-                    df = result.get_as_df()
-                    for _, row in df.iterrows():
-                        props = row.get("props", {})
-                        if isinstance(props, str):
-                            try:
-                                props = json.loads(props)
-                            except (json.JSONDecodeError, TypeError):
-                                props = {}
-                        results.append({
-                            "from_id": row["from_id"],
-                            "to_id": row["to_id"],
-                            "edge_type": row["edge_type"],
-                            "direction": "outgoing",
-                            "properties": props if isinstance(props, dict) else {},
-                        })
-                except Exception:
-                    pass
+            query_specs = _MUTUAL_INDEX_QUERIES.get(mtype, [])
+            for spec in query_specs:
+                rel_name = spec["rel"]
+                fl = spec["from_label"]
+                fpk = spec["from_pk"]
+                tl = spec["to_label"]
+                tpk = spec["to_pk"]
 
-            if direction in ("incoming", "both"):
-                cypher = f"""
-                    MATCH (a)-[r:{mtype}]->(b:Entity {{entity_id: $id}})
-                    RETURN a.entity_id AS from_id, b.entity_id AS to_id,
-                           label(r) AS edge_type, r AS props
-                """
-                try:
-                    result = self._conn.execute(cypher, {"id": node_id})
-                    df = result.get_as_df()
-                    for _, row in df.iterrows():
-                        props = row.get("props", {})
-                        if isinstance(props, str):
-                            try:
-                                props = json.loads(props)
-                            except (json.JSONDecodeError, TypeError):
-                                props = {}
-                        results.append({
-                            "from_id": row["from_id"],
-                            "to_id": row["to_id"],
-                            "edge_type": row["edge_type"],
-                            "direction": "incoming",
-                            "properties": props if isinstance(props, dict) else {},
-                        })
-                except Exception:
-                    pass
+                if direction in ("outgoing", "both"):
+                    cypher = f"""
+                        MATCH (a:{fl} {{{fpk}: $id}})-[r:{rel_name}]->(b:{tl})
+                        RETURN a.{fpk} AS from_id, b.{tpk} AS to_id,
+                               label(r) AS edge_type, r AS props
+                    """
+                    try:
+                        result = self._conn.execute(cypher, {"id": node_id})
+                        df = result.get_as_df()
+                        for _, row in df.iterrows():
+                            props = row.get("props", {})
+                            if isinstance(props, str):
+                                try:
+                                    props = json.loads(props)
+                                except (json.JSONDecodeError, TypeError):
+                                    props = {}
+                            results.append({
+                                "from_id": row["from_id"],
+                                "to_id": row["to_id"],
+                                "edge_type": row["edge_type"],
+                                "direction": "outgoing",
+                                "properties": props if isinstance(props, dict) else {},
+                            })
+                    except Exception:
+                        pass
+
+                if direction in ("incoming", "both"):
+                    cypher = f"""
+                        MATCH (a:{fl})-[r:{rel_name}]->(b:{tl} {{{tpk}: $id}})
+                        RETURN a.{fpk} AS from_id, b.{tpk} AS to_id,
+                               label(r) AS edge_type, r AS props
+                    """
+                    try:
+                        result = self._conn.execute(cypher, {"id": node_id})
+                        df = result.get_as_df()
+                        for _, row in df.iterrows():
+                            props = row.get("props", {})
+                            if isinstance(props, str):
+                                try:
+                                    props = json.loads(props)
+                                except (json.JSONDecodeError, TypeError):
+                                    props = {}
+                            results.append({
+                                "from_id": row["from_id"],
+                                "to_id": row["to_id"],
+                                "edge_type": row["edge_type"],
+                                "direction": "incoming",
+                                "properties": props if isinstance(props, dict) else {},
+                            })
+                    except Exception:
+                        pass
 
         return results
 

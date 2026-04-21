@@ -6,10 +6,9 @@ const { Text, Paragraph } = Typography;
 
 interface SimulationResultPanelProps {
   result: SimulationResult | null;
-  tree?: any;
 }
 
-export function SimulationResultPanel({ result, tree }: SimulationResultPanelProps) {
+export function SimulationResultPanel({ result }: SimulationResultPanelProps) {
   if (!result) {
     return (
       <Card title="模拟结果">
@@ -23,7 +22,7 @@ export function SimulationResultPanel({ result, tree }: SimulationResultPanelPro
     label: (
       <Space>
         <Tag color={step.error ? 'red' : step.condition_result ? 'green' : 'orange'}>
-          {step.condition_result ? '通过' : '跳过'}
+          {step.error ? '错误' : step.condition_result ? '通过' : '跳过'}
         </Tag>
         <Text>{step.step_name}</Text>
         <Text type="secondary" style={{ fontSize: 12 }}>

@@ -95,7 +95,9 @@ class TestQueryService:
         storage.get_neighbors.assert_called_once_with(
             entity_id="INV_001",
             relation_name="has_invoice",
-            direction="incoming"
+            direction="incoming",
+            as_of=None,
+            include_history=False,
         )
 
     @pytest.mark.asyncio

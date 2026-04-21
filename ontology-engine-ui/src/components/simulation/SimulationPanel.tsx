@@ -1,12 +1,12 @@
 // ontology-engine-ui/src/components/simulation/SimulationPanel.tsx
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, Button, Space, message, Empty } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { simulationApi } from '../../api/simulation';
 import { ExecutionTreeViewer } from './ExecutionTreeViewer';
 import { InputValuesForm } from './InputValuesForm';
 import { SimulationResultPanel } from './SimulationResultPanel';
-import type { ExecutionTree, SimulationResult, ExecutableStep } from '../../types/simulation';
+import type { ExecutionTree, SimulationResult } from '../../types/simulation';
 
 interface SimulationPanelProps {
   initialSchemaId: string;
@@ -23,7 +23,7 @@ export function SimulationPanel({
   onResultChange,
   onError,
 }: SimulationPanelProps) {
-  const [schemaId] = useState(initialSchemaId);
+  const schemaId = initialSchemaId;
   const [entityId, setEntityId] = useState(initialEntityId || '');
   const [targetOutput, setTargetOutput] = useState(initialTargetOutput);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -77,10 +77,9 @@ export function SimulationPanel({
     }
   };
 
-  const updateInputs = (updates: Record<string, unknown>) => {
-    const newInputs = { ...inputValues, ...updates };
-    setInputValues(newInputs);
-  };
+  const updateInputs = useCallback((updates: Record<string, unknown>) => {
+    setInputValues(prev => ({ ...prev, ...updates }));
+  }, []);
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -121,10 +120,7 @@ export function SimulationPanel({
       {executionTree && (
         <ExecutionTreeViewer
           tree={executionTree}
-          onStepClick={(step: ExecutableStep) => {
-            // Highlight step
-            console.log('Step clicked:', step.step_id);
-          }}
+          onStepClick={() => {}}
         />
       )}
 
@@ -151,7 +147,7 @@ export function SimulationPanel({
       )}
 
       {/* Result */}
-      {result && <SimulationResultPanel result={result} tree={executionTree} />}
+      {result && <SimulationResultPanel result={result} />}
 
       {!executionTree && !loading && (
         <Empty description="配置目标输出后构建执行树" />

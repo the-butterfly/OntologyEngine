@@ -1,0 +1,254 @@
+# ============================================================
+# OntologyEngine 亚太区税务架构 - 实例数据
+# 包含三个场景的子公司数据、关联交易、转让定价记录
+# ============================================================
+
+instances:
+
+  # ============================================================
+  # 子公司实体
+  # ============================================================
+
+  - fact_object: Subsidiary
+    data:
+      - subsidiary_id: "SUB_HK"
+        company_name: "香港亚太控股有限公司"
+        jurisdiction: HK
+        function: "IP_HOLDING"
+        employee_count: 50
+        annual_revenue: { value: 800000000, currency: CNY }
+        statutory_tax_rate: 0.165
+        effective_tax_rate: 0.148
+
+      - subsidiary_id: "SUB_SG"
+        company_name: "新加坡亚太运营有限公司"
+        jurisdiction: SG
+        function: "OPERATION"
+        employee_count: 800
+        annual_revenue: { value: 2000000000, currency: CNY }
+        statutory_tax_rate: 0.17
+        effective_tax_rate: 0.14
+
+      - subsidiary_id: "SUB_CN"
+        company_name: "中国制造科技有限公司"
+        jurisdiction: CN
+        function: "MANUFACTURING"
+        employee_count: 11000
+        annual_revenue: { value: 6000000000, currency: CNY }
+        statutory_tax_rate: 0.25
+        effective_tax_rate: 0.22
+
+  # ============================================================
+  # 税收协定
+  # ============================================================
+
+  - fact_object: TaxTreaty
+    data:
+      - treaty_id: "TREATY_CN_HK"
+        jurisdiction_a: CN
+        jurisdiction_b: HK
+        dividend_rate: 0.05
+        royalty_rate: 0.05
+        interest_rate: 0.07
+
+      - treaty_id: "TREATY_CN_SG"
+        jurisdiction_a: CN
+        jurisdiction_b: SG
+        dividend_rate: 0.05
+        royalty_rate: 0.07
+        interest_rate: 0.07
+
+      - treaty_id: "TREATY_HK_SG"
+        jurisdiction_a: HK
+        jurisdiction_b: SG
+        dividend_rate: 0.05
+        royalty_rate: 0.05
+        interest_rate: 0.05
+
+  # ============================================================
+  # 关联交易
+  # ============================================================
+
+  - fact_object: IntercompanyTransaction
+    data:
+      # IP授权交易
+      - transaction_id: "TXN_001"
+        transaction_type: IP_LICENSE
+        description: "商标及专利授权使用"
+        amount: { value: 150000000, currency: CNY }
+        transaction_date: "2026-01-01"
+        transacts_from: { subsidiary_id: "SUB_HK" }
+        transacts_to: { subsidiary_id: "SUB_SG" }
+
+      - transaction_id: "TXN_002"
+        transaction_type: IP_LICENSE
+        description: "商标及专利授权使用"
+        amount: { value: 80000000, currency: CNY }
+        transaction_date: "2026-01-01"
+        transacts_from: { subsidiary_id: "SUB_HK" }
+        transacts_to: { subsidiary_id: "SUB_CN" }
+
+      # 管理服务交易
+      - transaction_id: "TXN_003"
+        transaction_type: MANAGEMENT_SERVICE
+        description: "战略管理及技术支持服务"
+        amount: { value: 60000000, currency: CNY }
+        transaction_date: "2026-01-01"
+        transacts_from: { subsidiary_id: "SUB_SG" }
+        transacts_to: { subsidiary_id: "SUB_CN" }
+
+      # 制造委托交易
+      - transaction_id: "TXN_004"
+        transaction_type: MANUFACTURING
+        description: "委托制造加工服务"
+        amount: { value: 1200000000, currency: CNY }
+        transaction_date: "2026-01-01"
+        transacts_from: { subsidiary_id: "SUB_SG" }
+        transacts_to: { subsidiary_id: "SUB_CN" }
+
+      # 关联方融资
+      - transaction_id: "TXN_005"
+        transaction_type: FINANCING
+        description: "关联方贷款"
+        amount: { value: 500000000, currency: CNY }
+        transaction_date: "2026-06-01"
+        transacts_from: { subsidiary_id: "SUB_HK" }
+        transacts_to: { subsidiary_id: "SUB_CN" }
+
+      # 分销交易
+      - transaction_id: "TXN_006"
+        transaction_type: DISTRIBUTION
+        description: "产品分销服务"
+        amount: { value: 800000000, currency: CNY }
+        transaction_date: "2026-01-01"
+        transacts_from: { subsidiary_id: "SUB_SG" }
+        transacts_to: { subsidiary_id: "SUB_HK" }
+
+  # ============================================================
+  # 转让定价记录
+  # ============================================================
+
+  - fact_object: TransferPricingRecord
+    data:
+      # TXN_001: 香港→新加坡 IP授权
+      - record_id: "TP_001"
+        tp_method: CUP
+        arm_length_rate: 0.05
+        applied_rate: 0.05
+        adjustment_required: false
+        adjustment_amount: { value: 0, currency: CNY }
+        beps_compliant: true
+        documents_transaction: { transaction_id: "TXN_001" }
+
+      # TXN_002: 香港→中国 IP授权
+      - record_id: "TP_002"
+        tp_method: CUP
+        arm_length_rate: 0.05
+        applied_rate: 0.05
+        adjustment_required: false
+        adjustment_amount: { value: 0, currency: CNY }
+        beps_compliant: true
+        documents_transaction: { transaction_id: "TXN_002" }
+
+      # TXN_003: 新加坡→中国 管理服务
+      - record_id: "TP_003"
+        tp_method: COST_PLUS
+        arm_length_rate: 0.12
+        applied_rate: 0.12
+        adjustment_required: false
+        adjustment_amount: { value: 0, currency: CNY }
+        beps_compliant: true
+        documents_transaction: { transaction_id: "TXN_003" }
+
+      # TXN_004: 新加坡→中国 制造委托
+      - record_id: "TP_004"
+        tp_method: TNMM
+        arm_length_rate: 0.035
+        applied_rate: 0.033
+        adjustment_required: true
+        adjustment_amount: { value: 2400000, currency: CNY }
+        beps_compliant: false
+        documents_transaction: { transaction_id: "TXN_004" }
+
+      # TXN_005: 香港→中国 关联方贷款
+      - record_id: "TP_005"
+        tp_method: CUP
+        arm_length_rate: 0.038
+        applied_rate: 0.035
+        adjustment_required: true
+        adjustment_amount: { value: 1500000, currency: CNY }
+        beps_compliant: false
+        documents_transaction: { transaction_id: "TXN_005" }
+
+      # TXN_006: 新加坡→香港 分销服务
+      - record_id: "TP_006"
+        tp_method: RESALE_PRICE
+        arm_length_rate: 0.025
+        applied_rate: 0.025
+        adjustment_required: false
+        adjustment_amount: { value: 0, currency: CNY }
+        beps_compliant: true
+        documents_transaction: { transaction_id: "TXN_006" }
+
+  # ============================================================
+  # 常设机构
+  # ============================================================
+
+  - fact_object: PermanentEstablishment
+    data:
+      - pe_id: "PE_HK_CN"
+        jurisdiction: CN
+        pe_type: "IP_PE"
+        risk_assessment: LOW
+        description: "香港公司在中国常设机构"
+
+      - pe_id: "PE_SG_CN"
+        jurisdiction: CN
+        pe_type: "SERVICE_PE"
+        risk_assessment: MEDIUM
+        description: "新加坡管理团队在中国构成服务常设机构"
+
+  # ============================================================
+  # 场景参数 (用于What-If模拟)
+  # ============================================================
+
+  # 场景A: 香港总部模式
+  # - 香港作为IP控股中心
+  # - 新加坡作为运营中心
+  # - 中国作为制造基地
+  scenario_A:
+    name: "香港总部模式"
+    hq_location: "香港"
+    ip_location: "香港"
+    operation_location: "中国"
+    royalty_rate: 0.05
+    dividend_wht: 0.05
+    qdmt_applicable: true
+    qdmt_jurisdiction: "香港"
+
+  # 场景B: 新加坡总部模式
+  # - 新加坡作为区域总部
+  # - 中国作为制造基地
+  scenario_B:
+    name: "新加坡总部模式"
+    hq_location: "新加坡"
+    ip_location: "新加坡"
+    operation_location: "中国"
+    royalty_rate: 0.07
+    dividend_wht: 0.05
+    qdmt_applicable: true
+    qdmt_jurisdiction: "新加坡"
+
+  # 场景C: 混合架构模式
+  # - 香港作为IP控股
+  # - 新加坡作为运营总部
+  # - 中国作为制造基地
+  scenario_C:
+    name: "混合架构模式"
+    hq_location: "香港+新加坡"
+    ip_location: "香港"
+    operation_location: "新加坡"
+    royalty_rate: 0.05
+    dividend_wht: 0.05
+    qdmt_applicable: true
+    qdmt_jurisdiction: "香港+新加坡"

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from ontology_engine.services.dto import SearchResultResponse
@@ -84,6 +85,8 @@ class QueryService:
         relation_type: str,
         direction: str = "outgoing",
         depth: int = 1,
+        as_of: datetime | None = None,
+        include_history: bool = False,
     ) -> list[SearchResultResponse]:
         """Traverse graph from entity via relations.
 
@@ -92,12 +95,16 @@ class QueryService:
             relation_type: Relation type to traverse
             direction: "outgoing" or "incoming"
             depth: Traversal depth (max 2 in Phase 1)
+            as_of: Optional point-in-time timestamp for temporal filtering
+            include_history: If true, include all historical versions
 
         Returns:
             List of traversed entities with relations
         """
         if depth > 2:
             raise ValueError("Phase 1 maximum depth is 2")
+
+        as_of_str = as_of.isoformat() if as_of else None
 
         results = []
         visited = set()
@@ -110,6 +117,8 @@ class QueryService:
                     entity_id=current_id,
                     relation_name=relation_type,
                     direction=direction,
+                    as_of=as_of_str,
+                    include_history=include_history,
                 )
 
                 for entity, relation in neighbors:

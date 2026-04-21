@@ -1,0 +1,90 @@
+{
+  "simulation_id": "sim_20260421_001",
+  "scenario_id": "scenario_C",
+  "scenario_name": "混合架构模式",
+  "space_id": "space.tax_apac_2026",
+
+  "scenario_parameters": {
+    "hq_location": "香港+新加坡",
+    "ip_location": "香港",
+    "operation_location": "新加坡",
+    "royalty_rate": 0.05,
+    "dividend_wht": 0.05,
+    "qdmt_applicable": true,
+    "qdmt_jurisdiction": "香港+新加坡"
+  },
+
+  "results": {
+    "effective_tax_rate": 0.128,
+    "effective_tax_rate_display": "12.8%",
+    "annual_tax_cost_cny": 48000000,
+    "annual_tax_cost_display": "4,800万元",
+    "beps_risk_level": "MEDIUM",
+    "beps_risk_score": 55,
+    "pillar2_exposure": true,
+    "pillar2_globe_rate": 0.128,
+    "topup_tax_amount_cny": 13200000,
+    "tax_efficiency_score": 75,
+
+    "subsidiary_details": [
+      {
+        "subsidiary_id": "SUB_HK",
+        "jurisdiction": "香港",
+        "function": "IP_HOLDING",
+        "effective_tax_rate": 0.148,
+        "annual_revenue_cny": 800000000
+      },
+      {
+        "subsidiary_id": "SUB_SG",
+        "jurisdiction": "新加坡",
+        "function": "OPERATION",
+        "effective_tax_rate": 0.14,
+        "annual_revenue_cny": 2000000000
+      },
+      {
+        "subsidiary_id": "SUB_CN",
+        "jurisdiction": "中国大陆",
+        "function": "MANUFACTURING",
+        "effective_tax_rate": 0.22,
+        "annual_revenue_cny": 6000000000
+      }
+    ],
+
+    "transfer_pricing_summary": {
+      "total_transactions": 6,
+      "compliant_transactions": 4,
+      "non_compliant_transactions": 2,
+      "adjustments_required_cny": 3900000,
+      "compliance_rate": "66.7%"
+    },
+
+    "pillar_two_impact": {
+      "exposure_details": "香港IP授权收入适用低税率触发支柱二QDMTT",
+      " jurisdictions_affected": ["香港"],
+      "topup_breakdown": {
+        "香港": 12000000
+      }
+    },
+
+    "recommendation": {
+      "preferred": false,
+      "score": 75,
+      "pros": [
+        "有效税率最低(12.8%)",
+        "IP和运营分离，税务优化空间大"
+      ],
+      "cons": [
+        "BEPS风险等级为中",
+        "支柱二触发QDMTT补税(1,320万元)",
+        "合规复杂度最高",
+        "两地均需满足实质经济要求"
+      ]
+    }
+  },
+
+  "execution_metadata": {
+    "execution_time_ms": 312,
+    "dry_run": true,
+    "persistence": false
+  }
+}
