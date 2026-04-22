@@ -7,9 +7,9 @@ layering to build an execution tree.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from ontology_engine.engine.rule.models import RuleGroupDefinition
+from ontology_engine.services.rule_locator import RuleLocator
 
 
 class RuleTreeBuilder:
@@ -29,6 +29,7 @@ class RuleTreeBuilder:
                     "rule_groups": [str, ...],
                     "steps": [...],
                     "output_names": [str, ...],
+                    "input_requirements": [...],
                 },
                 ...
             ],
@@ -37,15 +38,18 @@ class RuleTreeBuilder:
         }
     """
 
-    def __init__(self, rule_service=None):
+    def __init__(self, rule_service=None, semantic_space_storage=None):
         """Initialize RuleTreeBuilder.
 
         Args:
-            rule_service: RuleService instance for locating rule groups.
-                         If None, must be provided later or _locate_by_output
-                         must be overridden.
+            rule_service: RuleService instance for locating rule groups (legacy).
+                         If None and semantic_space_storage is provided, will use RuleLocator.
+            semantic_space_storage: Storage instance for accessing SemanticSpace L4 layer.
+                                   If provided, _locate_by_output will use RuleLocator.
         """
         self._rule_service = rule_service
+        self._semantic_space_storage = semantic_space_storage
+        self._rule_locator = RuleLocator(semantic_space_storage) if semantic_space_storage else None
 
     async def build_tree(
         self,
@@ -68,43 +72,48 @@ class RuleTreeBuilder:
         Returns:
             Dict containing execution tree with layers and metadata
         """
-        # 1. Trace dependencies recursively using Kahn algorithm-style layering
-        # Note: The loop starts with current_outputs = {target_output} and
-        # finds groups producing that output in the first iteration
         layers = []
         current_outputs = {target_output}
         visited_groups = set()
 
         while current_outputs:
-            # Find groups producing current outputs
             next_groups = []
             for output_name in current_outputs:
                 groups = await self._locate_by_output(output_name, schema_id)
                 for group in groups:
-                    if group.name not in visited_groups:
-                        visited_groups.add(group.name)
+                    group_id = group.get("id", group.get("name", ""))
+                    if group_id not in visited_groups:
+                        visited_groups.add(group_id)
                         next_groups.append(group)
 
             if not next_groups:
                 break
 
-            # 3. Filter steps by entity category
             steps = await self._filter_steps(next_groups, entity_id)
 
-            # 4. Build layer
-            layers.append({
+            layer = {
                 "layer_index": len(layers),
-                "rule_groups": [g.name for g in next_groups],
+                "rule_groups": [g.get("name", g.get("id", "")) for g in next_groups],
                 "steps": steps,
                 "output_names": list(current_outputs),
-            })
+                "input_requirements": _compute_input_requirements(next_groups),
+            }
+            layers.append(layer)
 
-            # 5. Collect new input dependencies for next iteration
-            current_outputs = set()
+            # Trace all non-attribute inputs as they may be produced by rules or user-provided metrics
+            # Use input ID (not name) for producer lookup since rules use IDs
+            next_layer_inputs = set()
             for step in steps:
                 for inp in step.get("inputs", []):
-                    if inp.get("type") == "attribute":
-                        current_outputs.add(inp["name"])
+                    if inp.get("type") != "attribute":
+                        next_layer_inputs.add(inp.get("id"))
+
+            # Filter to only those that have L4 producers (skip pure user-provided metrics)
+            current_outputs = set()
+            for inp_id in next_layer_inputs:
+                producer = await self._locate_by_output(inp_id, schema_id)
+                if producer:
+                    current_outputs.add(inp_id)
 
         return {
             "schema_id": schema_id,
@@ -118,7 +127,7 @@ class RuleTreeBuilder:
         self,
         output_name: str,
         schema_id: str,
-    ) -> list[RuleGroupDefinition]:
+    ) -> list[dict]:
         """Locate rule groups that produce a specific output.
 
         Args:
@@ -126,10 +135,12 @@ class RuleTreeBuilder:
             schema_id: Semantic space ID for rule group lookup
 
         Returns:
-            List of RuleGroupDefinition that produce the specified output
+            List of rule definition dicts that produce the specified output
         """
+        if self._rule_locator:
+            return await self._rule_locator.locate_by_output(output_name, schema_id)
+
         if self._rule_service is None:
-            # Return empty list if no rule service available
             return []
 
         result = await self._rule_service.locate_rule_groups(output_name, schema_id)
@@ -137,22 +148,110 @@ class RuleTreeBuilder:
 
     async def _filter_steps(
         self,
-        groups: list[RuleGroupDefinition],
+        groups: list[dict],
         entity_id: str | None,
     ) -> list[dict[str, Any]]:
-        """Filter steps from rule groups by entity category.
+        """Extract step information from rule groups.
 
         Args:
-            groups: List of rule groups to extract steps from
+            groups: List of rule group dicts to extract steps from
             entity_id: Entity ID to filter by category (optional)
 
         Returns:
             List of step dictionaries with metadata
         """
-        # TODO: Implement actual step filtering by entity category
-        # For now, return empty list as placeholder
-        # Real implementation would:
-        # 1. Get steps for each rule group
-        # 2. Filter by applies_to.categories for the entity
-        # 3. Return step metadata including inputs/outputs
-        return []
+        steps = []
+        for group in groups:
+            group_id = group.get("id", "")
+            group_name = group.get("name") or group_id
+            rule_type = group.get("rule_type", "constraint")
+            priority = group.get("priority", 100)
+            logic_ids = group.get("logic_ids", [])
+
+            # Build step from rule definition
+            step = {
+                "step_id": group_id,
+                "step_name": group_name,
+                "rule_group_name": group_name,
+                "rule_group_type": rule_type,
+                "condition": {
+                    "type": "expression",
+                    "expression": _build_expression_from_inputs(group.get("inputs", [])),
+                },
+                "action": {
+                    "operator": _get_operator_for_rule_type(rule_type),
+                    "params": _build_action_params(group.get("outputs", [])),
+                },
+                "output_names": [_get_output_id(o) for o in group.get("outputs", [])],
+                "depends_on": [],  # Derived from logic_ids if needed
+                "priority": priority,
+                "inputs": group.get("inputs", []),
+            }
+            steps.append(step)
+
+        return steps
+
+
+def _get_output_id(output: Any) -> str:
+    """Get output ID from output dict or string."""
+    if isinstance(output, dict):
+        return output.get("id", "")
+    return str(output)
+
+
+def _compute_input_requirements(groups: list[dict]) -> list[dict]:
+    """Compute input_requirements from rule groups for a layer."""
+    requirements = []
+    seen = set()
+
+    for group in groups:
+        for inp in group.get("inputs", []):
+            name = inp.get("id") if isinstance(inp, dict) else inp
+            if name and name not in seen:
+                seen.add(name)
+                inp_type = "attribute"
+                if isinstance(inp, dict):
+                    inp_type = inp.get("type", "attribute")
+                requirements.append({
+                    "name": name,
+                    "type": inp_type,
+                    "required": True,
+                })
+
+    return requirements
+
+
+def _build_expression_from_inputs(inputs: list) -> str:
+    """Build a simple expression string from inputs for display."""
+    if not inputs:
+        return "true"
+
+    conditions = []
+    for inp in inputs:
+        name = inp.get("id") if isinstance(inp, dict) else inp
+        inp_type = inp.get("type", "attribute") if isinstance(inp, dict) else "attribute"
+        if inp_type == "attribute":
+            conditions.append(f"{name} is not null")
+        elif inp_type == "metric":
+            conditions.append(f"{name} >= 0")
+    return " AND ".join(conditions) if conditions else "true"
+
+
+def _get_operator_for_rule_type(rule_type: str) -> str:
+    """Get the operator name for a rule type."""
+    operators = {
+        "constraint": "SET_FLAG",
+        "inference": "COMPUTE",
+        "alert": "ALERT",
+        "decision": "DECISION",
+    }
+    return operators.get(rule_type, "EXECUTE")
+
+
+def _build_action_params(outputs: list) -> dict:
+    """Build action params from outputs."""
+    params = {}
+    for out in outputs:
+        name = out.get("id") if isinstance(out, dict) else out
+        params[name] = None
+    return params
