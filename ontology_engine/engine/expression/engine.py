@@ -7,6 +7,7 @@ import math
 import re
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import simpleeval
@@ -79,9 +80,24 @@ def _date_add(date_val: Any, amount: int, unit: str = "day") -> str:
     if unit == "day":
         result = d + timedelta(days=amount)
     elif unit == "month":
-        result = d.replace(month=d.month + amount)
+        # Handle cross-year month overflow correctly.
+        # d.replace(month=d.month + amount) raises ValueError when the result
+        # is outside [1, 12].  We use calendar arithmetic instead.
+        total_months = d.year * 12 + (d.month - 1) + amount
+        new_year, new_month_0 = divmod(total_months, 12)
+        new_month = new_month_0 + 1  # convert back to 1-based month
+        # Clamp day to valid range for the target month (e.g. Jan 31 + 1 month → Feb 28/29)
+        import calendar as _calendar
+        max_day = _calendar.monthrange(new_year, new_month)[1]
+        new_day = min(d.day, max_day)
+        result = d.replace(year=new_year, month=new_month, day=new_day)
     elif unit == "year":
-        result = d.replace(year=d.year + amount)
+        # Guard against Feb 29 on non-leap years
+        try:
+            result = d.replace(year=d.year + amount)
+        except ValueError:
+            # e.g. 2024-02-29 + 1 year: clamp to Feb 28
+            result = d.replace(year=d.year + amount, day=28)
     else:
         result = d + timedelta(days=amount)
     return result.isoformat()
@@ -202,13 +218,31 @@ def _to_string(x: Any) -> str:
     return str(x)
 
 
-def _to_decimal(x: Any) -> float:
+def _to_decimal(x: Any) -> Decimal:
+    """Convert a value to decimal.Decimal for high-precision financial calculations.
+
+    Special value handling:
+    - None → Decimal("0")
+    - inf / -inf → propagated as Decimal("Infinity") / Decimal("-Infinity")
+    - NaN float → Decimal("0") (treat as missing/invalid)
+    - Conversion failure → Decimal("0")
+    """
     if x is None:
-        return 0.0
+        return Decimal(0)
+    if isinstance(x, Decimal):
+        return x
+    if isinstance(x, float):
+        if math.isnan(x):
+            return Decimal(0)
+        if math.isinf(x):
+            return Decimal("Infinity") if x > 0 else Decimal("-Infinity")
+        # Use string conversion to avoid float representation errors:
+        # Decimal(0.1) != Decimal("0.1"), but str(0.1) = "0.1" in Python >= 3.1
+        return Decimal(str(x))
     try:
-        return float(x)
-    except (ValueError, TypeError):
-        return 0.0
+        return Decimal(str(x))
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal(0)
 
 
 def _sum(values: Any) -> Any:

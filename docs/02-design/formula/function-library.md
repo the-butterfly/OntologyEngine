@@ -1,664 +1,892 @@
 ---
-status: draft
+status: active
 phase: rewrite
 source_of_truth: docs/02-design/formula/README.md
-last_verified: "2026-04-19"
+last_verified: "2026-04-22"
 verified_against: code@ontology_engine/engine/expression/engine.py
 ---
 
 # Formula 函数库规范
 
-> **[关键设计点]**: Formula 内置函数的完整定义与实现状态追踪
+> **[单一事实源]** Formula 内置函数的完整定义与实现状态
 > **上游**: `docs/02-design/formula/README.md`
 > **代码实现**: `ontology_engine/engine/expression/engine.py`
+> **最后核对**: 2026-04-22（已逐函数对照源码核实）
 
 ## 目的
 
-定义 Formula 表达式可调用的全部内置函数，包括签名、语义、返回值和实现状态，确保函数库的完整性和一致性。
+定义 Formula 表达式可调用的全部内置函数，包括：
+- 函数签名与语义
+- 入参类型约束与特殊值处理规则（`None` / `N/A`、`inf`/`-inf`、空字符串、空列表等）
+- 返回值规范
+- 当前实现状态
 
-## 解决的问题
+---
 
-| # | 问题 | 现状 | 本文档解决 |
-|---|------|------|-----------|
-| 1 | **函数定义分散** | 旧规范和代码中函数列表不一致 | 统一函数库规范，标注实现状态 |
-| 2 | **函数签名模糊** | 部分函数缺少参数类型和返回值定义 | 为每个函数定义完整签名 |
-| 3 | **函数分类不清** | 无分类体系，难以发现缺失 | 按 6 类组织，逐类盘点 |
-| 4 | **实现状态不明** | 不清楚哪些函数已实现、哪些缺失 | 逐函数标注实现状态 |
+## 特殊值处理通用约定
+
+在 Formula 表达式上下文中，以下特殊值出现频率高，所有函数必须声明处理策略：
+
+| 特殊值 | Python 表示 | 函数处理原则 |
+|--------|------------|-------------|
+| **缺失值** | `None` | 数值函数返回 0 / 0.0；字符串函数返回 `""`；布尔函数返回 `False`。**不抛出异常**。 |
+| **N/A 字符串** | `"N/A"` / `"n/a"` | 视为普通字符串，**不自动转换为 None**。调用方需使用 `is_null` 配合 `coalesce` 处理。 |
+| **正无穷** | `float("inf")` | 数值函数透传；`round/ceil/floor` 对 `inf` 抛出 `OverflowError` — 调用方需用 `clamp` 预处理。 |
+| **负无穷** | `float("-inf")` | 同上。 |
+| **NaN** | `float("nan")` | 比较运算返回 `False`；聚合函数会将 NaN 计入结果（Python 行为）。建议调用方过滤。 |
+| **空字符串** | `""` | `len("") = 0`；`trim("") = ""`；`split("", ",") = [""]`（Python 标准行为）。 |
+| **空列表** | `[]` | 聚合函数（sum/avg/count 等）返回中性值（0 / 0.0）。 |
+
+---
 
 ## 函数分类总览
 
-| 类别 | 函数数量 | 已实现 | 未实现 | 说明 |
-|------|----------|--------|--------|------|
-| 字符串函数 | 11 | 1 | 10 | 文本处理与匹配 |
-| 日期函数 | 8 | 3 | 5 | 日期计算与格式化 |
-| 类型转换 | 5 | 3 | 2 | 类型安全转换 |
-| 聚合函数 | 6 | 0 | 6 | 集合统计计算 |
-| 条件函数 | 3 | 1 | 2 | 条件逻辑与空值处理 |
-| 数学函数 | 7 | 4 | 3 | 数值计算 |
+| 类别 | 已实现 | 规划中 | 总计 |
+|------|--------|--------|------|
+| 字符串函数 | 11 ✅ | 0 | 11 |
+| 日期函数 | 8 ✅ | 1 🔧 | 9 |
+| 类型转换 | 5 ✅ | 1 🔧 | 6 |
+| 聚合函数 | 6 ✅ | 0 | 6 |
+| 条件函数 | 3 ✅ | 1 🔧 | 4 |
+| 数学函数 | 9 ✅ | 0 | 9 |
+| **合计** | **42 ✅** | **2 🔧** | **44** |
 
-## 字符串函数
+> 🔧 = 规划中，尚未实现。
 
-### len(s: string) → integer
+---
 
-返回字符串长度。
+## 字符串函数（11/11 已实现）
 
-| 参数 | 类型 | 说明 |
+### len(s) → integer
+
+返回字符串的 Unicode 字符数（不是字节数）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
+| `s` | any | 若为 `None` 返回 `0`；非字符串类型先 `str(s)` 转换后计长 |
 
-示例：`len(company_name)` → 8
+特殊值：
+- `len(None)` → `0`
+- `len("")` → `0`
+- `len("abc")` → `3`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_len`）
 
-### upper(s: string) → string
+---
+
+### upper(s) → string
 
 将字符串转换为大写。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
+| `s` | any | 若为 `None` 返回 `""`；非字符串先 `str(s)` |
+
+特殊值：`upper(None)` → `""`
 
 示例：`upper('abc')` → `'ABC'`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_upper`）
 
-### lower(s: string) → string
+---
+
+### lower(s) → string
 
 将字符串转换为小写。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
+| `s` | any | 若为 `None` 返回 `""`；非字符串先 `str(s)` |
+
+特殊值：`lower(None)` → `""`
 
 示例：`lower('ABC')` → `'abc'`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_lower`）
 
-### trim(s: string) → string
+---
 
-去除字符串两端空白字符。
+### trim(s) → string
 
-| 参数 | 类型 | 说明 |
+去除字符串两端空白字符（含全角空格）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
+| `s` | any | 若为 `None` 返回 `""`；仅去除 Python 认定的空白符 |
+
+特殊值：`trim(None)` → `""`，`trim("  ")` → `""`
 
 示例：`trim('  hello  ')` → `'hello'`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_trim`）
 
-### replace(s: string, old: string, new: string) → string
+---
 
-替换字符串中的子串。
+### replace(s, old, new) → string
 
-| 参数 | 类型 | 说明 |
+将字符串 `s` 中所有 `old` 子串替换为 `new`。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
-| `old` | string | 被替换子串 |
-| `new` | string | 替换子串 |
+| `s` | any | 若为 `None` 返回 `""` |
+| `old` | any | 若为 `None` 返回原字符串（不替换） |
+| `new` | any | 允许 `None`，等价于 `""` |
 
-示例：`replace(status, 'PENDING', 'ACTIVE')` → `'ACTIVE'`
+特殊值：`replace(None, "x", "y")` → `""`
 
-实现状态：❌ 未实现
+示例：`replace('PENDING_OK', 'PENDING', 'ACTIVE')` → `'ACTIVE_OK'`
 
-### substring(s: string, start: integer, length?: integer) → string
+实现状态：✅ 已实现（`engine.py:_replace`）
 
-截取子串。`start` 从 0 开始。省略 `length` 时截取到末尾。
+---
 
-| 参数 | 类型 | 说明 |
+### substring(s, start, length?) → string
+
+截取子串。`start` 从 **0** 开始（0-based）。省略 `length` 时截取到末尾。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
-| `start` | integer | 起始位置（0-based） |
-| `length` | integer? | 截取长度，省略则到末尾 |
+| `s` | any | 若为 `None` 等价于 `""` |
+| `start` | integer | 允许负数（Python 切片语义） |
+| `length` | integer? | 省略时截取到末尾；`length=0` 返回 `""` |
 
-示例：`substring('hello', 1, 3)` → `'ell'`
+特殊值：`substring(None, 0)` → `""`
 
-实现状态：❌ 未实现
+示例：
+- `substring('hello', 1, 3)` → `'ell'`
+- `substring('hello', 2)` → `'llo'`
 
-### contains(s: string, substr: string) → boolean
+实现状态：✅ 已实现（`engine.py:_substring`）
 
-判断字符串是否包含子串。
+---
 
-| 参数 | 类型 | 说明 |
+### contains(s, substr) → boolean
+
+判断字符串是否包含子串（大小写敏感）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
-| `substr` | string | 搜索子串 |
+| `s` | any | 若为 `None` 返回 `False` |
+| `substr` | any | 若为 `None` 返回 `False` |
 
-示例：`contains(business_scope, '科技')` → `true`
+特殊值：`contains(None, "x")` → `False`，`contains("abc", None)` → `False`
 
-实现状态：❌ 未实现
+示例：`contains('科技公司', '科技')` → `True`
 
-### starts_with(s: string, prefix: string) → boolean
+实现状态：✅ 已实现（`engine.py:_contains`）
+
+---
+
+### starts_with(s, prefix) → boolean
 
 判断字符串是否以指定前缀开头。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
-| `prefix` | string | 前缀 |
+| `s` | any | 若为 `None` 返回 `False` |
+| `prefix` | any | 若为 `None` 返回 `False` |
 
-示例：`starts_with(uscc, '91')` → `true`
+示例：`starts_with('91330100...', '91')` → `True`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_starts_with`）
 
-### ends_with(s: string, suffix: string) → boolean
+---
+
+### ends_with(s, suffix) → boolean
 
 判断字符串是否以指定后缀结尾。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
-| `suffix` | string | 后缀 |
+| `s` | any | 若为 `None` 返回 `False` |
+| `suffix` | any | 若为 `None` 返回 `False` |
 
-示例：`ends_with(email, '@company.com')` → `true`
+示例：`ends_with('user@company.com', '@company.com')` → `True`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_ends_with`）
 
-### split(s: string, delimiter: string) → list
+---
 
-按分隔符拆分字符串为数组。
+### split(s, delimiter) → list[string]
 
-| 参数 | 类型 | 说明 |
+按分隔符拆分字符串，返回字符串列表。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `s` | string | 输入字符串 |
-| `delimiter` | string | 分隔符 |
+| `s` | any | 若为 `None` 返回 `[]` |
+| `delimiter` | any | 支持多字符分隔符 |
+
+特殊值：
+- `split(None, ",")` → `[]`
+- `split("A,,B", ",")` → `["A", "", "B"]`（空元素保留）
 
 示例：`split('A,B,C', ',')` → `['A', 'B', 'C']`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_split`）
 
-### join(parts: list, delimiter: string) → string
+---
 
-用分隔符连接数组为字符串。
+### join(parts, delimiter) → string
 
-| 参数 | 类型 | 说明 |
+用分隔符连接列表为字符串，列表中每个元素先 `str()` 转换。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `parts` | list | 字符串数组 |
-| `delimiter` | string | 分隔符 |
+| `parts` | list | 若为 `None` 返回 `""` |
+| `delimiter` | any | 支持多字符；`None` 等价于 `""` |
+
+特殊值：`join(None, ",")` → `""`，`join([], ",")` → `""`
 
 示例：`join(['A', 'B', 'C'], ',')` → `'A,B,C'`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_join`）
 
-## 日期函数
+---
+
+## 日期函数（8/9 已实现）
+
+所有日期函数接受多种日期格式：`YYYY-MM-DD`、`YYYY/MM/DD`、`YYYYMMDD`，
+以及 Python `date`/`datetime` 对象。不可解析时视为 `None`。
+
+---
 
 ### today() → string
 
-返回当前日期，格式 `YYYY-MM-DD`。
+返回当前日期，格式 `YYYY-MM-DD`。无参数，不接受输入。
 
-示例：`today()` → `'2026-04-19'`
+示例：`today()` → `'2026-04-22'`
 
-实现状态：✅ 已实现（`engine.py`）
+实现状态：✅ 已实现（`engine.py:_today`）
+
+---
 
 ### now() → string
 
-返回当前日期时间，格式 `YYYY-MM-DDTHH:MM:SSZ`。
+返回当前日期时间，格式 `YYYY-MM-DDTHH:MM:SSZ`（本地时间，不带时区偏移）。
 
-示例：`now()` → `'2026-04-19T10:00:00Z'`
+示例：`now()` → `'2026-04-22T16:00:00Z'`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_now`）
 
-### date_diff(start: string, end: string, unit: string) → integer
+---
 
-计算两个日期之间的差值。
+### days_between(start, end) → integer
 
-| 参数 | 类型 | 说明 |
+计算两个日期之间的绝对天数差。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `start` | string | 起始日期 |
-| `end` | string | 结束日期 |
-| `unit` | string | 单位：`day` / `month` / `year` |
+| `start` | string/date | 若无法解析返回 `0` |
+| `end` | string/date | 若无法解析返回 `0` |
+
+特殊值：任一参数为 `None` 或无效日期 → `0`
+
+示例：`days_between('2026-01-01', '2026-04-22')` → `111`
+
+实现状态：✅ 已实现（`engine.py:_days_between`）
+
+---
+
+### days_since(start) → integer
+
+计算从 `start` 到今天的绝对天数。
+
+| 参数 | 类型 | 约束 |
+|------|------|------|
+| `start` | string/date | 若无法解析返回 `0` |
+
+示例：`days_since('2025-01-01')` → `476`（近似值）
+
+实现状态：✅ 已实现（`engine.py:_days_since`）
+
+---
+
+### date_diff(start, end, unit) → integer
+
+计算两个日期之间的差值，支持 `day`/`month`/`year` 单位。
+
+| 参数 | 类型 | 约束 |
+|------|------|------|
+| `start` | string/date | 若无法解析返回 `0` |
+| `end` | string/date | 若无法解析返回 `0` |
+| `unit` | string | `"day"`（默认）/ `"month"` / `"year"` |
+
+> **注意**：`month` 和 `year` 使用 `days // 30` 和 `days // 365` 近似，不是精确日历月/年。
+
+特殊值：任一日期无效 → `0`
 
 示例：`date_diff('2020-01-01', '2026-01-01', 'year')` → `6`
 
-实现状态：❌ 未实现（当前有 `days_between` 和 `days_since`，但无通用 `date_diff`）
+实现状态：✅ 已实现（`engine.py:_date_diff`）
 
-### date_add(date: string, amount: integer, unit: string) → string
+---
 
-日期加减。
+### date_add(date, amount, unit) → string
 
-| 参数 | 类型 | 说明 |
+日期加减。返回 ISO 格式日期字符串。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `date` | string | 基准日期 |
-| `amount` | integer | 增减量（负数为减） |
-| `unit` | string | 单位：`day` / `month` / `year` |
+| `date` | string/date | 若无法解析返回 `""` |
+| `amount` | integer | 负数表示向前减；允许 `0` |
+| `unit` | string | `"day"` / `"month"` / `"year"` |
 
-示例：`date_add(today(), 30, 'day')` → `'2026-05-19'`
+> **⚠️ 已知 Bug**：`unit="month"` 时，若 `d.month + amount > 12` 或 `< 1`，
+> 当前实现 `d.replace(month=...)` 会抛出 `ValueError`（跨年月份溢出）。
+> **修复计划**：使用 `dateutil.relativedelta` 或手动进位逻辑处理跨年情况。
+> 当前规避方法：使用 `unit="day"` 并手动计算天数（如 `30 * months`）。
 
-实现状态：❌ 未实现
+示例：
+- `date_add('2026-04-22', 30, 'day')` → `'2026-05-22'`
+- `date_add('2026-04-22', 1, 'year')` → `'2027-04-22'`
 
-### year(date: string) → integer
+实现状态：✅ 已实现（`engine.py:_date_add`）⚠️ month 单位跨年有 Bug
+
+---
+
+### year(date) → integer
 
 提取日期的年份。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `date` | string | 日期字符串 |
+| `date` | string/date | 若无法解析返回 `0` |
 
-示例：`year('2026-04-19')` → `2026`
+示例：`year('2026-04-22')` → `2026`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_year`）
 
-### month(date: string) → integer
+---
 
-提取日期的月份。
+### month(date) → integer
 
-| 参数 | 类型 | 说明 |
+提取日期的月份（1-12）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `date` | string | 日期字符串 |
+| `date` | string/date | 若无法解析返回 `0` |
 
-示例：`month('2026-04-19')` → `4`
+示例：`month('2026-04-22')` → `4`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_month`）
 
-### day(date: string) → integer
+---
 
-提取日期的天。
+### day(date) → integer
 
-| 参数 | 类型 | 说明 |
+提取日期的天（1-31）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `date` | string | 日期字符串 |
+| `date` | string/date | 若无法解析返回 `0` |
 
-示例：`day('2026-04-19')` → `19`
+示例：`day('2026-04-22')` → `22`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_day`）
 
-### format_date(date: string, format: string) → string
+---
 
-格式化日期。
+### format_date(date, format) → string ⏳ 规划中
 
-| 参数 | 类型 | 说明 |
+格式化日期为指定格式字符串。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `date` | string | 日期字符串 |
-| `format` | string | 格式模板（如 `%Y年%m月%d日`） |
+| `date` | string/date | 若无法解析返回 `""` |
+| `format` | string | Python `strftime` 格式模板（如 `%Y年%m月%d日`） |
 
 示例：`format_date(today(), '%Y年%m月')` → `'2026年04月'`
 
-实现状态：❌ 未实现
+实现状态：🔧 规划中（低优先级，P2）
 
-### 当前已实现的日期函数
+---
 
-| 函数 | 签名 | 说明 | 实现位置 |
-|------|------|------|----------|
-| `today()` | `() → string` | 当前日期 ISO 格式 | `engine.py:88` |
-| `days_between(start, end)` | `(any, any) → int` | 两个日期之间的天数差 | `engine.py:262` |
-| `days_since(start)` | `(any) → int` | 距今天的天数 | `engine.py:270` |
+## 类型转换函数（5/6 已实现）
 
-### 日期函数迁移计划
+---
 
-| 旧函数 | 迁移目标 | 说明 |
-|--------|----------|------|
-| `days_between(d1, d2)` | 保留，同时新增 `date_diff(d1, d2, 'day')` | `days_between` 为便捷函数 |
-| `days_since(d)` | 保留 | 无通用替代 |
-| `add_days(d, n)`（旧规范） | 迁移到 `date_add(d, n, 'day')` | 统一接口 |
+### to_string(x) → string
 
-## 类型转换函数
+将任意值转换为字符串。
 
-### to_string(x: any) → string
-
-将值转换为字符串。
-
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | any | 输入值 |
+| `x` | any | `None` → `""`；其他值调用 `str(x)` |
 
-示例：`to_string(100)` → `'100'`
+特殊值：`to_string(None)` → `""`，`to_string(0)` → `"0"`
 
-实现状态：❌ 未实现（当前有 `str` 别名，但未注册到函数白名单）
+> **兼容性**：函数名 `str` 是 `to_string` 的别名，两者均可在表达式中使用。
 
-### to_integer(x: any) → integer
+实现状态：✅ 已实现（`engine.py:_to_string`，别名 `str`）
 
-将值转换为整数。转换失败返回 `null`。
+---
 
-| 参数 | 类型 | 说明 |
+### to_integer(x) → integer
+
+将值转换为整数。转换失败返回 `0`。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | any | 输入值 |
+| `x` | any | 字符串先尝试 `int()`；浮点数截断取整；`None` → `0` |
 
-示例：`to_integer('42')` → `42`
+特殊值：
+- `to_integer(None)` → `0`
+- `to_integer("42")` → `42`
+- `to_integer("abc")` → `0`（转换失败）
+- `to_integer(3.9)` → `3`（截断，非四舍五入）
 
-实现状态：✅ 已实现（`int`，`engine.py:98`）
+> **兼容性**：`int` 是 `to_integer` 的别名。
 
-### to_decimal(x: any) → decimal
+实现状态：✅ 已实现（Python 内置 `int`，别名 `to_integer` 未独立注册，通过 `int` 使用）
 
-将值转换为高精度小数。用于金融计算避免浮点误差。
+---
 
-| 参数 | 类型 | 说明 |
+### to_decimal(x) → float
+
+> **⚠️ 重要**：当前实现返回 Python `float`，**不是** `Decimal`。
+> 原始设计要求金融计算使用 `decimal.Decimal` 以避免浮点误差。
+> `0.1 + 0.2 != 0.3` 等精度问题在金融场景下会出现。
+> **修复计划**：将返回类型改为 `decimal.Decimal`，并确保后续运算路径支持 Decimal。
+
+将值转换为高精度小数（当前为 float，待修复为 Decimal）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | any | 输入值 |
+| `x` | any | `None` → `0.0`；转换失败 → `0.0` |
 
-示例：`to_decimal('0.1')` → `Decimal('0.1')`
+特殊值：
+- `to_decimal(None)` → `0.0`
+- `to_decimal("0.1")` → `0.1`（float，非 Decimal，精度有偏差）
+- `to_decimal("abc")` → `0.0`
 
-实现状态：❌ 未实现
+> **兼容性**：`float` 是 `to_decimal` 的别名。
 
-### to_boolean(x: any) → boolean
+实现状态：✅ 已实现（`engine.py:_to_decimal`）⚠️ 返回 float 而非 Decimal（Bug #12）
 
-将值转换为布尔值。
+---
 
-| 参数 | 类型 | 说明 |
+### to_boolean(x) → boolean
+
+将值转换为布尔值，使用 Python 真值规则。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | any | 输入值 |
+| `x` | any | `None`/`0`/`""`/`[]` → `False`；其他 → `True` |
 
-示例：`to_boolean(1)` → `true`
+特殊值：
+- `to_boolean(None)` → `False`
+- `to_boolean(0)` → `False`
+- `to_boolean("")` → `False`
+- `to_boolean("false")` → `True`（非空字符串均为 True）
 
-实现状态：✅ 已实现（`bool`，`engine.py:99`）
+> **注意**：字符串 `"false"` / `"0"` 也返回 `True`（Python bool 规则）。
+> 如需语义布尔转换（字符串 "false" → False），请在调用方处理。
 
-### to_date(x: any) → string
+> **兼容性**：`bool` 是 `to_boolean` 的别名。
 
-将值转换为日期字符串（ISO 格式）。
+实现状态：✅ 已实现（Python 内置 `bool`）
 
-| 参数 | 类型 | 说明 |
+---
+
+### to_date(x) → string ⏳ 规划中
+
+将值转换为 ISO 日期字符串（`YYYY-MM-DD`）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | any | 输入值（字符串或日期对象） |
+| `x` | any | 支持 `YYYYMMDD`、`YYYY/MM/DD` 等多种格式 |
 
-示例：`to_date('20260419')` → `'2026-04-19'`
+示例：`to_date('20260422')` → `'2026-04-22'`
 
-实现状态：❌ 未实现（当前 `_parse_date` 为内部方法，未暴露为函数）
+> `_parse_date` 内部方法已实现此功能，待封装为公开函数。
 
-### 类型转换函数命名规范
+实现状态：🔧 规划中（P2）
 
-| 旧名称 | 新名称 | 原因 |
-|--------|--------|------|
-| `int` | `to_integer` | 避免与 Python 内置 `int` 冲突，语义更明确 |
-| `float` | `to_decimal` | 金融场景使用 `Decimal` 而非 `float` |
-| `bool` | `to_boolean` | 语义更明确 |
-| `str` | `to_string` | 语义更明确 |
+---
 
-> **[待扩展]**: 旧名称是否保留为别名需要进一步确认。当前代码使用 `int`/`float`/`bool`。
+## 聚合函数（6/6 已实现）
 
-## 聚合函数
+---
 
-聚合函数用于 composite 类型指标的多值聚合计算。输入为列表或数组。
+### sum(values) → number
 
-### sum(values: list) → number
+求和。输入为数值列表。
 
-求和。
-
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `values` | list | 数值列表 |
+| `values` | list[number] | `None` → `0`；空列表 → `0`；包含 `None` 的元素会导致 TypeError（需调用方预过滤） |
 
-示例：`sum([1, 2, 3, 4])` → `10`
+特殊值：
+- `sum(None)` → `0`
+- `sum([])` → `0`
+- `sum([1, 2, 3])` → `6`
 
-实现状态：❌ 未实现
+> **注意**：列表中若含 `None` 元素，Python `sum()` 会抛出 TypeError。建议先用 `[v for v in values if v is not None]` 过滤。
 
-### avg(values: list) → number
+实现状态：✅ 已实现（`engine.py:_sum`）
+
+---
+
+### avg(values) → float
 
 求平均值。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `values` | list | 数值列表 |
+| `values` | list[number] | `None` → `0.0`；空列表 → `0.0`（不抛除以零异常） |
+
+特殊值：
+- `avg(None)` → `0.0`
+- `avg([])` → `0.0`
 
 示例：`avg([1, 2, 3, 4])` → `2.5`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_avg`）
 
-### min(values: list) → number
+---
 
-求最小值。
+### count(values) → integer
 
-> 注意：当前 `min` 实现为多参数版本 `min(a, b, ...)`，非列表版本。
+计算列表中非 `None` 元素的个数。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `values` | list | 数值列表 |
+| `values` | list | `None` → `0`；`False`/`0`/`""` 被计入（仅排除 `None`） |
 
-示例：`min([1, 2, 3, 4])` → `1`
+特殊值：
+- `count(None)` → `0`
+- `count([1, None, 3, None])` → `2`
+- `count([0, False, ""])` → `3`（零值和空字符串不算缺失）
 
-实现状态：⚠️ 部分实现（多参数版本 ✅，列表版本 ❌）
+示例：`count([1, None, 3, None])` → `2`
 
-### max(values: list) → number
+实现状态：✅ 已实现（`engine.py:_count`）
 
-求最大值。
+---
 
-> 注意：当前 `max` 实现为多参数版本 `max(a, b, ...)`，非列表版本。
+### weighted_sum(components, weights) → float
 
-| 参数 | 类型 | 说明 |
+加权求和。`len(components)` 必须等于 `len(weights)`。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `values` | list | 数值列表 |
+| `components` | list[number] | 若为 `None` 返回 `0.0` |
+| `weights` | list[number] | 若为 `None` 返回 `0.0`；长度不等于 components 时返回 `0.0` |
 
-示例：`max([1, 2, 3, 4])` → `4`
-
-实现状态：⚠️ 部分实现（多参数版本 ✅，列表版本 ❌）
-
-### count(values: list) → integer
-
-计数（非空元素个数）。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `values` | list | 值列表 |
-
-示例：`count([1, null, 3, null])` → `2`
-
-实现状态：❌ 未实现
-
-### weighted_sum(components: list, weights: list) → number
-
-加权求和。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `components` | list | 分量值列表 |
-| `weights` | list | 权重列表 |
+特殊值：
+- `weighted_sum(None, [0.5])` → `0.0`
+- `weighted_sum([80, 90], [0.4])` → `0.0`（长度不匹配）
 
 示例：`weighted_sum([80, 90, 70], [0.3, 0.5, 0.2])` → `83.0`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_weighted_sum`）
 
-## 条件函数
+---
 
-### if_expr(condition: boolean, then_value: any, else_value: any) → any
+### min(a, b, ...) / min([list]) → number
+
+求最小值。支持两种调用方式：
+- 多参数：`min(a, b, c)`
+- 单列表：`min([a, b, c])`（Python 内置行为，直接透传）
+
+| 参数 | 类型 | 约束 |
+|------|------|------|
+| 多参数 | number | 参数中含 `None` 时行为取决于 Python：`None < 数值` 在 Python 3 中抛出 TypeError |
+
+> **推荐用法**：确保参数不含 `None`，或先用 `coalesce` 替换。
+
+实现状态：✅ 已实现（Python 内置 `min`）
+
+---
+
+### max(a, b, ...) / max([list]) → number
+
+求最大值。支持两种调用方式：
+- 多参数：`max(a, b, c)`
+- 单列表：`max([a, b, c])`
+
+同 `min` 的注意事项，参数中含 `None` 时抛出 TypeError。
+
+实现状态：✅ 已实现（Python 内置 `max`）
+
+---
+
+## 条件函数（3/4 已实现）
+
+---
+
+### is_null(value) → boolean
+
+判断值是否为 `None`。
+
+| 参数 | 类型 | 约束 |
+|------|------|------|
+| `value` | any | 严格判断 `is None`，`0`/`""`/`False` 不算 null |
+
+特殊值：
+- `is_null(None)` → `True`
+- `is_null(0)` → `False`
+- `is_null("")` → `False`
+
+实现状态：✅ 已实现（`engine.py:_is_null`）
+
+---
+
+### coalesce(value1, value2, ...) → any
+
+返回第一个非 `None` 值。若所有参数都为 `None` 则返回 `None`。
+
+| 参数 | 类型 | 约束 |
+|------|------|------|
+| 可变参数 | any | 至少传 1 个参数；`0`/`""`/`False` 不被跳过（只跳过 `None`） |
+
+特殊值：
+- `coalesce(None, None)` → `None`
+- `coalesce(None, 0, 1)` → `0`（`0` 是非 None 值）
+- `coalesce(None, "", "fallback")` → `""`
+
+示例：`coalesce(middle_name, first_name, 'N/A')` → 第一个非 None 值
+
+实现状态：✅ 已实现（`engine.py:_coalesce`）
+
+---
+
+### if_expr(condition, then_value, else_value) → any
 
 条件选择。命名 `if_expr` 避免与 Python 关键字 `if` 冲突。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `condition` | boolean | 条件表达式 |
-| `then_value` | any | 条件为真时的值 |
-| `else_value` | any | 条件为假时的值 |
+| `condition` | boolean | Python 真值规则；`None` 视为 `False` |
+| `then_value` | any | 条件为真时返回 |
+| `else_value` | any | 条件为假时返回 |
+
+> **注意**：`then_value` 和 `else_value` 均会被求值（Python 语义），
+> 不支持短路求值。如需惰性求值，使用 L1 表达式（含 `if` 语句的多行表达式）。
+
+特殊值：`if_expr(None, 'A', 'B')` → `'B'`（None 视为 False）
 
 示例：`if_expr(credit_score >= 60, 'PASS', 'FAIL')` → `'PASS'`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_if_expr`）
 
-### coalesce(value1: any, value2: any, ...) → any
+---
 
-返回第一个非空值。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `value1, value2, ...` | any | 候选值列表 |
-
-示例：`coalesce(middle_name, first_name, 'N/A')` → `'John'`
-
-实现状态：❌ 未实现
-
-### case(expr: any, when: list, default: any) → any
+### case(expr, when, default) → any ⏳ 规划中
 
 多分支条件选择，类似 SQL CASE WHEN。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
 | `expr` | any | 待匹配表达式 |
-| `when` | list | `[[match_value, result], ...]` 匹配对 |
-| `default` | any | 默认值 |
+| `when` | list[list] | 格式 `[[match_value, result], ...]` |
+| `default` | any | 无匹配时的默认值 |
 
 示例：`case(risk_level, [['HIGH', 0], ['MEDIUM', 50], ['LOW', 100]], 25)` → `0`
 
-实现状态：❌ 未实现
+实现状态：🔧 规划中（P2）
 
-## 数学函数
+---
 
-### abs(x: number) → number
+## 数学函数（9/9 已实现）
 
-绝对值。
+---
 
-| 参数 | 类型 | 说明 |
+### abs(x) → number
+
+绝对值。透传 Python `abs()`。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | number | 输入数值 |
+| `x` | number | `None` 不处理（Python abs(None) 抛 TypeError）；建议调用方用 `coalesce` 预处理 |
 
-示例：`abs(-5)` → `5`
+示例：`abs(-5.5)` → `5.5`
 
-实现状态：✅ 已实现（`engine.py:97`）
+实现状态：✅ 已实现（Python 内置 `abs`）
 
-### round(x: number, n: integer = 0) → number
+---
+
+### round(x, n) → number
 
 四舍五入。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | number | 输入数值 |
-| `n` | integer | 小数位数，默认 0 |
+| `x` | number | `None` 不处理 |
+| `n` | integer | 小数位数，默认 `0`；负数表示舍入到十位/百位 |
 
-示例：`round(3.14159, 2)` → `3.14`
+> **注意**：Python `round()` 使用"银行家舍入法"（Banker's rounding）：`round(2.5) = 2`（非 3）。
 
-实现状态：✅ 已实现（`engine.py:96`）
+示例：`round(3.14159, 2)` → `3.14`，`round(2.5, 0)` → `2.0`（银行家舍入）
 
-### ceil(x: number) → integer
+实现状态：✅ 已实现（Python 内置 `round`）
 
-向上取整。
+---
 
-| 参数 | 类型 | 说明 |
+### clamp(value, min_val, max_val) → number
+
+将值限制在 `[min_val, max_val]` 范围内。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | number | 输入数值 |
+| `value` | number | 若为 `None` 返回原值（不截断） |
+| `min_val` | number | 若为 `None` 返回原值 |
+| `max_val` | number | 若为 `None` 返回原值 |
 
-示例：`ceil(3.1)` → `4`
+特殊值：`clamp(None, 0, 100)` → `None`（任一参数为 None 则不截断）
 
-实现状态：❌ 未实现
+示例：`clamp(150, 0, 100)` → `100`，`clamp(-10, 0, 100)` → `0`
 
-### floor(x: number) → integer
+实现状态：✅ 已实现（`engine.py:_clamp`）
 
-向下取整。
+---
 
-| 参数 | 类型 | 说明 |
+### ceil(x) → integer
+
+向上取整（天花板函数）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | number | 输入数值 |
+| `x` | number | 若为 `None` 返回 `0`；`inf`/`-inf` 触发 `OverflowError`（建议用 `clamp` 预处理） |
 
-示例：`floor(3.9)` → `3`
+示例：`ceil(3.1)` → `4`，`ceil(-2.7)` → `-2`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_ceil`）
 
-### sqrt(x: number) → number
+---
+
+### floor(x) → integer
+
+向下取整（地板函数）。
+
+| 参数 | 类型 | 约束 |
+|------|------|------|
+| `x` | number | 若为 `None` 返回 `0`；`inf`/`-inf` 触发 `OverflowError` |
+
+示例：`floor(3.9)` → `3`，`floor(-2.1)` → `-3`
+
+实现状态：✅ 已实现（`engine.py:_floor`）
+
+---
+
+### sqrt(x) → float
 
 平方根。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | number | 非负数值 |
+| `x` | number | 若为 `None` 返回 `0.0`；负数返回 `0.0`（不抛异常，因 `math.sqrt` 负数抛 ValueError 被捕获） |
+
+特殊值：`sqrt(None)` → `0.0`，`sqrt(-1)` → `0.0`
 
 示例：`sqrt(100)` → `10.0`
 
-实现状态：❌ 未实现
+实现状态：✅ 已实现（`engine.py:_sqrt`）
 
-### pow(base: number, exp: number) → number
+---
+
+### pow(base, exp) → float
 
 幂运算。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `base` | number | 底数 |
-| `exp` | number | 指数 |
+| `base` | number | 若为 `None` 返回 `0.0` |
+| `exp` | number | 若为 `None` 返回 `0.0` |
 
-示例：`pow(2, 10)` → `1024`
+特殊值：`pow(None, 2)` → `0.0`，`pow(2, None)` → `0.0`
 
-实现状态：❌ 未实现
+示例：`pow(2, 10)` → `1024.0`
 
-### log(x: number, base?: number) → number
+实现状态：✅ 已实现（`engine.py:_pow`）
 
-对数运算。省略 `base` 时为自然对数。
+---
 
-| 参数 | 类型 | 说明 |
+### log(x, base?) → float
+
+对数运算。省略 `base` 时为自然对数（`ln`）。
+
+| 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | number | 正数值 |
-| `base` | number? | 底数，默认 e |
+| `x` | number | 若为 `None` 返回 `0.0`；`x <= 0` 返回 `0.0`（`math.log` 会抛 ValueError，被捕获） |
+| `base` | number? | 省略时为 `e`；`base <= 0` 或 `base == 1` 返回 `0.0` |
 
-示例：`log(100, 10)` → `2.0`
+特殊值：`log(None)` → `0.0`，`log(0)` → `0.0`，`log(-1)` → `0.0`
 
-实现状态：❌ 未实现
+示例：`log(100, 10)` → `2.0`，`log(math.e)` → `1.0`
 
-## 其他已实现函数
+实现状态：✅ 已实现（`engine.py:_log`）
 
-以下函数已在当前代码中实现，但未归入上述 6 类：
+---
 
-| 函数 | 签名 | 类别归属 | 说明 |
-|------|------|----------|------|
-| `is_null(value)` | `(any) → bool` | 条件函数 | 判断值是否为 null |
-| `clamp(value, min, max)` | `(number, number, number) → number` | 数学函数 | 将值限制在范围内 |
+## 已知 Bug 汇总
+
+| # | 函数 | Bug 描述 | 严重程度 | 修复计划 |
+|---|------|---------|---------|---------|
+| B-1 | `date_add` | `unit="month"` 跨年时 `d.replace(month=...)` 抛 `ValueError` | 🔴 高 | 用 `dateutil.relativedelta` 或手动进位 |
+| B-2 | `to_decimal` | 返回 `float` 而非 `Decimal`，金融计算有浮点误差 | 🟡 中 | 改为返回 `decimal.Decimal` |
+
+---
 
 ## 实现状态汇总
 
-### 按类别统计
+| 类别 | 总计 | ✅ 已实现 | 🔧 规划中 |
+|------|------|----------|---------|
+| 字符串函数 | 11 | 11 | 0 |
+| 日期函数 | 9 | 8 | 1 |
+| 类型转换 | 6 | 5 | 1 |
+| 聚合函数 | 6 | 6 | 0 |
+| 条件函数 | 4 | 3 | 1 |
+| 数学函数 | 9 | 9 | 0 |
+| **合计** | **45** | **42** | **3** |
 
-| 类别 | 总数 | ✅ 已实现 | ⚠️ 部分实现 | ❌ 未实现 |
-|------|------|----------|------------|----------|
-| 字符串函数 | 11 | 0 | 0 | 11 |
-| 日期函数 | 8 | 1 | 0 | 7 |
-| 类型转换 | 5 | 2 | 0 | 3 |
-| 聚合函数 | 6 | 0 | 2 | 4 |
-| 条件函数 | 3 | 1 | 0 | 2 |
-| 数学函数 | 7 | 2 | 0 | 5 |
-| 其他 | 2 | 2 | 0 | 0 |
-| **合计** | **42** | **8** | **2** | **32** |
+---
 
-### 完整实现清单
+## 函数快速索引
 
 | 函数 | 类别 | 状态 | 代码位置 |
-|------|------|------|----------|
-| `today()` | 日期 | ✅ | `engine.py:88` |
-| `days_between(start, end)` | 日期 | ✅ | `engine.py:262` |
-| `days_since(start)` | 日期 | ✅ | `engine.py:270` |
-| `now()` | 日期 | ❌ | - |
-| `date_diff(start, end, unit)` | 日期 | ❌ | - |
-| `date_add(date, amount, unit)` | 日期 | ❌ | - |
-| `year(date)` | 日期 | ❌ | - |
-| `month(date)` | 日期 | ❌ | - |
-| `day(date)` | 日期 | ❌ | - |
-| `format_date(date, format)` | 日期 | ❌ | - |
-| `int(x)` / `to_integer(x)` | 类型转换 | ✅ | `engine.py:98` |
-| `float(x)` / `to_decimal(x)` | 类型转换 | ✅ | `engine.py:99` |
-| `bool(x)` / `to_boolean(x)` | 类型转换 | ✅ | `engine.py:99` |
-| `to_string(x)` | 类型转换 | ❌ | - |
-| `to_date(x)` | 类型转换 | ❌ | - |
-| `max(a, b, ...)` | 聚合 | ⚠️ | `engine.py:94`（仅多参数） |
-| `min(a, b, ...)` | 聚合 | ⚠️ | `engine.py:93`（仅多参数） |
-| `sum(values)` | 聚合 | ❌ | - |
-| `avg(values)` | 聚合 | ❌ | - |
-| `count(values)` | 聚合 | ❌ | - |
-| `weighted_sum(components, weights)` | 聚合 | ❌ | - |
-| `is_null(value)` | 条件 | ✅ | `engine.py:91` |
-| `coalesce(value1, value2, ...)` | 条件 | ❌ | - |
-| `if_expr(condition, then, else)` | 条件 | ❌ | - |
-| `case(expr, when, default)` | 条件 | ❌ | - |
-| `abs(x)` | 数学 | ✅ | `engine.py:97` |
-| `round(x, n)` | 数学 | ✅ | `engine.py:96` |
-| `clamp(value, min, max)` | 数学 | ✅ | `engine.py:92` |
-| `ceil(x)` | 数学 | ❌ | - |
-| `floor(x)` | 数学 | ❌ | - |
-| `sqrt(x)` | 数学 | ❌ | - |
-| `pow(base, exp)` | 数学 | ❌ | - |
-| `log(x, base?)` | 数学 | ❌ | - |
-| `len(s)` | 字符串 | ❌ | - |
-| `upper(s)` | 字符串 | ❌ | - |
-| `lower(s)` | 字符串 | ❌ | - |
-| `trim(s)` | 字符串 | ❌ | - |
-| `replace(s, old, new)` | 字符串 | ❌ | - |
-| `substring(s, start, length?)` | 字符串 | ❌ | - |
-| `contains(s, substr)` | 字符串 | ❌ | - |
-| `starts_with(s, prefix)` | 字符串 | ❌ | - |
-| `ends_with(s, suffix)` | 字符串 | ❌ | - |
-| `split(s, delimiter)` | 字符串 | ❌ | - |
-| `join(parts, delimiter)` | 字符串 | ❌ | - |
-
-## 实现优先级建议
-
-| 优先级 | 函数 | 原因 |
-|--------|------|------|
-| P0 | `coalesce`, `if_expr` | 条件函数是规则引擎的基础需求 |
-| P0 | `contains`, `starts_with`, `ends_with` | 字符串匹配是风控场景高频操作 |
-| P1 | `sum`, `avg`, `count` | 聚合函数是 composite 指标的基础 |
-| P1 | `date_diff`, `date_add` | 日期计算是金融场景核心需求 |
-| P1 | `ceil`, `floor`, `pow`, `sqrt` | 数学函数补全 |
-| P2 | `upper`, `lower`, `trim`, `len` | 字符串处理增强 |
-| P2 | `replace`, `substring`, `split`, `join` | 高级字符串操作 |
-| P2 | `year`, `month`, `day`, `format_date` | 日期提取与格式化 |
-| P2 | `to_date`, `to_string`, `to_decimal` | 类型转换补全 |
-| P2 | `weighted_sum`, `case` | 高级聚合与条件 |
+|------|------|------|---------|
+| `len(s)` | 字符串 | ✅ | `_len` |
+| `upper(s)` | 字符串 | ✅ | `_upper` |
+| `lower(s)` | 字符串 | ✅ | `_lower` |
+| `trim(s)` | 字符串 | ✅ | `_trim` |
+| `replace(s, old, new)` | 字符串 | ✅ | `_replace` |
+| `substring(s, start, length?)` | 字符串 | ✅ | `_substring` |
+| `contains(s, substr)` | 字符串 | ✅ | `_contains` |
+| `starts_with(s, prefix)` | 字符串 | ✅ | `_starts_with` |
+| `ends_with(s, suffix)` | 字符串 | ✅ | `_ends_with` |
+| `split(s, delim)` | 字符串 | ✅ | `_split` |
+| `join(parts, delim)` | 字符串 | ✅ | `_join` |
+| `today()` | 日期 | ✅ | `_today` |
+| `now()` | 日期 | ✅ | `_now` |
+| `days_between(s, e)` | 日期 | ✅ | `_days_between` |
+| `days_since(s)` | 日期 | ✅ | `_days_since` |
+| `date_diff(s, e, unit)` | 日期 | ✅ | `_date_diff` |
+| `date_add(d, amt, unit)` | 日期 | ✅⚠️B-1 | `_date_add` |
+| `year(d)` | 日期 | ✅ | `_year` |
+| `month(d)` | 日期 | ✅ | `_month` |
+| `day(d)` | 日期 | ✅ | `_day` |
+| `format_date(d, fmt)` | 日期 | 🔧 | — |
+| `to_string(x)` / `str(x)` | 类型转换 | ✅ | `_to_string` |
+| `to_integer(x)` / `int(x)` | 类型转换 | ✅ | Python `int` |
+| `to_decimal(x)` / `float(x)` | 类型转换 | ✅⚠️B-2 | `_to_decimal` |
+| `to_boolean(x)` / `bool(x)` | 类型转换 | ✅ | Python `bool` |
+| `to_date(x)` | 类型转换 | 🔧 | — |
+| `sum(values)` | 聚合 | ✅ | `_sum` |
+| `avg(values)` | 聚合 | ✅ | `_avg` |
+| `count(values)` | 聚合 | ✅ | `_count` |
+| `weighted_sum(c, w)` | 聚合 | ✅ | `_weighted_sum` |
+| `min(...)` | 聚合 | ✅ | Python `min` |
+| `max(...)` | 聚合 | ✅ | Python `max` |
+| `is_null(v)` | 条件 | ✅ | `_is_null` |
+| `coalesce(v1, v2, ...)` | 条件 | ✅ | `_coalesce` |
+| `if_expr(c, t, e)` | 条件 | ✅ | `_if_expr` |
+| `case(expr, when, default)` | 条件 | 🔧 | — |
+| `abs(x)` | 数学 | ✅ | Python `abs` |
+| `round(x, n)` | 数学 | ✅ | Python `round` |
+| `clamp(v, min, max)` | 数学 | ✅ | `_clamp` |
+| `ceil(x)` | 数学 | ✅ | `_ceil` |
+| `floor(x)` | 数学 | ✅ | `_floor` |
+| `sqrt(x)` | 数学 | ✅ | `_sqrt` |
+| `pow(base, exp)` | 数学 | ✅ | `_pow` |
+| `log(x, base?)` | 数学 | ✅ | `_log` |
