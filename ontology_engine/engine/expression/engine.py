@@ -41,7 +41,7 @@ def _today() -> str:
 
 
 def _now() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(tz=None).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _days_between(start: Any, end: Any) -> int:

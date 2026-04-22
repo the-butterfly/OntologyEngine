@@ -100,7 +100,7 @@ class IncrementalCache:
         checkpoint = self._checkpoint_dir / f"pipeline_{run_id}.json"
         checkpoint.write_text(json.dumps({
             "run_id": run_id,
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(tz=None).isoformat(),
             "total_files": 0,
             "processed_files": 0,
             "current_file": "",
