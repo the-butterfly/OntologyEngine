@@ -19,6 +19,7 @@ from ontology_engine.core.semantic_space import (
     SemanticSpaceStorage,
 )
 from ontology_engine.services.simulation_service import SimulationService
+from ontology_engine.engine.rule.dependency_analyzer import DependencyAnalyzer
 
 router = APIRouter(prefix="/v1", tags=["Consumption"])
 
@@ -720,6 +721,7 @@ async def execute_simulate(view_id: str, request: ExecuteSimulateRequest):
 # DAG Execution Support
 # ============================================================================
 
+# DEPRECATED: Use DependencyAnalyzer from ontology_engine.engine.rule.dependency_analyzer
 def _build_rule_dependency_graph(
     rules: list[dict],
 ) -> tuple[dict[str, list[str]], dict[str, int], list[dict]]:
@@ -761,6 +763,7 @@ def _build_rule_dependency_graph(
     return dict(adj), in_degree, edges
 
 
+# DEPRECATED: Use DependencyAnalyzer.compute_levels() instead
 def _compute_rule_levels(
     rules: list[dict],
     adj: dict[str, list[str]],
@@ -998,8 +1001,9 @@ async def _run_full_analysis(
 
     # Build dependency graph
     try:
-        adj, in_degree, dep_edges = _build_rule_dependency_graph(enabled_rules)
-        rule_levels = _compute_rule_levels(enabled_rules, adj, in_degree)
+        _analyzer = DependencyAnalyzer()
+        graph = _analyzer.build(enabled_rules)
+        rule_levels = _analyzer.compute_levels(graph)
     except ValueError as e:
         # Circular dependency detected - fall back to priority-only ordering
         import logging
