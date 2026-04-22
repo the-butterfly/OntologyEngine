@@ -59,6 +59,42 @@
 
 ## LLM Prompt 模板
 
+### 实现说明（[关键设计点]）
+
+LLM 提取的实现基于两项关键机制：
+
+**1. LLMClientProtocol 注入**
+
+```python
+# 构造时注入（推荐）
+pipeline = ExtractionPipeline(llm_client=my_client)
+
+# 依赖 config.yaml / 环境变量（自动降级）
+pipeline = ExtractionPipeline()
+```
+
+`LLMExtractor` 接受实现 `LLMClientProtocol` 协议的任意客户端，协议接口仅要求：
+```python
+def chat_complete(prompt, system_prompt, temperature) -> str
+```
+无客户端时自动降级：LLM 提取静默跳过，Pipeline 仅返回 AST 提取结果。
+
+**2. schema_context 注入链**
+
+```
+SchemaLoader.get_fact_object_descriptions()
+  └─> ExtractionPipeline.ingest(schema_context=...)
+        └─> LLMExtractor.extract(schema_context=...)
+              └─> _call_llm(text, schema_context=...)
+                    └─> _build_system_prompt(schema_context) → system_prompt
+```
+
+`schema_context` 是 `dict[str, str]`，格式为 `{fact_object_name: description}`。
+当 `schema_context` 非空时，系统 prompt 会追加一个"Domain schema"块，引导 LLM
+将提取的实体的 `fact_object` 字段对齐到项目的类型系统。
+
+`schema_context=None` 时退回到不带 schema 的通用 prompt（Phase 1 兼容模式）。
+
 ### 实体与关系提取 Prompt
 
 ```

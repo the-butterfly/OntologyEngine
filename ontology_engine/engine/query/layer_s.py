@@ -81,24 +81,40 @@ class LayerSRetriever:
         visited: set[str] = {entity_id}
         current_level = [entity_id]
 
-        for depth in range(max_depth):
+        # Build extra keyword args that the graph store accepts
+        _get_neighbors_kwargs: dict[str, Any] = {"direction": "both", "limit": 50}
+        if as_of is not None:
+            _get_neighbors_kwargs["as_of"] = as_of
+
+        for _depth in range(max_depth):
             next_level: list[str] = []
             for nid in current_level:
-                neighbors = await self._graph_store.get_neighbors(
-                    node_id=nid,
-                    direction="both",
-                    limit=50,
-                )
+                try:
+                    neighbors = await self._graph_store.get_neighbors(
+                        node_id=nid,
+                        **_get_neighbors_kwargs,
+                    )
+                except TypeError:
+                    # Fallback: backend may not support as_of yet
+                    neighbors = await self._graph_store.get_neighbors(
+                        node_id=nid,
+                        direction="both",
+                        limit=50,
+                    )
                 for nb in neighbors:
                     nb_id = nb.get("neighbor_id", "")
                     if nb_id in visited:
                         continue
+
+                    edge_type = nb.get("edge_type", "")
+                    confidence = float(nb.get("confidence", 0.5))
+                    if confidence < min_confidence:
+                        continue
+
                     visited.add(nb_id)
                     next_level.append(nb_id)
 
-                    edge_type = nb.get("edge_type", "")
                     edge_weight = self._compute_edge_weight(edge_type, multipliers)
-
                     entity = await self._fetch_entity(nb_id)
                     if entity:
                         entities.append(entity)
@@ -108,11 +124,11 @@ class LayerSRetriever:
                         from_id=nid,
                         to_id=nb_id,
                         relation_name=edge_type,
-                        edge_text="",
+                        edge_text=nb.get("edge_text", ""),
                         weight=edge_weight,
-                        confidence=0.5,
-                        valid_from=None,
-                        valid_to=None,
+                        confidence=confidence,
+                        valid_from=nb.get("valid_from"),
+                        valid_to=nb.get("valid_to"),
                     ))
 
             current_level = next_level

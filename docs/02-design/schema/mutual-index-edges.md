@@ -515,27 +515,48 @@ Step 5 — 输出：
 | 1 | 互索引边缺乏存储模型 | KuzuDB 关系表 + ChromaDB 向量集合的双存储 |
 | 2 | 边语义无法被向量检索 | edge_text 向量化存入 ChromaDB |
 
-### KuzuDB 存储
+### KuzuDB 节点表
 
 ```
-关系类型：EXTRACTED_FROM, SUPPORTED_BY, DEFINED_IN, TRACE_TO
+KnowledgeFragment (fragment_id PK, document_id, space_id,
+                   offset_start, offset_end, text,
+                   extraction_status, created_at)
 
-每条边属性：
-  id: STRING (PK)
-  from_id: STRING
-  to_id: STRING
-  source_file: STRING
-  offset_start: INT64
-  offset_end: INT64
-  confidence: DOUBLE
-  edge_text: STRING
-  created_at: DATETIME
+Entity            (entity_id PK, concept, space_id, properties)
 
-索引：
-  - (from_id, edge_type) 组合索引：支持从源端查找所有出边
-  - (to_id, edge_type) 组合索引：支持从目标端查找所有入边
-  - confidence 索引：支持按置信度过滤
+# 其余节点：ExecutionStepSnapshot, MetricDeclaration,
+#           CategoryTag, MetricValue
 ```
+
+> **设计说明**：`KnowledgeFragment` 是独立的节点表，不与 `Entity` 合并。
+> 这是设计规范与实现对齐的结果：Layer-R 碎片与 Layer-S 实体属于不同的语义层，
+> 合并会混淆类型系统并导致 `get_neighbors` 无法区分节点来源。
+
+### KuzuDB 关系表（互索引边）
+
+```
+SUPPORTED_BY_FRAGMENT   FROM KnowledgeFragment TO Entity   ← 规范主路径
+SUPPORTED_BY            FROM Entity TO Entity               ← 兼容/内联标注变体
+EXTRACTED_FROM          FROM Entity TO Entity
+DEFINED_IN              FROM Entity TO Entity
+DEFINED_IN_FROM_METRIC  FROM MetricDeclaration TO Entity
+TRACE_TO                FROM ExecutionStepSnapshot TO Entity
+
+每条边公共属性：
+  edge_type STRING, source_file STRING,
+  offset_start INT, offset_end INT,
+  confidence DOUBLE, edge_text STRING, created_at STRING
+```
+
+> **SUPPORTED_BY 双表设计**（[关键设计点]）
+>
+> | 表名 | FROM | TO | 使用场景 |
+> |------|------|-----|---------|
+> | SUPPORTED_BY_FRAGMENT | KnowledgeFragment | Entity | 规范路径：LLM 提取的 fragment→entity 支撑边 |
+> | SUPPORTED_BY | Entity | Entity | 兼容路径：内联标注、早期存量数据 |
+>
+> `get_mutual_index_edges(edge_type="SUPPORTED_BY")` 会同时查询两张表。
+> 新写入的支撑边应优先写入 `SUPPORTED_BY_FRAGMENT`。
 
 ### ChromaDB 存储
 

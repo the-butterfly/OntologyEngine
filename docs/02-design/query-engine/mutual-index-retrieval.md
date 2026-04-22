@@ -98,11 +98,11 @@
 
 ```
 角色：从 Layer-R 碎片导航到 Layer-S 实体
-方向：EntityNode → KnowledgeFragmentNode（反向查询：碎片→实体）
+方向：Entity（实体提取来源）→ Entity（通过反向导航找到碎片，再找到其他实体）
 
-Cypher 查询：
-  MATCH (e:EntityNode)-[r:EXTRACTED_FROM]->(kf:KnowledgeFragmentNode)
-  WHERE kf.id IN $fragment_ids
+Cypher 查询（反向：从 fragment_id 找到提取自该 fragment 的 Entity）：
+  MATCH (e:Entity)-[r:EXTRACTED_FROM]->(src:Entity)
+  WHERE src.entity_id IN $fragment_entity_ids
     AND r.confidence >= $min_confidence
   RETURN e, r
 
@@ -111,21 +111,37 @@ Cypher 查询：
   - mixed 查询的 Step 2
 ```
 
-### SUPPORTED_BY：实体→碎片支撑
+### SUPPORTED_BY：碎片→实体支撑
 
 ```
-角色：从 Layer-S 实体导航到支撑该实体的 Layer-R 碎片
-方向：KnowledgeFragmentNode → EntityNode
+角色：从 Layer-R KnowledgeFragment 导航到 Layer-S 实体（协同检索的主扩展路径）
+方向（规范路径）：KnowledgeFragment → Entity
+方向（兼容路径）：Entity → Entity
 
-Cypher 查询：
-  MATCH (kf:KnowledgeFragmentNode)-[r:SUPPORTED_BY]->(e:EntityNode)
-  WHERE e.id IN $entity_ids
-    AND r.confidence >= $min_confidence
-  RETURN kf, r
+规范路径 Cypher（SUPPORTED_BY_FRAGMENT 表）：
+  MATCH (kf:KnowledgeFragment {fragment_id: $fragment_id})
+        -[r:SUPPORTED_BY_FRAGMENT]->
+        (e:Entity)
+  WHERE r.confidence >= $min_confidence
+  RETURN e.entity_id, r.confidence, r.edge_text, r.offset_start, r.offset_end
+
+兼容路径 Cypher（SUPPORTED_BY 表，Entity→Entity 变体）：
+  MATCH (src:Entity {entity_id: $entity_id})
+        -[r:SUPPORTED_BY]->
+        (e:Entity)
+  WHERE r.confidence >= $min_confidence
+  RETURN e.entity_id, r.confidence, r.edge_text
 
 触发条件：
-  - 需要查找实体的支撑证据
+  - MutualIndexCollaborative._expand_via_supported_by（Step 2）
+  - 需要查找 Fragment 的支撑实体
   - 证据链构建
+
+实现说明（[关键设计点]）：
+  get_neighbors(node_id=fragment_id, direction="outgoing") 会自动
+  检测 node_id 是否在 KnowledgeFragment 节点表中，若是则查询
+  SUPPORTED_BY_FRAGMENT 并返回完整边属性（confidence, edge_text,
+  offset_start, offset_end），无需调用方额外处理。
 ```
 
 ### DEFINED_IN：规则→定义来源
@@ -289,6 +305,55 @@ Step 6 — 输出：
   execution_snapshot: {...}
   trace_chain: [snap→frag_001, snap→frag_002, snap→frag_003]
 ```
+
+---
+
+## 协同检索实现（[关键设计点]）
+
+### MutualIndexCollaborative 四步流程
+
+```
+Step 1 — Layer-R 向量检索
+  LayerRRetriever.search_knowledge_fragments(query_embedding, top_k)
+  → fragments: List[FragmentResult]  （包含 fragment_id 和 score）
+
+Step 2 — SUPPORTED_BY 扩展（KnowledgeFragment → Entity）
+  KuzuGraphStore.get_neighbors(node_id=frag_id, direction="outgoing")
+  → 自动路由到 _get_fragment_neighbors，查询 SUPPORTED_BY_FRAGMENT
+  → 返回 {neighbor_id, edge_type, confidence, edge_text, offset_start, offset_end}
+  → 收集 edge_props_by_fragment: Dict[frag_id, List[edge_props]]
+
+Step 3 — entity_ids 排序 + 并行 Layer-S 扩展
+  排序规则：fragment_score × edge_confidence 乘积降序（[关键设计点]）
+  取 top-N = MutualIndexConfig.max_parallel_entity_expansion（默认 5）
+  asyncio.gather(*[layer_s.retrieve_neighbors(eid) for eid in top_entity_ids])
+  → 合并去重 EntityResult + EdgeResult
+
+Step 4 — 证据链构建
+  从 edge_props_by_fragment 中读取真实边属性（confidence, edge_text, offsets）
+  上限：MutualIndexConfig.evidence_chain_max_fragments（默认 10）
+```
+
+### entity_ids 排序设计
+
+| 方案 | 排序依据 | 选择原因 |
+|------|---------|---------|
+| **当前实现** | fragment_score × edge_confidence 乘积 | 综合向量相关度（fragment_score）和跨层链接可信度（edge_confidence），平衡两者 |
+| 放弃方案：first-seen | FIFO 顺序 | 忽略了 fragment 向量分数差异，top-N 截取质量低 |
+| 放弃方案：仅 confidence | 边置信度 | 忽略了 fragment 本身的检索相关度 |
+
+当一个 entity 通过多条 fragment→entity 路径被发现时，取所有路径的 `max(score × confidence)` 作为最终排序分。
+
+### MutualIndexConfig 可配置参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `max_parallel_entity_expansion` | 5 | 并行 Layer-S 扩展的实体数上限 |
+| `min_confidence_for_expansion` | 0.0 | SUPPORTED_BY 边的最低置信度阈值 |
+| `evidence_chain_max_fragments` | 10 | 证据链最大链接数 |
+| `evidence_chain_default_confidence` | 0.5 | 边无置信度属性时的降级值 |
+| `supported_by_neighbor_limit` | 10 | Fragment 扩展时的 get_neighbors limit |
+| `layer_s_neighbor_limit` | 50 | Layer-S 扩展时的 get_neighbors limit |
 
 ---
 

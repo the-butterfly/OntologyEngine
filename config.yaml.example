@@ -1,0 +1,81 @@
+# OntologyEngine 项目配置文件
+# 将此文件复制到项目根目录，并根据实际环境填写配置。
+# 敏感值（api_key 等）也可通过环境变量覆盖（优先级：环境变量 > 此文件）。
+
+# ──────────────────────────────────────────────────────────────────────────────
+# LLM Provider 配置
+# 用于 ExtractionPipeline Pass 2（LLM 语义提取）以及 LLMJudge 规则算子。
+# ──────────────────────────────────────────────────────────────────────────────
+llm:
+  # 支持：openai | anthropic | ollama | custom
+  # 环境变量：OE_LLM_PROVIDER
+  provider: openai
+
+  # API Key（生产环境建议通过环境变量注入，避免写入版本控制）
+  # 环境变量：OE_LLM_API_KEY 或 OPENAI_API_KEY
+  api_key: ~
+
+  # 模型名称
+  # OpenAI 示例：gpt-4o-mini | gpt-4o | gpt-4-turbo
+  # Anthropic 示例：claude-3-haiku-20240307 | claude-3-5-sonnet-20241022
+  # 环境变量：OE_LLM_MODEL
+  model: gpt-4o-mini
+
+  # 可选：自定义 API 端点（用于代理、私有部署或 Ollama）
+  # 示例：http://localhost:11434/v1
+  # 环境变量：OE_LLM_BASE_URL
+  base_url: ~
+
+  # Sampling temperature (0 = 确定性，推荐提取场景使用 0.0~0.2)
+  temperature: 0.2
+
+  # 最大生成 token 数
+  max_tokens: 2048
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 存储配置
+# 详细配置见 ontology_engine/storage/config.py (StorageConfig)
+# ──────────────────────────────────────────────────────────────────────────────
+storage:
+  # 运行模式：local | cloud
+  mode: local
+
+  # 图数据库后端：kuzu（生产推荐）| networkx（测试/轻量）
+  graph_backend: kuzu
+
+  # 向量数据库后端：chroma（生产推荐）| local（内存测试）
+  vector_backend: local
+
+  # 元数据后端：sqlite
+  meta_backend: sqlite
+
+  # 数据目录（KuzuDB / ChromaDB / SQLite 均在此目录下）
+  # 默认：~/.ontology_engine/data
+  data_dir: ~
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 查询引擎配置
+# ──────────────────────────────────────────────────────────────────────────────
+query:
+  # MutualIndexCollaborative 并行扩展实体数量上限
+  # 较大值提升召回但增加图查询负载
+  max_parallel_entity_expansion: 5
+
+  # 跨层扩展时接受的最低 SUPPORTED_BY 置信度
+  min_confidence_for_expansion: 0.0
+
+  # 证据链最大条目数
+  evidence_chain_max_fragments: 10
+
+  # 证据链置信度兜底值（当 KuzuDB 边无 confidence 属性时使用）
+  evidence_chain_default_confidence: 0.5
+
+  # BundleSearch Phase 2 每节点最大邻居展开数
+  bundle_search_phase2_neighbors_per_node: 20
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 提取管线配置
+# ──────────────────────────────────────────────────────────────────────────────
+extraction:
+  # AST + 语义缓存目录
+  cache_dir: .ontology/cache

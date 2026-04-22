@@ -19,8 +19,17 @@ class KuzuGraphStore(GraphStoreBackend):
     """Kuzu-based graph store.
 
     Data model:
-    - Nodes: stored in ``Entity`` table (entity_id, concept, space_id, properties)
-    - Edges: stored in ``Relation`` table (from, to, relation_type, relation_id, properties)
+    - Nodes: Entity, KnowledgeFragment, ExecutionStepSnapshot, MetricDeclaration,
+             CategoryTag, MetricValue
+    - Edges: Relation (general), EXTRACTED_FROM, SUPPORTED_BY,
+             SUPPORTED_BY_FRAGMENT (KnowledgeFragment→Entity), DEFINED_IN,
+             DEFINED_IN_FROM_METRIC, TRACE_TO, CATEGORIZED_AS, HAS_METRIC,
+             temporal edges (PRECEDES/SUCCEEDS/…)
+
+    Design note: SUPPORTED_BY covers the Entity→Entity variant (legacy / inline
+    annotations), while SUPPORTED_BY_FRAGMENT covers the canonical design-spec
+    variant KnowledgeFragment → EntityInstance.  Both are queried by
+    ``get_mutual_index_edges`` when edge_type="SUPPORTED_BY".
 
     Default database path: ``~/.ontology_engine/data/{space_id}/graph.kuzu``
     """
@@ -30,12 +39,18 @@ class KuzuGraphStore(GraphStoreBackend):
         self._conn: Any | None = None  # kuzu.Connection
         self._initialized = False
 
-    # Pre-defined query specs for mutual index relations (class-level constant)
+    # Pre-defined query specs for mutual index relations (class-level constant).
+    # Each entry lists ALL rel-tables that carry that logical edge type, so that
+    # get_mutual_index_edges() can fan-out to the correct tables based on
+    # the actual node types involved.
     _MUTUAL_INDEX_QUERIES: dict[str, list[dict[str, str]]] = {
         "EXTRACTED_FROM": [
             {"rel": "EXTRACTED_FROM", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
         ],
         "SUPPORTED_BY": [
+            # Canonical design: KnowledgeFragment → Entity (Layer-R → Layer-S)
+            {"rel": "SUPPORTED_BY_FRAGMENT", "from_label": "KnowledgeFragment", "from_pk": "fragment_id", "to_label": "Entity", "to_pk": "entity_id"},
+            # Legacy / inline-annotation variant: Entity → Entity
             {"rel": "SUPPORTED_BY", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
         ],
         "DEFINED_IN": [
@@ -86,12 +101,17 @@ class KuzuGraphStore(GraphStoreBackend):
 
         Schema v2 tables:
         - Entity: core entity node table
+        - KnowledgeFragment: Layer-R raw fragment node (canonical SUPPORTED_BY source)
         - ExecutionStepSnapshot: for TRACE_TO source (S-1)
         - MetricDeclaration: for DEFINED_IN source (S-2)
         - CategoryTag: categorization node
         - MetricValue: metric value node
         - Relation: general business relation edge
-        - EXTRACTED_FROM / SUPPORTED_BY / DEFINED_IN / TRACE_TO: mutual index edges
+        - EXTRACTED_FROM: Entity → Entity (mutual-index)
+        - SUPPORTED_BY: Entity → Entity (legacy / inline-annotation variant)
+        - SUPPORTED_BY_FRAGMENT: KnowledgeFragment → Entity (canonical mutual-index)
+        - DEFINED_IN / DEFINED_IN_FROM_METRIC: mutual index edges
+        - TRACE_TO: mutual index edge
         - CATEGORIZED_AS / HAS_METRIC: classification edges
         - PRECEDES / SUCCEEDS / LEADS_TO / BECAUSE_OF / ENABLES / PREVENTS / same_entity_as: temporal edges (S-5)
         """
@@ -103,6 +123,19 @@ class KuzuGraphStore(GraphStoreBackend):
                 concept STRING,
                 space_id STRING,
                 properties JSON
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS KnowledgeFragment(
+                fragment_id STRING PRIMARY KEY,
+                document_id STRING,
+                space_id STRING,
+                offset_start INT,
+                offset_end INT,
+                text STRING,
+                extraction_status STRING,
+                created_at STRING
             )
         """)
 
@@ -183,6 +216,19 @@ class KuzuGraphStore(GraphStoreBackend):
         self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS SUPPORTED_BY(
                 FROM Entity TO Entity,
+                edge_type STRING DEFAULT 'SUPPORTED_BY',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS SUPPORTED_BY_FRAGMENT(
+                FROM KnowledgeFragment TO Entity,
                 edge_type STRING DEFAULT 'SUPPORTED_BY',
                 source_file STRING,
                 offset_start INT,
@@ -466,14 +512,26 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> list[dict[str, Any]]:
         """Get 1-hop neighbors of a node.
 
+        Supports both Entity nodes and KnowledgeFragment nodes.  For
+        KnowledgeFragment nodes the method additionally queries the
+        ``SUPPORTED_BY_FRAGMENT`` relation table, returning full edge
+        attributes (confidence, edge_text, offset_start, offset_end) so that
+        ``_expand_via_supported_by`` in MutualIndexCollaborative can read them.
+
+        Returns rows with keys:
+            neighbor_id, edge_id, edge_type, direction,
+            confidence (optional), edge_text (optional),
+            offset_start (optional), offset_end (optional)
+
         Args:
-            node_concept: When provided, kuzu pushes this filter into the WHERE clause
-                          to avoid returning nodes that don't match the fact_object, eliminating
-                          the need for post-filtering via MetaStore lookups.
+            node_concept: When provided, kuzu pushes this filter into the WHERE
+                clause to avoid returning nodes that don't match the
+                fact_object.
             as_of: Optional point-in-time timestamp for temporal filtering.
             include_history: If true, include all historical versions.
         """
         self._ensure_initialized()
+        import json
 
         arrow_left = ""
         arrow_right = ""
@@ -487,12 +545,27 @@ class KuzuGraphStore(GraphStoreBackend):
             arrow_left = "-"
             arrow_right = "-"
 
+        result_rows: list[dict[str, Any]] = []
+
+        # ── Branch A: KnowledgeFragment node ─────────────────────────────────
+        # These nodes are connected via SUPPORTED_BY_FRAGMENT (outgoing) and have
+        # no entries in the generic Relation table.
+        is_fragment = await self._is_knowledge_fragment(node_id)
+        if is_fragment:
+            result_rows.extend(
+                await self._get_fragment_neighbors(
+                    node_id, direction=direction, limit=limit
+                )
+            )
+            return result_rows
+
+        # ── Branch B: Entity / other node — generic Relation table ───────────
         rel_match = (
             f"[r:Relation {{relation_type: '{edge_type}'}}]"
             if edge_type
             else "[r:Relation]"
         )
-        where_parts = []
+        where_parts: list[str] = []
         if node_concept:
             where_parts.append(f"n.concept = '{node_concept}'")
         if filter_props:
@@ -508,30 +581,90 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.properties AS properties
             LIMIT {limit}
         """
-        result = self._conn.execute(cypher)
-        df = result.get_as_df()
-        if df.empty:
-            return []
+        kuzu_result = self._conn.execute(cypher)
+        df = kuzu_result.get_as_df()
+        if not df.empty:
+            for _, row in df.iterrows():
+                if as_of and not include_history:
+                    props_raw = row.get("properties")
+                    props = json.loads(props_raw) if isinstance(props_raw, str) else (props_raw or {})
+                    valid_from = props.get("valid_from")
+                    valid_to = props.get("valid_to")
+                    if valid_from and valid_from > as_of:
+                        continue
+                    if valid_to and valid_to <= as_of:
+                        continue
+                result_rows.append({
+                    "neighbor_id": row["neighbor_id"],
+                    "edge_id": row["edge_id"],
+                    "edge_type": row["edge_type"],
+                    "direction": direction if direction != "both" else "outgoing",
+                })
 
-        import json
-        filtered_rows = []
-        for _, row in df.iterrows():
-            if as_of and not include_history:
-                props_raw = row.get("properties")
-                props = json.loads(props_raw) if isinstance(props_raw, str) else (props_raw or {})
-                valid_from = props.get("valid_from")
-                valid_to = props.get("valid_to")
-                if valid_from and valid_from > as_of:
-                    continue
-                if valid_to and valid_to <= as_of:
-                    continue
-            filtered_rows.append({
-                "neighbor_id": row["neighbor_id"],
-                "edge_id": row["edge_id"],
-                "edge_type": row["edge_type"],
-                "direction": direction if direction != "both" else "outgoing",
-            })
-        return filtered_rows
+        return result_rows
+
+    async def _is_knowledge_fragment(self, node_id: str) -> bool:
+        """Return True if node_id exists in the KnowledgeFragment table."""
+        self._ensure_initialized()
+        try:
+            result = self._conn.execute(
+                "MATCH (f:KnowledgeFragment {fragment_id: $fid}) RETURN count(*) AS cnt",
+                {"fid": node_id},
+            )
+            df = result.get_as_df()
+            return not df.empty and int(df.iloc[0]["cnt"]) > 0
+        except Exception:
+            return False
+
+    async def _get_fragment_neighbors(
+        self,
+        fragment_id: str,
+        direction: str = "outgoing",
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return neighbors of a KnowledgeFragment via SUPPORTED_BY_FRAGMENT.
+
+        Returns rows with full mutual-index edge attributes so that
+        MutualIndexCollaborative can read confidence, edge_text and offsets
+        without an extra round-trip.
+        """
+        self._ensure_initialized()
+        rows: list[dict[str, Any]] = []
+        if direction not in ("outgoing", "both"):
+            return rows
+
+        try:
+            cypher = f"""
+                MATCH (f:KnowledgeFragment {{fragment_id: '{fragment_id}'}})
+                      -[r:SUPPORTED_BY_FRAGMENT]->
+                      (e:Entity)
+                RETURN e.entity_id AS neighbor_id,
+                       r.edge_type AS edge_type,
+                       r.confidence AS confidence,
+                       r.edge_text AS edge_text,
+                       r.offset_start AS offset_start,
+                       r.offset_end AS offset_end
+                LIMIT {limit}
+            """
+            result = self._conn.execute(cypher)
+            df = result.get_as_df()
+            if df.empty:
+                return rows
+            for _, row in df.iterrows():
+                rows.append({
+                    "neighbor_id": row["neighbor_id"],
+                    "edge_id": "",
+                    "edge_type": row.get("edge_type") or "SUPPORTED_BY",
+                    "direction": "outgoing",
+                    "confidence": float(row["confidence"]) if row.get("confidence") is not None else None,
+                    "edge_text": row.get("edge_text") or "",
+                    "offset_start": int(row["offset_start"]) if row.get("offset_start") is not None else 0,
+                    "offset_end": int(row["offset_end"]) if row.get("offset_end") is not None else 0,
+                })
+        except Exception as exc:
+            logger.debug("_get_fragment_neighbors failed for %s: %s", fragment_id, exc)
+        return rows
+
 
     async def find_paths(
         self,

@@ -77,13 +77,19 @@ class DedupStrategy:
         return list(seen.values())
 
     def dedup_edges(self, edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Deduplicate edges across all source pipelines.
+
+        The dedup key is (from_id, to_id, relation_name) — intentionally
+        *excluding* source_pipeline so that the same logical edge produced by
+        both AST extraction and LLM extraction is deduplicated to a single
+        edge (keeping the higher-confidence version).
+        """
         seen: dict[tuple[str, ...], dict[str, Any]] = {}
         for edge in edges:
             from_id = edge.get("from_id", "")
             to_id = edge.get("to_id", "")
             rel = edge.get("relation_name", "")
-            source = edge.get("source_pipeline", "")
-            key = (from_id, to_id, rel, source)
+            key = (from_id, to_id, rel)
             if key not in seen:
                 seen[key] = edge
             else:
