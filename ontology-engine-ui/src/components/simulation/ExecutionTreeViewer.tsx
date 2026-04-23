@@ -1,15 +1,17 @@
 // ontology_engine-ui/src/components/simulation/ExecutionTreeViewer.tsx
-import { Card, Tabs, Tag, Typography } from 'antd';
+import { Card, Tabs, Tag, Typography, Segmented } from 'antd';
 import type { ExecutionTree, ExecutableStep } from '../../types/simulation';
+import { ExecutionDAGCanvas } from './ExecutionDAGCanvas';
 
 const { Text } = Typography;
 
 interface ExecutionTreeViewerProps {
   tree: ExecutionTree;
   onStepClick?: (step: ExecutableStep) => void;
+  viewMode?: 'tabs' | 'dag';
 }
 
-export function ExecutionTreeViewer({ tree, onStepClick }: ExecutionTreeViewerProps) {
+export function ExecutionTreeViewer({ tree, onStepClick, viewMode = 'tabs' }: ExecutionTreeViewerProps) {
   const tabItems = tree.layers.map((layer, idx) => ({
     key: String(idx),
     label: `Layer ${idx} (${layer.steps.length}步)`,
@@ -45,8 +47,33 @@ export function ExecutionTreeViewer({ tree, onStepClick }: ExecutionTreeViewerPr
     ),
   }));
 
+  // DAG view mode
+  if (viewMode === 'dag') {
+    return (
+      <Card
+        title="执行树 (DAG视图)"
+        extra={
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            共 {tree.total_steps} 个步骤，{tree.rule_group_count} 个规则组
+          </Text>
+        }
+      >
+        <div style={{ height: 500 }}>
+          <ExecutionDAGCanvas tree={tree} onNodeClick={onStepClick} />
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card title="执行树">
+    <Card
+      title="执行树"
+      extra={
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          共 {tree.total_steps} 个步骤，{tree.rule_group_count} 个规则组
+        </Text>
+      }
+    >
       <Tabs items={tabItems} />
     </Card>
   );
