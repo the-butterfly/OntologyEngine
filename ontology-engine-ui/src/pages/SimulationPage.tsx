@@ -4,14 +4,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Card, Select, Input, Button, Space, Table, Tag, Empty, Spin,
-  Typography, Divider, Alert, message, Row, Col, Statistic, Badge, Tooltip
+  Typography, Divider, Alert, message, Row, Col, Statistic, Badge, Tooltip,
+  Segmented, InputNumber
 } from 'antd';
 import {
   PlayCircleOutlined, ReloadOutlined, DiffOutlined,
-  ArrowRightOutlined, ExperimentOutlined, BulbOutlined
+  ArrowRightOutlined, ExperimentOutlined, BulbOutlined, NodeIndexOutlined, ApartmentOutlined
 } from '@ant-design/icons';
 import { useSpaceStore } from '../store/spaceStore';
 import { spaceApi } from '../api/spaceApi';
+import { simulationApi } from '../api/simulation';
+import { ExecutionTreeViewer } from '../components/simulation/ExecutionTreeViewer';
+import type { ExecutionTree } from '../types/simulation';
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -40,6 +44,10 @@ export default function SimulationPage() {
   const [entityId, setEntityId] = useState<string>('');
   const [dimension, setDimension] = useState<string>('credit_assessment');
   const [overrides, setOverrides] = useState<Record<string, any>>({});
+  const [simulationMode, setSimulationMode] = useState<'whatif' | 'executiontree'>('whatif');
+  const [executionTree, setExecutionTree] = useState<ExecutionTree | null>(null);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [targetOutput, setTargetOutput] = useState<string>('final_decision');
 
   // Also load entities from view (in case activeSpaceId not set)
   const [viewEntities, setViewEntities] = useState<any[]>([]);
@@ -78,6 +86,25 @@ export default function SimulationPage() {
       return;
     }
     await executeSimulate(activeViewId, entityId, dimension, overrides);
+  };
+
+  const buildExecutionTree = async () => {
+    if (!activeSpaceId) {
+      message.warning('请先激活空间');
+      return;
+    }
+    setTreeLoading(true);
+    try {
+      const response = await simulationApi.createTree({
+        schema_id: activeSpaceId,
+        target_output: targetOutput,
+      });
+      setExecutionTree(response.execution_tree);
+    } catch (err: any) {
+      message.error(err?.message || '构建执行树失败');
+    } finally {
+      setTreeLoading(false);
+    }
   };
 
   const addOverride = (field: string, value: any) => {
@@ -129,7 +156,79 @@ export default function SimulationPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
+    <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
+      {/* Mode selector */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #e8e8e8', background: '#fff' }}>
+        <Space>
+          <Text type="secondary">模拟模式:</Text>
+          <Segmented
+            value={simulationMode}
+            onChange={(value) => setSimulationMode(value as 'whatif' | 'executiontree')}
+            options={[
+              { label: <Space><DiffOutlined />What-If 对比</Space>, value: 'whatif' },
+              { label: <Space><NodeIndexOutlined />执行树</Space>, value: 'executiontree' },
+            ]}
+          />
+        </Space>
+      </div>
+
+      {simulationMode === 'executiontree' ? (
+        /* Execution Tree Mode */
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          <Card
+            size="small"
+            title={<Space><ApartmentOutlined /><span>执行树构建</span></Space>}
+            extra={
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                onClick={buildExecutionTree}
+                loading={treeLoading}
+              >
+                构建执行树
+              </Button>
+            }
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              <div>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>目标输出 (target_output)</Text>
+                <Input
+                  placeholder="例如: final_decision"
+                  value={targetOutput}
+                  onChange={(e) => setTargetOutput(e.target.value)}
+                  style={{ width: 300 }}
+                />
+              </div>
+            </Space>
+          </Card>
+
+          {treeLoading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <Spin size="large" />
+              <div style={{ marginTop: 16 }}>构建执行树中...</div>
+            </div>
+          ) : executionTree ? (
+            <div style={{ marginTop: 16 }}>
+              <ExecutionTreeViewer tree={executionTree} />
+            </div>
+          ) : (
+            <Card style={{ marginTop: 16 }}>
+              <Empty
+                description={
+                  <span>
+                    <div style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>点击"构建执行树"开始</div>
+                    <div style={{ fontSize: 12, color: '#999' }}>
+                      系统将根据目标输出构建完整的规则执行依赖树
+                    </div>
+                  </span>
+                }
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            </Card>
+          )}
+        </div>
+      ) : (
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* Left: Input panel */}
       <div style={{
         width: 340,
@@ -461,6 +560,8 @@ export default function SimulationPage() {
           />
         )}
       </div>
+      </div>
+    )}
     </div>
   );
 }
