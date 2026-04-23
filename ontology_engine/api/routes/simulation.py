@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from ontology_engine.services.simulation_session import SessionManager, SimulationSession
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
+from ontology_engine.services.dag_executor import DAGExecutor
 from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage
 
@@ -234,39 +235,40 @@ async def _auto_fill_inputs_from_entity(
         if not entity:
             return {}
 
-        # Build mapping: L3 element id -> source.attribute
-        # We need to find all L3 elements that can be sourced from entity attributes
-        # regardless of the input type in the tree (attribute, metric, etc.)
-        l3_attribute_mapping: dict[str, str] = {}
+        # Build L3 mapping by name -> attribute path
+        l3_name_to_attr_path: dict[str, str] = {}
         for l3_element in space.layers.L3_analytical_elements:
-            element_id = l3_element.get("id", "")
+            element_name = l3_element.get("name", "")
             source = l3_element.get("source", {})
             attr_path = source.get("attribute")
-            if attr_path:
-                l3_attribute_mapping[element_id] = attr_path
+            if attr_path and element_name:
+                l3_name_to_attr_path[element_name] = attr_path
 
-        # Now find which of these L3 elements are actually needed as inputs in the tree
-        # We use the element id (not name) to match
-        required_input_ids = set()
+        # Now find which inputs are actually required based on input_requirements
+        # input_requirements uses 'name' field (not 'id')
+        required_input_names = set()
         for layer in tree.get("layers", []):
-            for step in layer.get("steps", []):
-                for inp in step.get("inputs", []):
-                    inp_id = inp.get("id", "")
-                    if inp_id:
-                        required_input_ids.add(inp_id)
+            for req in layer.get("input_requirements", []):
+                req_name = req.get("name", "")
+                if req_name:
+                    required_input_names.add(req_name)
 
-        # Auto-fill values for L3 elements that have source.attribute and are in required inputs
+        # Auto-fill values using input name as key (matching input_requirements.name)
         input_values = {}
-        for element_id, attr_path in l3_attribute_mapping.items():
-            if element_id in required_input_ids:
+        for input_name in required_input_names:
+            if input_name in l3_name_to_attr_path:
+                attr_path = l3_name_to_attr_path[input_name]
                 value = _get_nested_value(entity, attr_path)
                 if value is not None:
-                    input_values[element_id] = value
+                    input_values[input_name] = value
 
         return input_values
 
-    except Exception:
+    except Exception as e:
         # Don't fail the request if auto-fill fails, just return empty
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Auto-fill failed: {e}")
         return {}
 
 
@@ -299,4 +301,26 @@ async def _run_simulation(session: SimulationSession) -> dict[str, Any]:
     Returns:
         Simulation result dictionary
     """
-    raise NotImplementedError("Simulation execution requires DAGExecutor integration")
+    space = await _semantic_space_storage.load(session.schema_id)
+    if not space:
+        raise ValueError(f"Space {session.schema_id} not found")
+
+    # Find entity in the space
+    entity = None
+    for e in space.instances.entities:
+        if e.get("entity_id") == session.entity_id or e.get("id") == session.entity_id:
+            entity = dict(e)
+            break
+
+    if not entity:
+        raise ValueError(f"Entity {session.entity_id} not found")
+
+    # Execute the rule tree using DAGExecutor
+    executor = DAGExecutor(space)
+    result = await executor.execute(
+        execution_tree=session.execution_tree,
+        entity_data=entity,
+        input_overrides=session.current_inputs,
+    )
+
+    return result
