@@ -1,8 +1,10 @@
 // ontology-engine-ui/src/components/simulation/SimulationPanel.tsx
-import { useState, useCallback } from 'react';
-import { Card, Button, Space, message, Empty } from 'antd';
+import { useState, useCallback, useEffect } from 'react';
+import { Card, Button, Space, message, Empty, Select, Spin } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { simulationApi } from '../../api/simulation';
+import { spaceApi } from '../../api/spaceApi';
+import type { EntityInstance } from '../../api/spaceApi';
 import { ExecutionTreeViewer } from './ExecutionTreeViewer';
 import { InputValuesForm } from './InputValuesForm';
 import { SimulationResultPanel } from './SimulationResultPanel';
@@ -31,6 +33,39 @@ export function SimulationPanel({
   const [inputValues, setInputValues] = useState<Record<string, unknown>>({});
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Available options for dropdowns
+  const [availableEntities, setAvailableEntities] = useState<EntityInstance[]>([]);
+  const [availableOutputs, setAvailableOutputs] = useState<string[]>([]);
+  const [entitiesLoading, setEntitiesLoading] = useState(false);
+
+  // Fetch entities on mount or when schemaId changes
+  useEffect(() => {
+    if (schemaId) {
+      setEntitiesLoading(true);
+      spaceApi.listViewEntities(schemaId)
+        .then(data => {
+          setAvailableEntities(data);
+          setEntitiesLoading(false);
+        })
+        .catch(() => {
+          setEntitiesLoading(false);
+        });
+    }
+  }, [schemaId]);
+
+  // Extract available outputs from execution tree when available
+  useEffect(() => {
+    if (executionTree) {
+      const outputs = new Set<string>();
+      executionTree.layers.forEach(layer => {
+        layer.steps.forEach(step => {
+          step.output_names.forEach(name => outputs.add(name));
+        });
+      });
+      setAvailableOutputs(Array.from(outputs).sort());
+    }
+  }, [executionTree]);
 
   const createSession = async () => {
     if (!schemaId || !targetOutput) {
@@ -88,20 +123,36 @@ export function SimulationPanel({
         <Space wrap>
           <div>
             <label>目标输出: </label>
-            <input
+            <Select
               value={targetOutput}
-              onChange={(e) => setTargetOutput(e.target.value)}
-              placeholder="如: decision"
-              style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: 4 }}
+              onChange={(value) => setTargetOutput(value)}
+              placeholder="选择或输入目标输出"
+              style={{ width: 200 }}
+              showSearch
+              allowClear
+              options={availableOutputs.map(o => ({ value: o, label: o }))}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </div>
           <div>
             <label>实体ID: </label>
-            <input
+            <Select
               value={entityId}
-              onChange={(e) => setEntityId(e.target.value)}
-              placeholder="可选"
-              style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: 4 }}
+              onChange={(value) => setEntityId(value || '')}
+              placeholder="选择实体（可选）"
+              style={{ width: 200 }}
+              showSearch
+              allowClear
+              loading={entitiesLoading}
+              options={availableEntities.map(e => ({
+                value: e.entity_id,
+                label: `${e.entity_id} (${e._concept})`
+              }))}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </div>
           <Button
