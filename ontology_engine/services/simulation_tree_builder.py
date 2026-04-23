@@ -38,18 +38,25 @@ class RuleTreeBuilder:
         }
     """
 
-    def __init__(self, rule_service=None, semantic_space_storage=None):
+    def __init__(self, rule_service=None, semantic_space_storage=None, rule_locator=None):
         """Initialize RuleTreeBuilder.
 
         Args:
             rule_service: RuleService instance for locating rule groups (legacy).
                          If None and semantic_space_storage is provided, will use RuleLocator.
             semantic_space_storage: Storage instance for accessing SemanticSpace L4 layer.
-                                   If provided, _locate_by_output will use RuleLocator.
+                                   Ignored if rule_locator is provided.
+            rule_locator: Optional RuleLocator instance for dependency injection.
+                         If provided, used directly instead of creating one internally.
         """
         self._rule_service = rule_service
         self._semantic_space_storage = semantic_space_storage
-        self._rule_locator = RuleLocator(semantic_space_storage) if semantic_space_storage else None
+        if rule_locator:
+            self._rule_locator = rule_locator
+        elif semantic_space_storage:
+            self._rule_locator = RuleLocator(semantic_space_storage)
+        else:
+            self._rule_locator = None
 
     async def build_tree(
         self,
