@@ -19,7 +19,7 @@ from ontology_engine.core.semantic_space import (
     SemanticSpaceStorage,
 )
 from ontology_engine.services.simulation_service import SimulationService
-from ontology_engine.engine.rule.dependency_analyzer import DependencyAnalyzer
+from ontology_engine.services.simulation_orchestrator import SimulationOrchestrator
 
 router = APIRouter(prefix="/v1", tags=["Consumption"])
 
@@ -1001,9 +1001,9 @@ async def _run_full_analysis(
 
     # Build dependency graph
     try:
-        _analyzer = DependencyAnalyzer()
-        graph = _analyzer.build(enabled_rules)
-        rule_levels = _analyzer.compute_levels(graph)
+        _orchestrator = SimulationOrchestrator(SemanticSpaceStorage())
+        result = await _orchestrator.analyze_dependencies(enabled_rules)
+        rule_levels = result["levels"]
     except ValueError as e:
         # Circular dependency detected - fall back to priority-only ordering
         import logging
