@@ -236,8 +236,8 @@ class TestSharedServiceUsage:
         assert "layers" in tree
         assert "total_steps" in tree
         # The actual space_supply_chain_finance has multiple layers when building tree for final_decision
-        assert len(tree["layers"]) >= 1, f"Expected 1+ layers, got {len(tree['layers'])}"
-        assert tree["total_steps"] >= 1, f"Expected 1+ total_steps, got {tree['total_steps']}"
+        assert len(tree["layers"]) >= 3, f"Expected 3+ layers, got {len(tree['layers'])}"
+        assert tree["total_steps"] >= 4, f"Expected 4+ total_steps, got {tree['total_steps']}"
 
     @pytest.mark.asyncio
     async def test_rule_locator_by_output_with_real_space(self):
@@ -303,7 +303,7 @@ class TestSharedServiceUsage:
         )
 
         # Verify layer 0 contains the comprehensive credit decision rule group
-        assert len(tree["layers"]) >= 1, f"Expected at least 1 layer, got {len(tree['layers'])}"
+        assert len(tree["layers"]) >= 3, f"Expected 3+ layers, got {len(tree['layers'])}"
         layer_0_rule_groups = tree["layers"][0]["rule_groups"]
         assert any("综合授信决策" in rg or "综合" in rg for rg in layer_0_rule_groups), \
             f"Expected '综合授信决策' or '综合' in layer 0 rule groups, got {layer_0_rule_groups}"
