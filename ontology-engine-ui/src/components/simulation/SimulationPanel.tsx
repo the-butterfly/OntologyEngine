@@ -1,11 +1,12 @@
 // ontology-engine-ui/src/components/simulation/SimulationPanel.tsx
 import { useState, useCallback, useEffect } from 'react';
-import { Card, Button, Space, message, Empty, Select, Spin } from 'antd';
+import { Card, Button, Space, message, Empty, Select, Spin, Radio } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { simulationApi } from '../../api/simulation';
 import { spaceApi } from '../../api/spaceApi';
 import type { EntityInstance } from '../../api/spaceApi';
 import { ExecutionTreeViewer } from './ExecutionTreeViewer';
+import { ExecutionDAGCanvas } from './ExecutionDAGCanvas';
 import { InputValuesForm } from './InputValuesForm';
 import { SimulationResultPanel } from './SimulationResultPanel';
 import type { ExecutionTree, SimulationResult } from '../../types/simulation';
@@ -33,6 +34,7 @@ export function SimulationPanel({
   const [inputValues, setInputValues] = useState<Record<string, unknown>>({});
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'tabs' | 'dag'>('tabs');
 
   // Available options for dropdowns
   const [availableEntities, setAvailableEntities] = useState<EntityInstance[]>([]);
@@ -169,10 +171,25 @@ export function SimulationPanel({
 
       {/* Execution Tree */}
       {executionTree && (
-        <ExecutionTreeViewer
-          tree={executionTree}
-          onStepClick={() => {}}
-        />
+        <>
+          <Card>
+            <Space>
+              <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+                <Radio.Button value="tabs">分层视图</Radio.Button>
+                <Radio.Button value="dag">DAG 图</Radio.Button>
+              </Radio.Group>
+            </Space>
+          </Card>
+          {viewMode === 'tabs' && (
+            <ExecutionTreeViewer
+              tree={executionTree}
+              onStepClick={() => {}}
+            />
+          )}
+          {viewMode === 'dag' && (
+            <ExecutionDAGCanvas tree={executionTree} />
+          )}
+        </>
       )}
 
       {/* Input Values */}
