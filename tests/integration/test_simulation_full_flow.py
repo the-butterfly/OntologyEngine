@@ -307,3 +307,106 @@ class TestSharedServiceUsage:
         layer_0_rule_groups = tree["layers"][0]["rule_groups"]
         assert any("综合授信决策" in rg or "综合" in rg for rg in layer_0_rule_groups), \
             f"Expected '综合授信决策' or '综合' in layer 0 rule groups, got {layer_0_rule_groups}"
+
+
+class TestSimulationAutoFill:
+    """Tests for simulation API auto-fill functionality.
+
+    Verifies that when entity_id is provided, the API auto-fills current_inputs
+    from the entity's attributes based on L3 analytical element source mappings.
+    """
+
+    @pytest.mark.asyncio
+    async def test_simulation_tree_api_auto_fills_entity_attributes(self, tmp_path):
+        """Test POST /v1/simulation/tree auto-fills current_inputs from entity.
+
+        When entity_id is provided, the API should:
+        1. Load the space
+        2. Find the entity
+        3. Extract L3 element values via source.attribute mapping
+        4. Pre-fill current_inputs in the response
+        """
+        from ontology_engine.api.routes import simulation as sim_module
+        from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
+
+        # Create test space with entities that have matching attributes
+        storage = SemanticSpaceStorage(base_path=str(tmp_path / "spaces"))
+        test_space = _make_test_space()
+        await storage.save(test_space)
+
+        # Override simulation module storage AND tree builder
+        # (tree builder holds reference to original storage)
+        original_storage = sim_module._semantic_space_storage
+        original_builder = sim_module._tree_builder
+        sim_module._semantic_space_storage = storage
+        sim_module._tree_builder = RuleTreeBuilder(semantic_space_storage=storage)
+
+        try:
+            # Create app and client
+            application = create_app()
+            transport = ASGITransport(app=application)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                # Call with entity_id = SUP_SIM_FLOW_001
+                resp = await client.post(
+                    "/v1/simulation/tree",
+                    json={
+                        "schema_id": VIEW_ID,
+                        "entity_id": ENTITY_ID,
+                        "target_output": "final_decision",
+                    },
+                )
+                assert resp.status_code == 200
+                body = resp.json()
+                assert body["success"] is True
+
+                data = body["data"]
+                assert "session_id" in data
+                assert "execution_tree" in data
+
+                # Verify current_inputs is auto-filled
+                # The test space has L3 elements: credit_score and transaction_count
+                # with source.attribute pointing to entity fields
+                # credit_score is required for final_decision, transaction_count is not
+                current_inputs = data.get("current_inputs", {})
+                assert "credit_score" in current_inputs, f"Expected credit_score in current_inputs, got {current_inputs}"
+                assert current_inputs["credit_score"] == 750, f"Expected credit_score=750, got {current_inputs['credit_score']}"
+                # transaction_count is NOT auto-filled because it's not a dependency for final_decision
+                # (it's only used as input to R001 which produces credit_score)
+        finally:
+            sim_module._semantic_space_storage = original_storage
+            sim_module._tree_builder = original_builder
+
+    @pytest.mark.asyncio
+    async def test_simulation_tree_api_without_entity_id_returns_empty_inputs(self, tmp_path):
+        """Test POST /v1/simulation/tree without entity_id returns empty current_inputs."""
+        from ontology_engine.api.routes import simulation as sim_module
+
+        storage = SemanticSpaceStorage(base_path=str(tmp_path / "spaces"))
+        test_space = _make_test_space()
+        await storage.save(test_space)
+
+        original_storage = sim_module._semantic_space_storage
+        sim_module._semantic_space_storage = storage
+
+        try:
+            application = create_app()
+            transport = ASGITransport(app=application)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                # Call without entity_id
+                resp = await client.post(
+                    "/v1/simulation/tree",
+                    json={
+                        "schema_id": VIEW_ID,
+                        "target_output": "final_decision",
+                    },
+                )
+                assert resp.status_code == 200
+                body = resp.json()
+                assert body["success"] is True
+
+                data = body["data"]
+                current_inputs = data.get("current_inputs", {})
+                # Without entity_id, no auto-fill should happen
+                assert current_inputs == {}, f"Expected empty current_inputs, got {current_inputs}"
+        finally:
+            sim_module._semantic_space_storage = original_storage
