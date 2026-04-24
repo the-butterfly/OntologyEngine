@@ -1,17 +1,6 @@
 """Space management MCP tools."""
 
-import uuid
-
-from ontology_engine.mcp import mcp_response
-from ontology_engine.core.semantic_space import (
-    SemanticSpace,
-    SemanticSpaceLayers,
-    SpaceInstances,
-    L4BusinessLogic,
-    SpaceMetadata,
-    SpaceStatus,
-    SemanticSpaceStorage,
-)
+from ontology_engine.mcp import mcp_response, get_service
 
 
 async def oe_create_space(
@@ -19,81 +8,99 @@ async def oe_create_space(
     description: str | None = None,
     domain: str | None = None,
 ) -> dict:
-    """创建语义空间（Semantic Space）.
+    """Create a new semantic space.
+
+    Creates a semantic space in DRAFT status. After creation, load a schema
+    via oe_load_schema and activate via oe_activate_space before running analysis.
 
     Parameters:
-        name: 空间名称
-        description: 空间描述
-        domain: 业务领域
+        name: Space name (e.g., "Supply Chain Finance")
+        description: Space description
+        domain: Business domain (e.g., "finance", "compliance")
 
     Returns:
-        MCP 统一格式: {success, data, error}
+        MCP unified format: {success, data, error}
+        data contains: space_id, name, description, domain, status
     """
     try:
-        storage = SemanticSpaceStorage()
-        space_id = f"space_{uuid.uuid4().hex[:8]}"
-
-        metadata = SpaceMetadata(
-            id=space_id,
-            name=name,
-            description=description,
-            domain=domain,
-            status=SpaceStatus.DRAFT,
+        space_service = get_service("space")
+        result = await space_service.create_space(
+            name=name, description=description, domain=domain,
         )
-
-        space = SemanticSpace(
-            metadata=metadata,
-            layers=SemanticSpaceLayers(L4_business_logic=L4BusinessLogic()),
-            instances=SpaceInstances(),
-        )
-
-        await storage.save(space)
-        loaded = await storage.load(space_id)
-        if not loaded:
-            return mcp_response(success=False, error="Failed to load created space")
-
+        return mcp_response(success=True, data=result)
+    except RuntimeError as e:
         return mcp_response(
-            success=True,
-            data={
-                "space_id": loaded.metadata.id,
-                "name": loaded.metadata.name,
-                "description": loaded.metadata.description,
-                "domain": loaded.metadata.domain,
-                "status": loaded.metadata.status.value,
-            },
+            success=False,
+            error={"code": "DEPS_NOT_INITIALIZED", "message": str(e)},
         )
     except Exception as e:
-        return mcp_response(success=False, error=str(e))
+        return mcp_response(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)},
+        )
+
+
+async def oe_list_spaces() -> dict:
+    """List all semantic spaces.
+
+    Returns a summary of all spaces including their IDs, names, statuses,
+    and entity counts. Use this to discover available spaces before
+    calling other tools.
+
+    Returns:
+        MCP unified format: {success, data, error}
+        data contains: spaces (list of {space_id, name, status, domain})
+    """
+    try:
+        space_service = get_service("space")
+        spaces = await space_service.list_spaces()
+        return mcp_response(success=True, data={"spaces": spaces, "total": len(spaces)})
+    except RuntimeError as e:
+        return mcp_response(
+            success=False,
+            error={"code": "DEPS_NOT_INITIALIZED", "message": str(e)},
+        )
+    except Exception as e:
+        return mcp_response(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)},
+        )
 
 
 async def oe_load_schema(space_id: str) -> dict:
-    """加载语义空间的 Schema.
+    """Load schema overview for a semantic space.
+
+    Returns a summary of all four schema layers (L1-L4) including
+    fact object counts, categorization dimensions, analytical metrics,
+    and rule definitions.
 
     Parameters:
-        space_id: 空间 ID
+        space_id: Space ID (e.g., "space_supply_chain_finance")
 
     Returns:
-        MCP 统一格式: {success, data, error}
+        MCP unified format: {success, data, error}
+        data contains: space_id, name, active_version, layers (L1-L4 summaries)
     """
     try:
-        storage = SemanticSpaceStorage()
-        space = await storage.load(space_id)
-        if not space:
-            return mcp_response(success=False, error=f"Space {space_id} not found")
-
-        return mcp_response(
-            success=True,
-            data={
-                "space_id": space.metadata.id,
-                "name": space.metadata.name,
-                "active_version": space.active_version,
-                "layers": {
-                    "L4": {
-                        "rule_definitions": len(space.layers.L4_business_logic.rule_definitions),
-                        "rule_logics": len(space.layers.L4_business_logic.rule_logics),
-                    }
+        space_service = get_service("space")
+        result = await space_service.get_schema_overview(space_id)
+        if not result:
+            return mcp_response(
+                success=False,
+                error={
+                    "code": "SPACE_NOT_FOUND",
+                    "message": f"Space '{space_id}' not found",
+                    "suggestion": "Use oe_list_spaces to find available spaces",
                 },
-            },
+            )
+        return mcp_response(success=True, data=result)
+    except RuntimeError as e:
+        return mcp_response(
+            success=False,
+            error={"code": "DEPS_NOT_INITIALIZED", "message": str(e)},
         )
     except Exception as e:
-        return mcp_response(success=False, error=str(e))
+        return mcp_response(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)},
+        )

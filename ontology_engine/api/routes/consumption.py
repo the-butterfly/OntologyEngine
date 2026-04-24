@@ -106,7 +106,7 @@ async def get_view(view_id: str):
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     if space.metadata.space_type != SpaceType.CONSUMPTION:
         return error_response(code="NOT_FOUND", message=f"{view_id} is not a consumption view")
@@ -140,7 +140,7 @@ async def list_view_entities(
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     entities = space.instances.entities
     if concept:
@@ -164,7 +164,7 @@ async def get_schema_graph(
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     nodes = []
     edges = []
@@ -331,7 +331,7 @@ async def get_rule_dependency_graph(view_id: str):
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     rules = space.layers.L4_business_logic.rule_definitions
     rule_logics = space.layers.L4_business_logic.rule_logics
@@ -483,7 +483,7 @@ async def get_rules_for_entity(
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     # Find the entity
     entity = next((e for e in space.instances.entities if e.get("entity_id") == entity_id), None)
@@ -595,7 +595,7 @@ async def get_metric_snapshot(
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     entity = next(
         (e for e in space.instances.entities if e.get("entity_id") == entity_id),
@@ -629,7 +629,7 @@ async def execute_analyze(view_id: str, request: ExecuteAnalyzeRequest):
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     entity = next(
         (e for e in space.instances.entities if e.get("entity_id") == request.entity_id),
@@ -650,7 +650,7 @@ async def execute_simulate(view_id: str, request: ExecuteSimulateRequest):
     space = await storage.load(view_id)
 
     if not space:
-        return error_response(code="NOT_FOUND", message=f"View {view_id} not found")
+        return error_response(code="NOT_FOUND", message=f"View {view_id} not found", suggestion="Use GET /v1/views to list available views")
 
     entity = next(
         (e for e in space.instances.entities if e.get("entity_id") == request.entity_id),

@@ -179,18 +179,21 @@ class SemanticSpaceStorage:
         self,
         space_id: str,
         target_version: int,
+        *,
+        space: SemanticSpace | None = None,
     ) -> SemanticSpace | None:
         """Rollback a space to a previous version.
 
         Args:
             space_id: The space ID
             target_version: The version to rollback to
+            space: Pre-loaded space object to avoid redundant load
 
         Returns:
             The restored space or None if not found
         """
-        # Load the space first
-        space = await self.load(space_id)
+        if space is None:
+            space = await self.load(space_id)
         if not space:
             return None
 
@@ -231,6 +234,46 @@ class SemanticSpaceStorage:
         await self.save(restored_space)
 
         return restored_space
+
+    async def load_version(
+        self,
+        space_id: str,
+        version: int,
+        *,
+        space: SemanticSpace | None = None,
+    ) -> SemanticSpace | None:
+        """Load a specific version snapshot without rolling back.
+
+        Args:
+            space_id: The space ID
+            version: The version number to load
+            space: Pre-loaded space object to avoid redundant load
+
+        Returns:
+            The space at the given version, or None if not found
+        """
+        if space is None:
+            space = await self.load(space_id)
+        if not space:
+            return None
+
+        target = next(
+            (v for v in space.versions if v.version == version),
+            None,
+        )
+        if not target or not target.snapshot_path:
+            return None
+
+        snapshot_path = Path(target.snapshot_path)
+        if not snapshot_path.exists():
+            return None
+
+        try:
+            with open(snapshot_path, encoding="utf-8") as f:
+                data = json.load(f)
+            return SemanticSpace.model_validate(data)
+        except Exception:
+            return None
 
     async def exists(self, space_id: str) -> bool:
         """Check if a space exists.
