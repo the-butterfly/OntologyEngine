@@ -9,7 +9,13 @@ dependencies = [
     "simpleeval>=0.9.13",
     "asteval>=0.9.29",
     "mcp>=1.0.0",
+    "typer>=0.9.0",
+    "rich>=13.0",
+    "httpx>=0.25.0",
 ]
+
+[project.scripts]
+ontology-cli = "ontology_engine.cli.main:app"
 
 [project.optional-dependencies]
 dev = [

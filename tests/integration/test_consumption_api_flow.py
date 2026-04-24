@@ -172,7 +172,7 @@ class TestGetView:
     @pytest.mark.asyncio
     async def test_get_nonexistent_view(self, client):
         resp = await client.get("/v1/views/view_nonexistent")
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
         assert "NOT_FOUND" in body["error"]["code"]
@@ -250,7 +250,7 @@ class TestRuleDependencyGraph:
     @pytest.mark.asyncio
     async def test_dependency_graph_nonexistent_view(self, client):
         resp = await client.get("/v1/views/view_nonexistent/rules/dependency-graph")
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
 
@@ -294,7 +294,7 @@ class TestExecuteAnalyze:
             f"/v1/views/{VIEW_ID}/execute/analyze",
             json={"entity_id": "NONEXISTENT", "dimension": "credit_assessment"},
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
         assert "NOT_FOUND" in body["error"]["code"]
@@ -305,7 +305,7 @@ class TestExecuteAnalyze:
             "/v1/views/view_nonexistent/execute/analyze",
             json={"entity_id": ENTITY_ID, "dimension": "credit_assessment"},
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
 
@@ -351,7 +351,7 @@ class TestExecuteSimulate:
             f"/v1/views/{VIEW_ID}/execute/simulate",
             json={"entity_id": "NONEXISTENT", "dimension": "credit_assessment"},
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
 
@@ -372,7 +372,7 @@ class TestRulesForEntity:
     @pytest.mark.asyncio
     async def test_rules_for_nonexistent_entity(self, client):
         resp = await client.get(f"/v1/views/{VIEW_ID}/rules/for-entity/NONEXISTENT")
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
 
@@ -392,6 +392,6 @@ class TestMetricSnapshot:
     @pytest.mark.asyncio
     async def test_metric_snapshot_nonexistent_entity(self, client):
         resp = await client.get(f"/v1/views/{VIEW_ID}/metrics/NONEXISTENT/snapshot")
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         body = resp.json()
         assert body["success"] is False
