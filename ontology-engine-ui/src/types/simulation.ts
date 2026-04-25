@@ -45,7 +45,7 @@ export interface ExecutableStep {
 
 export interface InputRequirement {
   name: string;
-  type: 'attribute' | 'metric' | 'flag';
+  type: 'attribute' | 'metric' | 'flag' | 'computed_value' | 'alert';
   required: boolean;
   default_value?: unknown;
   description?: string;
