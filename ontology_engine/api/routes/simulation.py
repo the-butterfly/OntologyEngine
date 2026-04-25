@@ -138,17 +138,23 @@ async def update_simulation_inputs(session_id: str, body: UpdateSimulationReques
         partial=not body.full_override,
     )
 
-    # Check if all required inputs are filled
     missing = _get_missing_inputs(session)
     result = None
+    simulation_error = None
     if not missing and session.execution_tree.get("total_steps", 0) > 0:
-        result = await _run_simulation(session)
+        try:
+            result = await _run_simulation(session)
+        except ValueError as e:
+            simulation_error = str(e)
+        except Exception as e:
+            simulation_error = f"Simulation execution failed: {type(e).__name__}: {e}"
 
     return success_response(data={
         "session_id": session_id,
         "updated_inputs": session.current_inputs,
         "result": result,
         "missing_inputs": missing,
+        "simulation_error": simulation_error,
     })
 
 
@@ -175,14 +181,16 @@ def _extract_required_inputs(tree: dict) -> list[str]:
         tree: Execution tree dictionary
 
     Returns:
-        List of required input attribute names
+        List of required input IDs (using 'id' field for consistency)
     """
     inputs = []
     for layer in tree.get("layers", []):
         for step in layer.get("steps", []):
             for inp in step.get("inputs", []):
-                if inp.get("type") == "attribute" and inp.get("name") not in inputs:
-                    inputs.append(inp["name"])
+                inp_id = inp.get("id") if isinstance(inp, dict) else inp
+                inp_type = inp.get("type", "attribute") if isinstance(inp, dict) else "attribute"
+                if inp_type == "attribute" and inp_id and inp_id not in inputs:
+                    inputs.append(inp_id)
     return inputs
 
 
@@ -254,13 +262,27 @@ async def _auto_fill_inputs_from_entity(
                     required_input_names.add(req_name)
 
         # Auto-fill values using input name as key (matching input_requirements.name)
+        # Strategy 1: Try L3 analytical element source.attribute mapping
+        # Strategy 2: Fallback to direct entity attribute lookup
         input_values = {}
         for input_name in required_input_names:
+            # Strategy 1: L3 mapping
             if input_name in l3_name_to_attr_path:
                 attr_path = l3_name_to_attr_path[input_name]
                 value = _get_nested_value(entity, attr_path)
                 if value is not None:
                     input_values[input_name] = value
+                    continue
+
+            # Strategy 2: Direct entity attribute lookup
+            # Handle nested objects with .value (e.g., registered_capital: {value: 50000000, currency: "CNY"})
+            if input_name in entity:
+                raw_value = entity[input_name]
+                if raw_value is not None:
+                    if isinstance(raw_value, dict) and 'value' in raw_value:
+                        input_values[input_name] = raw_value['value']
+                    else:
+                        input_values[input_name] = raw_value
 
         return input_values
 
@@ -299,8 +321,12 @@ async def _run_simulation(session: SimulationSession) -> dict[str, Any]:
         session: SimulationSession with all required inputs filled
 
     Returns:
-        Simulation result dictionary
+        Simulation result dictionary matching frontend SimulationResult type
     """
+    import time
+
+    start_time = time.time()
+
     space = await _semantic_space_storage.load(session.schema_id)
     if not space:
         raise ValueError(f"Space {session.schema_id} not found")
@@ -317,10 +343,49 @@ async def _run_simulation(session: SimulationSession) -> dict[str, Any]:
 
     # Execute the rule tree using DAGExecutor
     executor = DAGExecutor(space)
-    result = await executor.execute(
+    raw_result = await executor.execute(
         execution_tree=session.execution_tree,
         entity_data=entity,
         input_overrides=session.current_inputs,
     )
+
+    execution_time_ms = int((time.time() - start_time) * 1000)
+
+    # Convert to frontend SimulationResult format
+    # Flatten step_results from layer structure to flat steps list
+    steps = []
+    for layer_result in raw_result.get("step_results", []):
+        layer_index = layer_result.get("layer_index", 0)
+        for step_result in layer_result.get("step_results", []):
+            step_result["layer_index"] = layer_index
+            steps.append(step_result)
+
+    # Build alerts from step results
+    alerts = []
+    for step in steps:
+        if step.get("action_taken") == "alert":
+            alerts.append({
+                "level": "warning",
+                "type": "rule_alert",
+                "message": f"Alert from {step['step_name']}: {step.get('output', {})}",
+                "source_step": step["step_id"],
+            })
+
+    # Build errors list
+    errors = raw_result.get("errors") or []
+    if not isinstance(errors, list):
+        errors = [errors] if errors else []
+
+    result = {
+        "session_id": session.session_id,
+        "final_output": raw_result.get("final_outputs", {}),
+        "steps": steps,
+        "alerts": alerts,
+        "errors": errors,
+        "execution_time_ms": execution_time_ms,
+    }
+
+    # Store result in session
+    session.current_result = result
 
     return result

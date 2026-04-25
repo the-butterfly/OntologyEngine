@@ -21,10 +21,11 @@ export default function SimulationEmbedPage({
 }: SimulationEmbedPageProps) {
   const [searchParams] = useSearchParams();
 
-  // URL params take precedence over props
   const schemaId = searchParams.get('schemaId') || initialSchemaId || '';
   const entityId = searchParams.get('entityId') || initialEntityId;
   const targetOutput = searchParams.get('targetOutput') || initialTargetOutput || '';
+
+  const hasUrlParams = Boolean(searchParams.get('targetOutput') || initialTargetOutput);
 
   return (
     <SimulationProvider schemaId={schemaId}>
@@ -33,6 +34,7 @@ export default function SimulationEmbedPage({
           initialSchemaId={schemaId}
           initialEntityId={entityId}
           initialTargetOutput={targetOutput}
+          autoBuild={hasUrlParams}
           onResultChange={onResultChange}
           onError={onError}
         />
