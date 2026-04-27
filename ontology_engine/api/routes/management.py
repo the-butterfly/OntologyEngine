@@ -1245,6 +1245,7 @@ async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYaml
         entity_dict = {
             "entity_id": eid,
             "_fact_object": entity._fact_object,
+            "_concept": entity._fact_object,
         }
         # Add all attributes from data dict
         if hasattr(entity, 'data') and entity.data:
@@ -1261,7 +1262,8 @@ async def load_instances_from_yaml(space_id: str, request: LoadInstancesFromYaml
         rel_dict = {
             "from_entity_id": relation.from_entity_id,
             "to_entity_id": relation.to_entity_id,
-            "relation_type": relation.relation_type,
+            "relation_type": relation.relation_name,
+            "relation_name": relation.relation_name,
         }
         if hasattr(relation, 'data') and relation.data:
             rel_dict.update(relation.data)

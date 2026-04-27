@@ -572,6 +572,67 @@ class KGMLSchema(BaseModel):
             return self.business_logic.rule_logics
         return []
 
+    def get_entity_id_field(self, concept_name: str) -> str | None:
+        """Discover the ID field for a concept from schema declarations.
+
+        Strategy:
+        1. Find the unique+required attribute in the concept definition
+        2. Search in fact_objects.relations (for relation objects like GuaranteeRelation)
+        3. Convention fallback: {concept_lower}_id or {concept_lower}_no
+
+        Args:
+            concept_name: The concept/fact_object/relation_object name
+
+        Returns:
+            The ID field name, or None if not discoverable
+        """
+        concept = self.get_concept(concept_name)
+        if concept:
+            for attr in concept.attributes:
+                if attr.unique and attr.required:
+                    return attr.name
+            for attr in concept.attributes:
+                if attr.unique:
+                    return attr.name
+
+        if self.fact_objects and self.fact_objects.relations:
+            for rel_def in self.fact_objects.relations:
+                if rel_def.name == concept_name:
+                    name = concept_name
+                    if name.endswith("Relation"):
+                        base = name[:-8].lower()
+                        return f"{base}_id"
+                    lower = concept_name.lower()
+                    return f"{lower}_id"
+
+        lower = concept_name.lower()
+        convention_candidates = [f"{lower}_id", f"{lower}_no"]
+        if concept:
+            attr_names = {a.name for a in concept.attributes}
+            for candidate in convention_candidates:
+                if candidate in attr_names:
+                    return candidate
+
+        return None
+
+    def get_all_concept_names(self) -> list[str]:
+        """Get all concept/fact_object names from schema."""
+        return [c.name for c in self.concepts]
+
+    def get_relation_names_for_concept(self, concept_name: str) -> list[str]:
+        """Get all relation names declared for a concept."""
+        concept = self.get_concept(concept_name)
+        if concept:
+            return [r.name for r in concept.relations]
+        return []
+
+    def get_first_relation_name(self) -> str | None:
+        """Get the first relation name from any concept, for default fallback."""
+        for concept in self.concepts:
+            if concept.relations:
+                return concept.relations[0].name
+        return None
+
     def to_space_layers_dict(self) -> dict:
         """Convert KGMLSchema to dict format compatible with SemanticSpaceLayers.
 

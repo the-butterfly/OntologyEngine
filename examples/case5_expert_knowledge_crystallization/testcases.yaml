@@ -1,0 +1,154 @@
+# ============================================================
+# 专家经验规则化 — 验收用例规格
+# ============================================================
+
+test_suite:
+  id: "expert_knowledge_crystallization_v1"
+  name: "专家经验规则化验收套件"
+  schema: "examples/case5_expert_knowledge_crystallization/schema.yaml"
+  instances: "examples/case5_expert_knowledge_crystallization/instances.yaml"
+
+test_cases:
+
+  - id: TC-301
+    name: "担保链+舆情组合规则命中验证"
+    entity_id: "SUP_R001"
+    categorization: risk_watchlist
+    tags: [smoke, rule_execution, expert_observation]
+
+    expected_rule_steps:
+      - rule_id: RD301_guarantee_depth_news_check
+        logic_id: RL301_v1
+        fired: true
+        condition_result: true
+        output:
+          is_high_risk: true
+
+    expected_output:
+      is_high_risk: true
+      reason: "担保链深度=5>=4 且 负面舆情=3>=2"
+
+  - id: TC-302
+    name: "担保链+舆情组合规则边界验证"
+    entity_id: "SUP_R002"
+    categorization: risk_watchlist
+    tags: [boundary, rule_execution]
+
+    expected_rule_steps:
+      - rule_id: RD301_guarantee_depth_news_check
+        logic_id: RL301_v1
+        fired: true
+        condition_result: true
+        output:
+          is_high_risk: true
+
+    expected_output:
+      is_high_risk: true
+      reason: "担保链深度=4>=4 且 负面舆情=2>=2（边界值）"
+
+  - id: TC-303
+    name: "担保链+舆情组合规则未命中验证"
+    entity_id: "SUP_R004"
+    categorization: risk_watchlist
+    tags: [negative_case, rule_execution]
+
+    expected_rule_steps:
+      - rule_id: RD301_guarantee_depth_news_check
+        logic_id: RL301_v1
+        fired: true
+        condition_result: false
+        output:
+          is_high_risk: false
+
+    expected_output:
+      is_high_risk: false
+      reason: "担保链深度=4>=4 但 负面舆情=1<2，不满足组合条件"
+
+  - id: TC-304
+    name: "逾期+担保链组合规则命中验证"
+    entity_id: "SUP_R001"
+    categorization: risk_watchlist
+    tags: [rule_execution, overdue_chain]
+
+    expected_rule_steps:
+      - rule_id: RD302_overdue_chain_check
+        logic_id: RL302_v1
+        fired: true
+        condition_result: true
+        output:
+          is_high_risk: true
+
+    expected_output:
+      is_high_risk: true
+      reason: "逾期率=18.5%>=10% 且 担保链深度=5>=3"
+
+  - id: TC-305
+    name: "综合风险评分计算"
+    entity_id: "SUP_R001"
+    categorization: risk_watchlist
+    tags: [metric_computation, composite_score]
+
+    expected_metrics:
+      guarantee_depth_risk:
+        value: 30
+      news_risk:
+        value: 30
+      composite_risk_score:
+        value: 79.0
+        tolerance: 5.0
+
+    expected_output:
+      composite_risk_score_gte: 60
+      risk_level: "CRITICAL"
+
+  - id: TC-306
+    name: "低风险供应商验证"
+    entity_id: "SUP_R006"
+    categorization: risk_watchlist
+    tags: [negative_case, healthy_supplier]
+
+    expected_rule_steps:
+      - rule_id: RD301_guarantee_depth_news_check
+        logic_id: RL301_v1
+        fired: true
+        condition_result: false
+        output:
+          is_high_risk: false
+
+    expected_output:
+      is_high_risk: false
+      composite_risk_score_lt: 20
+
+  - id: TC-307
+    name: "专家观察到候选规则的映射完整性"
+    entity_id: "CAND-GUARANTEE-NEWS-001"
+    categorization: risk_pattern_review
+    tags: [knowledge_asset, traceability]
+
+    expected_output:
+      candidate_rule_id: "CAND-GUARANTEE-NEWS-001"
+      supporting_observations: 2
+      review_status: "APPROVED"
+      mapped_to_rule_definition: "RD301_guarantee_depth_news_check"
+      mapped_to_rule_logic: "RL301_v1"
+      trace_to_expert: ["OBS-ZHANG-20260412", "OBS-LI-20260413"]
+
+  - id: TC-308
+    name: "规则发布后风险名单变化验证"
+    entity_id: "BATCH"
+    categorization: risk_watchlist
+    tags: [batch_analysis, closure]
+
+    expected_output:
+      before_publication:
+        high_risk_suppliers: []
+      after_publication:
+        high_risk_suppliers:
+          - supplier_id: "SUP_R001"
+            reason: "担保链深度+舆情组合规则命中"
+            severity: "HIGH"
+          - supplier_id: "SUP_R002"
+            reason: "担保链深度+舆情组合规则命中（边界值）"
+            severity: "MEDIUM"
+      new_flags_count: 2
+      trace_to_published_rule: "risk_pattern_pack@v1"
