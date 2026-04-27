@@ -1,193 +1,155 @@
 # OntologyEngine 示例案例
 
-> 本目录包含多个完整的 Schema v2 案例，用于验收 OntologyEngine 核心能力。  
-> 每个案例遵循 [canonical grammar spec](../docs/05-schema-v2/09-canonical-schema-spec.md)，结构统一，互补设计。
+> **status**: draft | **last_verified**: 2026-04-26
+> 本目录同时包含两类案例：
+> - **canonical schema case**：以 `schema.yaml / instances.yaml / testcases.yaml` 为核心的结构化验收案例
+> - **narrative journey case**：以 `scenario / journey / visualization` 为核心的用户旅程案例
+> - **hybrid case**：同时具备结构化验收和叙事旅程的混合案例
 
 ---
 
-## 案例目录
+## 一、案例总览
 
-| 案例 | 场景 | 核心验收能力 |
-|------|------|------------|
-| [`supply_chain_finance/`](./supply_chain_finance/) | 供应链金融授信评估 | L3 图指标（担保链+担保圈）、规则声明/逻辑分离、多维指标 DAG |
-| [`consumer_credit/`](./consumer_credit/) | 个人消费信贷风险评估 | Indicator 类型、产品分流（三类贷款）、一票否决、关系网络风险传导 |
+| 案例 | 类型 | 场景 | 本轮重点 |
+|------|------|------|----------|
+| [`supply_chain_finance/`](./supply_chain_finance/) | canonical | 供应链金融授信评估 | L3 图指标、规则声明/逻辑分离、多维指标 DAG |
+| [`consumer_credit/`](./consumer_credit/) | canonical | 个人消费信贷风险评估 | Indicator、一票否决、产品分流、关系网络风险 |
+| [`case1_regulatory_compliance/`](./case1_regulatory_compliance/) | narrative | 供应链金融准入规则热更新与追溯 | 规则版本、影响分析、版本对比 API、视图消费、回滚验证 |
+| [`case3_tax_simulation/`](./case3_tax_simulation/) | narrative | 亚太区总部策略沙盘 | 场景参数包、仿真报告模板、推荐解释、报告消费 |
+| [`case4_bi_query_agent/`](./case4_bi_query_agent/) | hybrid | BI 智能问数与经营看板联动 | Layer-R / Layer-S、指标卡编辑、问答与视图互证、schema+instances+testcases 已就绪 |
+| [`case5_expert_knowledge_crystallization/`](./case5_expert_knowledge_crystallization/) | hybrid | 风控专家经验规则化 | 候选规则评审、规则组模型映射、发布、下游结果验证、schema+instances+testcases 已就绪 |
+| [`case6_contradiction_detection/`](./case6_contradiction_detection/) | planned | 多源矛盾检测 | 矛盾识别、裁决记录、统一视图（预留大纲） |
+| [`case7_knowledge_compilation/`](./case7_knowledge_compilation/) | planned | 文档→知识编译 | 三通道提取、编译草稿审核、资产溯源（预留大纲） |
 
 ---
 
-## 设计原则
+## 二、本轮统一设计原则
 
-每个案例包含四个文件：
+### 2.1 真实业务口径
 
-```
+新案例不再使用“玩具化问法”，而是优先采用真实企业经营分析与策略分析的口径组织内容。
+
+本轮重点引入的公开通用指标定义包括：
+
+- **毛利率（Gross Margin）**
+- **DSO（应收账款周转天数）**
+- **DIO（库存周转天数）**
+
+> 指标定义参考公开财务教育资料；案例数值采用**合成但真实感足够**的业务数据，避免伪造具体上市公司事实。
+
+### 2.2 知识资产闭环
+
+每个 narrative case 都尽量覆盖以下对象：
+
+- **资产编辑**：规则组、指标卡、场景参数包、候选规则卡
+- **资产呈现**：依赖图、证据链、资产目录、版本 diff、仪表盘
+- **结果消费**：视图、问答、报告、异常清单、推荐结论
+- **相互印证**：结果可回溯到资产版本和证据来源；资产变更可反映到结果变化
+
+---
+
+## 三、知识资产闭环矩阵
+
+| 案例 | 资产编辑 | 资产呈现 | 结果消费 | 互相印证方式 |
+|------|----------|----------|----------|--------------|
+| `case1_regulatory_compliance` | 发布白名单新版本、回滚旧版本 | 规则版本 diff、版本对比 API、证据链、合规仪表盘 | 合规视图、审计报告 | 规则版本变化直接改变通过率，版本对比 API 展示 diff，且可回溯到证据与定义来源 |
+| `case3_tax_simulation` | 编辑场景参数包、发布假设版本 | 参数卡、仿真报告模板、对比矩阵、推荐解释链 | 场景比较视图、CFO 报告 | 参数版本变化导致推荐方案变化，报告由模板生成可追溯到模板版本 |
+| `case4_bi_query_agent` | 修订指标卡 v1.4→v1.5、修订异常阈值 v1→v2 | 资产目录、问答证据链、经营看板、版本 diff | 问数回答、视图列表、异常门店清单 | 指标口径变更后问答答案与看板数值同步变化；规则阈值变更后异常门店清单与问答一致 |
+| `case5_expert_knowledge_crystallization` | 专家标注、候选规则评审、发布组织规则 | 评审看板、候选规则卡、规则组模型映射、版本谱系 | 风险名单视图、规则解释 | 发布后新增命中实体可追溯到原始专家经验；规则组映射到 RuleDefinition+RuleLogic |
+| `case6_contradiction_detection` | 矛盾裁决 | 矛盾记录卡、裁决看板 | 裁决后统一视图 | 裁决结果可追溯到矛盾来源与裁决理由（预留） |
+| `case7_knowledge_compilation` | 编译草稿审核修正 | 编译草稿、审核记录 | 正式知识资产 | 编译结果可溯源到原始文档段落（预留） |
+
+---
+
+## 四、如何阅读这些案例
+
+### 4.1 如果你想看结构化 Schema 能力
+
+优先阅读：
+
+- `supply_chain_finance/`
+- `consumer_credit/`
+
+这两组案例更适合验证：
+
+- L1-L4 四层表达
+- 图指标
+- 规则声明 / 逻辑分离
+- What-if 与图遍历
+
+### 4.2 如果你想看用户体验与产品化演示
+
+优先阅读：
+
+- `case1_regulatory_compliance/`
+- `case3_tax_simulation/`
+- `case4_bi_query_agent/`
+- `case5_expert_knowledge_crystallization/`
+
+这几组案例更适合验证：
+
+- 规则热更新的用户旅程
+- 策略沙盘的消费结果
+- 问答 + 视图 + 证据链的联动
+- 知识沉淀闭环
+
+---
+
+## 五、目录约定
+
+### 5.1 canonical case
+
+```text
 {case}/
-  schema.yaml         # Schema v2 定义（L1~L4 完整四层）
-  instances.yaml      # 验收实例数据（精选 3-4 个典型场景）
-  testcases.yaml      # 验收用例规格（预期指标值 + 预期规则步骤 + 预期输出）
-  SCHEMA_DESIGN.md    # 设计说明（意图、关键设计点、与文档对应关系）
+  schema.yaml
+  instances.yaml
+  testcases.yaml
+  README.md / SCHEMA_DESIGN.md
 ```
+
+### 5.2 narrative journey case
+
+```text
+{case}/
+  scenario.md
+  journey.md
+  visualization/
+    *.md
+  expected_outputs/        # 如已有
+  api_examples/            # 如已有
+```
+
+> 若 narrative case 依赖的 schema / API 尚未完整落地，文档中必须显式标注 **[待核对代码]**。
 
 ---
 
-## 案例一：供应链金融授信评估
+## 六、建议阅读顺序
 
-**路径**：`supply_chain_finance/`
-
-### 场景描述
-
-以供应商为核心分析对象，融合发票交易、担保图谱数据，
-通过四层知识模型驱动融资授信决策推理。
-
-### 三个验收场景
-
-| 场景 | 供应商 | 核心特征 | 预期决策 |
-|------|--------|---------|---------|
-| CASE-A | 深圳智造科技（制造业） | 5000万注册资本，成立8年，逾期率1.2%，无担保风险 | **APPROVE**，额度约4500万元 |
-| CASE-B | 某贸易有限公司 | 100万注册资本，成立7个月，逾期率80% | **REJECT**（准入失败） |
-| CASE-C | 联华/联盛/联合（三角担保圈） | 三方互保形成 A→C→B→A 循环，基础面尚可 | **APPROVE_WITH_CONDITIONS** + CRITICAL 预警 |
-
-### 关键设计能力演示
-
-```
-L3 图指标：
-  guarantee_chain_depth  — BFS 最长路径（GuaranteeRelation 边）
-  has_guarantee_cycle    — 环路检测（boolean 输出）
-
-规则声明/逻辑分离：
-  RD002_credit_score_compute
-    ├── RL002_score_standard           (所有行业)
-    └── RL002_score_manufacturing_boost (制造业 +5分加成)
-
-指标 DAG 拓扑：
-  原子(5个) → 派生(3个) → 复合(credit_score)
-                  ↑
-              图算法(2个)
-```
+1. 先读本文件，理解不同案例的角色分工
+2. 再读 `case4_bi_query_agent/`，理解“为什么不只是 RAG”
+3. 读 `case1_regulatory_compliance/`，理解“规则资产如何影响消费结果”
+4. 读 `case3_tax_simulation/`，理解“参数包如何驱动策略沙盘”
+5. 读 `case5_expert_knowledge_crystallization/`，理解“个人经验如何沉淀为组织规则”
 
 ---
 
-## 案例二：个人消费信贷风险评估
-
-**路径**：`consumer_credit/`
-
-### 场景描述
-
-面向个人借款人，融合收入负债、还款历史、社会关系网络，
-通过五级评分卡驱动三类贷款产品（快贷/分期/大额）的差异化审批。
-
-### 三个验收场景
-
-| 场景 | 借款人 | 核心特征 | 验收侧重 |
-|------|--------|---------|---------|
-| CASE-P | 张伟（优质） | 全职工程师，月入3万，720征信，零逾期 | 完整正常路径 + 产品分流 |
-| CASE-M | 李敏（中等风险） | 自雇月入8000（低于12万门槛），1次逾期 | 准入门槛精确判断、产品边界 |
-| CASE-R | 王芳（关联风险） | 自身良好但共借人陈刚当前逾期 | 图算法网络风险传导 |
-
-### 关键设计能力演示（与供应链案例互补）
-
-```
-L3 Indicator 类型（布尔指示器）：
-  is_blacklisted       — atomic，直接取 fact_attribute
-  has_stable_income    — derived，就业类型 + 收入条件
-  has_current_overdue  — derived，current_overdue_amount > 0
-
-产品分流（applicable_conditions）：
-  RD104_credit_scoring
-    ├── RL104_scoring_standard         (通用)
-    ├── RL104_scoring_quick_loan       (快贷：行为权重↑，征信权重↓)
-    └── RL104_scoring_large_credit     (大额：征信权重↑↑，净资产加入)
-
-  RD107_approval_decision
-    ├── RL107_decision_quick           (R4 也可附条件通过)
-    ├── RL107_decision_installment     (R3 需附条件)
-    └── RL107_decision_large           (仅 R1-R3，净资产严格)
-
-一票否决（priority=200，最高级）：
-  RD101_veto_check → 黑名单/当前逾期 → 立即 REJECT，后续规则不执行
-```
-
----
-
-## 如何使用
-
-### 加载 Schema
-
-```python
-from ontology_engine.services.schema_service import SchemaService
-
-service = SchemaService()
-space = service.load_from_yaml("examples/supply_chain_finance/schema.yaml")
-```
-
-### 加载实例并执行规则
-
-```python
-from ontology_engine.services.entity_service import EntityService
-from ontology_engine.services.analysis_service import AnalysisService
-
-entity_service = EntityService(space_id="space.supply_chain_finance")
-entity_service.load_from_yaml("examples/supply_chain_finance/instances.yaml")
-
-analysis_service = AnalysisService(space_id="space.supply_chain_finance")
-result = analysis_service.execute_rules(
-    entity_id="SUP_A",
-    categorization="credit_assessment"
-)
-print(result.final_decision)   # APPROVE
-```
-
-### 运行验收用例
-
-```python
-from ontology_engine.services.query_service import QueryService
-
-query_service = QueryService(space_id="space.supply_chain_finance")
-results = query_service.run_testcases(
-    testcases_path="examples/supply_chain_finance/testcases.yaml"
-)
-for tc in results:
-    print(f"{tc.id}: {'PASS' if tc.passed else 'FAIL'}")
-```
-
----
-
-## 与设计文档关联
+## 七、关联文档
 
 | 主题 | 参考文档 |
 |------|---------|
-| Schema v2 根级 grammar | `docs/05-schema-v2/09-canonical-schema-spec.md` |
-| L1 事实对象 | `docs/05-schema-v2/01-fact-objects.md` |
-| L2 分类层 | `docs/05-schema-v2/02-categorization.md` |
-| L3 分析要素（含图指标） | `docs/05-schema-v2/03-analytical-elements.md` |
-| L4 规则声明/实例分离 | `docs/05-schema-v2/04-business-logic.md` |
-| 规则声明与实例详细规范 | `docs/05-schema-v2/07-rule-declaration-and-instance.md` |
-| L3/L4 计算边界 ADR | `docs/architecture/decisions/007-l3-l4-computation-boundary.md` |
+| 竞争分析与案例优先级 | `docs/plans/use-case-plan-competitive-analysis.md` |
+| 本轮 examples 落地计划 | `docs/plans/2026-04-25-examples-case-optimization.md` |
+| API / views 设计 | `docs/02-design/api/README.md` |
+| 规则管理 UI 设计 | `docs-ui/03-rule-management-ui-design.md` |
+| Query Engine 设计 | `docs/02-design/query-engine/README.md` |
 
 ---
 
-## Phase 2 规则组 YAML
+## 八、当前空缺与后续演进
 
-`rules/` 目录存放 Phase 2 格式的规则组 YAML 文件，可通过前端 UI 或 API 导入：
+以下主题仍需继续补强：
 
-```bash
-# 通过 API 导入
-curl -X POST http://localhost:8000/v1/rule-groups/import \
-  -H "Content-Type: application/json" \
-  -d '{"yaml_content": "...", "schema_id": "space.supply_chain_finance"}'
-
-# 从旧 L4 schema.yaml 导入（单向转换）
-curl -X POST http://localhost:8000/v1/rule-groups/import-l4 \
-  -H "Content-Type: application/json" \
-  -d '{"yaml_content": "...", "schema_id": "space.supply_chain_finance"}'
-```
-
-### Phase 2 YAML 文件
-
-| 文件 | 对应规则 | 说明 |
-|------|---------|------|
-| `rules/RD001_basic_eligibility.yaml` | 基础准入检查 | 2个步骤：注册资本/成立年限 + else拒绝处理 |
-| `rules/RD002_credit_score.yaml` | 信用评分计算 | 2个步骤：标准评分 + 制造业加成 |
-| `rules/RD003_guarantee_risk.yaml` | 担保圈风险检测 | 1个步骤：环路/深度检测 |
-| `rules/RD004_credit_limit.yaml` | 授信额度计算 | 1个步骤：额度公式 |
-| `rules/RD006_final_decision.yaml` | 综合授信决策 | 1个步骤：决策表 |
-
-格式规范见 [RFC-017](../../docs/03-rfc/RFC-017-rule-orchestration-yaml-format.md)。
+- `case5_expert_knowledge_crystallization` 的完整 `schema.yaml / instances.yaml / testcases.yaml`
+- `case6_contradiction_detection` 的详细场景与旅程（待 Phase 2 矛盾检测能力落地）
+- `case7_knowledge_compilation` 的详细场景与旅程（待 Phase 2 三通道提取能力落地）
+- 所有 narrative case 的代码层落地验证（当前标注 **[待核对代码]**）

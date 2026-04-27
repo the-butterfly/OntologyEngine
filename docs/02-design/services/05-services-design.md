@@ -69,12 +69,12 @@ class EntityService:
 
     async def create_entity(
         self,
-        concept_type: str,
+        _fact_object: str,
         entity_id: str,
         attributes: dict
     ) -> EntityResponse:
         """创建实体"""
-        # 1. 验证 concept_type 存在
+        # 1. 验证 _fact_object 存在
         # 2. 验证属性类型
         # 3. 持久化
         # 4. 返回 DTO
@@ -90,7 +90,7 @@ class EntityService:
 
     async def query_entities(
         self,
-        concept_type: str | None,
+        _fact_object: str | None,
         filters: FilterSpec,
         pagination: PaginationSpec
     ) -> PaginatedResult[EntityResponse]:
@@ -219,7 +219,7 @@ class AnalysisService:
     async def hybrid_search(
         self,
         query: str,
-        concept_type: str | None = None,
+        _fact_object: str | None = None,
         filters: FilterSpec | None = None,
         top_k: int = 10
     ) -> list[SearchResult]:
@@ -238,7 +238,7 @@ class AnalysisService:
         entity_ids = [r.entity_id for r in vector_results]
         filtered = await self.storage.filter_entities(
             entity_ids=entity_ids,
-            concept_type=concept_type,
+            _fact_object=_fact_object,
             filters=filters
         )
 
@@ -416,7 +416,7 @@ async def create_entity(
     - 返回响应
     """
     entity = await service.create_entity(
-        concept_type=request.concept_type,
+        _fact_object=request._fact_object,
         entity_id=request.entity_id,
         attributes=request.attributes
     )

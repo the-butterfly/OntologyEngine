@@ -56,6 +56,7 @@ L0: 数据源层     ── 文档、表、日志、对话、代码、API、监�
 6. [`06-tech-stack.md`](./06-tech-stack.md) — 技术选型与目标存储架构
 7. [`07-project-structure.md`](./07-project-structure.md) — 目标框架结构（模块级，非文件级）
 8. [`08-knowledge-retrieval.md`](./08-knowledge-retrieval.md) — Layer-R/S 检索机制与查询路由
+9. [`09-agent-memory.md`](./09-agent-memory.md) — Agent 记忆架构：记忆层次、生命周期、认知操作
 
 ***
 
@@ -71,6 +72,7 @@ L0: 数据源层     ── 文档、表、日志、对话、代码、API、监�
 | `06-tech-stack.md`          | 目标技术路线、Layer-R 三通道提取、Bundle Search          | 不直接代表未来平台化能力边界                   |
 | `07-project-structure.md`   | 目标框架结构（模块级）                                 | 非文件级，与实际代码结构分离                   |
 | `08-knowledge-retrieval.md` | Layer-R/S 双路检索机制、查询路由、RRF 融合                | 不承载具体存储实现细节                      |
+| `09-agent-memory.md`       | Agent 记忆架构：记忆层次、生命周期、认知操作、实体消歧       | **\[待扩展]** 详细设计见 02-design/agent-memory/ |
 
 ***
 

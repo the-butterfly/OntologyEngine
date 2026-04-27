@@ -57,24 +57,41 @@ class DedupStrategy:
         )
 
     def dedup_entities(self, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        seen: dict[str, dict[str, Any]] = {}
+        seen_by_id: dict[str, dict[str, Any]] = {}
+        seen_by_name_fo: dict[tuple[str, str], dict[str, Any]] = {}
+
         for entity in entities:
             eid = entity.get("entity_id", "")
-            if eid not in seen:
-                seen[eid] = entity
-            else:
-                existing = seen[eid]
-                existing_conf = existing.get("confidence", 0.0)
-                new_conf = entity.get("confidence", 0.0)
-                if new_conf > existing_conf:
-                    seen[eid] = entity
-                else:
-                    existing_attrs = existing.get("attributes", {})
-                    new_attrs = entity.get("attributes", {})
-                    for k, v in new_attrs.items():
-                        if k not in existing_attrs:
-                            existing_attrs[k] = v
-        return list(seen.values())
+            name = entity.get("attributes", {}).get("name", "")
+            fo = entity.get("_fact_object", "")
+
+            if eid in seen_by_id:
+                self._merge_entity(seen_by_id[eid], entity)
+                continue
+
+            key = (name, fo)
+            if name and key in seen_by_name_fo:
+                self._merge_entity(seen_by_name_fo[key], entity)
+                seen_by_id[eid] = seen_by_name_fo[key]
+                continue
+
+            seen_by_id[eid] = entity
+            if name:
+                seen_by_name_fo[key] = entity
+
+        return list(seen_by_id.values())
+
+    @staticmethod
+    def _merge_entity(existing: dict[str, Any], new: dict[str, Any]) -> None:
+        existing_conf = existing.get("confidence", 0.0)
+        new_conf = new.get("confidence", 0.0)
+        if new_conf > existing_conf:
+            existing["confidence"] = new_conf
+            existing["source_pipeline"] = new.get("source_pipeline", existing.get("source_pipeline", ""))
+        existing_attrs = existing.get("attributes", {})
+        new_attrs = new.get("attributes", {})
+        merged = {**existing_attrs, **{k: v for k, v in new_attrs.items() if k not in existing_attrs}}
+        existing["attributes"] = merged
 
     def dedup_edges(self, edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Deduplicate edges across all source pipelines.

@@ -6,7 +6,7 @@ import ast
 import math
 import re
 from collections.abc import Mapping
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -42,7 +42,7 @@ def _today() -> str:
 
 
 def _now() -> str:
-    return datetime.now(tz=None).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _days_between(start: Any, end: Any) -> int:
@@ -65,12 +65,20 @@ def _date_diff(start: Any, end: Any, unit: str = "day") -> int:
     end_date = _parse_date(end)
     if start_date is None or end_date is None:
         return 0
-    delta = end_date - start_date
     if unit == "month":
-        return abs(delta.days // 30)
+        months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+        if (end_date.day < start_date.day) and months != 0:
+            months -= 1
+        return abs(months)
     if unit == "year":
-        return abs(delta.days // 365)
-    return abs(delta.days)
+        years = end_date.year - start_date.year
+        if (end_date.month < start_date.month) or (
+            end_date.month == start_date.month and end_date.day < start_date.day
+        ):
+            if years != 0:
+                years -= 1
+        return abs(years)
+    return abs((end_date - start_date).days)
 
 
 def _date_add(date_val: Any, amount: int, unit: str = "day") -> str:
@@ -249,7 +257,12 @@ def _sum(values: Any) -> Any:
     if values is None:
         return 0
     try:
-        return sum(values)
+        items = list(values)
+        if not items:
+            return 0
+        if any(isinstance(v, Decimal) for v in items):
+            return sum(items, Decimal(0))
+        return sum(items)
     except (TypeError, ValueError):
         return 0
 
@@ -426,15 +439,17 @@ class ExpressionEngine:
             return True
 
         eval_context = context or {}
-        prepared = self._prepare_expression(expression, eval_context)
+
+        normalized = self._normalize_keywords(expression)
 
         executor = self._select_executor(expression)
 
         try:
             if executor == "l0":
+                prepared = self._resolve_fields(normalized, eval_context)
                 return self._evaluate_l0(prepared, eval_context)
             else:
-                return self._evaluate_l1(expression, eval_context)
+                return self._evaluate_l1(normalized, eval_context)
         except FormulaError:
             raise
         except SyntaxError as exc:
@@ -472,8 +487,12 @@ class ExpressionEngine:
         evaluator = self._create_simpleeval(context)
         try:
             return evaluator.eval(prepared)
-        except Exception:
+        except (simpleeval.FunctionNotDefined, simpleeval.NameNotDefined):
             return self._l1_executor.evaluate(prepared, context, self.SAFE_FUNCTIONS)
+        except simpleeval.InvalidExpression as exc:
+            raise FormulaSyntaxError(str(exc)) from exc
+        except TypeError as exc:
+            raise FormulaTypeError(str(exc)) from exc
 
     def _evaluate_l1(self, expression: str, context: Mapping[str, Any]) -> Any:
         return self._l1_executor.evaluate(expression, context, self.SAFE_FUNCTIONS)

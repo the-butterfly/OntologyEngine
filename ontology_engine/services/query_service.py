@@ -163,6 +163,7 @@ class QueryService:
         from_entity_id: str,
         to_entity_id: str,
         max_depth: int = 3,
+        relation_name: str | None = None,
     ) -> list[list[str]]:
         """Find paths between two entities.
 
@@ -170,12 +171,15 @@ class QueryService:
             from_entity_id: Start entity
             to_entity_id: Target entity
             max_depth: Maximum path depth
+            relation_name: Relation type to traverse. If None, tries all relations.
 
         Returns:
             List of paths, each path is a list of entity IDs
         """
         if max_depth > 3:
             raise ValueError("Phase 1 maximum path depth is 3")
+
+        rel_name = relation_name
 
         paths: list[list[str]] = []
         visited = set()
@@ -188,17 +192,29 @@ class QueryService:
                 return
 
             visited.add(current)
-            neighbors = await self.storage.get_neighbors(
-                entity_id=current,
-                relation_name="has_invoice",
-                direction="outgoing",
-            )
 
-            for entity, _ in neighbors:
-                if entity.entity_id not in visited:
-                    path.append(entity.entity_id)
-                    await dfs(entity.entity_id, target, path)
-                    path.pop()
+            if rel_name:
+                neighbors = await self.storage.get_neighbors(
+                    entity_id=current,
+                    relation_name=rel_name,
+                    direction="outgoing",
+                )
+                for entity, _ in neighbors:
+                    if entity.entity_id not in visited:
+                        path.append(entity.entity_id)
+                        await dfs(entity.entity_id, target, path)
+                        path.pop()
+            else:
+                all_neighbors = await self.storage.get_neighbors(
+                    entity_id=current,
+                    relation_name="",
+                    direction="outgoing",
+                )
+                for entity, _ in all_neighbors:
+                    if entity.entity_id not in visited:
+                        path.append(entity.entity_id)
+                        await dfs(entity.entity_id, target, path)
+                        path.pop()
 
             visited.remove(current)
 

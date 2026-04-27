@@ -64,16 +64,30 @@ class AttributeDefinition(BaseModel):
     default: Any = None
     description: str | None = None
     validation: dict | None = None
-    enum: list[str] | None = None  # For enum types
+    enum: list[str] | None = None
     value_domain: ValueDomain | None = None
+    enum_type: str | None = None
+    currency: str | None = None
+    pattern: str | None = None
+    min: float | None = None
+    max: float | None = None
+    index_fields: bool = False
+    display_only: bool = False
+    source_field: str | None = None
+    source_pipeline: str | None = None
+    source_task: str | None = None
+    source_content_hash: str | None = None
 
 
 class RelationDefinition(BaseModel):
     name: str
-    target: str  # Target concept name
-    cardinality: str = "0..*"  # "1", "0..1", "0..*", "1..*"
+    target: str
+    cardinality: str = "0..*"
     description: str | None = None
-    inverse: str | None = None  # Inverse relation name
+    inverse: str | None = None
+    from_entity: str | None = None
+    attributes: list[AttributeDefinition] = Field(default_factory=list)
+    logical_type: str | None = None
 
 
 class ConceptDefinition(BaseModel):
@@ -175,6 +189,9 @@ class FactObjectEntity(BaseModel):
     description: str | None = None
     attributes: list[AttributeDefinition] = Field(default_factory=list)
     relations: list[RelationDefinition] = Field(default_factory=list)
+    identity_fields: list[str] = Field(default_factory=list)
+    temporal: bool = False
+    key_attributes: list[str] = Field(default_factory=list)
 
 
 class FactObjects(BaseModel):
@@ -270,7 +287,7 @@ class CategorizationDimension(BaseModel):
     id: str
     name: str | None = None
     description: str | None = None
-    type: str = "flat"  # hierarchical, flat, derived, tags
+    type: str = "flat"  # hierarchical, derived, tag_based, flat
     value_domain: CategoryValueDomain | None = None
     multi_select: bool = False
     applicable_to: list[DimensionApplicability | str] = Field(default_factory=list)
@@ -323,7 +340,8 @@ class MetricDefinitionV2(BaseModel):
     name: str | None = None
     description: str | None = None
     # Canonical field name is 'type'; 'element_type' accepted for backward compat
-    type: str = "atomic"  # "atomic", "derived", "composite", "graph"
+    type: str = "atomic"  # "atomic", "derived", "composite", "graph", "variable"
+    value_type: str | None = None  # "integer", "decimal", "percentage", "currency", "score", "flag"
     source: MetricSource | None = None
     dependencies: list[str] = Field(default_factory=list)
     formula: str | None = None
@@ -332,12 +350,18 @@ class MetricDefinitionV2(BaseModel):
     default: Any = None
     thresholds: dict | None = None
     overridable: bool = False
+    overridable_by: list[str] = Field(default_factory=list)
     components: list[MetricComponent] | None = None
     algorithm: GraphAlgorithmDefinition | str | None = None
     traversal: dict | None = None
     neighbor_filter: str | None = None
     value_domain: ValueDomain | None = None
     expression_domain: list[dict[str, Any]] = Field(default_factory=list)
+    color: str | None = None
+    identity_fields: list[str] = Field(default_factory=list)
+    source_pipeline: str | None = None
+    source_task: str | None = None
+    source_content_hash: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -449,13 +473,15 @@ class RuleDefinitionV2(BaseModel):
     description: str | None = None
     rule_type: str = "constraint"  # "constraint", "inference", "alert", "decision"
     priority: int = 100
-    applies_to: list[str] = Field(default_factory=list)  # canonical: entity ids this applies to
+    applies_to: list[str] = Field(default_factory=list)
     applicable_categorizations: list[str] = Field(default_factory=list)
-    inputs: list[dict] = Field(default_factory=list)  # canonical field name
-    outputs: list[dict] = Field(default_factory=list)  # canonical field name
-    preconditions: list[dict] = Field(default_factory=list)  # canonical: rule-level preconditions
+    inputs: list[dict] = Field(default_factory=list)
+    outputs: list[dict] = Field(default_factory=list)
+    preconditions: list[dict] = Field(default_factory=list)
+    overrides: list[str] = Field(default_factory=list)
+    applicability: dict[str, str] | None = None
     enabled: bool = True
-    logic_ids: list[str] = Field(default_factory=list)  # references to RuleLogic instances
+    logic_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -487,12 +513,11 @@ class RuleLogic(BaseModel):
     id: str
     name: str | None = None
     definition_id: str
+    type: str | None = None  # "decision_table", "scorecard", "switch", "binning", "graph_op", "custom"
     applicable_conditions: list[dict] = Field(default_factory=list)
-    # Legacy simple execution model
     when: RuleWhen | None = None
     then_action: RuleAction | None = None
     else_action: RuleAction | None = None
-    # Canonical DAG execution model
     steps: list[RuleStep] = Field(default_factory=list)
     priority: int = 100
     version: int = 1
@@ -534,6 +559,15 @@ class KGMLSchema(BaseModel):
 
     def get_concept(self, name: str) -> ConceptDefinition | None:
         return next((c for c in self.concepts if c.name == name), None)
+
+    def get_fact_object(self, name: str) -> FactObjectEntity | None:
+        """Get a fact object definition by name from v2 schema."""
+        if self.fact_objects:
+            return next(
+                (e for e in self.fact_objects.entities if e.name == name or e.id == name),
+                None,
+            )
+        return None
 
     def get_enum(self, name: str) -> EnumDefinition | None:
         return next((e for e in self.enums if e.name == name), None)

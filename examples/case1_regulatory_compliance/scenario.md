@@ -1,138 +1,123 @@
-# Case 1: Supply Chain Finance Risk Control — Rule Hot-Update + Decision Traceability
+# Case 1 场景说明 — 供应链金融准入规则资产闭环
 
-## Scenario Overview
-
-### Target User
-**Risk Control Manager** at a supply chain finance platform
-
-### Business Context
-The People's Bank of China has issued **Circular 23** (《供应链金融票据业务监管办法》) requiring:
-1. Core enterprises must be on a regulatory whitelist
-2. All invoices must pass authenticity verification
-3. Single guarantee amounts cannot exceed 10% of guarantor registered capital
-4. Supplier risk concentration with single core enterprise must not exceed 50%
-
-**Deadline**: Complete compliance transformation within **48 hours** + prepare for quarterly audit
-
-### Key Differentiator
-| Traditional Approach | OntologyEngine Approach |
-|---------------------|------------------------|
-| Rule changes require 2-4 weeks (IT deployment) | Rule takes effect in **seconds** via YAML hot-update |
-| Decision audit requires manual documentation | Automatic evidence chain with `extracted_from` / `trace_to` edges |
-| Compliance verification is periodic batch job | Real-time continuous compliance monitoring |
+> **文件角色**: 业务场景与资产说明 **[待核对代码]**
 
 ---
 
-## Scenario Narrative
+## 一、目标用户
 
-### Day 0: Circular 23 Issued (April 18, 2026)
-Risk Control Manager receives notification that Circular 23 will take effect in 48 hours. Traditional systems would require:
-- Rule specification documents
-- IT development tickets
-- Testing cycles
-- Deployment windows
-
-With OntologyEngine, the manager can:
-1. Load the new `RD_circular23_compliance.yaml` rule via API
-2. Immediately test against existing supplier base
-3. Query decision traces to verify all evidence links
-4. Generate audit report with full traceability
-
-### Hot-Update Demonstration
-```bash
-# Rule hot-update takes effect in ~2 seconds
-POST /api/v1/rules/load
-{
-  "rule_file": "rules/RD_circular23_compliance.yaml",
-  "activate": true
-}
-```
-
-### Decision Traceability Query
-```bash
-# Query decision trace for supplier C1 with full evidence chain
-POST /api/v1/query/trace
-{
-  "entity_id": "SUP_C1",
-  "entity_type": "Supplier",
-  "trace_depth": "full",
-  "include_evidence": true
-}
-```
+- **平台风控经理**：需要在短时间内发布合作资方的新准入规则
+- **规则运营**：需要确认变更影响范围，避免误伤正常客户
+- **审计 / 复核人员**：需要验证某个结果到底来自哪版规则与哪份证据
 
 ---
 
-## Test Cases
+## 二、业务背景
 
-### TC-C1: Compliant Supplier (Expected: APPROVE)
-- **Supplier**: 深圳恒通科技有限公司 (SUP_C1)
-- **Status**: All Circular 23 checks pass
-- **Evidence**: Core enterprise in whitelist, invoices verified, guarantees compliant
+某供应链金融平台在季度复盘前收到合作资方下发的准入规则包 `Circular23`。平台现有 5 家重点供应商需要重新审查：
 
-### TC-C2: Non-Whitelisted Core Enterprise (Expected: REJECT at compliance gate)
-- **Supplier**: 上海贸易有限公司 (SUP_C2)
-- **Issue**: References core enterprise not in regulatory whitelist
-- **Trace**: rejection_reason → extracted_from → CoreEnterprise.ce_unlisted
+| 供应商 | 主要问题 | 初始状态 |
+|--------|----------|----------|
+| `SUP_C1` 深圳恒通科技 | 基础资料完整 | 通过 |
+| `SUP_C2` 上海睿商贸易 | 核心企业例外名单未同步 | 失败 |
+| `SUP_C3` 广州誉成制造 | 发票真实性不足 | 失败 |
+| `SUP_C4` 北京鼎实担保 | 单笔担保占比过高 | 失败 |
+| `SUP_C5` 成都链城供应 | 风险集中度偏高 | 失败 |
 
-### TC-C3: Invoice Authenticity Failure (Expected: REJECT)
-- **Supplier**: 广州制造有限公司 (SUP_C3)
-- **Issue**: Invoice authenticity check failed (疑似虚假发票)
-- **Trace**: rejection_reason → extracted_from → Invoice.INV_C3_001
+问题不在于“能不能执行规则”，而在于：
 
-### TC-C4: Guarantee Limit Exceeded (Expected: REJECT)
-- **Supplier**: 北京担保有限公司 (SUP_C4)
-- **Issue**: Single guarantee = 15M, exceeds 10% of 100M registered capital
-- **Trace**: rejection_reason → extracted_from → GuaranteeRelation.GR_C4_001
-
-### TC-C5: Risk Concentration Exceeded (Expected: APPROVE_WITH_CONDITIONS)
-- **Supplier**: 成都供应链有限公司 (SUP_C5)
-- **Issue**: 65% revenue concentration with single core enterprise
-- **Result**: APPROVE_WITH_CONDITIONS (compliance alert, reduced limit)
+1. 规则资产是否可快速发布新版本
+2. 发布后是否能看到受影响对象
+3. 结果是否能回溯到规则版本和原始证据
+4. 如果发布错误，是否能回滚并验证结果恢复
 
 ---
 
-## Evidence Chain Structure
+## 三、本案例中的知识资产
 
-Each decision node contains:
-- `extracted_from`: Source fact_object.attribute that contributed
-- `trace_to`: Downstream rules/nodes that consumed this output
-- `confidence`: Evidence confidence score (0-1)
-- `timestamp`: When the evidence was extracted
+### 3.1 输入资产
 
-### Example Trace Structure
-```
-DecisionNode: REJECT (Circular 23 Compliance)
-├── rejected_by: RD_CIRCULAR23_guarantee_compliance
-├── extracted_from:
-│   └── GuaranteeRelation.GR_C4_001.guarantee_amount.value = 15000000
-├── trace_to: [RD006_final_decision]
-├── evidence:
-│   ├── rule: "RD_circular23_compliance.yaml"
-│   ├── section: "guarantee_limit_check"
-│   ├── threshold: "10% of registered_capital"
-│   └── actual: "15M exceeds 1M limit"
-└── confidence: 0.95
+| 资产类型 | 示例 | 说明 |
+|----------|------|------|
+| 规则包 | `Circular23_rule_pack@v2026.04.1` | 合作资方准入规则 |
+| 白名单资产 | `core_enterprise_whitelist@v2026.04` | 核心企业例外清单 |
+| 证据碎片 | `frag.whitelist.memo.001` | 例外审批备忘录 |
+| 证据碎片 | `frag.invoice.ocr.sup_c3` | 发票 OCR / 验真记录 |
+| 证据碎片 | `frag.guarantee.contract.sup_c4` | 担保合同扫描件 |
+
+### 3.2 消费资产
+
+| 资产类型 | 示例 | 用途 |
+|----------|------|------|
+| 视图 | `view.supply_chain_compliance_q2` | 查看供应商合规状态 |
+| 报告 | `report.compliance_q2` | 季度审计包 |
+| 执行轨迹 | `trace.sup_c2.after_publish` | 查看某个结果为何变化 |
+
+---
+
+## 四、本案例要解决的核心问题
+
+### 4.1 规则资产编辑
+
+案例中必须出现一次真实的编辑动作：
+
+- 规则运营把 `SUP_C2` 对应核心企业补入例外白名单
+- 发布 `Circular23_rule_pack@v2026.04.2`
+
+### 4.2 结果消费
+
+发布后至少有 3 个结果发生联动：
+
+- 合规视图通过率变化
+- 受影响供应商列表变化
+- 审计报告章节中的失败对象清单变化
+
+### 4.3 回溯与复核
+
+用户需要能证明：
+
+- `SUP_C2` 是因为哪条白名单规则发生变化而从失败变为通过
+- `SUP_C4` 仍然失败，且失败依据没有被新版本改动
+- 如果回滚到 `v2026.04.1`，通过率会恢复到原始状态
+
+---
+
+## 五、四类互索引关系在本案例中的落点
+
+| 关系 | 在本案例中的含义 |
+|------|------------------|
+| `extracted_from` | 结果来源于哪条实体属性或合同字段 |
+| `supported_by` | 哪个备忘录、OCR 记录或说明碎片支持当前判断 |
+| `defined_in` | 当前判断使用的是哪版规则包 / 白名单资产 |
+| `trace_to` | 某一步判断如何流向最终合规状态与审计报告 |
+
+---
+
+## 六、案例闭环
+
+```text
+规则包 / 白名单 / 证据碎片
+  ↓
+规则发布 v2026.04.2
+  ↓
+影响分析（SUP_C2 状态变化）
+  ↓
+view.supply_chain_compliance_q2 通过率变化
+  ↓
+trace.sup_c2.after_publish 回到规则版本和审批备忘录
+  ↓
+rollback 到 v2026.04.1 验证结果恢复
 ```
 
 ---
 
-## Audit Preparation
+## 七、这个案例为什么更强
 
-### Quarterly Audit Query
-```bash
-POST /api/v1/audit/compliance-report
-{
-  "report_type": "Circular_23_Compliance",
-  "period": "2026-Q1",
-  "include_traces": true,
-  "format": "pdf"
-}
-```
+相比旧版“热更新一下就结束”的演示，现在的重点变成：
 
-### Expected Audit Output
-- Total suppliers evaluated: 5
-- Compliant: 1 (SUP_C1)
-- Non-compliant: 3 (SUP_C2, SUP_C3, SUP_C4)
-- Conditionally approved: 1 (SUP_C5)
-- Rule hot-update events: 1 (timestamp, operator, rule_id)
-- Average decision latency: < 500ms
+- **资产变更有版本**
+- **版本变更有影响分析**
+- **消费结果可验证资产变更是否生效**
+- **回滚后可以反证系统不是黑箱**
+
+这比单纯演示“规则秒级生效”更接近真实业务落地。

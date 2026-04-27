@@ -7,17 +7,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.dto import EntityNotFoundError
 from ontology_engine.storage.base import EntityInstance
-from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata, MetricDefinition
+from ontology_engine.core.schema.models import (
+    KGMLSchema, SchemaMetadata, MetricDefinition,
+    ConceptDefinition, AttributeDefinition,
+)
 
 
 class MockCategoryTags:
-    """Mock CategoryTags."""
     def __init__(self, tags=None):
         self.tags = tags if tags else {}
 
 
 class MockRuleResult:
-    """Mock RuleResult."""
     def __init__(self, rule_id="R001", rule_name="Test Rule", passed=True, output=None, error=None):
         self.rule_id = rule_id
         self.rule_name = rule_name
@@ -27,7 +28,6 @@ class MockRuleResult:
 
 
 class MockAnalysisResult:
-    """Mock AnalysisResult."""
     def __init__(self):
         self.rule_results = [MockRuleResult()]
         self.alerts = []
@@ -36,52 +36,60 @@ class MockAnalysisResult:
         self.decision_reasoning = "All rules passed"
 
 
+def _make_test_schema():
+    metadata = SchemaMetadata(id="test", name="test", version="1.0")
+    metrics = [MetricDefinition(name="test_metric", type="atomic")]
+    concepts = [
+        ConceptDefinition(
+            name="Supplier",
+            attributes=[AttributeDefinition(name="supplier_id", type="string", required=True, unique=True)],
+        ),
+        ConceptDefinition(
+            name="Invoice",
+            attributes=[AttributeDefinition(name="invoice_no", type="string", required=True, unique=True)],
+        ),
+        ConceptDefinition(
+            name="Contract",
+            attributes=[AttributeDefinition(name="contract_no", type="string", required=True, unique=True)],
+        ),
+    ]
+    return KGMLSchema(metadata=metadata, metrics=metrics, concepts=concepts)
+
+
 class TestAnalysisService:
-    """Test AnalysisService operations."""
 
     @pytest.fixture
     def mock_categorization_engine(self):
-        """Create mock categorization engine."""
         engine = AsyncMock()
         engine.categorize = AsyncMock(return_value=MockCategoryTags({"risk_level": "LOW"}))
         return engine
 
     @pytest.fixture
     def mock_metric_engine(self):
-        """Create mock metric engine."""
         engine = AsyncMock()
-        engine.compute_batch = AsyncMock(return_value={
-            "test_metric": {"value": 100}
-        })
+        engine.compute_batch = AsyncMock(return_value={"test_metric": {"value": 100}})
         return engine
 
     @pytest.fixture
     def mock_rule_executor(self):
-        """Create mock rule executor."""
         executor = AsyncMock()
         executor.execute_dimension = AsyncMock(return_value=MockAnalysisResult())
         return executor
 
     @pytest.fixture
     def storage(self):
-        """Create mock storage."""
         storage = AsyncMock()
         storage.get_entity = AsyncMock(return_value=None)
+        storage.get_entity_by_id = AsyncMock(return_value=None)
         storage.query_entities = AsyncMock(return_value=[])
         return storage
 
     @pytest.fixture
     def schema(self):
-        """Create a test schema."""
-        metadata = SchemaMetadata(id="test", name="test", version="1.0")
-        metrics = [
-            MetricDefinition(name="test_metric", type="atomic")
-        ]
-        return KGMLSchema(metadata=metadata, metrics=metrics)
+        return _make_test_schema()
 
     @pytest.fixture
     def service(self, mock_categorization_engine, mock_metric_engine, mock_rule_executor, storage, schema):
-        """Create AnalysisService instance with mocked engines."""
         with patch(
             "ontology_engine.services.analysis_service.AnalysisService.__init__",
             return_value=None,
@@ -96,7 +104,7 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_execute_analysis_entity_not_found(self, service, storage):
-        """Test analysis with non-existent entity raises error."""
+        storage.get_entity_by_id.return_value = None
         storage.get_entity.return_value = None
         storage.query_entities.return_value = []
 
@@ -105,13 +113,12 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_execute_analysis_success(self, service, storage, mock_categorization_engine, mock_metric_engine, mock_rule_executor):
-        """Test successful analysis execution."""
         entity = EntityInstance(
             _fact_object="Supplier",
             entity_id="SUP_001",
             data={"name": "Test Supplier"}
         )
-        storage.get_entity.return_value = entity
+        storage.get_entity_by_id.return_value = entity
 
         result = await service.execute_analysis("SUP_001", "credit_assessment")
 
@@ -124,13 +131,12 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_execute_analysis_with_context(self, service, storage, mock_metric_engine):
-        """Test analysis with context override."""
         entity = EntityInstance(
             _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
-        storage.get_entity.return_value = entity
+        storage.get_entity_by_id.return_value = entity
 
         context = {"override_metric": True}
         result = await service.execute_analysis("SUP_001", "credit_assessment", context=context)
@@ -140,13 +146,12 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_execute_dry_run(self, service, storage):
-        """Test dry run analysis."""
         entity = EntityInstance(
             _fact_object="Supplier",
             entity_id="SUP_001",
             data={}
         )
-        storage.get_entity.return_value = entity
+        storage.get_entity_by_id.return_value = entity
 
         result = await service.execute_dry_run("SUP_001", "credit_assessment")
 
@@ -155,12 +160,12 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_find_entity_try_concepts(self, service, storage):
-        """Test _find_entity tries various concept types."""
         entity = EntityInstance(
             _fact_object="Invoice",
             entity_id="INV_001",
             data={}
         )
+        storage.get_entity_by_id.return_value = None
         storage.get_entity.side_effect = [None, entity]
 
         result = await service._find_entity("INV_001")
@@ -171,13 +176,13 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_find_entity_query_all(self, service, storage):
-        """Test _find_entity queries all entities as fallback."""
         entity = EntityInstance(
             _fact_object="Contract",
             entity_id="CTR_001",
             data={}
         )
-        storage.get_entity.side_effect = [None, None, None, None, None]
+        storage.get_entity_by_id.return_value = None
+        storage.get_entity.return_value = None
         storage.query_entities.return_value = [entity]
 
         result = await service._find_entity("CTR_001")
@@ -187,14 +192,11 @@ class TestAnalysisService:
 
     @pytest.mark.asyncio
     async def test_collect_required_metrics(self, service):
-        """Test collecting required metrics from schema."""
         metrics = service._collect_required_metrics("credit_assessment")
-
         assert "test_metric" in metrics
 
     @pytest.mark.asyncio
     async def test_collect_required_metrics_no_schema(self):
-        """Test collecting metrics when no schema."""
         svc = AnalysisService.__new__(AnalysisService)
         svc.storage = AsyncMock()
         svc.schema = None
@@ -203,12 +205,10 @@ class TestAnalysisService:
         svc.rule_executor = None
 
         metrics = svc._collect_required_metrics("credit_assessment")
-
         assert metrics == []
 
     @pytest.mark.asyncio
     async def test_serialize_metrics(self, service):
-        """Test metric serialization."""
         raw_metrics = {
             "metric1": {"value": 100, "extra": "data"},
             "metric2": "simple_value",

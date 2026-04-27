@@ -55,8 +55,8 @@ Ontology (全局本体)                 Space Schema (实例化)
     "layers": {
       "L1_fact_objects": [
         {
-          "concept_type": "Supplier",
-          "properties": {
+          "_fact_object": "Supplier",
+          "attributes": {
             "company_name": { "type": "string", "required": true },
             "registered_capital": { "type": "MonetaryValue", "required": true }
           }

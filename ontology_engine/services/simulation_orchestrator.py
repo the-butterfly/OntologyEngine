@@ -29,7 +29,10 @@ class SimulationOrchestrator:
         """
         self._storage = semantic_space_storage or SemanticSpaceStorage()
         self._rule_locator = RuleLocator(self._storage)
-        self._tree_builder = RuleTreeBuilder(semantic_space_storage=self._storage)
+        self._tree_builder = RuleTreeBuilder(
+            semantic_space_storage=self._storage,
+            rule_locator=self._rule_locator,
+        )
         self._dependency_analyzer = DependencyAnalyzer()
 
     async def build_execution_tree(

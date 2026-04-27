@@ -17,12 +17,15 @@ Key improvements over v1:
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from ontology_engine.engine.query.layer_r import LayerRRetriever, FragmentResult
 from ontology_engine.engine.query.layer_s import LayerSRetriever, EntityResult, EdgeResult
 from ontology_engine.storage.base import GraphStoreBackend, StorageBackend, VectorStoreBackend
+
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────── Configuration ───────────────────────────────────
@@ -259,7 +262,7 @@ class MutualIndexCollaborative:
                         all_edges.append(edge)
 
         # Step 4 — Evidence chain from real edge properties
-        evidence_chain = await self._build_evidence_chain(
+        evidence_chain, unexpanded = await self._build_evidence_chain(
             fragment_ids=fragment_ids,
             entity_ids=entity_ids,
             edge_props_by_fragment=edge_props_by_fragment,
@@ -270,6 +273,7 @@ class MutualIndexCollaborative:
             entities=all_entities,
             edges=all_edges,
             evidence_chain=evidence_chain,
+            metadata={"unexpanded_fragments": unexpanded},
         )
 
     # ─────────────── Internal helpers ────────────────────────────────────────
@@ -323,8 +327,8 @@ class MutualIndexCollaborative:
                         "offset_start": int(nb.get("offset_start", 0)),
                         "offset_end": int(nb.get("offset_end", 0)),
                     })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("SUPPORTED_BY expansion failed for %s: %s", fid, exc)
 
         return entity_ids, edge_props_by_fragment
 
@@ -333,7 +337,7 @@ class MutualIndexCollaborative:
         fragment_ids: list[str],
         entity_ids: list[str],
         edge_props_by_fragment: dict[str, list[dict[str, Any]]],
-    ) -> list[EvidenceLink]:
+    ) -> tuple[list[EvidenceLink], list[str]]:
         """Build evidence chain from real KuzuDB edge properties.
 
         For each fragment that has edge props, create one EvidenceLink per
@@ -344,8 +348,12 @@ class MutualIndexCollaborative:
 
         The total number of links is capped at
         config.evidence_chain_max_fragments to avoid unbounded output.
+
+        Returns:
+            Tuple of (evidence_chain, unexpanded_fragment_ids).
         """
         chain: list[EvidenceLink] = []
+        unexpanded_fragments: list[str] = []
         max_links = self._config.evidence_chain_max_fragments
 
         for fid in fragment_ids:
@@ -353,22 +361,7 @@ class MutualIndexCollaborative:
                 break
             props_list = edge_props_by_fragment.get(fid, [])
             if not props_list:
-                # Fragment had no expansion; emit a best-effort stub entry
-                # only if we have at least one entity to target.
-                if entity_ids:
-                    chain.append(
-                        EvidenceLink(
-                            source_id=fid,
-                            source_type="KnowledgeFragment",
-                            target_id=entity_ids[0],
-                            target_type="Entity",
-                            trace_type="SUPPORTED_BY",
-                            confidence=self._config.evidence_chain_default_confidence,
-                            edge_text="",
-                            offset_start=0,
-                            offset_end=0,
-                        )
-                    )
+                unexpanded_fragments.append(fid)
                 continue
 
             for props in props_list:
@@ -388,4 +381,4 @@ class MutualIndexCollaborative:
                     )
                 )
 
-        return chain
+        return chain, unexpanded_fragments

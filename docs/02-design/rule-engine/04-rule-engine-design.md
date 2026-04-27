@@ -220,7 +220,7 @@ class RuleExecutor:
         applicable = [
             r for r in rules
             if dimension in r.scope.dimensions
-            and entity.concept_type in r.scope.entity_types
+            and entity._fact_object in r.scope.entity_types
         ]
 
         # 3. 构建DAG

@@ -214,8 +214,8 @@
 
 ```json
 {
-  "concept_type": "Supplier",
-  "properties": {
+  "_fact_object": "Supplier",
+  "attributes": {
     "company_name": { "type": "string", "required": true },
     "registered_capital": { "type": "MonetaryValue", "required": true },
     "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] }
@@ -270,7 +270,7 @@
 ```json
 {
   "name": "credit_score",
-  "element_type": "derived",
+  "type": "derived",
   "formula": "weighted_sum(registered_capital, guarantee_exposure)",
   "overridable": false,
   "dependencies": ["registered_capital", "guarantee_exposure"]
@@ -390,7 +390,7 @@
 
 ```json
 {
-  "concept_type": "Supplier",
+  "_fact_object": "Supplier",
   "entity_id": "S001",
   "attributes": {
     "company_name": "供应商A",

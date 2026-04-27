@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime
+from decimal import Decimal
 from typing import Any
+from uuid import uuid5, NAMESPACE_DNS
 
 
 class StorageError(Exception):
@@ -13,11 +16,23 @@ class StorageError(Exception):
 
 @dataclass
 class EntityInstance:
-    """Entity instance with fact object type and payload data."""
+    """Entity instance with fact object type and payload data.
+
+    Aligned with docs/02-design/schema/instance-layer.md EntityInstance.
+    """
 
     _fact_object: str
     entity_id: str
     data: dict[str, Any]
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None
+    confidence: float = 1.0
+    source_pipeline: str | None = None
+    source_content_hash: str | None = None
+    feedback_weight: float = 1.0
+    domain_id: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @property
     def concept(self) -> str:
@@ -27,17 +42,67 @@ class EntityInstance:
 
 @dataclass
 class RelationInstance:
-    """Relation between two entities."""
+    """Relation between two entities.
+
+    Aligned with docs/02-design/schema/instance-layer.md EdgeInstance.
+    """
 
     relation_name: str
     from_entity_id: str
     to_entity_id: str
     data: dict[str, Any] = field(default_factory=dict)
+    id: str | None = None
+    edge_text: str | None = None
+    weight: float = 1.0
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None
+    confidence: float = 1.0
+    source_pipeline: str | None = None
+    source_content_hash: str | None = None
 
     @property
     def relation_type(self) -> str:
         """Backward-compatible alias for relation_name."""
         return self.relation_name
+
+
+@dataclass
+class MetricValue:
+    """Computed metric value for an entity.
+
+    Aligned with docs/02-design/schema/instance-layer.md MetricValue.
+    """
+
+    entity_id: str
+    metric_name: str
+    value: Any
+    computed_at: datetime | None = None
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None
+    computed_by: str | None = None
+    computation_snapshot: dict[str, Any] | None = None
+
+
+@dataclass
+class KnowledgeFragment:
+    """Layer-R storage unit for raw text chunks.
+
+    Aligned with docs/02-design/schema/instance-layer.md KnowledgeFragment.
+    """
+
+    id: str | None = None
+    dataset_id: str | None = None
+    document_id: str | None = None
+    chunk_index: int | None = None
+    offset_start: int | None = None
+    offset_end: int | None = None
+    text: str = ""
+    vector_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    extraction_status: str = "pending"
+    content_hash: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class StorageBackend(ABC):

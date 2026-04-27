@@ -16,7 +16,7 @@
 | 2 | **L3 指标无并行预计算** | `compute_batch` 顺序计算所有指标 | 按依赖关系分组，无依赖指标 asyncio.gather 并行计算 |
 | 3 | **无指标缓存** | 每次分析都重新计算所有指标 | SQLite 缓存已计算指标，相同实体+指标名直接命中 |
 | 4 | **无外部注入** | 不支持 context.overrides 跳过计算 | context.overrides 检查，已存在则跳过计算 |
-| 5 | **_find_entity 硬编码** | 遍历固定 concept_types 列表查找实体 | 通过 KuzuDB 全局 ID 索引直接查找 |
+| 5 | **_find_entity 硬编码** | 遍历固定 fact_objects 列表查找实体 | 通过 KuzuDB 全局 ID 索引直接查找 |
 | 6 | **applies_to 检查缺失** | 不验证规则是否适用于当前实体 | RuleGroup.applies_to 匹配 entity_type + categories |
 
 ---
@@ -224,7 +224,7 @@ class ExecutionSnapshot:
 | D-AS-1 | L3 指标按依赖分组并行计算 | 无依赖指标并行计算可显著减少总延迟 |
 | D-AS-2 | 指标缓存使用 SQLite 而非内存 | 持久化缓存跨会话有效，重启不丢失 |
 | D-AS-3 | ExecutionStepSnapshot 独立存储 | 快照数据量大，独立存储避免污染主数据 |
-| D-AS-4 | _find_entity 使用 KuzuDB 全局 ID 索引 | 避免硬编码 concept_types 列表 |
+| D-AS-4 | _find_entity 使用 KuzuDB 全局 ID 索引 | 避免硬编码 fact_objects 列表 |
 | D-AS-5 | applies_to 检查在服务层执行 | 规则适用性是业务逻辑，应在编排层验证 |
 
 ---

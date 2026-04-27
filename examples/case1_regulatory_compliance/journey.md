@@ -1,368 +1,332 @@
-# Case 1 用户旅程 — 供应链金融合规检查
+# Case 1 用户旅程 — 规则版本发布、影响分析与回滚验证
+
+> **文件角色**: narrative journey **[待核对代码]**
+
+---
 
 ## 旅程概览
 
-本案例通过6个步骤展示如何使用 Rule Hot-Update 功能在48小时内完成央行23号文合规改造。
+本案例通过 9 个步骤展示：
 
-**预计执行时间**: 10-15分钟
-**所需工具**: MCP工具 或 CLI命令 或 API调用
+1. 导入规则与证据资产
+2. 创建合规消费视图
+3. 查看基线结果
+4. 编辑白名单资产并发布新版本
+5. 执行影响分析
+6. 在视图中验证结果变化
+7. 查看单实体完整证据链
+8. 回滚旧版本验证结果恢复
+9. 输出审计报告
+
+**预计演示时间**: 12-15 分钟
 
 ---
 
-## Step 1: 加载扩展Schema
+## Step 1：加载规则包、实体与证据碎片
 
 ### 操作
 
 ```bash
-# CLI方式
 ontology-cli schema load \
-    --space space.supply_chain_finance \
-    --file schema.yaml
+  --space space.supply_chain_finance \
+  --file schema.yaml
 
-# 或 MCP方式
-mcp__ontology__load_schema({
-    "space_id": "space.supply_chain_finance",
-    "schema_file": "schema.yaml"
-})
-```
-
-### 期望输出
-
-```json
-{
-    "schema_id": "schema.circ23.2026",
-    "space_id": "space.supply_chain_finance",
-    "fact_objects": [
-        "Supplier", "CoreEnterprise", "Invoice",
-        "Contract", "GuaranteeRelation",
-        "ComplianceRecord"
-    ],
-    "metrics": 12,
-    "rules": 8,
-    "new_rules_added": 4,
-    "status": "LOADED"
-}
-```
-
----
-
-## Step 2: 导入供应商数据
-
-### 操作
-
-```bash
 ontology-cli entities batch-import \
-    --space space.supply_chain_finance \
-    --file instances.yaml
+  --space space.supply_chain_finance \
+  --file instances.yaml
 ```
+
+### 当前资产
+
+- `Circular23_rule_pack@v2026.04.1`
+- `core_enterprise_whitelist@v2026.04`
+- `frag.whitelist.memo.001`
+- `frag.invoice.ocr.sup_c3`
+- `frag.guarantee.contract.sup_c4`
+
+### 验证点
+
+- [ ] 供应商与证据资产已就绪
+- [ ] 规则包与白名单资产可被后续版本化
+
+---
+
+## Step 2：创建合规消费视图
+
+### 操作
+
+```json
+POST /v1/views
+{
+  "view_id": "view.supply_chain_compliance_q2",
+  "space_id": "space.supply_chain_finance",
+  "dimensions": ["compliance_status", "core_enterprise", "risk_level"],
+  "metrics": ["compliance_score", "guarantee_ratio", "invoice_auth_pass_rate"],
+  "rules": ["Circular23_rule_pack"]
+}
+```
+
+### 目标
+
+把原本零散的规则执行结果统一收敛到一个消费入口，用于：
+
+- 通过率看板
+- 失败对象列表
+- 审计报告引用
+
+---
+
+## Step 3：查看基线结果（版本 v2026.04.1）
+
+### 操作
+
+```json
+POST /v1/views/view.supply_chain_compliance_q2/execute/analyze
+{
+  "entity_ids": ["SUP_C1", "SUP_C2", "SUP_C3", "SUP_C4", "SUP_C5"],
+  "include_trace": true
+}
+```
+
+### 期望输出摘要
+
+```json
+{
+  "version": "Circular23_rule_pack@v2026.04.1",
+  "summary": {
+    "total": 5,
+    "passed": 1,
+    "failed": 4,
+    "pass_rate": "20%"
+  },
+  "failed_entities": ["SUP_C2", "SUP_C3", "SUP_C4", "SUP_C5"]
+}
+```
+
+### 关注点
+
+- `SUP_C2` 当前失败原因为：核心企业未命中例外白名单
+- 这为后续版本变更提供可验证的对照组
+
+---
+
+## Step 4：编辑白名单资产并发布新版本
+
+### 操作
+
+规则运营在 UI 中打开：
+
+`/spaces/space.supply_chain_finance/rules/compliance_circular23`
+
+在右侧资产面板中补充：
+
+- 新增例外核心企业：`CE_RETAIL_PILOT_001`
+- 关联审批备忘录：`frag.whitelist.memo.001`
+- 发布新版本：`Circular23_rule_pack@v2026.04.2`
 
 ### 期望输出
 
 ```json
 {
-    "space_id": "space.supply_chain_finance",
-    "entities_imported": {
-        "Supplier": 5,
-        "CoreEnterprise": 3,
-        "Invoice": 23,
-        "Contract": 10,
-        "GuaranteeRelation": 4
-    },
-    "total_entities": 45,
-    "relations_created": 67,
-    "validation_passed": true
+  "published_version": "Circular23_rule_pack@v2026.04.2",
+  "changed_assets": [
+    "core_enterprise_whitelist@v2026.04.1",
+    "frag.whitelist.memo.001"
+  ],
+  "change_reason": "补充合作资方确认的试点核心企业白名单"
 }
 ```
 
 ---
 
-## Step 3: 热点更新合规规则（核心演示）
+## Step 5：执行影响分析
 
 ### 操作
 
-```bash
-# CLI方式 - 规则热更新
-ontology-cli rules hot-update \
-    --space space.supply_chain_finance \
-    --file rules/RD_circular23_compliance.yaml
-
-# 或 MCP方式
-mcp__ontology__load_rules({
-    "space_id": "space.supply_chain_finance",
-    "rules_file": "rules/RD_circular23_compliance.yaml"
-})
+```json
+GET /v1/views/view.supply_chain_compliance_q2/rules/dependency-graph?diff_from=v2026.04.1&diff_to=v2026.04.2
 ```
 
-### 期望输出
+### 版本对比 API 示例
+
+```json
+GET /v1/spaces/space.supply_chain_finance/versions/diff?from=v2026.04.1&to=v2026.04.2
+```
+
+#### 期望输出
 
 ```json
 {
-    "rules_loaded": [
-        {"rule_id": "RD_C23_001", "name": "核心企业白名单检查", "status": "ACTIVE"},
-        {"rule_id": "RD_C23_002", "name": "发票真实性核验", "status": "ACTIVE"},
-        {"rule_id": "RD_C23_003", "name": "担保金额上限检查", "status": "ACTIVE"},
-        {"rule_id": "RD_C23_004", "name": "风险集中度检查", "status": "ACTIVE"},
-        {"rule_id": "RD_C23_005", "name": "综合合规评估", "status": "ACTIVE"}
-    ],
-    "activation_time_ms": 847,
-    "effective_immediately": true,
-    "regulatory_reference": "银发〔2025〕77号"
+  "from_version": "Circular23_rule_pack@v2026.04.1",
+  "to_version": "Circular23_rule_pack@v2026.04.2",
+  "asset_changes": [
+    {
+      "asset_id": "core_enterprise_whitelist",
+      "change_type": "ITEM_ADDED",
+      "detail": "新增核心企业 CE_RETAIL_PILOT_001",
+      "evidence": "frag.whitelist.memo.001"
+    }
+  ],
+  "rule_logic_diff": [
+    {
+      "logic_id": "RL_circular23_whitelist_check",
+      "field": "whitelist_entries",
+      "before": ["CE_HW", "CE_BYD", "CE_ALI"],
+      "after": ["CE_HW", "CE_BYD", "CE_ALI", "CE_RETAIL_PILOT_001"]
+    }
+  ],
+  "affected_entities": [
+    {
+      "entity_id": "SUP_C2",
+      "before": "FAILED",
+      "after": "PASSED",
+      "reason": "核心企业白名单命中"
+    }
+  ],
+  "unaffected_entities": ["SUP_C1", "SUP_C3", "SUP_C4", "SUP_C5"]
+}
+```
+
+### 期望输出摘要
+
+```json
+{
+  "changed_rule_pack": "Circular23_rule_pack@v2026.04.2",
+  "affected_entities": [
+    {
+      "entity_id": "SUP_C2",
+      "before": "FAILED",
+      "after": "PASSED",
+      "reason": "核心企业白名单命中"
+    }
+  ],
+  "unaffected_entities": ["SUP_C1", "SUP_C3", "SUP_C4", "SUP_C5"]
 }
 ```
 
 ### 验证点
 
-- [ ] 规则在 < 1秒 内激活
-- [ ] 无需重启服务
-- [ ] 立即生效
+- [ ] 能明确列出受影响对象
+- [ ] 能说明为什么只有 `SUP_C2` 变化
+- [ ] 版本对比 API 能展示资产变更 diff 和规则逻辑 diff
 
 ---
 
-## Step 4: 执行合规分析
+## Step 6：在视图中验证结果变化
 
 ### 操作
 
-```bash
-ontology-cli analyze \
-    --space space.supply_chain_finance \
-    --entity-type Supplier \
-    --category compliance_assessment \
-    --dimension circular23_compliance
-```
-
-### 期望输出
-
 ```json
+POST /v1/views/view.supply_chain_compliance_q2/execute/analyze
 {
-    "analysis_id": "analysis_20260421_001",
-    "space_id": "space.supply_chain_finance",
-    "entities_analyzed": 5,
-    "results": [
-        {
-            "entity_id": "SUP_C1",
-            "company_name": "深圳恒通科技有限公司",
-            "compliance_status": "PASSED",
-            "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
-            "score": 95
-        },
-        {
-            "entity_id": "SUP_C2",
-            "company_name": "上海贸易有限公司",
-            "compliance_status": "FAILED",
-            "rules_checked": ["RD_C23_001", "RD_C23_002", "RD_C23_003", "RD_C23_004", "RD_C23_005"],
-            "failed_rules": ["RD_C23_001"],
-            "failure_reasons": ["核心企业'XX集团'不在白名单内"],
-            "score": 45
-        },
-        {
-            "entity_id": "SUP_C3",
-            "company_name": "广州制造有限公司",
-            "compliance_status": "FAILED",
-            "failed_rules": ["RD_C23_002"],
-            "failure_reasons": ["发票真实性核验通过率60%，低于95%阈值"],
-            "score": 50
-        },
-        {
-            "entity_id": "SUP_C4",
-            "company_name": "北京担保有限公司",
-            "compliance_status": "FAILED",
-            "failed_rules": ["RD_C23_003"],
-            "failure_reasons": ["担保金额1,500万超过注册资本10%上限"],
-            "score": 40
-        },
-        {
-            "entity_id": "SUP_C5",
-            "company_name": "成都供应链有限公司",
-            "compliance_status": "FAILED",
-            "failed_rules": ["RD_C23_004"],
-            "failure_reasons": ["风险集中度65%超过50%阈值"],
-            "score": 35
-        }
-    ],
-    "summary": {
-        "total": 5,
-        "passed": 1,
-        "failed": 4,
-        "pass_rate": "20%"
-    }
+  "entity_ids": ["SUP_C1", "SUP_C2", "SUP_C3", "SUP_C4", "SUP_C5"],
+  "include_trace": true,
+  "version": "Circular23_rule_pack@v2026.04.2"
 }
 ```
 
+### 期望输出摘要
+
+```json
+{
+  "version": "Circular23_rule_pack@v2026.04.2",
+  "summary": {
+    "total": 5,
+    "passed": 2,
+    "failed": 3,
+    "pass_rate": "40%"
+  },
+  "newly_passed_entities": ["SUP_C2"]
+}
+```
+
+### 验证点
+
+- [ ] 视图通过率从 20% 提升为 40%
+- [ ] 视图中的新增通过实体与影响分析一致
+
 ---
 
-## Step 5: 查询决策溯源
+## Step 7：查看 `SUP_C2` 的完整证据链
 
 ### 操作
 
-```bash
-ontology-cli query trace \
-    --space space.supply_chain_finance \
-    --entity-id SUP_C4 \
-    --include-evidence true
-```
-
-### 期望输出
-
 ```json
-{
-    "entity_id": "SUP_C4",
-    "company_name": "北京担保有限公司",
-    "trace_id": "trace_20260421_001",
-    "decision": {
-        "outcome": "FAILED",
-        "reason": "担保金额超过上限"
-    },
-    "rule_execution_path": [
-        {
-            "rule_id": "RD_C23_003",
-            "rule_name": "担保金额上限检查",
-            "step_id": "step_1",
-            "status": "FAILED",
-            "input": {
-                "guarantee_amount": 15000000,
-                "registered_capital": 100000000,
-                "ratio": 0.15
-            },
-            "condition": "guarantee_amount <= registered_capital * 0.1",
-            "condition_result": "false",
-            "output": {
-                "passed": false,
-                "message": "担保金额1,500万超过注册资本1亿的10%上限(1,000万)"
-            },
-            "evidence_chain": [
-                {
-                    "evidence_type": "guarantee_relation",
-                    "source": "GuaranteeRelation:GR_001",
-                    "field": "guarantee_amount",
-                    "value": 15000000,
-                    "confidence": 1.0
-                },
-                {
-                    "evidence_type": "fact_object",
-                    "source": "Supplier:SUP_C4",
-                    "field": "registered_capital",
-                    "value": 100000000,
-                    "confidence": 1.0
-                }
-            ]
-        }
-    ],
-    "mutual_index_links": [
-        {
-            "from": "EntityInstance:SUP_C4",
-            "to": "KnowledgeFragment:frag_guarantee_contract_2026",
-            "relation": "extracted_from",
-            "confidence": 1.0
-        },
-        {
-            "from": "ExecutionStepSnapshot:RD_C23_003_step_1",
-            "to": "KnowledgeFragment:frag_circular23_article_15",
-            "relation": "trace_to",
-            "confidence": 1.0
-        }
-    ],
-    "regulatory_reference": "银发〔2025〕77号 第十五条"
-}
+GET /v1/views/view.supply_chain_compliance_q2/execution/SUP_C2
 ```
+
+### 期望看到的链路
+
+- `extracted_from`: `Supplier.supplies_to → CoreEnterprise`
+- `supported_by`: `frag.whitelist.memo.001`
+- `defined_in`: `Circular23_rule_pack@v2026.04.2`
+- `trace_to`: `view.supply_chain_compliance_q2` 与 `report.compliance_q2`
+
+### 验证点
+
+- [ ] 用户能证明 `SUP_C2` 变化不是人工改结果，而是资产变更生效
+- [ ] 用户能打开审批备忘录做人工复核
 
 ---
 
-## Step 6: 生成合规审计报告
+## Step 8：回滚到旧版本并验证结果恢复
+
+### 操作
+
+```json
+POST /v1/spaces/space.supply_chain_finance/versions/v2026.04.1/rollback
+```
+
+随后重新执行同一视图。
+
+### 期望输出摘要
+
+```json
+{
+  "active_version": "Circular23_rule_pack@v2026.04.1",
+  "summary": {
+    "total": 5,
+    "passed": 1,
+    "failed": 4,
+    "pass_rate": "20%"
+  },
+  "rolled_back_entities": ["SUP_C2"]
+}
+```
+
+### 验证点
+
+- [ ] `SUP_C2` 从 PASSED 恢复为 FAILED
+- [ ] 用户能证明结果恢复与版本回滚一致
+
+---
+
+## Step 9：生成审计报告
 
 ### 操作
 
 ```bash
 ontology-cli report generate \
-    --space space.supply_chain_finance \
-    --analysis-id analysis_20260421_001 \
-    --type compliance_audit \
-    --period Q1-2026 \
-    --format pdf
+  --space space.supply_chain_finance \
+  --view view.supply_chain_compliance_q2 \
+  --type compliance_audit \
+  --format pdf
 ```
 
-### 期望输出
+### 报告中必须包含
 
-```json
-{
-    "report_id": "report_c23_2026Q1",
-    "report_type": "compliance_audit",
-    "period": "Q1-2026",
-    "format": "pdf",
-    "sections": [
-        "executive_summary",
-        "regulation_overview",
-        "entities_analyzed",
-        "compliance_results",
-        "failed_entities_detail",
-        "evidence_chains",
-        "recommendations",
-        "appendix"
-    ],
-    "generated_at": "2026-04-21T14:30:00Z",
-    "retention_years": 7
-}
-```
+- 规则包版本摘要
+- 版本变更记录
+- 受影响实体清单
+- 单实体可解释证据索引
+- 回滚验证记录
 
 ---
 
-## API端点速查
+## 结论
 
-| 操作 | API端点 | CLI命令 | MCP工具 |
-|------|---------|---------|---------|
-| 加载Schema | `POST /v1/schema/load` | `ontology-cli schema load` | `mcp__ontology__load_schema` |
-| 导入实体 | `POST /v1/entities/batch` | `ontology-cli entities batch-import` | `mcp__ontology__import_entities` |
-| 热更新规则 | `POST /v1/rules/import` | `ontology-cli rules hot-update` | `mcp__ontology__load_rules` |
-| 执行分析 | `POST /v1/analysis/execute` | `ontology-cli analyze` | `mcp__ontology__analyze` |
-| 查询溯源 | `GET /v1/query/trace/{id}` | `ontology-cli query trace` | `mcp__ontology__query_trace` |
-| 生成报告 | `POST /v1/reports/generate` | `ontology-cli report generate` | `mcp__ontology__generate_report` |
+这个案例最终要证明的不是“规则可以改”，而是：
 
----
-
-## 快速执行脚本
-
-```bash
-#!/bin/bash
-# case1_regulatory_compliance/quick_run.sh
-
-# Step 1: 加载扩展Schema
-ontology-cli schema load \
-    --space space.supply_chain_finance \
-    --file schema.yaml
-
-# Step 2: 导入供应商数据
-ontology-cli entities batch-import \
-    --space space.supply_chain_finance \
-    --file instances.yaml
-
-# Step 3: 热点更新合规规则
-ontology-cli rules hot-update \
-    --space space.supply_chain_finance \
-    --file rules/RD_circular23_compliance.yaml
-
-# Step 4: 执行合规分析
-ontology-cli analyze \
-    --space space.supply_chain_finance \
-    --entity-type Supplier \
-    --category compliance_assessment
-
-# Step 5: 查询溯源(示例: SUP_C4)
-ontology-cli query trace \
-    --space space.supply_chain_finance \
-    --entity-id SUP_C4 \
-    --include-evidence true
-
-# Step 6: 生成审计报告
-ontology-cli report generate \
-    --space space.supply_chain_finance \
-    --analysis-id analysis_latest \
-    --type compliance_audit \
-    --period Q1-2026
-```
-
----
-
-## 遗留问题
-
-1. **Bundle Search未实现**: 多维度证据筛选暂用规则替代
-2. **LLM Judge Stub**: 合理论证暂用规则引擎
-3. **MCP工具列表**: 需验证实际MCP工具名称
+- **规则改动会反映到视图与报告**
+- **结果变化可以被影响分析和证据链解释**
+- **回滚能让结果恢复，从而反向证明系统可信**

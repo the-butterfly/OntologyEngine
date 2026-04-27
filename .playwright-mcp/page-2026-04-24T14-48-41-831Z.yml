@@ -1,0 +1,78 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - link "OntologyEngine" [ref=e5] [cursor=pointer]:
+        - /url: /spaces
+        - heading "OntologyEngine" [level=4] [ref=e6]
+      - menu [ref=e7]:
+        - menuitem "database 管理面" [ref=e8] [cursor=pointer]:
+          - img "database" [ref=e9]:
+            - img [ref=e10]
+          - link "管理面" [ref=e13]:
+            - /url: /spaces
+        - menuitem "rocket 消费面" [ref=e14] [cursor=pointer]:
+          - img "rocket" [ref=e15]:
+            - img [ref=e16]
+          - link "消费面" [ref=e19]:
+            - /url: /consumption
+        - menuitem [disabled]:
+          - img:
+            - img
+    - main [ref=e20]:
+      - generic [ref=e22]:
+        - generic [ref=e24]:
+          - generic [ref=e28]:
+            - img "build" [ref=e30]:
+              - img [ref=e31]
+            - generic [ref=e33]: 模拟配置
+          - generic [ref=e35]:
+            - generic [ref=e37]:
+              - generic [ref=e38]: 目标输出
+              - generic [ref=e39] [cursor=pointer]:
+                - combobox [ref=e43]
+                - generic:
+                  - img:
+                    - img
+                - img [ref=e46]:
+                  - img [ref=e47]
+            - generic [ref=e50]:
+              - generic [ref=e51]: 实体ID
+              - generic [ref=e52] [cursor=pointer]:
+                - combobox [expanded] [active] [ref=e56]:
+                  - listbox:
+                    - option "CE_HW (CoreEnterprise)": CE_HW
+                    - option "CE_BYD (CoreEnterprise)": CE_BYD
+                - generic:
+                  - img:
+                    - img
+                - img [ref=e59]:
+                  - img [ref=e60]
+            - button "build 构建执行树" [disabled] [ref=e63]:
+              - generic:
+                - img "build":
+                  - img
+              - generic: 构建执行树
+        - generic [ref=e65]:
+          - img "暂无数据" [ref=e67]
+          - generic [ref=e79]: 配置目标输出和实体后，点击「构建执行树」开始
+  - generic [ref=e113]:
+    - generic "CE_HW (CoreEnterprise)" [ref=e114] [cursor=pointer]:
+      - generic [ref=e115]: CE_HW (CoreEnterprise)
+    - generic "CE_BYD (CoreEnterprise)" [ref=e116] [cursor=pointer]:
+      - generic [ref=e117]: CE_BYD (CoreEnterprise)
+    - generic "CE_ALI (CoreEnterprise)" [ref=e118] [cursor=pointer]:
+      - generic [ref=e119]: CE_ALI (CoreEnterprise)
+    - generic "SUP_A (Supplier)" [ref=e120] [cursor=pointer]:
+      - generic [ref=e121]: SUP_A (Supplier)
+    - generic "INV_A_001 (Invoice)" [ref=e122] [cursor=pointer]:
+      - generic [ref=e123]: INV_A_001 (Invoice)
+    - generic "INV_A_002 (Invoice)" [ref=e124] [cursor=pointer]:
+      - generic [ref=e125]: INV_A_002 (Invoice)
+    - generic "INV_A_003 (Invoice)" [ref=e126] [cursor=pointer]:
+      - generic [ref=e127]: INV_A_003 (Invoice)
+    - generic "INV_A_004 (Invoice)" [ref=e128] [cursor=pointer]:
+      - generic [ref=e129]: INV_A_004 (Invoice)
+    - generic "INV_A_005 (Invoice)" [ref=e130] [cursor=pointer]:
+      - generic [ref=e131]: INV_A_005 (Invoice)
+    - generic "CTR_A_001 (Contract)" [ref=e132] [cursor=pointer]:
+      - generic [ref=e133]: CTR_A_001 (Contract)

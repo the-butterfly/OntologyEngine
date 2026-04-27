@@ -87,7 +87,7 @@ Space (管理面)                    View (消费面)
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `concept_type` | string | 按概念类型过滤 |
+| `_fact_object` | string | 按概念类型过滤 |
 | `dimension` | string | 按维度过滤 |
 | `limit` | int | 分页大小 |
 | `offset` | int | 分页偏移 |

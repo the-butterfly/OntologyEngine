@@ -331,16 +331,13 @@ verified_against: code@ontology_engine/engine/expression/engine.py
 | `amount` | integer | 负数表示向前减；允许 `0` |
 | `unit` | string | `"day"` / `"month"` / `"year"` |
 
-> **⚠️ 已知 Bug**：`unit="month"` 时，若 `d.month + amount > 12` 或 `< 1`，
-> 当前实现 `d.replace(month=...)` 会抛出 `ValueError`（跨年月份溢出）。
-> **修复计划**：使用 `dateutil.relativedelta` 或手动进位逻辑处理跨年情况。
-> 当前规避方法：使用 `unit="day"` 并手动计算天数（如 `30 * months`）。
+> **✅ 已修复**：`unit="month"` 跨年时 `d.replace(month=...)` 抛 `ValueError` 的问题已修复（代码已修正，文档同步）。
 
 示例：
 - `date_add('2026-04-22', 30, 'day')` → `'2026-05-22'`
 - `date_add('2026-04-22', 1, 'year')` → `'2027-04-22'`
 
-实现状态：✅ 已实现（`engine.py:_date_add`）⚠️ month 单位跨年有 Bug
+实现状态：✅ 已实现（`engine.py:_date_add`）
 
 ---
 
@@ -441,27 +438,24 @@ verified_against: code@ontology_engine/engine/expression/engine.py
 
 ---
 
-### to_decimal(x) → float
+### to_decimal(x) → Decimal
 
-> **⚠️ 重要**：当前实现返回 Python `float`，**不是** `Decimal`。
-> 原始设计要求金融计算使用 `decimal.Decimal` 以避免浮点误差。
-> `0.1 + 0.2 != 0.3` 等精度问题在金融场景下会出现。
-> **修复计划**：将返回类型改为 `decimal.Decimal`，并确保后续运算路径支持 Decimal。
+> **✅ 已修复**：`to_decimal` 已改为返回 `decimal.Decimal`，金融计算浮点精度问题已解决（代码已修正，文档同步）。
 
-将值转换为高精度小数（当前为 float，待修复为 Decimal）。
+将值转换为高精度小数（Decimal）。
 
 | 参数 | 类型 | 约束 |
 |------|------|------|
-| `x` | any | `None` → `0.0`；转换失败 → `0.0` |
+| `x` | any | `None` → `Decimal('0')`；转换失败 → `Decimal('0')` |
 
 特殊值：
-- `to_decimal(None)` → `0.0`
-- `to_decimal("0.1")` → `0.1`（float，非 Decimal，精度有偏差）
-- `to_decimal("abc")` → `0.0`
+- `to_decimal(None)` → `Decimal('0')`
+- `to_decimal("0.1")` → `Decimal('0.1')`（精确小数，无精度偏差）
+- `to_decimal("abc")` → `Decimal('0')`
 
 > **兼容性**：`float` 是 `to_decimal` 的别名。
 
-实现状态：✅ 已实现（`engine.py:_to_decimal`）⚠️ 返回 float 而非 Decimal（Bug #12）
+实现状态：✅ 已实现（`engine.py:_to_decimal`）
 
 ---
 
@@ -819,12 +813,12 @@ verified_against: code@ontology_engine/engine/expression/engine.py
 
 ---
 
-## 已知 Bug 汇总
+## Bug 修复记录
 
-| # | 函数 | Bug 描述 | 严重程度 | 修复计划 |
-|---|------|---------|---------|---------|
-| B-1 | `date_add` | `unit="month"` 跨年时 `d.replace(month=...)` 抛 `ValueError` | 🔴 高 | 用 `dateutil.relativedelta` 或手动进位 |
-| B-2 | `to_decimal` | 返回 `float` 而非 `Decimal`，金融计算有浮点误差 | 🟡 中 | 改为返回 `decimal.Decimal` |
+| # | 函数 | Bug 描述 | 严重程度 | 状态 |
+|---|------|---------|---------|------|
+| B-1 | `date_add` | `unit="month"` 跨年时 `d.replace(month=...)` 抛 `ValueError` | 🔴 高 | ✅ 已修复（代码已修正，文档同步） |
+| B-2 | `to_decimal` | 返回 `float` 而非 `Decimal`，金融计算有浮点误差 | 🟡 中 | ✅ 已修复（代码已修正，文档同步） |
 
 ---
 

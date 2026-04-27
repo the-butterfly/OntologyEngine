@@ -183,7 +183,8 @@ class AnalysisService:
         """Find entity by ID.
 
         Since StorageBackend.get_entity requires concept type,
-        we try common concepts.
+        we use schema concept names to search, with a fallback
+        to full scan.
 
         Args:
             entity_id: Entity ID to find
@@ -191,7 +192,14 @@ class AnalysisService:
         Returns:
             EntityInstance if found, None otherwise
         """
-        concept_types = ["Supplier", "Invoice", "Contract", "Enterprise", "Company"]
+        try:
+            entity = await self.storage.get_entity_by_id(entity_id)
+            if entity:
+                return entity
+        except (AttributeError, NotImplementedError):
+            pass
+
+        concept_types = self._get_concept_types()
 
         for concept in concept_types:
             entity = await self.storage.get_entity(fact_object=concept, entity_id=entity_id)
@@ -204,6 +212,12 @@ class AnalysisService:
                 return entity
 
         return None
+
+    def _get_concept_types(self) -> list[str]:
+        """Get concept types from schema, or fallback to empty list."""
+        if self.schema and hasattr(self.schema, 'concepts'):
+            return [c.name for c in self.schema.concepts]
+        return []
 
     def _collect_required_metrics(self, dimension: str) -> list[str]:
         """Collect all metrics required for a dimension.

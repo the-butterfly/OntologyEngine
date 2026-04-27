@@ -1,13 +1,22 @@
 from __future__ import annotations
+
 from pathlib import Path
+from uuid import uuid5, NAMESPACE_DNS
+
 import yaml
 from typing import Any
 from ontology_engine.storage.base import EntityInstance, RelationInstance
+
+ENTITY_UUID_NAMESPACE = uuid5(NAMESPACE_DNS, "ontology-engine.entity")
 
 
 class InstanceLoadError(Exception):
     """Error loading instances"""
     pass
+
+
+class InstanceValidationError(InstanceLoadError):
+    """Validation error when instance data doesn't match schema declarations."""
 
 
 class InstanceLoader:
@@ -324,10 +333,15 @@ class InstanceLoader:
         """Extract entity ID from data based on concept type.
 
         Strategy:
-        1. Use schema-driven ID field discovery
-        2. Auto-detect by convention: {concept_lower}_id, {concept_lower}_no
-        3. Scan data for any field ending in _id or _no
+        1. Use schema-driven identity_fields for UUID5 deterministic ID
+        2. Use schema-driven ID field discovery
+        3. Auto-detect by convention: {concept_lower}_id, {concept_lower}_no
+        4. Scan data for any field ending in _id or _no
         """
+        identity_fields = self._get_identity_fields(concept)
+        if identity_fields:
+            return self._generate_uuid5_id(concept, data, identity_fields)
+
         id_field = self._infer_id_field(concept)
         if id_field and id_field in data:
             return data[id_field]
@@ -345,3 +359,49 @@ class InstanceLoader:
                     return v
 
         return None
+
+    def _get_identity_fields(self, concept: str) -> list[str]:
+        """Get identity_fields from schema declaration for a concept."""
+        if not self._schema:
+            return []
+        fo = self._schema.get_fact_object(concept)
+        if fo and hasattr(fo, "identity_fields") and fo.identity_fields:
+            return fo.identity_fields
+        return []
+
+    def _generate_uuid5_id(self, concept: str, data: dict, identity_fields: list[str]) -> str:
+        """Generate deterministic UUID5 based on concept + identity field values."""
+        parts = [concept]
+        for field_name in identity_fields:
+            val = data.get(field_name, "")
+            parts.append(str(val))
+        seed = "|".join(parts)
+        return str(uuid5(ENTITY_UUID_NAMESPACE, seed))
+
+    def _validate_entity_against_schema(self, concept: str, data: dict) -> list[str]:
+        """Validate entity data against schema declarations.
+
+        Returns list of validation error messages (empty if valid).
+        """
+        errors: list[str] = []
+        if not self._schema:
+            return errors
+
+        fo = self._schema.get_fact_object(concept)
+        if not fo:
+            return errors
+
+        declared_attrs = {attr.name for attr in fo.attributes}
+        required_attrs = {attr.name for attr in fo.attributes if attr.required}
+
+        data_keys = {k for k in data.keys() if not k.startswith("_")}
+
+        undeclared = data_keys - declared_attrs
+        if undeclared:
+            errors.append(f"Undeclared attributes: {undeclared}")
+
+        missing_required = required_attrs - data_keys
+        if missing_required:
+            errors.append(f"Missing required attributes: {missing_required}")
+
+        return errors

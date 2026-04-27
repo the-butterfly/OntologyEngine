@@ -42,7 +42,7 @@ const { Title } = Typography;
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <Layout style={{ height: '100vh' }}>
         <Header style={{ display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', padding: '0 24px' }}>
           <Link to="/spaces">

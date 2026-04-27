@@ -1,0 +1,14 @@
+[      66ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-5LUJUZZY.js?v=14f4807e:21550
+[     113ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=14f4807e:4435
+[     114ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=14f4807e:4435
+[   27044ms] [ERROR] Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead. @ http://localhost:3000/node_modules/.vite/deps/chunk-OHSIJ7TK.js?v=14f4807e:1117
+[   27073ms] [ERROR] [G6 v5.1.0] The graph instance has been destroyed @ http://localhost:3000/node_modules/.vite/deps/@antv_g6.js?v=14f4807e:94048
+[   27073ms] [ERROR] [G6 v5.1.0] The graph instance has been destroyed @ http://localhost:3000/node_modules/.vite/deps/@antv_g6.js?v=14f4807e:94048
+[   27189ms] TypeError: Cannot read properties of undefined (reading 'draw')
+    at _Graph.<anonymous> (http://localhost:3000/node_modules/.vite/deps/@antv_g6.js?v=14f4807e:94075:48)
+    at Generator.next (<anonymous>)
+    at fulfilled (http://localhost:3000/node_modules/.vite/deps/@antv_g6.js?v=14f4807e:93186:25)
+[   27189ms] TypeError: Cannot read properties of undefined (reading 'draw')
+    at _Graph.<anonymous> (http://localhost:3000/node_modules/.vite/deps/@antv_g6.js?v=14f4807e:94075:48)
+    at Generator.next (<anonymous>)
+    at fulfilled (http://localhost:3000/node_modules/.vite/deps/@antv_g6.js?v=14f4807e:93186:25)
