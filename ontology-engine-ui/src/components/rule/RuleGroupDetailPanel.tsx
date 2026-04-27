@@ -21,6 +21,7 @@ import {
   UpOutlined,
   DownOutlined,
   NodeExpandOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import RuleGroupForm from './RuleGroupForm';

@@ -6,6 +6,7 @@ Prefix: /v1/consumption/{viewId}/
 
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict, deque
 from typing import Any
 
@@ -659,11 +660,10 @@ async def execute_simulate(view_id: str, request: ExecuteSimulateRequest):
     if not entity:
         return error_response(code="NOT_FOUND", message=f"Entity {request.entity_id} not found")
 
-    # Run baseline
-    baseline = await _run_full_analysis(space, entity, request.dimension, {}, request.include_trace)
-    # Run simulated
-    simulated = await _run_full_analysis(
-        space, entity, request.dimension, request.overrides or {}, request.include_trace
+    # Run baseline and simulated in parallel for better performance
+    baseline, simulated = await asyncio.gather(
+        _run_full_analysis(space, entity, request.dimension, {}, request.include_trace),
+        _run_full_analysis(space, entity, request.dimension, request.overrides or {}, request.include_trace),
     )
 
     # Build diffs
