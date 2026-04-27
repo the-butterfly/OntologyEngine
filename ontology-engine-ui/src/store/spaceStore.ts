@@ -31,6 +31,9 @@ interface SpaceState {
   // L1 Fact Objects
   factObjects: any[];
 
+  // L2 Categorizations (dimensions)
+  categorizations: any[];
+
   // Execution data (consumption surface)
   schemaGraph: any | null;
   ruleChainGraph: any | null;
@@ -63,6 +66,9 @@ interface SpaceState {
   // L1 Fact Objects
   loadFactObjects: (spaceId: string) => Promise<void>;
   createFactObject: (spaceId: string, factObject: any) => Promise<void>;
+
+  // L2 Categorizations
+  loadCategorizations: (spaceId: string) => Promise<void>;
 
   // Rule Definitions
   loadRuleDefinitions: (spaceId: string) => Promise<void>;
@@ -108,6 +114,7 @@ const initialState = {
   versions: [],
   entities: [],
   factObjects: [],
+  categorizations: [],
   schemaGraph: null,
   ruleChainGraph: null,
   executionResult: null,
@@ -281,6 +288,17 @@ export const useSpaceStore = create<SpaceState>((set, get) => ({
         factObjects: [...state.factObjects, created],
         loading: false,
       }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  // Load categorizations (dimensions)
+  loadCategorizations: async (spaceId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const categorizations = await spaceApi.listCategorizations(spaceId);
+      set({ categorizations, loading: false });
     } catch (error: any) {
       set({ error: error.message, loading: false });
     }

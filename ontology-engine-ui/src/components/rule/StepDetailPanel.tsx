@@ -8,7 +8,6 @@ import {
   BranchesOutlined,
 } from '@ant-design/icons';
 import { RULE_TYPE_COLORS, EXECUTION_STATUS_COLORS } from '../../utils/colorSchemes';
-import { METRIC_LABELS } from '../../utils/labelMappings';
 import type { ExecutionStepSnapshot, ConditionDetail } from '../../types/visualization';
 
 const { Text, Paragraph } = Typography;
@@ -280,7 +279,7 @@ function DataRow({ label, value, type }: { label: string; value: any; type: 'inp
       border: `1px solid ${type === 'output' ? '#b7eb8f' : '#f0f0f0'}`,
     }}>
       <Text type="secondary" style={{ fontSize: 12 }}>
-        {METRIC_LABELS[label] || label}
+        {label}
       </Text>
       <Text 
         strong={type === 'output'} 

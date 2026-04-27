@@ -70,7 +70,7 @@ async def submit_feedback(
     self,
     query_id: str,
     element_id: str,
-    element_type: str,
+    type: str,
     score: int,
     text_feedback: str | None = None,
 ) -> FeedbackResult
@@ -82,7 +82,7 @@ async def submit_feedback(
 |------|------|------|
 | `query_id` | string | 关联的查询 ID |
 | `element_id` | string | 被评价的图元素 ID（EntityInstance 或 EdgeInstance） |
-| `element_type` | string | "entity" 或 "edge" |
+| `type` | string | "entity" 或 "edge" |
 | `score` | int | 1-5 分评分（1=很差，5=很好） |
 | `text_feedback` | string? | 文字反馈（可选） |
 
@@ -92,7 +92,7 @@ async def submit_feedback(
 |---|------|------|
 | V-FB-1 | score ∈ [1, 5] | 评分范围约束 |
 | V-FB-2 | element_id 必须引用已存在的图元素 | 引用完整性 |
-| V-FB-3 | element_type ∈ {"entity", "edge"} | 类型枚举约束 |
+| V-FB-3 | type ∈ {"entity", "edge"} | 类型枚举约束 |
 | V-FB-4 | 同一 query_id + element_id 组合不重复提交 | 幂等性约束 |
 
 ---
@@ -200,7 +200,7 @@ class FeedbackRecord:
     record_id: str
     query_id: str
     element_id: str
-    element_type: str
+    type: str
     score: int
     normalized_score: float
     text_feedback: str | None
@@ -225,7 +225,7 @@ SQLite `feedback_records` 表。
 
 | 方法 | 说明 |
 |------|------|
-| `submit_feedback(query_id, element_id, element_type, score, text_feedback)` | 提交反馈 |
+| `submit_feedback(query_id, element_id, type, score, text_feedback)` | 提交反馈 |
 | `batch_submit_feedback(feedbacks)` | 批量提交反馈 |
 | `get_feedback_history(element_id, limit)` | 查询元素反馈历史 |
 | `get_feedback_weight(element_id)` | 查询当前 feedback_weight |
@@ -242,7 +242,7 @@ SQLite `feedback_records` 表。
 | extract_feedback_qas | score + text_feedback | Cognee 从 QA 会话中提取反馈 |
 | alpha=0.1 | α=0.1 | 学习率一致 |
 | batch_size=100 | batch_submit_feedback | 批量处理反馈 |
-| used_graph_element_ids | element_id + element_type | 只更新被检索使用过的图元素 |
+| used_graph_element_ids | element_id + type | 只更新被检索使用过的图元素 |
 | applied 标记 | applied=True | 已处理反馈标记，避免重复应用 |
 | feedback_weight 参与检索 | final = λ × semantic + (1-λ) × feedback_weight | 权重参与检索评分 |
 

@@ -7,7 +7,7 @@ layering to build an execution tree.
 """
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from ontology_engine.services.rule_locator import RuleLocator
 
@@ -121,6 +121,25 @@ class RuleTreeBuilder:
                 producer = await self._locate_by_output(inp_id, schema_id)
                 if producer:
                     current_outputs.add(inp_id)
+
+        # Fill in depends_on for each step based on output-to-step mapping
+        output_to_step: dict[str, str] = {}
+        for layer in layers:
+            for step in layer["steps"]:
+                for out in step.get("output_names", []):
+                    if out:
+                        output_to_step[out] = step["step_id"]
+
+        for layer in layers:
+            for step in layer["steps"]:
+                depends_on: set[str] = set()
+                for inp in step.get("inputs", []):
+                    inp_id = inp.get("id") if isinstance(inp, dict) else inp
+                    if inp_id and inp_id in output_to_step:
+                        producer_step_id = output_to_step[inp_id]
+                        if producer_step_id != step["step_id"]:
+                            depends_on.add(producer_step_id)
+                step["depends_on"] = sorted(list(depends_on))
 
         return {
             "schema_id": schema_id,

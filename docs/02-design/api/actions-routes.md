@@ -205,7 +205,7 @@ Action (业务动作)                 Rule Group (规则组)
   "space_id": "space.supply_chain_finance",
   "entity_data": {
     "entity_id": "S001",
-    "concept_type": "Supplier",
+    "_fact_object": "Supplier",
     "attributes": {
       "company_name": "供应商A",
       "registered_capital": { "value": 5000000, "currency": "CNY" },

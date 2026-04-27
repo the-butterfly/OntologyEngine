@@ -146,14 +146,14 @@ class LayerSRetriever:
 
     async def _fetch_entity(self, entity_id: str) -> EntityResult | None:
         try:
-            entity = await self._meta_store.get_entity(entity_id)
+            entity = await self._meta_store.get_entity_by_id(entity_id)
             if entity is None:
                 return None
             data = entity.data if hasattr(entity, "data") else {}
             return EntityResult(
                 entity_id=entity.entity_id,
                 name=data.get("name", ""),
-                fact_object=entity._fact_object,
+                fact_object=entity.concept,
                 attributes={k: str(v) for k, v in data.items() if k != "name"},
                 valid_from=data.get("valid_from"),
                 valid_to=data.get("valid_to"),

@@ -7,7 +7,6 @@ import {
   CloseCircleOutlined
 } from '@ant-design/icons';
 import { METRIC_TYPE_COLORS, RULE_TYPE_COLORS } from '../../utils/colorSchemes';
-import { CONCEPT_LABELS, METRIC_LABELS } from '../../utils/labelMappings';
 import type { GraphNode } from '../../types/visualization';
 
 const { Text, Paragraph } = Typography;
@@ -27,7 +26,7 @@ export default function NodeDetailPanel({ node, onMetricClick }: NodeDetailPanel
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <DatabaseOutlined style={{ fontSize: 20, color: '#1890FF' }} />
           <div>
-            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{data.label || CONCEPT_LABELS[id] || id}</h4>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{data.label || id}</h4>
             <Text type="secondary" style={{ fontSize: 11 }}>L1 实体定义</Text>
           </div>
         </div>
@@ -175,7 +174,7 @@ export default function NodeDetailPanel({ node, onMetricClick }: NodeDetailPanel
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <CalculatorOutlined style={{ fontSize: 20, color: typeColor?.stroke || '#999' }} />
           <div>
-            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{data.label || METRIC_LABELS[id] || id}</h4>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{data.label || id}</h4>
             <Space size={4}>
               <Tag color={typeColor?.stroke} style={{ fontSize: 10, padding: '0 4px' }}>
                 {typeColor?.label || metricType}
@@ -233,7 +232,7 @@ export default function NodeDetailPanel({ node, onMetricClick }: NodeDetailPanel
                     borderRadius: 4,
                   }}
                 >
-                  <Text style={{ fontSize: 12 }}>{METRIC_LABELS[dep] || dep}</Text>
+                  <Text style={{ fontSize: 12 }}>{dep}</Text>
                   {weightMap[dep] != null && (
                     <Tag color="purple" style={{ fontSize: 10, margin: 0 }}>
                       {(weightMap[dep] * 100).toFixed(0)}%
@@ -256,7 +255,7 @@ export default function NodeDetailPanel({ node, onMetricClick }: NodeDetailPanel
               {(Object.entries(weightMap as Record<string, number>) as Array<[string, number]>).map(([key, weight]) => (
                 <div key={key}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <Text style={{ fontSize: 11 }}>{METRIC_LABELS[key] || key}</Text>
+                    <Text style={{ fontSize: 11 }}>{key}</Text>
                     <Text strong style={{ fontSize: 11, color: '#722ED1' }}>
                       {(weight * 100).toFixed(0)}%
                     </Text>

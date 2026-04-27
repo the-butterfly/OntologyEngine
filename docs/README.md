@@ -49,14 +49,14 @@
 
 | 子目录 | 对应模块 | 审视状态 |
 |--------|----------|----------|
-| [`schema/`](./02-design/schema/) | Schema 设计 | 待审视 |
-| [`storage/`](./02-design/storage/) | 存储设计 | 待审视 |
-| [`rule-engine/`](./02-design/rule-engine/) | 规则引擎设计 | 待审视 |
-| [`query-engine/`](./02-design/query-engine/) | 查询引擎设计 | 待审视 |
-| [`extraction-pipeline/`](./02-design/extraction-pipeline/) | 提取管线设计 | 待审视 |
-| [`services/`](./02-design/services/) | 服务层设计 | 待审视 |
-| [`api/`](./02-design/api/) | API 设计 | 待审视 |
-| [`formula/`](./02-design/formula/) | Formula 规范 | 待审视 |
+| [`schema/`](./02-design/schema/) | Schema 设计 | 审视重写完成（draft） |
+| [`storage/`](./02-design/storage/) | 存储设计 | 审视重写完成（draft） |
+| [`rule-engine/`](./02-design/rule-engine/) | 规则引擎设计 | 审视重写完成（draft） |
+| [`query-engine/`](./02-design/query-engine/) | 查询引擎设计 | 审视重写完成（draft） |
+| [`extraction-pipeline/`](./02-design/extraction-pipeline/) | 提取管线设计 | 审视重写完成（draft） |
+| [`services/`](./02-design/services/) | 服务层设计 | 审视重写完成（draft） |
+| [`api/`](./02-design/api/) | API 设计 | 审视重写完成（draft） |
+| [`formula/`](./02-design/formula/) | Formula 规范 | 审视重写完成（draft） |
 
 ### `03-rfc/`
 

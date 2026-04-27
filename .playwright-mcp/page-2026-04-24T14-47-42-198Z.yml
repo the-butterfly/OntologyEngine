@@ -1,0 +1,314 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "OntologyEngine" [ref=e5] [cursor=pointer]:
+      - /url: /spaces
+      - heading "OntologyEngine" [level=4] [ref=e6]
+    - menu [ref=e7]:
+      - menuitem "database 管理面" [ref=e8] [cursor=pointer]:
+        - img "database" [ref=e9]:
+          - img [ref=e10]
+        - link "管理面" [active] [ref=e13]:
+          - /url: /spaces
+      - menuitem "rocket 消费面" [ref=e14] [cursor=pointer]:
+        - img "rocket" [ref=e15]:
+          - img [ref=e16]
+        - link "消费面" [ref=e19]:
+          - /url: /consumption
+      - menuitem [disabled]:
+        - img:
+          - img
+  - main [ref=e20]:
+    - generic [ref=e81]:
+      - generic [ref=e83]:
+        - heading "语义空间" [level=4] [ref=e85]
+        - button "plus 创建空间" [ref=e87] [cursor=pointer]:
+          - img "plus" [ref=e89]:
+            - img [ref=e90]
+          - generic [ref=e93]: 创建空间
+      - generic [ref=e97]:
+        - table [ref=e101]:
+          - rowgroup [ref=e112]:
+            - row "名称 状态 消费视图 版本 实体 规则 域 创建时间 操作" [ref=e113]:
+              - columnheader "名称" [ref=e114]
+              - columnheader "状态" [ref=e115]
+              - columnheader "消费视图" [ref=e116]
+              - columnheader "版本" [ref=e117]
+              - columnheader "实体" [ref=e118]
+              - columnheader "规则" [ref=e119]
+              - columnheader "域" [ref=e120]
+              - columnheader "创建时间" [ref=e121]
+              - columnheader "操作" [ref=e122]
+          - rowgroup [ref=e123]:
+            - row "database Test Space desc DRAFT 未创建 v1 59 0 - 2026/4/20 18:15:47 play-circle edit delete" [ref=e124]:
+              - cell "database Test Space desc" [ref=e125]:
+                - generic [ref=e126]:
+                  - img "database" [ref=e128]:
+                    - img [ref=e129]
+                  - generic [ref=e131]: Test Space
+                  - generic [ref=e132]: desc
+              - cell "DRAFT" [ref=e133]:
+                - generic [ref=e134]: DRAFT
+              - cell "未创建" [ref=e135]:
+                - generic [ref=e136]: 未创建
+              - cell "v1" [ref=e137]:
+                - generic [ref=e138]: v1
+              - cell "59" [ref=e139]
+              - cell "0" [ref=e140]
+              - cell "-" [ref=e141]
+              - cell "2026/4/20 18:15:47" [ref=e142]
+              - cell "play-circle edit delete" [ref=e143]:
+                - generic [ref=e144]:
+                  - button "play-circle" [ref=e146] [cursor=pointer]:
+                    - img "play-circle" [ref=e148]:
+                      - img [ref=e149]
+                  - button "edit" [ref=e153] [cursor=pointer]:
+                    - img "edit" [ref=e155]:
+                      - img [ref=e156]
+                  - button "delete" [ref=e159] [cursor=pointer]:
+                    - img "delete" [ref=e161]:
+                      - img [ref=e162]
+            - row "database Test Space for Rules ACTIVE ACTIVE Test Space for Rules (消费视图) v1 0 0 - 2026/4/16 03:12:59 stop edit delete" [ref=e164]:
+              - cell "database Test Space for Rules" [ref=e165]:
+                - generic [ref=e166]:
+                  - img "database" [ref=e168]:
+                    - img [ref=e169]
+                  - generic [ref=e171]: Test Space for Rules
+              - cell "ACTIVE" [ref=e172]:
+                - generic [ref=e173]: ACTIVE
+              - cell "ACTIVE Test Space for Rules (消费视图)" [ref=e174]:
+                - generic [ref=e175]:
+                  - generic [ref=e177]: ACTIVE
+                  - generic [ref=e178]: Test Space for Rules (消费视图)
+              - cell "v1" [ref=e179]:
+                - generic [ref=e180]: v1
+              - cell "0" [ref=e181]
+              - cell "0" [ref=e182]
+              - cell "-" [ref=e183]
+              - cell "2026/4/16 03:12:59" [ref=e184]
+              - cell "stop edit delete" [ref=e185]:
+                - generic [ref=e186]:
+                  - button "stop" [ref=e188] [cursor=pointer]:
+                    - img "stop" [ref=e190]:
+                      - img [ref=e191]
+                  - button "edit" [ref=e194] [cursor=pointer]:
+                    - img "edit" [ref=e196]:
+                      - img [ref=e197]
+                  - button "delete" [ref=e200] [cursor=pointer]:
+                    - img "delete" [ref=e202]:
+                      - img [ref=e203]
+            - row "database 供应链金融演示 测试空间 DRAFT 未创建 v1 1 0 - 2026/4/12 12:01:21 play-circle edit delete" [ref=e205]:
+              - cell "database 供应链金融演示 测试空间" [ref=e206]:
+                - generic [ref=e207]:
+                  - img "database" [ref=e209]:
+                    - img [ref=e210]
+                  - generic [ref=e212]: 供应链金融演示
+                  - generic [ref=e213]: 测试空间
+              - cell "DRAFT" [ref=e214]:
+                - generic [ref=e215]: DRAFT
+              - cell "未创建" [ref=e216]:
+                - generic [ref=e217]: 未创建
+              - cell "v1" [ref=e218]:
+                - generic [ref=e219]: v1
+              - cell "1" [ref=e220]
+              - cell "0" [ref=e221]
+              - cell "-" [ref=e222]
+              - cell "2026/4/12 12:01:21" [ref=e223]
+              - cell "play-circle edit delete" [ref=e224]:
+                - generic [ref=e225]:
+                  - button "play-circle" [ref=e227] [cursor=pointer]:
+                    - img "play-circle" [ref=e229]:
+                      - img [ref=e230]
+                  - button "edit" [ref=e234] [cursor=pointer]:
+                    - img "edit" [ref=e236]:
+                      - img [ref=e237]
+                  - button "delete" [ref=e240] [cursor=pointer]:
+                    - img "delete" [ref=e242]:
+                      - img [ref=e243]
+            - row "database 测试空间_1776303351974 DRAFT DRAFT 测试空间_1776303351974 (消费视图) v1 0 0 - 2026/4/16 01:35:54 play-circle edit delete" [ref=e245]:
+              - cell "database 测试空间_1776303351974" [ref=e246]:
+                - generic [ref=e247]:
+                  - img "database" [ref=e249]:
+                    - img [ref=e250]
+                  - generic [ref=e252]: 测试空间_1776303351974
+              - cell "DRAFT" [ref=e253]:
+                - generic [ref=e254]: DRAFT
+              - cell "DRAFT 测试空间_1776303351974 (消费视图)" [ref=e255]:
+                - generic [ref=e256]:
+                  - generic [ref=e258]: DRAFT
+                  - generic [ref=e259]: 测试空间_1776303351974 (消费视图)
+              - cell "v1" [ref=e260]:
+                - generic [ref=e261]: v1
+              - cell "0" [ref=e262]
+              - cell "0" [ref=e263]
+              - cell "-" [ref=e264]
+              - cell "2026/4/16 01:35:54" [ref=e265]
+              - cell "play-circle edit delete" [ref=e266]:
+                - generic [ref=e267]:
+                  - button "play-circle" [ref=e269] [cursor=pointer]:
+                    - img "play-circle" [ref=e271]:
+                      - img [ref=e272]
+                  - button "edit" [ref=e276] [cursor=pointer]:
+                    - img "edit" [ref=e278]:
+                      - img [ref=e279]
+                  - button "delete" [ref=e282] [cursor=pointer]:
+                    - img "delete" [ref=e284]:
+                      - img [ref=e285]
+            - row "database Test Space desc DRAFT 未创建 v1 0 0 - 2026/4/22 17:28:13 play-circle edit delete" [ref=e287]:
+              - cell "database Test Space desc" [ref=e288]:
+                - generic [ref=e289]:
+                  - img "database" [ref=e291]:
+                    - img [ref=e292]
+                  - generic [ref=e294]: Test Space
+                  - generic [ref=e295]: desc
+              - cell "DRAFT" [ref=e296]:
+                - generic [ref=e297]: DRAFT
+              - cell "未创建" [ref=e298]:
+                - generic [ref=e299]: 未创建
+              - cell "v1" [ref=e300]:
+                - generic [ref=e301]: v1
+              - cell "0" [ref=e302]
+              - cell "0" [ref=e303]
+              - cell "-" [ref=e304]
+              - cell "2026/4/22 17:28:13" [ref=e305]
+              - cell "play-circle edit delete" [ref=e306]:
+                - generic [ref=e307]:
+                  - button "play-circle" [ref=e309] [cursor=pointer]:
+                    - img "play-circle" [ref=e311]:
+                      - img [ref=e312]
+                  - button "edit" [ref=e316] [cursor=pointer]:
+                    - img "edit" [ref=e318]:
+                      - img [ref=e319]
+                  - button "delete" [ref=e322] [cursor=pointer]:
+                    - img "delete" [ref=e324]:
+                      - img [ref=e325]
+            - row "database 供应链金融演示空间 供应链金融场景的演示语义空间 ACTIVE ACTIVE 供应链金融演示空间 (消费视图) v1 4 0 - 2026/4/12 08:00:00 stop edit delete" [ref=e327]:
+              - cell "database 供应链金融演示空间 供应链金融场景的演示语义空间" [ref=e328]:
+                - generic [ref=e329]:
+                  - img "database" [ref=e331]:
+                    - img [ref=e332]
+                  - generic [ref=e334]: 供应链金融演示空间
+                  - generic [ref=e335]: 供应链金融场景的演示语义空间
+              - cell "ACTIVE" [ref=e336]:
+                - generic [ref=e337]: ACTIVE
+              - cell "ACTIVE 供应链金融演示空间 (消费视图)" [ref=e338]:
+                - generic [ref=e339]:
+                  - generic [ref=e341]: ACTIVE
+                  - generic [ref=e342]: 供应链金融演示空间 (消费视图)
+              - cell "v1" [ref=e343]:
+                - generic [ref=e344]: v1
+              - cell "4" [ref=e345]
+              - cell "0" [ref=e346]
+              - cell "-" [ref=e347]
+              - cell "2026/4/12 08:00:00" [ref=e348]
+              - cell "stop edit delete" [ref=e349]:
+                - generic [ref=e350]:
+                  - button "stop" [ref=e352] [cursor=pointer]:
+                    - img "stop" [ref=e354]:
+                      - img [ref=e355]
+                  - button "edit" [ref=e358] [cursor=pointer]:
+                    - img "edit" [ref=e360]:
+                      - img [ref=e361]
+                  - button "delete" [ref=e364] [cursor=pointer]:
+                    - img "delete" [ref=e366]:
+                      - img [ref=e367]
+            - row "database Test API Space Test space for API validation DRAFT DRAFT Test API Space (消费视图) v1 2 0 - 2026/4/20 13:24:19 play-circle edit delete" [ref=e369]:
+              - cell "database Test API Space Test space for API validation" [ref=e370]:
+                - generic [ref=e371]:
+                  - img "database" [ref=e373]:
+                    - img [ref=e374]
+                  - generic [ref=e376]: Test API Space
+                  - generic [ref=e377]: Test space for API validation
+              - cell "DRAFT" [ref=e378]:
+                - generic [ref=e379]: DRAFT
+              - cell "DRAFT Test API Space (消费视图)" [ref=e380]:
+                - generic [ref=e381]:
+                  - generic [ref=e383]: DRAFT
+                  - generic [ref=e384]: Test API Space (消费视图)
+              - cell "v1" [ref=e385]:
+                - generic [ref=e386]: v1
+              - cell "2" [ref=e387]
+              - cell "0" [ref=e388]
+              - cell "-" [ref=e389]
+              - cell "2026/4/20 13:24:19" [ref=e390]
+              - cell "play-circle edit delete" [ref=e391]:
+                - generic [ref=e392]:
+                  - button "play-circle" [ref=e394] [cursor=pointer]:
+                    - img "play-circle" [ref=e396]:
+                      - img [ref=e397]
+                  - button "edit" [ref=e401] [cursor=pointer]:
+                    - img "edit" [ref=e403]:
+                      - img [ref=e404]
+                  - button "delete" [ref=e407] [cursor=pointer]:
+                    - img "delete" [ref=e409]:
+                      - img [ref=e410]
+            - row "database 供应链金融授信 供应链金融核心企业授信场景，含担保链图指标和规则分离设计 ACTIVE ACTIVE 供应链金融授信 (消费视图) v1 27 0 - 2026/4/13 00:52:59 stop edit delete" [ref=e412]:
+              - cell "database 供应链金融授信 供应链金融核心企业授信场景，含担保链图指标和规则分离设计" [ref=e413]:
+                - generic [ref=e414]:
+                  - img "database" [ref=e416]:
+                    - img [ref=e417]
+                  - generic [ref=e419]: 供应链金融授信
+                  - generic [ref=e420]: 供应链金融核心企业授信场景，含担保链图指标和规则分离设计
+              - cell "ACTIVE" [ref=e421]:
+                - generic [ref=e422]: ACTIVE
+              - cell "ACTIVE 供应链金融授信 (消费视图)" [ref=e423]:
+                - generic [ref=e424]:
+                  - generic [ref=e426]: ACTIVE
+                  - generic [ref=e427]: 供应链金融授信 (消费视图)
+              - cell "v1" [ref=e428]:
+                - generic [ref=e429]: v1
+              - cell "27" [ref=e430]
+              - cell "0" [ref=e431]
+              - cell "-" [ref=e432]
+              - cell "2026/4/13 00:52:59" [ref=e433]
+              - cell "stop edit delete" [ref=e434]:
+                - generic [ref=e435]:
+                  - button "stop" [ref=e437] [cursor=pointer]:
+                    - img "stop" [ref=e439]:
+                      - img [ref=e440]
+                  - button "edit" [ref=e443] [cursor=pointer]:
+                    - img "edit" [ref=e445]:
+                      - img [ref=e446]
+                  - button "delete" [ref=e449] [cursor=pointer]:
+                    - img "delete" [ref=e451]:
+                      - img [ref=e452]
+            - row "database 个人消费信贷 个人消费信贷评分场景，含L3指标、产品分流和一票否决逻辑 ACTIVE ACTIVE 个人消费信贷 (消费视图) v1 4 0 - 2026/4/13 00:52:59 stop edit delete" [ref=e454]:
+              - cell "database 个人消费信贷 个人消费信贷评分场景，含L3指标、产品分流和一票否决逻辑" [ref=e455]:
+                - generic [ref=e456]:
+                  - img "database" [ref=e458]:
+                    - img [ref=e459]
+                  - generic [ref=e461]: 个人消费信贷
+                  - generic [ref=e462]: 个人消费信贷评分场景，含L3指标、产品分流和一票否决逻辑
+              - cell "ACTIVE" [ref=e463]:
+                - generic [ref=e464]: ACTIVE
+              - cell "ACTIVE 个人消费信贷 (消费视图)" [ref=e465]:
+                - generic [ref=e466]:
+                  - generic [ref=e468]: ACTIVE
+                  - generic [ref=e469]: 个人消费信贷 (消费视图)
+              - cell "v1" [ref=e470]:
+                - generic [ref=e471]: v1
+              - cell "4" [ref=e472]
+              - cell "0" [ref=e473]
+              - cell "-" [ref=e474]
+              - cell "2026/4/13 00:52:59" [ref=e475]
+              - cell "stop edit delete" [ref=e476]:
+                - generic [ref=e477]:
+                  - button "stop" [ref=e479] [cursor=pointer]:
+                    - img "stop" [ref=e481]:
+                      - img [ref=e482]
+                  - button "edit" [ref=e485] [cursor=pointer]:
+                    - img "edit" [ref=e487]:
+                      - img [ref=e488]
+                  - button "delete" [ref=e491] [cursor=pointer]:
+                    - img "delete" [ref=e493]:
+                      - img [ref=e494]
+        - list [ref=e496]:
+          - listitem "上一页" [ref=e497]:
+            - button "left" [disabled] [ref=e498]:
+              - img "left" [ref=e499]:
+                - img [ref=e500]
+          - listitem "1" [ref=e502] [cursor=pointer]:
+            - generic [ref=e503]: "1"
+          - listitem "下一页" [ref=e504]:
+            - button "right" [disabled] [ref=e505]:
+              - img "right" [ref=e506]:
+                - img [ref=e507]

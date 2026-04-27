@@ -53,7 +53,7 @@ from datetime import datetime
 class NodeRecord:
     id: str
     labels: list[str]
-    properties: dict
+    attributes: dict
 
 @dataclass
 class EdgeRecord:
@@ -61,7 +61,7 @@ class EdgeRecord:
     type: str
     from_id: str
     to_id: str
-    properties: dict
+    attributes: dict
 
 @dataclass
 class PathRecord:
@@ -98,7 +98,7 @@ class GraphStore(ABC):
     async def create_node(
         self,
         label: str,
-        properties: dict,
+        attributes: dict,
     ) -> NodeRecord: ...
 
     @abstractmethod
@@ -106,7 +106,7 @@ class GraphStore(ABC):
         self,
         label: str,
         id: str,
-        properties: dict,
+        attributes: dict,
     ) -> NodeRecord: ...
 
     @abstractmethod
@@ -129,7 +129,7 @@ class GraphStore(ABC):
         rel_type: str,
         from_id: str,
         to_id: str,
-        properties: dict,
+        attributes: dict,
     ) -> EdgeRecord: ...
 
     @abstractmethod
@@ -177,7 +177,7 @@ class GraphStore(ABC):
         edge_type: str,
         from_id: str,
         to_id: str,
-        properties: dict,
+        attributes: dict,
     ) -> EdgeRecord: ...
 
     @abstractmethod

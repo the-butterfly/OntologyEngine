@@ -2,7 +2,7 @@
 status: draft
 phase: rewrite
 source_of_truth: docs/02-design/formula/README.md
-last_verified: "2026-04-19"
+last_verified: "2026-04-22"
 verified_against: code@ontology_engine/engine/expression/engine.py
 ---
 
@@ -66,16 +66,23 @@ L0 执行器只允许调用以下函数，任何未在白名单中的函数调�
 
 ```python
 SAFE_FUNCTIONS = frozenset({
-    "today", "now", "days_between", "days_since",
-    "months_between", "years_between", "add_days",
-    "is_null", "coalesce", "clamp",
+    "today", "now",
+    "days_between", "days_since", "date_diff", "date_add",
+    "year", "month", "day",
+    "is_null", "coalesce", "if_expr",
+    "clamp",
     "max", "min", "round", "abs", "int", "float", "bool", "str",
-    "len", "upper", "lower", "trim", "contains",
-    "starts_with", "ends_with", "replace", "substring",
-    "sum", "avg", "count",
-    "if_expr",
+    "len", "upper", "lower", "trim",
+    "replace", "substring",
+    "contains", "starts_with", "ends_with",
+    "split", "join",
+    "to_string", "to_decimal",
+    "sum", "avg", "count", "weighted_sum",
+    "ceil", "floor", "sqrt", "pow", "log",
 })
 ```
+
+> **注意**: 完整函数规范以 `docs/02-design/formula/function-library.md`（[单一事实源]）为准。
 
 ### 运算符限制
 
@@ -282,30 +289,35 @@ FormulaTimeoutError: Expression execution timed out
 | 功能 | 实现位置 | 状态 |
 |------|----------|------|
 | SimpleEval 执行器 | `engine.py:_create_simpleeval()` | ✅ |
-| asteval fallback | `engine.py:_evaluate_with_asteval()` | ✅ |
+| 自动选择逻辑 | `engine.py:_select_executor()` | ✅ |
 | 关键词预处理 | `engine.py:_normalize_keywords()` | ✅ |
 | 字段解析 | `engine.py:_resolve_fields()` | ✅ |
 | 运算符限制 | `engine.py:_create_simpleeval()` | ✅ |
-| 安全测试 | `test_expression_engine.py:TestSecurityHardening` | ✅ |
+| AST 白名单校验 | `l1_executor.py:_validate_ast()` | ✅ |
+| AST 深度检查 | `l1_executor.py:_check_depth()` | ✅ |
+| 赋值数量限制 | `l1_executor.py:_check_assignments()` | ✅ |
+| 循环次数限制 | `l1_executor.py:_inject_loop_guard()` | ✅ |
+| 超时中断 | `l1_executor.py:_execute_in_subprocess()` | ✅ |
+| 错误类型细分 | `errors.py` (5 种) | ✅ |
+| 统一 SAFE_FUNCTIONS | `engine.py:_SAFE_FUNCTIONS_MAP` | ✅ |
+| L0 有限 fallback | `engine.py:_evaluate_l0()` | ✅ |
+| L1 关键词预处理 | `engine.py:evaluate()` | ✅ |
 
-### 未实现（目标设计）
+### L0 有限 fallback 策略
+
+L0 执行失败时，仅在 `FunctionNotDefined` 或 `NameNotDefined` 异常时 fallback 到 L1
+（如列表字面量 `sum([1,2,3])` simpleeval 不支持）。语法错误和类型错误不 fallback，
+直接抛出 `FormulaSyntaxError` / `FormulaTypeError`。
+
+### L1 超时实现
+
+L1 使用 `multiprocessing.Process` 隔离执行 asteval，超时后 terminate 子进程。
+若子进程启动失败（如 context 含不可 pickle 对象），自动 fallback 到进程内执行
+（`_execute_in_process`），此时循环计数器（`_inject_loop_guard`）仍提供安全保护。
+
+### 待改进
 
 | 功能 | 目标 | 优先级 |
 |------|------|--------|
-| 自动选择逻辑 | 关键词检测 → L0/L1 | P0 |
-| AST 白名单校验 | L1 执行前校验 | P0 |
-| max_loop_iterations | L1 循环次数限制 | P1 |
-| timeout_seconds | L1 执行超时 | P1 |
-| max_ast_depth | AST 嵌套深度限制 | P2 |
-| 错误类型细分 | 5 种语义错误 | P1 |
-| FormulaTimeoutError | 超时错误 | P1 |
-| FormulaSecurityError | 安全违规错误 | P1 |
-
-### 当前代码与目标设计的差距
-
-| 维度 | 当前代码 | 目标设计 | 差距 |
-|------|----------|----------|------|
-| 执行器选择 | simpleeval 失败后 fallback asteval | 关键词检测自动选择 | 需重构 `_select_executor` |
-| asteval 安全 | 无 AST 校验、无资源限制 | AST 白名单 + 循环/超时限制 | 需新增 `_validate_ast` |
-| 错误类型 | 仅 `ExpressionSyntaxError` | 5 种语义错误 | 需新增 4 种错误类 |
-| 函数注册 | L0/L1 分别注册相同函数 | 统一 `SAFE_FUNCTIONS` + 共享注册 | 需抽取函数注册逻辑 |
+| `[` 检测优化 | 改为 AST Subscript 检测，避免误判 `contains(text, "[")` | P2 |
+| Cypher 全量参数化 | retrieval.py 中的 f-string 拼接改为 $param | P2 |

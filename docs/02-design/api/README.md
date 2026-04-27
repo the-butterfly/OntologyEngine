@@ -1,6 +1,6 @@
 # API Design
 
-> **status**: accepted
+> **status**: draft
 > **phase**: phase1
 > **source_of_truth**: `docs/01-overview/04-modules.md`, `docs/02-design/services/README.md`, `docs-baseline/05-schema-v2/09-canonical-schema-spec.md`
 > **last_verified**: 2026-04-19

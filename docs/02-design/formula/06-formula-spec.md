@@ -1,14 +1,14 @@
 ---
-status: accepted
+status: deprecated
 phase: mvp
-source_of_truth: true
+source_of_truth: false
 last_verified: "2026-04-12"
 verified_against: code-and-docs
 ---
 
 # Formula 表达式规范
 
-> **[单一事实源]**: 当前 Formula 语法规范的唯一入口
+> **[已过期入口]** — 已被 README.md + l0-l1-execution.md + function-library.md 替代
 > **约束**: 单行表达式，结构化复杂逻辑使用算子
 > **执行引擎**: simpleeval / 自定义安全求值器 (当前仅实现 simpleeval 方案)
 

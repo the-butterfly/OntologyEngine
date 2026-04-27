@@ -38,6 +38,7 @@ class KuzuGraphStore(GraphStoreBackend):
         self._db: Any | None = None  # kuzu.Database
         self._conn: Any | None = None  # kuzu.Connection
         self._initialized = False
+        self._fragment_cache: dict[str, bool] = {}
 
     # Pre-defined query specs for mutual index relations (class-level constant).
     # Each entry lists ALL rel-tables that carry that logical edge type, so that
@@ -574,14 +575,14 @@ class KuzuGraphStore(GraphStoreBackend):
         where_clause = "WHERE " + " AND ".join(where_parts) if where_parts else ""
 
         cypher = f"""
-            MATCH (src:Entity {{entity_id: '{node_id}'}}){arrow_left}{rel_match}{arrow_right}(n:Entity)
+            MATCH (src:Entity {{entity_id: $src_id}}){arrow_left}{rel_match}{arrow_right}(n:Entity)
             {where_clause}
             RETURN n.entity_id AS neighbor_id, r.relation_type AS edge_type,
                    r.relation_id AS edge_id, label(r) AS rel_table,
-                   n.properties AS properties
+                   r.properties AS edge_props, n.properties AS properties
             LIMIT {limit}
         """
-        kuzu_result = self._conn.execute(cypher)
+        kuzu_result = self._conn.execute(cypher, {"src_id": node_id})
         df = kuzu_result.get_as_df()
         if not df.empty:
             for _, row in df.iterrows():
@@ -594,17 +595,25 @@ class KuzuGraphStore(GraphStoreBackend):
                         continue
                     if valid_to and valid_to <= as_of:
                         continue
+                edge_props_raw = row.get("edge_props")
+                edge_props = json.loads(edge_props_raw) if isinstance(edge_props_raw, str) else (edge_props_raw or {})
                 result_rows.append({
                     "neighbor_id": row["neighbor_id"],
                     "edge_id": row["edge_id"],
                     "edge_type": row["edge_type"],
                     "direction": direction if direction != "both" else "outgoing",
+                    "confidence": edge_props.get("confidence"),
+                    "edge_text": edge_props.get("edge_text", ""),
+                    "offset_start": edge_props.get("offset_start", 0),
+                    "offset_end": edge_props.get("offset_end", 0),
                 })
 
         return result_rows
 
     async def _is_knowledge_fragment(self, node_id: str) -> bool:
         """Return True if node_id exists in the KnowledgeFragment table."""
+        if node_id in self._fragment_cache:
+            return self._fragment_cache[node_id]
         self._ensure_initialized()
         try:
             result = self._conn.execute(
@@ -612,9 +621,11 @@ class KuzuGraphStore(GraphStoreBackend):
                 {"fid": node_id},
             )
             df = result.get_as_df()
-            return not df.empty and int(df.iloc[0]["cnt"]) > 0
+            is_frag = not df.empty and int(df.iloc[0]["cnt"]) > 0
         except Exception:
-            return False
+            is_frag = False
+        self._fragment_cache[node_id] = is_frag
+        return is_frag
 
     async def _get_fragment_neighbors(
         self,
@@ -635,7 +646,7 @@ class KuzuGraphStore(GraphStoreBackend):
 
         try:
             cypher = f"""
-                MATCH (f:KnowledgeFragment {{fragment_id: '{fragment_id}'}})
+                MATCH (f:KnowledgeFragment {{fragment_id: $fid}})
                       -[r:SUPPORTED_BY_FRAGMENT]->
                       (e:Entity)
                 RETURN e.entity_id AS neighbor_id,
@@ -646,7 +657,7 @@ class KuzuGraphStore(GraphStoreBackend):
                        r.offset_end AS offset_end
                 LIMIT {limit}
             """
-            result = self._conn.execute(cypher)
+            result = self._conn.execute(cypher, {"fid": fragment_id})
             df = result.get_as_df()
             if df.empty:
                 return rows
@@ -719,7 +730,7 @@ class KuzuGraphStore(GraphStoreBackend):
             rel_constraint = ":Relation"
 
         cypher = f"""
-            MATCH cycle = (center:Entity {{entity_id: '$cid'}})-{rel_constraint}*2..{max_depth}-
+            MATCH cycle = (center:Entity {{entity_id: $cid}})-{rel_constraint}*2..{max_depth}-
             (center)
             RETURN [node IN nodes(cycle) | node.entity_id] AS cycle
             LIMIT 50

@@ -313,6 +313,7 @@ steps:
       #   - SWITCH: 分支算子
       #   - SCORECARD: 评分卡算子
       #   - WEIGHTED_SUM: 加权求和算子
+      #   - FORMULA: 通用公式算子，执行 ExpressionEngine 表达式，支持 L0/L1 两级执行模型
       query: object?                # operator=GRAPH 时：图遍历查询定义
       aggregation: [AggDef]?        # operator=GRAPH 时：聚合定义
       bins: [BinDef]?               # operator=BINNING 时：分箱定义

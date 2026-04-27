@@ -1,8 +1,10 @@
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Graph } from '@antv/g6';
 import { METRIC_TYPE_COLORS, RULE_TYPE_COLORS } from '../../utils/colorSchemes';
-import { CONCEPT_LABELS, METRIC_LABELS } from '../../utils/labelMappings';
-import type { SchemaGraphData, GraphNode, GraphEdge } from '../../types/visualization';
+import type { SchemaGraphData, GraphNode } from '../../types/visualization';
+import { LAYER_CONFIG, EDGE_COLORS, LayerType } from './schemaGraphStyles';
+import { transformToG6 } from './schemaGraphTransform';
+import SchemaLegend from './SchemaLegend';
 
 interface SchemaGraphProps {
   data: SchemaGraphData | null;
@@ -14,85 +16,6 @@ interface SchemaGraphProps {
 export interface SchemaGraphRef {
   exportImage: () => Promise<string | null>;
 }
-
-// ============================================================================
-// CONSTANTS - Layer Configuration
-// ============================================================================
-
-type LayerType = 'entity' | 'category' | 'metric' | 'rule';
-
-interface LayerConfig {
-  size: [number, number];
-  fill: string;
-  stroke: string;
-  lineWidth: number;
-  radius: number;
-  rotation: number;
-  labelInside: boolean;
-  labelOffsetY: number;
-  labelFontSize: number;
-  labelColor: string;
-}
-
-const LAYER_CONFIG: Record<LayerType, LayerConfig> = {
-  entity: {
-    size: [140, 56],
-    fill: '#E8F4FD',
-    stroke: '#1890FF',
-    lineWidth: 2,
-    radius: 28,  // Full capsule - half of height for pill shape
-    rotation: 0,
-    labelInside: true,
-    labelOffsetY: 0,
-    labelFontSize: 12,
-    labelColor: '#096DD9',
-  },
-  category: {
-    size: [72, 72],
-    fill: '#F9F0FF',
-    stroke: '#722ED1',
-    lineWidth: 2.5,
-    radius: 0,
-    rotation: 45,
-    labelInside: false,
-    labelOffsetY: 14,
-    labelFontSize: 11,
-    labelColor: '#722ED1',
-  },
-  metric: {
-    size: [52, 52],
-    fill: '#F6FFED',
-    stroke: '#52C41A',
-    lineWidth: 2,
-    radius: 26,
-    rotation: 0,
-    labelInside: false,
-    labelOffsetY: 12,
-    labelFontSize: 11,
-    labelColor: '#389E0D',
-  },
-  rule: {
-    size: [160, 72],
-    fill: '#E6F7FF',
-    stroke: '#1890FF',
-    lineWidth: 2,
-    radius: 6,
-    rotation: 0,
-    labelInside: true,
-    labelOffsetY: 0,
-    labelFontSize: 12,
-    labelColor: '#096DD9',
-  },
-};
-
-// Edge colors by type
-const EDGE_COLORS: Record<string, string> = {
-  relation: '#91D5FF',
-  dependency: '#87E8DE',
-  component: '#BAE7FF',
-  rule_input: '#FFA39E',
-  data_dependency: '#FF7B45',
-};
 
 // ============================================================================
 // MAIN COMPONENT
@@ -291,7 +214,7 @@ function SchemaGraphComponent({ data, loading, onNodeClick, onNodeHover }: Schem
                 if (d.data?.edgeType === 'dependency') return [2, 2];
                 return undefined;
               },
-              endArrow: true,  // Show arrow for all edges including relations
+              endArrow: true, // Show arrow for all edges including relations
               startArrow: false,
               curveOffset: (d: any): number => d.data?.curveOffset || 0,
               curvePosition: 0.5,
@@ -440,87 +363,8 @@ function SchemaGraphComponent({ data, loading, onNodeClick, onNodeHover }: Schem
         }}
       />
 
-      {/* Layer Legend - positioned absolutely as sibling to canvas */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 12,
-          right: 12,
-          background: '#fff',
-          borderRadius: 8,
-          padding: '10px 14px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-          zIndex: 10,
-          fontSize: 12,
-          minWidth: 140,
-        }}
-      >
-        <div style={{ fontWeight: 600, marginBottom: 8, color: '#333', fontSize: 13 }}>层级图例</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 28, height: 12, background: '#E8F4FD',
-              border: '2px solid #1890FF', borderRadius: 6,  // Capsule shape
-            }} />
-            <div>
-              <div style={{ color: '#333', lineHeight: 1.2 }}>事实对象</div>
-              <div style={{ color: '#999', fontSize: 10 }}>L1 Entity</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 16, height: 16, background: '#F9F0FF',
-              border: '2px solid #722ED1', transform: 'rotate(45deg)',
-            }} />
-            <div>
-              <div style={{ color: '#333', lineHeight: 1.2 }}>分类体系</div>
-              <div style={{ color: '#999', fontSize: 10 }}>L2 Category</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 16, height: 16, background: '#F6FFED',
-              border: '2px solid #52C41A', borderRadius: '50%',
-            }} />
-            <div>
-              <div style={{ color: '#333', lineHeight: 1.2 }}>分析要素</div>
-              <div style={{ color: '#999', fontSize: 10 }}>L3 Metric</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 28, height: 14, background: '#E6F7FF',
-              border: '2px solid #1890FF', borderRadius: 3,
-            }} />
-            <div>
-              <div style={{ color: '#333', lineHeight: 1.2 }}>业务逻辑</div>
-              <div style={{ color: '#999', fontSize: 10 }}>L4 Rule</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-          <div style={{ fontWeight: 600, marginBottom: 6, color: '#333', fontSize: 11 }}>边类型</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 20, height: 2, background: '#91D5FF' }} />
-              <span style={{ color: '#666' }}>关联关系</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 20, height: 2, background: '#87E8DE' }} />
-              <span style={{ color: '#666' }}>依赖关系</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 20, height: 2, background: '#FFA39E' }} />
-              <span style={{ color: '#666' }}>要素输入</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 20, height: 2, background: '#FF7B45' }} />
-              <span style={{ color: '#666' }}>规则依赖</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Layer Legend */}
+      <SchemaLegend />
     </div>
   );
 }
@@ -563,98 +407,4 @@ function clearHighlights(graph: Graph) {
   } catch (e) {
     // Ignore
   }
-}
-
-// ============================================================================
-// DATA TRANSFORMERS
-// ============================================================================
-
-function transformToG6(data: SchemaGraphData) {
-  if (!data) {
-    console.warn('SchemaGraph: data is undefined');
-    return { nodes: [], edges: [] };
-  }
-
-  const nodes = data.nodes || [];
-  const edges = data.edges || [];
-
-  const nodeIds = new Set(nodes.map(n => n.id));
-
-  const edgePairCount: Map<string, number> = new Map();
-  const edgePairIndex: Map<string, { count: number; pairKey: string; source: string; target: string }> = new Map();
-
-  edges.forEach(edge => {
-    if (nodeIds.has(edge.source) && nodeIds.has(edge.target)) {
-      const unorderedPairKey = [edge.source, edge.target].sort().join('->');
-      const count = edgePairCount.get(unorderedPairKey) || 0;
-      edgePairCount.set(unorderedPairKey, count + 1);
-      edgePairIndex.set(edge.id, { count, pairKey: unorderedPairKey, source: edge.source, target: edge.target });
-    }
-  });
-
-  const g6Nodes = nodes.map(node => ({
-    id: node.id,
-    data: {
-      nodeType: node.type,
-      label: getLabel(node),
-      ...node.data,
-    },
-  }));
-
-  const g6Edges = edges
-    .filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-    .map(edge => {
-      const pairKey = [edge.source, edge.target].sort().join('->');
-      const count = edgePairCount.get(pairKey) || 1;
-      const edgeInfo = edgePairIndex.get(edge.id);
-      const index = edgeInfo?.count ?? 0;
-      const isParallel = count > 1;
-
-      let curveOffset = 0;
-      if (isParallel) {
-        const spacing = 60;
-
-        if (count === 2) {
-          const sortedPair = [edge.source, edge.target].sort();
-          const isForward = edge.source === sortedPair[0];
-          curveOffset = isForward ? spacing : -spacing;
-        } else {
-          const totalWidth = (count - 1) * spacing;
-          const sign = index % 2 === 0 ? 1 : -1;
-          curveOffset = sign * (index * spacing - totalWidth / 2 + spacing / 2);
-        }
-      }
-
-      return {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        data: {
-          edgeType: edge.type,
-          label: getEdgeLabel(edge),
-          weight: edge.data?.weight,
-          curveOffset,
-          isParallel,
-          element: edge.data?.element,
-          ...edge.data,
-        },
-      };
-    });
-
-  return {
-    nodes: g6Nodes,
-    edges: g6Edges,
-  };
-}
-
-function getLabel(node: GraphNode): string {
-  if (node.data?.label) return node.data.label;
-  if (node.type === 'entity') return CONCEPT_LABELS[node.id] || node.id;
-  if (node.type === 'metric') return METRIC_LABELS[node.id] || node.id;
-  return node.id;
-}
-
-function getEdgeLabel(edge: GraphEdge): string {
-  if (edge.data?.label) return edge.data.label;
-  return '';
 }

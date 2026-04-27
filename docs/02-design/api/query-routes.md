@@ -32,7 +32,7 @@
 ```json
 {
   "text": "芯片供应商",
-  "concept_type": "Supplier",
+  "_fact_object": "Supplier",
   "top_k": 10,
   "filters": {
     "status": { "eq": "ACTIVE" }
@@ -43,7 +43,7 @@
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `text` | string | 是 | 搜索文本 |
-| `concept_type` | string | 否 | 按概念类型过滤 |
+| `_fact_object` | string | 否 | 按概念类型过滤 |
 | `top_k` | int | 否 | 返回数量（默认 10） |
 | `filters` | object | 否 | 属性过滤条件 |
 
@@ -56,7 +56,7 @@
     "results": [
       {
         "entity_id": "S003",
-        "concept_type": "Supplier",
+        "_fact_object": "Supplier",
         "relevance_score": 0.95,
         "attributes": {
           "company_name": "芯片供应商A",
@@ -96,7 +96,7 @@
 {
   "mode": "pattern",
   "start": {
-    "concept_type": "Supplier",
+    "_fact_object": "Supplier",
     "filter": { "status": { "eq": "ACTIVE" } }
   },
   "traverse": [
@@ -105,7 +105,7 @@
       "direction": "both",
       "depth": 2,
       "target_filter": {
-        "concept_type": "Supplier",
+        "_fact_object": "Supplier",
         "attributes": { "risk_level": { "eq": "HIGH" } }
       }
     }
@@ -159,7 +159,7 @@
 ```json
 {
   "query": "高信用的芯片供应商",
-  "concept_type": "Supplier",
+  "_fact_object": "Supplier",
   "top_k": 10,
   "semantic_weight": 0.6,
   "graph_weight": 0.4,
@@ -173,7 +173,7 @@
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `query` | string | 是 | 查询文本 |
-| `concept_type` | string | 否 | 概念类型过滤 |
+| `_fact_object` | string | 否 | 概念类型过滤 |
 | `top_k` | int | 否 | 返回数量 |
 | `semantic_weight` | float | 否 | 语义权重（默认 0.6） |
 | `graph_weight` | float | 否 | 图权重（默认 0.4） |
@@ -193,7 +193,7 @@
 ```json
 {
   "query": "高信用的芯片供应商",
-  "concept_type": "Supplier",
+  "_fact_object": "Supplier",
   "explain_mode": "plan"
 }
 ```
@@ -201,7 +201,7 @@
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `query` | string | 是 | 查询文本 |
-| `concept_type` | string | 否 | 概念类型 |
+| `_fact_object` | string | 否 | 概念类型 |
 | `explain_mode` | enum | 否 | `plan` / `cost` / `full` |
 
 **响应：**
@@ -215,7 +215,7 @@
         { "type": "semantic_search", "description": "向量检索 '高信用的芯片供应商'" },
         { "type": "graph_expansion", "description": "从种子实体扩展 1 跳邻居" },
         { "type": "fusion", "description": "RRF 融合，语义权重 0.6，图权重 0.4" },
-        { "type": "filter", "description": "过滤 concept_type=Supplier" }
+        { "type": "filter", "description": "过滤 _fact_object=Supplier" }
       ],
       "estimated_cost": {
         "vector_ops": 1,
@@ -256,7 +256,7 @@
 
 | 能力 | 支持 | 说明 |
 |------|------|------|
-| 节点查找 | 是 | 按 concept_type + 属性过滤 |
+| 节点查找 | 是 | 按 _fact_object + 属性过滤 |
 | 1-2 跳邻居扩展 | 是 | 指定关系类型、方向、深度 |
 | 属性过滤 | 是 | eq / gte / lte / in / contains |
 | 路径返回 | 是 | include_path=true |

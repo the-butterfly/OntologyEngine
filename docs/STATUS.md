@@ -34,6 +34,8 @@
 | [`02-design/services/`](./02-design/services/) | 服务层设计 | draft | 主题级 SoT | 审视重写完成，含 6 份文档 |
 | [`02-design/api/`](./02-design/api/) | API 设计 | draft | 主题级 SoT | 审视重写完成，含 7 份文档 |
 | [`02-design/formula/`](./02-design/formula/) | Formula 规范 | draft | 主题级 SoT | 审视重写完成，含 3 份文档 |
+| [`02-design/agent-memory/`](./02-design/agent-memory/) | Agent 记忆系统设计 | draft | 主题级 SoT | Phase 2 新增，含 4 份文档 |
+| [`01-overview/09-agent-memory.md`](./01-overview/09-agent-memory.md) | Agent 记忆概念 | draft | 概念级 SoT | Phase 2 新增 |
 | [`03-rfc/`](./03-rfc/) | RFC 提案 | accepted | 是 | 需求提议→功能实施 |
 | [`04-adr/`](./04-adr/) | 架构决策记录 | accepted | 是 | 冻结关键取舍 |
 
@@ -67,6 +69,7 @@
 | Storage 迁移 | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/storage/` |
 | API 路由统一 | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/api/` |
 | Simulation Embeddable UI | **[已完成]** | ✅ 实现完成 | `docs/plans/2026-04-21-simulation-embeddable-ui.md` |
+| Agent 记忆系统 | **[关键设计点]** | ✅ 概念+设计文档完成 | `02-design/agent-memory/` |
 
 ## 更新要求
 

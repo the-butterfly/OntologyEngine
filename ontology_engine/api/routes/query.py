@@ -31,7 +31,7 @@ class PatternMatchRequest(BaseModel):
 
 class TraverseRequest(BaseModel):
     """Request body for graph traverse."""
-    relation_name: str = "has_invoice"
+    relation_name: str = ""
     direction: str = "outgoing"
     depth: int = 1
     as_of: datetime | None = None
@@ -158,7 +158,7 @@ async def graph_query(
 
         # Extract traversal params
         traverse = body.traverse[0] if body.traverse else {}
-        relation_name = traverse.get("relation_name") or traverse.get("relation_type", "has_invoice")
+        relation_name = traverse.get("relation_name") or traverse.get("relation_type", "")
         direction = traverse.get("direction", "outgoing")
         depth = traverse.get("max_hops", 1)
 
@@ -225,7 +225,7 @@ async def pattern_match_post(
 @router.get("/traverse/{entity_id}")
 async def graph_traverse_get(
     entity_id: str,
-    relation_name: str = Query(default="has_invoice", alias="relation_type"),
+    relation_name: str = Query(default="", alias="relation_type"),
     direction: str = "outgoing",
     depth: int = 1,
     as_of: datetime | None = None,

@@ -32,11 +32,9 @@ export default function SimulationPage() {
   const {
     activeSpaceId,
     activeViewId,
-    entities,
     simulationResult,
     executeSimulate,
     executeLoading,
-    loadEntities,
     error,
     clearError,
   } = useSpaceStore();
@@ -49,27 +47,30 @@ export default function SimulationPage() {
   const [treeLoading, setTreeLoading] = useState(false);
   const [targetOutput, setTargetOutput] = useState<string>('final_decision');
 
-  // Also load entities from view (in case activeSpaceId not set)
+  // View-specific entities (correct scope for consumption surface)
   const [viewEntities, setViewEntities] = useState<any[]>([]);
+  const [entitiesLoading, setEntitiesLoading] = useState(false);
 
+  // Categorizations (dimensions) from L2
+  const [categorizations, setCategorizations] = useState<any[]>([]);
+
+  // Load view entities when activeViewId changes
   useEffect(() => {
-    if (activeSpaceId) {
-      loadEntities(activeSpaceId);
-    }
+    if (!activeViewId) return;
+    setEntitiesLoading(true);
+    spaceApi.listViewEntities(activeViewId)
+      .then(setViewEntities)
+      .catch(() => message.error('加载实体列表失败'))
+      .finally(() => setEntitiesLoading(false));
+  }, [activeViewId]);
+
+  // Load categorizations (dimensions) when space changes - only when spaceId is stable
+  useEffect(() => {
+    if (!activeSpaceId) return;
+    spaceApi.listCategorizations(activeSpaceId)
+      .then(setCategorizations)
+      .catch(console.error);
   }, [activeSpaceId]);
-
-  // Load entities from view if needed
-  useEffect(() => {
-    const loadViewEntities = async () => {
-      if (activeViewId && entities.length === 0) {
-        try {
-          const data = await spaceApi.listViewEntities(activeViewId);
-          setViewEntities(data || []);
-        } catch (_) {}
-      }
-    };
-    loadViewEntities();
-  }, [activeViewId, entities.length]);
 
   useEffect(() => {
     if (error) {
@@ -78,7 +79,7 @@ export default function SimulationPage() {
     }
   }, [error]);
 
-  const allEntities = entities.length > 0 ? entities : viewEntities;
+  const allEntities = viewEntities;
 
   const runSimulation = async () => {
     if (!activeViewId || !entityId) {
@@ -261,11 +262,10 @@ export default function SimulationPage() {
                 value={dimension}
                 onChange={setDimension}
                 style={{ width: '100%' }}
-                options={[
-                  { value: 'default', label: '默认维度' },
-                  { value: 'credit_assessment', label: '信用评估' },
-                  { value: 'risk_analysis', label: '风险分析' },
-                ]}
+                options={categorizations.map((cat) => ({
+                  value: cat.id,
+                  label: cat.name || cat.id,
+                }))}
               />
             </div>
           </Space>

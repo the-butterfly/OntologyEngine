@@ -370,8 +370,10 @@ class TestSimulationAutoFill:
                 current_inputs = data.get("current_inputs", {})
                 assert "credit_score" in current_inputs, f"Expected credit_score in current_inputs, got {current_inputs}"
                 assert current_inputs["credit_score"] == 750, f"Expected credit_score=750, got {current_inputs['credit_score']}"
-                # transaction_count is NOT auto-filled because it's not a dependency for final_decision
-                # (it's only used as input to R001 which produces credit_score)
+                # transaction_count is NOT auto-filled because it's not in input_requirements
+                # Only inputs listed in input_requirements should be auto-filled
+                assert "transaction_count" not in current_inputs, \
+                    f"transaction_count should NOT be auto-filled, got {current_inputs}"
         finally:
             sim_module._semantic_space_storage = original_storage
             sim_module._tree_builder = original_builder

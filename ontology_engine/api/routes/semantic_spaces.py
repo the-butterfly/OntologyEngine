@@ -713,8 +713,131 @@ async def rollback_to_version(space_id: str, version: int, dry_run: bool = Query
 
 
 # ============================================================================
-# Instance Data Management
+# Metric Card Version Management
 # ============================================================================
+
+@router.get("/{space_id}/metrics/{metric_id}/versions", response_model=dict, summary="List metric card versions", description="List all versions of a specific metric card.")
+async def list_metric_versions(space_id: str, metric_id: str):
+    """List all versions of a metric card."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    versions = await storage._meta_store.list_entity_versions(f"metric.{metric_id}")
+    return success_response(data={
+        "space_id": space_id,
+        "metric_id": metric_id,
+        "versions": versions,
+    })
+
+
+@router.get("/{space_id}/metrics/{metric_id}/versions/{version}", response_model=dict, summary="Get metric card version", description="Get a specific version of a metric card.")
+async def get_metric_version(space_id: str, metric_id: str, version: int):
+    """Get a specific version of a metric card."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    ver_data = await storage._meta_store.get_entity_version(f"metric.{metric_id}", version)
+    if not ver_data:
+        return error_response(code="NOT_FOUND", message=f"Version {version} not found for metric {metric_id}")
+
+    return success_response(data={
+        "space_id": space_id,
+        "metric_id": metric_id,
+        **ver_data,
+    })
+
+
+@router.post("/{space_id}/metrics/{metric_id}/versions", response_model=dict, summary="Create metric card version", description="Create a new version of a metric card with updated formula or thresholds.")
+async def create_metric_version(
+    space_id: str,
+    metric_id: str,
+    body: dict,
+):
+    """Create a new version of a metric card."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    existing_versions = await storage._meta_store.list_entity_versions(f"metric.{metric_id}")
+    next_version = max((v["version"] for v in existing_versions), default=0) + 1
+
+    formula = body.get("formula")
+    thresholds = body.get("thresholds")
+    change_reason = body.get("change_reason", "")
+    updated_by = body.get("updated_by", "api")
+
+    version_data = {
+        "metric_id": metric_id,
+        "formula": formula,
+        "thresholds": thresholds,
+        "change_reason": change_reason,
+    }
+
+    await storage._meta_store.save_entity_version(
+        f"metric.{metric_id}",
+        "MetricCard",
+        next_version,
+        version_data,
+        updated_by=updated_by,
+    )
+
+    return success_response(data={
+        "space_id": space_id,
+        "metric_id": metric_id,
+        "version": next_version,
+        **version_data,
+    })
+
+
+@router.get("/{space_id}/metrics/{metric_id}/diff", response_model=dict, summary="Diff metric card versions", description="Compare two versions of a metric card.")
+async def diff_metric_versions(
+    space_id: str,
+    metric_id: str,
+    from_version: int = Query(..., description="Source version"),
+    to_version: int = Query(..., description="Target version"),
+):
+    """Compare two versions of a metric card."""
+    storage = _get_storage()
+    space = await storage.load(space_id)
+    if not space:
+        return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
+
+    from_data = await storage._meta_store.get_entity_version(f"metric.{metric_id}", from_version)
+    to_data = await storage._meta_store.get_entity_version(f"metric.{metric_id}", to_version)
+
+    if not from_data:
+        return error_response(code="NOT_FOUND", message=f"Version {from_version} not found for metric {metric_id}")
+    if not to_data:
+        return error_response(code="NOT_FOUND", message=f"Version {to_version} not found for metric {metric_id}")
+
+    from_formula = from_data.get("data", {}).get("formula", "")
+    to_formula = to_data.get("data", {}).get("formula", "")
+    from_thresholds = from_data.get("data", {}).get("thresholds", {})
+    to_thresholds = to_data.get("data", {}).get("thresholds", {})
+
+    diff = {
+        "metric_id": metric_id,
+        "from_version": from_version,
+        "to_version": to_version,
+        "formula_changed": from_formula != to_formula,
+        "formula_diff": {
+            "from": from_formula,
+            "to": to_formula,
+        } if from_formula != to_formula else None,
+        "thresholds_changed": from_thresholds != to_thresholds,
+        "thresholds_diff": {
+            "from": from_thresholds,
+            "to": to_thresholds,
+        } if from_thresholds != to_thresholds else None,
+        "change_reason": to_data.get("data", {}).get("change_reason", ""),
+    }
+
+    return success_response(data=diff)
 
 @router.get("/{space_id}/instances/entities", response_model=dict, summary="List entities", description="List all entities in the space.")
 async def list_entities(

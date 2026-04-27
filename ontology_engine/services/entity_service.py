@@ -203,9 +203,11 @@ class EntityService:
             raise ValueError("Phase 1 maximum depth is 2")
 
         rn = relation_type or relation_name
+        if rn is None and self.schema:
+            rn = self.schema.get_first_relation_name()
         neighbors = await self.storage.get_neighbors(
             entity_id=entity_id,
-            relation_name=rn or "has_invoice",
+            relation_name=rn or "",
             direction="outgoing"
         )
 

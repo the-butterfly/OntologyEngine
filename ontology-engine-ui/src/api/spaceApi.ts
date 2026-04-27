@@ -11,6 +11,215 @@ export interface ViewInfo {
   status: string;
 }
 
+// ============================================================================
+// Schema Layer Types (L1-L4)
+// ============================================================================
+
+export interface Property {
+  name: string;
+  type: string;
+  required?: boolean;
+  unique?: boolean;
+  description?: string;
+}
+
+export interface Relation {
+  name: string;
+  target: string;
+  cardinality?: string;
+  description?: string;
+}
+
+export interface FactObject {
+  id: string;
+  name: string;
+  description?: string;
+  properties?: Property[];
+  relations?: Relation[];
+}
+
+export interface Categorization {
+  id: string;
+  name?: string;
+  description?: string;
+  applicable_to?: string[];
+  triggers?: unknown[];
+}
+
+export interface AnalyticalElement {
+  id: string;
+  name?: string;
+  description?: string;
+  element_type: 'atomic' | 'derived' | 'composite' | 'graph';
+  formula?: string;
+  dependencies?: string[];
+  components?: Array<{ metric: string; weight: number }>;
+  overridable?: boolean;
+  source?: unknown;
+  thresholds?: unknown;
+}
+
+export interface SchemaOverview {
+  L1: {
+    fact_objects: FactObject[];
+  };
+  L2: {
+    categorizations: Categorization[];
+  };
+  L3: {
+    analytical_elements: AnalyticalElement[];
+  };
+  L4: {
+    rule_definitions: RuleDefinition[];
+    rule_logics: RuleLogic[];
+  };
+}
+
+// ============================================================================
+// Graph Visualization Types
+// ============================================================================
+
+export interface GraphNode {
+  id: string;
+  type: 'entity' | 'category' | 'metric' | 'rule';
+  data: {
+    label?: string;
+    layer?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  data?: {
+    label?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface SchemaGraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+// ============================================================================
+// Execution Types
+// ============================================================================
+
+export interface ExecutionStepConditionSubCondition {
+  type: string;
+  expr: string;
+  result: boolean;
+  error?: string;
+}
+
+export interface ExecutionStepInput {
+  name: string;
+  value: unknown;
+  element_type?: string;
+}
+
+export interface ExecutionStepOutput {
+  name: string;
+  value: unknown;
+}
+
+export interface ExecutionStep {
+  step: number;
+  rule_id: string;
+  rule_name: string;
+  rule_type: string;
+  condition_expression?: string;
+  condition_result?: boolean;
+  condition_sub_conditions?: ExecutionStepConditionSubCondition[];
+  context_before?: Record<string, unknown>;
+  context_after?: Record<string, unknown>;
+  inputs?: ExecutionStepInput[];
+  outputs?: ExecutionStepOutput[];
+  status: 'passed' | 'skipped' | 'failed';
+  explanation: string;
+}
+
+export interface ExecutionResult {
+  decision: string;
+  entity_id: string;
+  execution_path?: string[];
+  skipped_rules?: string[];
+  final_outputs?: Record<string, unknown>;
+  steps?: ExecutionStep[];
+}
+
+// ============================================================================
+// Dependency Graph Types
+// ============================================================================
+
+export interface DependencyNode {
+  id: string;
+  label: string;
+  rule_type: string;
+  priority: number;
+  enabled: boolean;
+  input_elements: unknown[];
+  output_elements: unknown[];
+  logic_count: number;
+}
+
+export interface DependencyEdge {
+  id: string;
+  source: string;
+  target: string;
+  element: string;
+  type: string;
+}
+
+export interface MutualExclusion {
+  rule_a: string;
+  rule_b: string;
+  reason: string;
+  type: string;
+}
+
+export interface DependencyGraph {
+  nodes: DependencyNode[];
+  edges: DependencyEdge[];
+  mutual_exclusions: MutualExclusion[];
+  execution_order: string[];
+  stats: unknown;
+}
+
+// ============================================================================
+// View Types
+// ============================================================================
+
+export interface ViewDetails {
+  id: string;
+  name: string;
+  status: string;
+  space_id: string;
+  dimension?: string;
+  entity_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Metric Snapshot Type
+// ============================================================================
+
+export interface MetricSnapshot {
+  entity_id: string;
+  dimension: string;
+  metrics: Record<string, unknown>;
+  timestamp: string;
+}
+
+// ============================================================================
+// Existing Interfaces (kept for reference)
+// ============================================================================
+
 export interface SpaceResponse {
   id: string;
   name: string;
@@ -173,23 +382,23 @@ class SpaceApi {
   }
 
   // L1 Fact Objects (uses /{space_id} prefix)
-  async listFactObjects(spaceId: string): Promise<any[]> {
+  async listFactObjects(spaceId: string): Promise<FactObject[]> {
     const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L1/fact-objects`);
     return response.data.data;
   }
 
-  async createFactObject(spaceId: string, factObject: any): Promise<any> {
+  async createFactObject(spaceId: string, factObject: Omit<FactObject, 'id'>): Promise<FactObject> {
     const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L1/fact-objects`, factObject);
     return response.data.data;
   }
 
   // L2 Categorizations
-  async listCategorizations(spaceId: string): Promise<any[]> {
+  async listCategorizations(spaceId: string): Promise<Categorization[]> {
     const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L2/categorizations`);
     return response.data.data;
   }
 
-  async createCategorization(spaceId: string, categorization: any): Promise<any> {
+  async createCategorization(spaceId: string, categorization: Omit<Categorization, 'id'>): Promise<Categorization> {
     const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L2/categorizations`, categorization);
     return response.data.data;
   }
@@ -199,12 +408,12 @@ class SpaceApi {
   }
 
   // L3 Analytical Elements
-  async listAnalyticalElements(spaceId: string): Promise<any[]> {
+  async listAnalyticalElements(spaceId: string): Promise<AnalyticalElement[]> {
     const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema/L3/analytical-elements`);
     return response.data.data;
   }
 
-  async createAnalyticalElement(spaceId: string, element: any): Promise<any> {
+  async createAnalyticalElement(spaceId: string, element: Omit<AnalyticalElement, 'id'>): Promise<AnalyticalElement> {
     const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/L3/analytical-elements`, element);
     return response.data.data;
   }
@@ -302,18 +511,18 @@ class SpaceApi {
   }
 
   // Consumption Views
-  async listViews(): Promise<any[]> {
+  async listViews(): Promise<ViewDetails[]> {
     const response = await axios.get('/v1/views');
     return response.data.data;
   }
 
-  async getView(viewId: string): Promise<any> {
+  async getView(viewId: string): Promise<ViewDetails> {
     const response = await axios.get(`/v1/views/${viewId}`);
     return response.data.data;
   }
 
   // Visualization (Consumption Surface)
-  async getSchemaGraph(viewId: string, graphType?: string, layerFilter?: string): Promise<any> {
+  async getSchemaGraph(viewId: string, graphType?: string, layerFilter?: string): Promise<SchemaGraphData> {
     const params: Record<string, string> = {};
     if (graphType) params.graph_type = graphType;
     if (layerFilter) params.layer_filter = layerFilter;
@@ -322,7 +531,7 @@ class SpaceApi {
   }
 
   // Execution (Consumption Surface)
-  async executeAnalyze(viewId: string, entityId: string, dimension?: string, includeTrace?: boolean): Promise<any> {
+  async executeAnalyze(viewId: string, entityId: string, dimension?: string, includeTrace?: boolean): Promise<ExecutionResult> {
     const response = await axios.post(`/v1/views/${viewId}/execute/analyze`, {
       entity_id: entityId,
       dimension: dimension || 'credit_assessment',
@@ -331,7 +540,7 @@ class SpaceApi {
     return response.data.data;
   }
 
-  async executeSimulate(viewId: string, entityId: string, dimension?: string, overrides?: Record<string, any>): Promise<any> {
+  async executeSimulate(viewId: string, entityId: string, dimension?: string, overrides?: Record<string, unknown>): Promise<ExecutionResult> {
     const response = await axios.post(`/v1/views/${viewId}/execute/simulate`, {
       entity_id: entityId,
       dimension: dimension || 'credit_assessment',
@@ -349,27 +558,27 @@ class SpaceApi {
   }
 
   // Rule dependency graph for consumption view
-  async getRuleDependencyGraph(viewId: string): Promise<any> {
+  async getRuleDependencyGraph(viewId: string): Promise<DependencyGraph> {
     const response = await axios.get(`/v1/views/${viewId}/rules/dependency-graph`);
     return response.data.data;
   }
 
   // Applicable rules for an entity in a consumption view
-  async getRulesForEntity(viewId: string, entityId: string, dimension?: string): Promise<any> {
+  async getRulesForEntity(viewId: string, entityId: string, dimension?: string): Promise<RuleDefinition[]> {
     const params = dimension ? { dimension } : {};
     const response = await axios.get(`/v1/views/${viewId}/rules/for-entity/${entityId}`, { params });
     return response.data.data;
   }
 
   // Metric snapshot for an entity in a consumption view
-  async getMetricSnapshot(viewId: string, entityId: string, dimension?: string): Promise<any> {
+  async getMetricSnapshot(viewId: string, entityId: string, dimension?: string): Promise<MetricSnapshot> {
     const params = dimension ? { dimension } : {};
     const response = await axios.get(`/v1/views/${viewId}/metrics/${entityId}/snapshot`, { params });
     return response.data.data;
   }
 
   // Schema YAML import
-  async loadSchemaFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
+  async loadSchemaFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<SchemaOverview> {
     const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/schema/load-yaml`, {
       yaml_path: yamlPath,
       overwrite,
@@ -378,7 +587,7 @@ class SpaceApi {
   }
 
   // Instance YAML import
-  async loadInstancesFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<any> {
+  async loadInstancesFromYaml(spaceId: string, yamlPath: string, overwrite = false): Promise<{ success: boolean; count: number }> {
     const response = await axios.post(`${BASE_URL}/spaces/${spaceId}/instances/load-yaml`, {
       yaml_path: yamlPath,
       overwrite,
@@ -387,7 +596,7 @@ class SpaceApi {
   }
 
   // Schema overview (all layers)
-  async getSchemaOverview(spaceId: string): Promise<any> {
+  async getSchemaOverview(spaceId: string): Promise<SchemaOverview> {
     const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/schema`);
     return response.data.data;
   }

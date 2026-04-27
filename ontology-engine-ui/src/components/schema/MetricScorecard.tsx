@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Card, Divider, Empty, Progress, Skeleton, Statistic, Tag, Typography } from 'antd';
 import { fetchMetricSnapshot, ApiError } from '../../api/visualization';
 import { METRIC_TYPE_COLORS } from '../../utils/colorSchemes';
-import { CREDIT_SCORE_WEIGHTS, METRIC_LABELS } from '../../utils/labelMappings';
+import { CREDIT_SCORE_WEIGHTS } from '../../utils/labelMappings';
 import type { GraphNode, MetricSnapshot } from '../../types/visualization';
 
 const { Text, Paragraph } = Typography;
@@ -78,7 +78,7 @@ function SimpleRadarChart({ values, weights }: { values: Record<string, number>;
 
       {entries.map(([key], index) => {
         const p = labelPoints[index];
-        const label = METRIC_LABELS[key]?.slice(0, 4) || key.slice(0, 4);
+        const label = key.slice(0, 4);
         return (
           <text
             key={key}
@@ -208,7 +208,7 @@ export default function MetricScorecard({
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
         <Tag color={typeColor} style={{ marginBottom: 8 }}>{typeLabel}</Tag>
         <h3 style={{ margin: '8px 0', fontSize: 18, fontWeight: 600 }}>
-          {data.label || METRIC_LABELS[node.id] || node.id}
+          {data.label || node.id}
         </h3>
         {entityId && (
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -276,7 +276,7 @@ export default function MetricScorecard({
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {data.dependencies.map((dep: string) => (
               <Tag key={dep} style={{ fontSize: 11 }}>
-                {METRIC_LABELS[dep] || dep}
+                {dep}
               </Tag>
             ))}
           </div>
@@ -319,7 +319,7 @@ export default function MetricScorecard({
                 return (
                   <div key={key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ fontSize: 12 }}>{METRIC_LABELS[key] || key}</Text>
+                      <Text style={{ fontSize: 12 }}>{key}</Text>
                       <Text strong style={{ fontSize: 12, color: '#722ED1' }}>{percent}%</Text>
                     </div>
                     <Progress
