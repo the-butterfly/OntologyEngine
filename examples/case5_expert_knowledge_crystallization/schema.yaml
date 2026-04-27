@@ -1,0 +1,341 @@
+# ============================================================
+# OntologyEngine Schema v2 - 专家经验规则化
+# 遵循 canonical grammar spec (docs/02-design/schema/01-schema-spec.md)
+# 场景：风控专家从观察到组织规则的知识沉淀闭环
+# ============================================================
+
+schema_version: "2.0"
+
+semantic_space:
+  id: "space.expert_knowledge_crystallization"
+  name: "专家经验规则化语义空间"
+  description: |
+    面向供应链金融风控场景，将专家观察转化为候选规则，
+    经评审后发布为组织规则，并验证下游风险名单的变化。
+  type: risk_management
+  status: DRAFT
+
+fact_objects:
+
+  shared_types:
+    - name: Money
+      base_type: object
+      properties:
+        value: { type: decimal, description: "数值（元）" }
+        currency: { type: string, default: CNY }
+
+  enums:
+    - name: SupplierGrade
+      values:
+        - { id: AA, label: "AA级" }
+        - { id: A, label: "A级" }
+        - { id: BBB, label: "BBB级" }
+        - { id: BB, label: "BB级" }
+        - { id: B, label: "B级" }
+
+    - name: ReviewDecision
+      values:
+        - { id: APPROVED, label: "通过" }
+        - { id: REJECTED, label: "拒绝" }
+        - { id: TRIAL_RUN, label: "试运行" }
+
+    - name: ObservationCategory
+      values:
+        - { id: PATTERN, label: "模式观察" }
+        - { id: ANOMALY, label: "异常观察" }
+        - { id: CORRELATION, label: "关联观察" }
+
+  entities:
+
+    - id: Supplier
+      name: "供应商"
+      description: "供应链金融中的供应商实体"
+      attributes:
+        - name: supplier_id
+          type: string
+          required: true
+          unique: true
+        - name: supplier_name
+          type: string
+          required: true
+        - name: credit_grade
+          type: SupplierGrade
+          required: true
+        - name: guarantee_chain_depth
+          type: integer
+          default: 0
+        - name: negative_news_count_90d
+          type: integer
+          default: 0
+        - name: overdue_invoice_ratio
+          type: decimal
+          default: 0.0
+        - name: business_stability_score
+          type: integer
+          default: 50
+      relations:
+        - name: has_observation
+          target: ExpertObservation
+          cardinality: "0..*"
+          inverse: observed_supplier
+        - name: has_risk_flag
+          target: RiskFlag
+          cardinality: "0..*"
+
+    - id: ExpertObservation
+      name: "专家观察卡"
+      description: "风控专家对供应商风险模式的个人观察记录"
+      attributes:
+        - name: observation_id
+          type: string
+          required: true
+          unique: true
+        - name: expert_name
+          type: string
+          required: true
+        - name: observation_date
+          type: date
+          required: true
+        - name: category
+          type: ObservationCategory
+          required: true
+        - name: pattern_description
+          type: string
+          required: true
+        - name: sample_entities
+          type: JSON
+          description: "观察到的样本实体ID列表"
+        - name: confidence
+          type: decimal
+          description: "专家置信度 0-1"
+        - name: status
+          type: string
+          enum: [DRAFT, AGGREGATED, CANDIDATE, PUBLISHED, ARCHIVED]
+          default: DRAFT
+      relations:
+        - name: observed_supplier
+          target: Supplier
+          cardinality: "1..*"
+          inverse: has_observation
+        - name: aggregated_to
+          target: CandidateRule
+          cardinality: "0..1"
+
+    - id: CandidateRule
+      name: "候选规则卡"
+      description: "从多个专家观察聚合而成的候选规则"
+      attributes:
+        - name: candidate_id
+          type: string
+          required: true
+          unique: true
+        - name: candidate_name
+          type: string
+          required: true
+        - name: condition_expression
+          type: string
+          required: true
+          description: "规则条件表达式"
+        - name: sample_coverage
+          type: integer
+          description: "样本覆盖实体数"
+        - name: hit_rate
+          type: decimal
+          description: "命中率"
+        - name: false_positive_rate
+          type: decimal
+          description: "误报率"
+        - name: supporting_observations
+          type: integer
+          description: "支持的专家观察数量"
+        - name: review_status
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, TRIAL_RUN]
+          default: PENDING
+      relations:
+        - name: published_as
+          target: PublishedRuleGroup
+          cardinality: "0..1"
+
+    - id: RiskFlag
+      name: "风险标记"
+      description: "供应商的风险标记记录"
+      attributes:
+        - name: flag_id
+          type: string
+          required: true
+          unique: true
+        - name: flag_type
+          type: string
+          required: true
+          enum: [GUARANTEE_CHAIN, NEGATIVE_NEWS, OVERDUE, COMPOSITE]
+        - name: flag_date
+          type: date
+          required: true
+        - name: source_rule
+          type: string
+          description: "触发此标记的规则ID"
+        - name: severity
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          default: MEDIUM
+
+    - id: PublishedRuleGroup
+      name: "已发布规则组"
+      description: "经评审后发布的组织规则组"
+      attributes:
+        - name: group_id
+          type: string
+          required: true
+          unique: true
+        - name: group_name
+          type: string
+          required: true
+        - name: version
+          type: integer
+          required: true
+        - name: status
+          type: string
+          enum: [ACTIVE, DRAFT, DEPRECATED]
+          default: ACTIVE
+        - name: published_date
+          type: date
+        - name: published_by
+          type: string
+
+categorizations:
+
+  - id: risk_pattern_review
+    name: "风险模式评审"
+    description: "对候选规则进行评审的分类"
+    applicable_to: [CandidateRule]
+    triggers:
+      - event: candidate_rule_submitted
+        entity: CandidateRule
+
+  - id: risk_watchlist
+    name: "风险监控名单"
+    description: "由已发布规则触发的风险供应商名单"
+    applicable_to: [Supplier]
+    triggers:
+      - event: rule_published
+        entity: PublishedRuleGroup
+
+analytical_elements:
+
+  metrics:
+    - id: composite_risk_score
+      name: "综合风险评分"
+      type: derived
+      dependencies: [guarantee_chain_depth, negative_news_count_90d, overdue_invoice_ratio]
+      formula: |
+        score = 0
+        if guarantee_chain_depth >= 4: score += 30
+        elif guarantee_chain_depth >= 3: score += 20
+        if negative_news_count_90d >= 3: score += 30
+        elif negative_news_count_90d >= 2: score += 20
+        elif negative_news_count_90d >= 1: score += 10
+        if overdue_invoice_ratio >= 15: score += 30
+        elif overdue_invoice_ratio >= 10: score += 20
+        elif overdue_invoice_ratio >= 5: score += 10
+        score + (100 - business_stability_score) * 0.2
+      unit: "分"
+      range: [0, 100]
+      thresholds:
+        warning: 40
+        critical: 60
+
+    - id: guarantee_depth_risk
+      name: "担保链深度风险"
+      type: derived
+      dependencies: [guarantee_chain_depth]
+      formula: "30 if guarantee_chain_depth >= 4 else (20 if guarantee_chain_depth >= 3 else 0)"
+      unit: "分"
+
+    - id: news_risk
+      name: "舆情风险"
+      type: derived
+      dependencies: [negative_news_count_90d]
+      formula: "30 if negative_news_count_90d >= 3 else (20 if negative_news_count_90d >= 2 else (10 if negative_news_count_90d >= 1 else 0))"
+      unit: "分"
+
+  indicators:
+    - id: is_high_risk
+      name: "是否高风险"
+      type: variable
+      output_type: boolean
+      default: false
+
+business_logic:
+
+  rule_definitions:
+
+    - id: RD301_guarantee_depth_news_check
+      name: "担保链深度+舆情组合规则"
+      description: |
+        当供应商担保链深度>=4且近90天负面舆情>=2时，标记为高风险。
+        来源：专家张工2026-04-12观察，经3位专家交叉验证。
+      rule_type: alert
+      priority: 100
+      applies_to: [Supplier]
+      applicable_categorizations: [risk_watchlist]
+      inputs:
+        - { id: guarantee_chain_depth, name: "担保链深度", type: attribute }
+        - { id: negative_news_count_90d, name: "近90天负面舆情数", type: attribute }
+      outputs:
+        - { id: is_high_risk, name: "是否高风险", type: flag }
+      logic_ids:
+        - RL301_v1
+      enabled: true
+
+    - id: RD302_overdue_chain_check
+      name: "逾期+担保链组合规则"
+      description: "逾期率>=10%且担保链深度>=3的组合风险"
+      rule_type: alert
+      priority: 90
+      applies_to: [Supplier]
+      applicable_categorizations: [risk_watchlist]
+      inputs:
+        - { id: overdue_invoice_ratio, name: "逾期率", type: attribute }
+        - { id: guarantee_chain_depth, name: "担保链深度", type: attribute }
+      outputs:
+        - { id: is_high_risk, name: "是否高风险", type: flag }
+      logic_ids:
+        - RL302_v1
+      enabled: true
+
+  rule_logics:
+
+    - id: RL301_v1
+      definition_id: RD301_guarantee_depth_news_check
+      name: "担保链深度+舆情组合规则 v1"
+      when:
+        expression: "guarantee_chain_depth >= 4 AND negative_news_count_90d >= 2"
+      then_action:
+        action_type: set_flag
+        output:
+          is_high_risk: true
+      else_action:
+        action_type: set_flag
+        output:
+          is_high_risk: false
+      priority: 100
+      version: 1
+      environment: default
+
+    - id: RL302_v1
+      definition_id: RD302_overdue_chain_check
+      name: "逾期+担保链组合规则 v1"
+      when:
+        expression: "overdue_invoice_ratio >= 10 AND guarantee_chain_depth >= 3"
+      then_action:
+        action_type: set_flag
+        output:
+          is_high_risk: true
+      else_action:
+        action_type: set_flag
+        output:
+          is_high_risk: false
+      priority: 90
+      version: 1
+      environment: default

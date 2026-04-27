@@ -94,14 +94,17 @@ fact_objects:
           target: Subsidiary
           cardinality: "0..*"
           description: "持股关系"
+          inverse: held_by
 
         - name: has_transaction
           target: IntercompanyTransaction
           cardinality: "0..*"
+          inverse: transacts_from
 
         - name: has_treaty
           target: TaxTreaty
           cardinality: "0..*"
+          inverse: applies_to
 
     - id: IntercompanyTransaction
       name: "关联交易"
@@ -188,6 +191,7 @@ fact_objects:
         - name: treaty_id
           type: string
           required: true
+          unique: true
 
         - name: jurisdiction_a
           type: Jurisdiction
@@ -218,6 +222,8 @@ fact_objects:
       attributes:
         - name: authority_id
           type: string
+          required: true
+          unique: true
 
         - name: jurisdiction
           type: Jurisdiction
@@ -234,6 +240,8 @@ fact_objects:
       attributes:
         - name: pe_id
           type: string
+          required: true
+          unique: true
 
         - name: jurisdiction
           type: Jurisdiction

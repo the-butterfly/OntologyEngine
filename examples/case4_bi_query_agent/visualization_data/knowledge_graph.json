@@ -1,0 +1,1213 @@
+{
+  "schema_id": "space.ops_bi_q2",
+  "graph_type": "full",
+  "nodes": [
+    {
+      "id": "SH-001",
+      "type": "entity",
+      "data": {
+        "label": "上海南京东路旗舰店",
+        "concept": "Store",
+        "region": "EAST",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "SH-014",
+      "type": "entity",
+      "data": {
+        "label": "上海浦东联洋店",
+        "concept": "Store",
+        "region": "EAST",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "HZ-003",
+      "type": "entity",
+      "data": {
+        "label": "杭州武林广场店",
+        "concept": "Store",
+        "region": "EAST",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "NJ-007",
+      "type": "entity",
+      "data": {
+        "label": "南京新街口加盟店",
+        "concept": "Store",
+        "region": "EAST",
+        "store_type": "FRANCHISE",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "NB-012",
+      "type": "entity",
+      "data": {
+        "label": "宁波天一广场加盟店",
+        "concept": "Store",
+        "region": "EAST",
+        "store_type": "FRANCHISE",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "SLS-SH001-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "APPAREL"
+      }
+    },
+    {
+      "id": "SLS-SH014-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "BEAUTY"
+      }
+    },
+    {
+      "id": "SLS-HZ003-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "APPAREL"
+      }
+    },
+    {
+      "id": "SLS-NJ007-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "HOUSEHOLD"
+      }
+    },
+    {
+      "id": "SLS-NB012-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "FOOD"
+      }
+    },
+    {
+      "id": "AR-SH001-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-SH014-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-HZ003-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-NJ007-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-NB012-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-SH001-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-SH014-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-HZ003-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-NJ007-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-NB012-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "GZ-005",
+      "type": "entity",
+      "data": {
+        "label": "广州天河城旗舰店",
+        "concept": "Store",
+        "region": "SOUTH",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "SZ-009",
+      "type": "entity",
+      "data": {
+        "label": "深圳万象城店",
+        "concept": "Store",
+        "region": "SOUTH",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "XM-015",
+      "type": "entity",
+      "data": {
+        "label": "厦门SM广场加盟店",
+        "concept": "Store",
+        "region": "SOUTH",
+        "store_type": "FRANCHISE",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "SLS-GZ005-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "APPAREL"
+      }
+    },
+    {
+      "id": "SLS-SZ009-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "BEAUTY"
+      }
+    },
+    {
+      "id": "SLS-XM015-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "HOUSEHOLD"
+      }
+    },
+    {
+      "id": "AR-GZ005-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-SZ009-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-XM015-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-GZ005-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-SZ009-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-XM015-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "BJ-002",
+      "type": "entity",
+      "data": {
+        "label": "北京国贸旗舰店",
+        "concept": "Store",
+        "region": "NORTH",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "BJ-009",
+      "type": "entity",
+      "data": {
+        "label": "北京望京店",
+        "concept": "Store",
+        "region": "NORTH",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "TJ-011",
+      "type": "entity",
+      "data": {
+        "label": "天津滨江道加盟店",
+        "concept": "Store",
+        "region": "NORTH",
+        "store_type": "FRANCHISE",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "SLS-BJ002-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "ELECTRONICS"
+      }
+    },
+    {
+      "id": "SLS-BJ009-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "ELECTRONICS"
+      }
+    },
+    {
+      "id": "SLS-TJ011-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "HOUSEHOLD"
+      }
+    },
+    {
+      "id": "AR-BJ002-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-BJ009-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-TJ011-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-BJ002-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-BJ009-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-TJ011-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "EC-001",
+      "type": "entity",
+      "data": {
+        "label": "天猫旗舰店",
+        "concept": "Store",
+        "region": "ECOM",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "EC-002",
+      "type": "entity",
+      "data": {
+        "label": "京东自营店",
+        "concept": "Store",
+        "region": "ECOM",
+        "store_type": "DIRECT",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "SLS-EC001-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "BEAUTY"
+      }
+    },
+    {
+      "id": "SLS-EC002-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Sales-2026-Q2",
+        "concept": "MonthlySales",
+        "region": "",
+        "store_type": "",
+        "primary_category": "ELECTRONICS"
+      }
+    },
+    {
+      "id": "AR-EC001-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "AR-EC002-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "AR-2026-Q2",
+        "concept": "ARAging",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-EC001-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "INV-EC002-2026Q2",
+      "type": "entity",
+      "data": {
+        "label": "Inv-2026-Q2",
+        "concept": "InventorySnapshot",
+        "region": "",
+        "store_type": "",
+        "primary_category": ""
+      }
+    },
+    {
+      "id": "metric.net_revenue_value",
+      "type": "metric",
+      "data": {
+        "label": "净收入（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.cogs_value",
+      "type": "metric",
+      "data": {
+        "label": "销售成本（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.gross_sales_value",
+      "type": "metric",
+      "data": {
+        "label": "含税销售额（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.returns_and_allowances_value",
+      "type": "metric",
+      "data": {
+        "label": "退货与折让（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.total_receivable_value",
+      "type": "metric",
+      "data": {
+        "label": "应收账款总额（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.net_credit_sales_value",
+      "type": "metric",
+      "data": {
+        "label": "净赊销额（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.average_inventory_value",
+      "type": "metric",
+      "data": {
+        "label": "平均库存（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.cogs_for_inventory_value",
+      "type": "metric",
+      "data": {
+        "label": "库存对应销售成本（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.budget_net_revenue_value",
+      "type": "metric",
+      "data": {
+        "label": "预算净收入（元）",
+        "metric_type": "atomic",
+        "unit": "CNY"
+      }
+    },
+    {
+      "id": "metric.gross_margin_rate",
+      "type": "metric",
+      "data": {
+        "label": "毛利率",
+        "metric_type": "derived",
+        "unit": "%"
+      }
+    },
+    {
+      "id": "metric.dso_days",
+      "type": "metric",
+      "data": {
+        "label": "应收账款周转天数（DSO）",
+        "metric_type": "derived",
+        "unit": "天"
+      }
+    },
+    {
+      "id": "metric.dio_days",
+      "type": "metric",
+      "data": {
+        "label": "库存周转天数（DIO）",
+        "metric_type": "derived",
+        "unit": "天"
+      }
+    },
+    {
+      "id": "metric.budget_variance_margin",
+      "type": "metric",
+      "data": {
+        "label": "毛利率预算偏差",
+        "metric_type": "derived",
+        "unit": "百分点"
+      }
+    },
+    {
+      "id": "rule.RD201_ops_exception_detection",
+      "type": "rule",
+      "data": {
+        "label": "经营异常门店识别",
+        "rule_type": "alert",
+        "priority": 100
+      }
+    },
+    {
+      "id": "rule.RD202_budget_variance_alert",
+      "type": "rule",
+      "data": {
+        "label": "预算偏差预警",
+        "rule_type": "alert",
+        "priority": 90
+      }
+    },
+    {
+      "id": "rule.RD203_cash_collection_alert",
+      "type": "rule",
+      "data": {
+        "label": "回款效率预警",
+        "rule_type": "alert",
+        "priority": 95
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-SLS-SH001-2026Q2-SH-001-belongs_to_store",
+      "source": "SLS-SH001-2026Q2",
+      "target": "SH-001",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-SH014-2026Q2-SH-014-belongs_to_store",
+      "source": "SLS-SH014-2026Q2",
+      "target": "SH-014",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-HZ003-2026Q2-HZ-003-belongs_to_store",
+      "source": "SLS-HZ003-2026Q2",
+      "target": "HZ-003",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-NJ007-2026Q2-NJ-007-belongs_to_store",
+      "source": "SLS-NJ007-2026Q2",
+      "target": "NJ-007",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-NB012-2026Q2-NB-012-belongs_to_store",
+      "source": "SLS-NB012-2026Q2",
+      "target": "NB-012",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-SH001-2026Q2-SH-001-belongs_to_store",
+      "source": "AR-SH001-2026Q2",
+      "target": "SH-001",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-SH014-2026Q2-SH-014-belongs_to_store",
+      "source": "AR-SH014-2026Q2",
+      "target": "SH-014",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-HZ003-2026Q2-HZ-003-belongs_to_store",
+      "source": "AR-HZ003-2026Q2",
+      "target": "HZ-003",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-NJ007-2026Q2-NJ-007-belongs_to_store",
+      "source": "AR-NJ007-2026Q2",
+      "target": "NJ-007",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-NB012-2026Q2-NB-012-belongs_to_store",
+      "source": "AR-NB012-2026Q2",
+      "target": "NB-012",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-SH001-2026Q2-SH-001-belongs_to_store",
+      "source": "INV-SH001-2026Q2",
+      "target": "SH-001",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-SH014-2026Q2-SH-014-belongs_to_store",
+      "source": "INV-SH014-2026Q2",
+      "target": "SH-014",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-HZ003-2026Q2-HZ-003-belongs_to_store",
+      "source": "INV-HZ003-2026Q2",
+      "target": "HZ-003",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-NJ007-2026Q2-NJ-007-belongs_to_store",
+      "source": "INV-NJ007-2026Q2",
+      "target": "NJ-007",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-NB012-2026Q2-NB-012-belongs_to_store",
+      "source": "INV-NB012-2026Q2",
+      "target": "NB-012",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-GZ005-2026Q2-GZ-005-belongs_to_store",
+      "source": "SLS-GZ005-2026Q2",
+      "target": "GZ-005",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-SZ009-2026Q2-SZ-009-belongs_to_store",
+      "source": "SLS-SZ009-2026Q2",
+      "target": "SZ-009",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-XM015-2026Q2-XM-015-belongs_to_store",
+      "source": "SLS-XM015-2026Q2",
+      "target": "XM-015",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-GZ005-2026Q2-GZ-005-belongs_to_store",
+      "source": "AR-GZ005-2026Q2",
+      "target": "GZ-005",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-SZ009-2026Q2-SZ-009-belongs_to_store",
+      "source": "AR-SZ009-2026Q2",
+      "target": "SZ-009",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-XM015-2026Q2-XM-015-belongs_to_store",
+      "source": "AR-XM015-2026Q2",
+      "target": "XM-015",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-GZ005-2026Q2-GZ-005-belongs_to_store",
+      "source": "INV-GZ005-2026Q2",
+      "target": "GZ-005",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-SZ009-2026Q2-SZ-009-belongs_to_store",
+      "source": "INV-SZ009-2026Q2",
+      "target": "SZ-009",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-XM015-2026Q2-XM-015-belongs_to_store",
+      "source": "INV-XM015-2026Q2",
+      "target": "XM-015",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-BJ002-2026Q2-BJ-002-belongs_to_store",
+      "source": "SLS-BJ002-2026Q2",
+      "target": "BJ-002",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-BJ009-2026Q2-BJ-009-belongs_to_store",
+      "source": "SLS-BJ009-2026Q2",
+      "target": "BJ-009",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-TJ011-2026Q2-TJ-011-belongs_to_store",
+      "source": "SLS-TJ011-2026Q2",
+      "target": "TJ-011",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-BJ002-2026Q2-BJ-002-belongs_to_store",
+      "source": "AR-BJ002-2026Q2",
+      "target": "BJ-002",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-BJ009-2026Q2-BJ-009-belongs_to_store",
+      "source": "AR-BJ009-2026Q2",
+      "target": "BJ-009",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-TJ011-2026Q2-TJ-011-belongs_to_store",
+      "source": "AR-TJ011-2026Q2",
+      "target": "TJ-011",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-BJ002-2026Q2-BJ-002-belongs_to_store",
+      "source": "INV-BJ002-2026Q2",
+      "target": "BJ-002",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-BJ009-2026Q2-BJ-009-belongs_to_store",
+      "source": "INV-BJ009-2026Q2",
+      "target": "BJ-009",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-TJ011-2026Q2-TJ-011-belongs_to_store",
+      "source": "INV-TJ011-2026Q2",
+      "target": "TJ-011",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-EC001-2026Q2-EC-001-belongs_to_store",
+      "source": "SLS-EC001-2026Q2",
+      "target": "EC-001",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-SLS-EC002-2026Q2-EC-002-belongs_to_store",
+      "source": "SLS-EC002-2026Q2",
+      "target": "EC-002",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-EC001-2026Q2-EC-001-belongs_to_store",
+      "source": "AR-EC001-2026Q2",
+      "target": "EC-001",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-AR-EC002-2026Q2-EC-002-belongs_to_store",
+      "source": "AR-EC002-2026Q2",
+      "target": "EC-002",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-EC001-2026Q2-EC-001-belongs_to_store",
+      "source": "INV-EC001-2026Q2",
+      "target": "EC-001",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-INV-EC002-2026Q2-EC-002-belongs_to_store",
+      "source": "INV-EC002-2026Q2",
+      "target": "EC-002",
+      "type": "relation",
+      "data": {
+        "relation_name": "belongs_to_store"
+      }
+    },
+    {
+      "id": "edge-metric-net_revenue_value-gross_margin_rate",
+      "source": "metric.net_revenue_value",
+      "target": "metric.gross_margin_rate",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "net_revenue_value"
+      }
+    },
+    {
+      "id": "edge-metric-cogs_value-gross_margin_rate",
+      "source": "metric.cogs_value",
+      "target": "metric.gross_margin_rate",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "cogs_value"
+      }
+    },
+    {
+      "id": "edge-metric-total_receivable_value-dso_days",
+      "source": "metric.total_receivable_value",
+      "target": "metric.dso_days",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "total_receivable_value"
+      }
+    },
+    {
+      "id": "edge-metric-net_credit_sales_value-dso_days",
+      "source": "metric.net_credit_sales_value",
+      "target": "metric.dso_days",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "net_credit_sales_value"
+      }
+    },
+    {
+      "id": "edge-metric-average_inventory_value-dio_days",
+      "source": "metric.average_inventory_value",
+      "target": "metric.dio_days",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "average_inventory_value"
+      }
+    },
+    {
+      "id": "edge-metric-cogs_for_inventory_value-dio_days",
+      "source": "metric.cogs_for_inventory_value",
+      "target": "metric.dio_days",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "cogs_for_inventory_value"
+      }
+    },
+    {
+      "id": "edge-metric-net_revenue_value-budget_variance_margin",
+      "source": "metric.net_revenue_value",
+      "target": "metric.budget_variance_margin",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "net_revenue_value"
+      }
+    },
+    {
+      "id": "edge-metric-cogs_value-budget_variance_margin",
+      "source": "metric.cogs_value",
+      "target": "metric.budget_variance_margin",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "cogs_value"
+      }
+    },
+    {
+      "id": "edge-metric-budget_net_revenue_value-budget_variance_margin",
+      "source": "metric.budget_net_revenue_value",
+      "target": "metric.budget_variance_margin",
+      "type": "metric_dep",
+      "data": {
+        "dependency": "budget_net_revenue_value"
+      }
+    },
+    {
+      "id": "edge-rule-input-gross_margin_rate-RD201_ops_exception_detection",
+      "source": "metric.gross_margin_rate",
+      "target": "rule.RD201_ops_exception_detection",
+      "type": "rule_input",
+      "data": {
+        "input_name": "毛利率"
+      }
+    },
+    {
+      "id": "edge-rule-input-dso_days-RD201_ops_exception_detection",
+      "source": "metric.dso_days",
+      "target": "rule.RD201_ops_exception_detection",
+      "type": "rule_input",
+      "data": {
+        "input_name": "DSO"
+      }
+    },
+    {
+      "id": "edge-rule-input-dio_days-RD201_ops_exception_detection",
+      "source": "metric.dio_days",
+      "target": "rule.RD201_ops_exception_detection",
+      "type": "rule_input",
+      "data": {
+        "input_name": "DIO"
+      }
+    },
+    {
+      "id": "edge-rule-input-budget_variance_margin-RD202_budget_variance_alert",
+      "source": "metric.budget_variance_margin",
+      "target": "rule.RD202_budget_variance_alert",
+      "type": "rule_input",
+      "data": {
+        "input_name": "毛利率预算偏差"
+      }
+    },
+    {
+      "id": "edge-rule-input-dso_days-RD203_cash_collection_alert",
+      "source": "metric.dso_days",
+      "target": "rule.RD203_cash_collection_alert",
+      "type": "rule_input",
+      "data": {
+        "input_name": "DSO"
+      }
+    }
+  ],
+  "layout_config": {
+    "type": "dagre",
+    "rankdir": "LR",
+    "nodesep": 50,
+    "ranksep": 80
+  },
+  "metadata": {
+    "entity_count": 52,
+    "relation_count": 39,
+    "metric_count": 13,
+    "rule_count": 3
+  }
+}

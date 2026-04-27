@@ -153,6 +153,7 @@ fact_objects:
           target: CoreEnterprise
           cardinality: "0..*"
           description: "为核心企业供货"
+          inverse: supplied_by
 
         - name: has_invoice
           target: Invoice
@@ -300,6 +301,12 @@ fact_objects:
       from: Supplier
       to: Supplier
       attributes:
+        - name: guarantee_id
+          type: string
+          required: true
+          unique: true
+          description: "担保关系唯一标识"
+
         - name: guarantee_amount
           type: Money
           required: true

@@ -1,0 +1,84 @@
+{
+  "metric_id": "gross_margin_rate",
+  "diffs": [
+    {
+      "from_version": "v1.4",
+      "to_version": "v1.5",
+      "formula": {
+        "from": "(gross_sales - cogs) / gross_sales",
+        "to": "(net_revenue - cogs) / net_revenue"
+      },
+      "change_reason": "统一经营月报与财务口径，扣除退货和折让",
+      "impact_by_store": [
+        {
+          "store_id": "SH-001",
+          "store_name": "上海南京东路旗舰店",
+          "v14": 45.0,
+          "v15": 41.5,
+          "diff_pp": -3.5
+        },
+        {
+          "store_id": "SH-014",
+          "store_name": "上海浦东联洋店",
+          "v14": 48.7,
+          "v15": 46.0,
+          "diff_pp": -2.7
+        },
+        {
+          "store_id": "HZ-003",
+          "store_name": "杭州武林广场店",
+          "v14": 44.6,
+          "v15": 41.7,
+          "diff_pp": -2.9
+        },
+        {
+          "store_id": "BJ-002",
+          "store_name": "北京国贸旗舰店",
+          "v14": 42.8,
+          "v15": 38.4,
+          "diff_pp": -4.4
+        },
+        {
+          "store_id": "BJ-009",
+          "store_name": "北京望京店",
+          "v14": 39.6,
+          "v15": 35.0,
+          "diff_pp": -4.6
+        },
+        {
+          "store_id": "EC-001",
+          "store_name": "天猫旗舰店",
+          "v14": 51.6,
+          "v15": 49.0,
+          "diff_pp": -2.6
+        }
+      ],
+      "regional_impact": [
+        {
+          "region": "华东",
+          "v14": 45.7,
+          "v15": 43.2,
+          "diff_pp": -2.5
+        },
+        {
+          "region": "华南",
+          "v14": 42.5,
+          "v15": 40.8,
+          "diff_pp": -1.7
+        },
+        {
+          "region": "华北",
+          "v14": 39.8,
+          "v15": 37.1,
+          "diff_pp": -2.7
+        },
+        {
+          "region": "电商",
+          "v14": 51.2,
+          "v15": 49.0,
+          "diff_pp": -2.2
+        }
+      ]
+    }
+  ]
+}

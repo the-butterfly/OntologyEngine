@@ -1,0 +1,731 @@
+# ============================================================
+# OntologyEngine Schema v2 - 零售经营分析问数与看板联动
+# 遵循 canonical grammar spec (docs/02-design/schema/01-schema-spec.md)
+# 场景：多区域消费品零售集团月度经营复盘，指标卡 + 规则包 + 问数视图联动
+#
+# 关键设计点（与供应链/消费信贷案例互补）：
+# 1. 指标卡版本化：gross_margin_rate 从 v1.4 到 v1.5 的口径修订
+# 2. 规则包版本化：ops_exception_rules 从 v1 到 v2 的阈值调整
+# 3. Layer-R / Layer-S 协同检索：文档碎片 + 结构化指标联合问数
+# 4. 四类互索引完整展示：extracted_from / supported_by / defined_in / trace_to
+# 5. 消费结果互证：问答、视图、报告三者同步变化
+#
+# 行业基准参考：
+#   毛利率：百货零售 ~41%，超市 ~25%，电商 ~49%（中国百货商业协会 2024）
+#   DSO：零售行业 5-30 天（CreditPulse 2025 benchmark）
+#   DIO：零售行业 30-90 天（按品类分化）
+# ============================================================
+
+schema_version: "2.0"
+
+semantic_space:
+  id: "space.ops_bi_q2"
+  name: "零售经营分析问数语义空间"
+  description: |
+    面向多区域消费品零售集团的月度经营复盘场景，
+    融合门店经营底表、应收账龄、库存账龄、董事会月报等多源数据，
+    通过指标卡、规则包和问数视图驱动经营分析问答与看板联动。
+  type: management
+  status: DRAFT
+
+# ============================================================
+# L1: Fact Objects（事实对象层）
+# ============================================================
+fact_objects:
+
+  shared_types:
+    - name: Money
+      base_type: object
+      properties:
+        value: { type: decimal, description: "数值（元）" }
+        currency: { type: string, default: CNY }
+
+    - name: BudgetPair
+      base_type: object
+      description: "实际值与预算值的配对"
+      properties:
+        actual: { type: decimal, description: "实际值" }
+        budget: { type: decimal, description: "预算值" }
+
+  enums:
+    - name: StoreType
+      values:
+        - { id: DIRECT,     label: "直营门店" }
+        - { id: FRANCHISE,  label: "加盟门店" }
+
+    - name: Region
+      values:
+        - { id: EAST,   label: "华东大区" }
+        - { id: SOUTH,  label: "华南大区" }
+        - { id: NORTH,  label: "华北大区" }
+        - { id: ECOM,   label: "电商渠道" }
+
+    - name: CategoryType
+      values:
+        - { id: FOOD,        label: "食品饮料" }
+        - { id: APPAREL,     label: "服装鞋帽" }
+        - { id: HOUSEHOLD,   label: "家居日用" }
+        - { id: ELECTRONICS, label: "数码家电" }
+        - { id: BEAUTY,      label: "美妆个护" }
+
+    - name: AlertLevel
+      values:
+        - { id: NORMAL,  label: "正常" }
+        - { id: WARNING, label: "预警" }
+        - { id: CRITICAL, label: "异常" }
+
+  entities:
+
+    - id: Store
+      name: "门店"
+      description: "零售集团下属的经营网点，是本空间核心分析对象"
+      attributes:
+        - name: store_id
+          type: string
+          required: true
+          unique: true
+          description: "门店唯一标识"
+
+        - name: store_name
+          type: string
+          required: true
+          description: "门店名称"
+
+        - name: store_type
+          type: StoreType
+          required: true
+          description: "门店类型（直营/加盟）"
+
+        - name: region
+          type: Region
+          required: true
+          description: "所属大区"
+
+        - name: city
+          type: string
+          required: true
+          description: "所在城市"
+
+        - name: open_date
+          type: date
+          required: true
+          description: "开业日期"
+
+        - name: area_sqm
+          type: decimal
+          description: "营业面积（平方米）"
+
+        - name: is_active
+          type: boolean
+          default: true
+          description: "是否在营"
+
+      relations:
+        - name: has_sales
+          target: MonthlySales
+          cardinality: "0..*"
+          description: "月度销售记录"
+
+        - name: has_ar_aging
+          target: ARAging
+          cardinality: "0..*"
+          description: "应收账龄记录"
+
+        - name: has_inventory
+          target: InventorySnapshot
+          cardinality: "0..*"
+          description: "库存快照"
+
+    - id: MonthlySales
+      name: "月度销售"
+      description: "门店月度经营数据，含收入、成本、预算"
+      attributes:
+        - name: record_id
+          type: string
+          required: true
+          unique: true
+
+        - name: period
+          type: string
+          required: true
+          description: "会计期间，格式 YYYY-MM"
+
+        - name: gross_sales
+          type: Money
+          required: true
+          description: "含税销售额"
+
+        - name: returns_and_allowances
+          type: Money
+          description: "退货与折让"
+          default: { value: 0, currency: CNY }
+
+        - name: net_revenue
+          type: Money
+          required: true
+          description: "净收入 = 含税销售额 - 退货与折让"
+
+        - name: cogs
+          type: Money
+          required: true
+          description: "销售成本（COGS）"
+
+        - name: gross_profit
+          type: Money
+          description: "毛利润 = 净收入 - COGS"
+
+        - name: budget_net_revenue
+          type: Money
+          description: "预算净收入"
+
+        - name: budget_cogs
+          type: Money
+          description: "预算销售成本"
+
+        - name: primary_category
+          type: CategoryType
+          description: "该门店主营品类"
+
+      relations:
+        - name: belongs_to_store
+          target: Store
+          cardinality: "1"
+          inverse: has_sales
+
+    - id: ARAging
+      name: "应收账龄"
+      description: "按门店和账龄段的应收账款余额"
+      attributes:
+        - name: aging_id
+          type: string
+          required: true
+          unique: true
+
+        - name: period
+          type: string
+          required: true
+          description: "会计期间"
+
+        - name: total_receivable
+          type: Money
+          required: true
+          description: "应收账款总额"
+
+        - name: aging_0_30
+          type: Money
+          description: "0-30天账龄金额"
+
+        - name: aging_31_60
+          type: Money
+          description: "31-60天账龄金额"
+
+        - name: aging_61_90
+          type: Money
+          description: "61-90天账龄金额"
+
+        - name: aging_over_90
+          type: Money
+          description: "90天以上账龄金额"
+
+        - name: net_credit_sales
+          type: Money
+          required: true
+          description: "净赊销额"
+
+      relations:
+        - name: belongs_to_store
+          target: Store
+          cardinality: "1"
+          inverse: has_ar_aging
+
+    - id: InventorySnapshot
+      name: "库存快照"
+      description: "按门店和品类的库存余额"
+      attributes:
+        - name: snapshot_id
+          type: string
+          required: true
+          unique: true
+
+        - name: period
+          type: string
+          required: true
+          description: "会计期间"
+
+        - name: category
+          type: CategoryType
+          required: true
+          description: "品类"
+
+        - name: average_inventory
+          type: Money
+          required: true
+          description: "平均库存（期初+期末）/2"
+
+        - name: cogs_for_category
+          type: Money
+          required: true
+          description: "该品类销售成本"
+
+      relations:
+        - name: belongs_to_store
+          target: Store
+          cardinality: "1"
+          inverse: has_inventory
+
+  relations: []
+
+# ============================================================
+# L2: Categorizations（分类层）
+# ============================================================
+categorizations:
+
+  - id: ops_health_review
+    name: "经营健康度复盘"
+    description: |
+      月度经营复盘时触发的多维度分析视角。
+      关注毛利率、回款效率、库存周转，输出异常门店清单与经营建议。
+    applicable_to: [Store]
+    triggers:
+      - event: monthly_ops_review
+        entity: Store
+      - event: metric_threshold_breach
+        entity: Store
+    filters:
+      - attribute: is_active
+        operator: EQ
+        value: true
+
+  - id: cash_collection_monitoring
+    name: "回款效率监控"
+    description: |
+      持续监控门店回款效率，识别账面盈利但回款缓慢的问题门店。
+    applicable_to: [Store, ARAging]
+    triggers:
+      - event: monthly_aging_report
+        entity: ARAging
+
+  - id: inventory_efficiency
+    name: "库存效率分析"
+    description: |
+      按品类分析库存周转效率，识别高库存压力区域。
+    applicable_to: [Store, InventorySnapshot]
+    triggers:
+      - event: monthly_inventory_snapshot
+        entity: InventorySnapshot
+
+
+# ============================================================
+# L3: Analytical Elements（分析要素层）
+# ============================================================
+analytical_elements:
+
+  metrics:
+    # ========== 原子指标 ==========
+
+    - id: net_revenue_value
+      name: "净收入（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_sales--> MonthlySales"
+        filter: "MonthlySales.period == current_period()"
+        aggregate: "SUM(MonthlySales.net_revenue.value)"
+      unit: CNY
+      overridable: false
+
+    - id: cogs_value
+      name: "销售成本（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_sales--> MonthlySales"
+        filter: "MonthlySales.period == current_period()"
+        aggregate: "SUM(MonthlySales.cogs.value)"
+      unit: CNY
+      overridable: false
+
+    - id: gross_sales_value
+      name: "含税销售额（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_sales--> MonthlySales"
+        filter: "MonthlySales.period == current_period()"
+        aggregate: "SUM(MonthlySales.gross_sales.value)"
+      unit: CNY
+      overridable: false
+
+    - id: returns_and_allowances_value
+      name: "退货与折让（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_sales--> MonthlySales"
+        filter: "MonthlySales.period == current_period()"
+        aggregate: "SUM(MonthlySales.returns_and_allowances.value)"
+      unit: CNY
+      overridable: false
+
+    - id: total_receivable_value
+      name: "应收账款总额（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_ar_aging--> ARAging"
+        filter: "ARAging.period == current_period()"
+        aggregate: "SUM(ARAging.total_receivable.value)"
+      unit: CNY
+      overridable: false
+
+    - id: net_credit_sales_value
+      name: "净赊销额（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_ar_aging--> ARAging"
+        filter: "ARAging.period == current_period()"
+        aggregate: "SUM(ARAging.net_credit_sales.value)"
+      unit: CNY
+      overridable: false
+
+    - id: average_inventory_value
+      name: "平均库存（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_inventory--> InventorySnapshot"
+        filter: "InventorySnapshot.period == current_period()"
+        aggregate: "SUM(InventorySnapshot.average_inventory.value)"
+      unit: CNY
+      overridable: false
+
+    - id: cogs_for_inventory_value
+      name: "库存对应销售成本（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_inventory--> InventorySnapshot"
+        filter: "InventorySnapshot.period == current_period()"
+        aggregate: "SUM(InventorySnapshot.cogs_for_category.value)"
+      unit: CNY
+      overridable: false
+
+    - id: budget_net_revenue_value
+      name: "预算净收入（元）"
+      type: atomic
+      source:
+        type: graph_traversal
+        entity: Store
+        traversal: "Store --has_sales--> MonthlySales"
+        filter: "MonthlySales.period == current_period()"
+        aggregate: "SUM(MonthlySales.budget_net_revenue.value)"
+      unit: CNY
+      overridable: false
+
+    # ========== 派生指标（核心指标卡）==========
+
+    - id: gross_margin_rate
+      name: "毛利率"
+      description: |
+        v1.4: (gross_sales - cogs) / gross_sales
+        v1.5: (net_revenue - cogs) / net_revenue
+        修订原因：统一经营月报与财务口径，扣除退货和折让
+      type: derived
+      dependencies: [net_revenue_value, cogs_value]
+      formula: "(net_revenue_value - cogs_value) / net_revenue_value"
+      unit: "%"
+      range: [0, 100]
+      thresholds:
+        warning: 30.0
+        critical: 20.0
+      overridable: true
+      version_history:
+        - version: "v1.4"
+          formula: "(gross_sales_value - cogs_value) / gross_sales_value"
+          change_reason: "初始版本，以含税销售额为分母"
+        - version: "v1.5"
+          formula: "(net_revenue_value - cogs_value) / net_revenue_value"
+          change_reason: "统一经营月报与财务口径，扣除退货和折让"
+
+    - id: dso_days
+      name: "应收账款周转天数（DSO）"
+      description: |
+        DSO = (Accounts Receivable / Net Credit Sales) × Days
+        用于识别"账面盈利不错，但回款慢"的门店
+      type: derived
+      dependencies: [total_receivable_value, net_credit_sales_value]
+      formula: |
+        if net_credit_sales_value > 0:
+            total_receivable_value / net_credit_sales_value * 90
+        else:
+            999
+      unit: "天"
+      range: [0, 365]
+      thresholds:
+        warning: 60
+        critical: 90
+      overridable: true
+
+    - id: dio_days
+      name: "库存周转天数（DIO）"
+      description: |
+        DIO = (Average Inventory / COGS) × Days
+        用于识别"高库存压力来自哪个品类/区域"
+      type: derived
+      dependencies: [average_inventory_value, cogs_for_inventory_value]
+      formula: |
+        if cogs_for_inventory_value > 0:
+            average_inventory_value / cogs_for_inventory_value * 90
+        else:
+            999
+      unit: "天"
+      range: [0, 365]
+      thresholds:
+        warning: 75
+        critical: 100
+      overridable: true
+
+    - id: budget_variance_margin
+      name: "毛利率预算偏差"
+      description: "实际毛利率与预算毛利率之差（百分点）"
+      type: derived
+      dependencies: [net_revenue_value, cogs_value, budget_net_revenue_value]
+      formula: |
+        if budget_net_revenue_value > 0:
+            actual_margin = (net_revenue_value - cogs_value) / net_revenue_value * 100
+            budget_margin = (budget_net_revenue_value - cogs_value * budget_net_revenue_value / net_revenue_value) / budget_net_revenue_value * 100
+            actual_margin - budget_margin
+        else:
+            0
+      unit: "百分点"
+      overridable: false
+
+  indicators:
+
+    - id: is_exception_store
+      name: "是否异常门店"
+      type: variable
+      output_type: boolean
+      default: false
+
+    - id: exception_type
+      name: "异常类型"
+      type: variable
+      output_type: string
+      enum: [HIGH_MARGIN_SLOW_CASH, LOW_MARGIN_HIGH_INVENTORY, COMPREHENSIVE_RISK, NONE]
+
+  scorecards:
+    - id: ops_health_grade
+      name: "经营健康等级"
+      description: "基于毛利率、DSO、DIO 综合评定的经营健康等级"
+      type: derived
+      dependencies: [gross_margin_rate, dso_days, dio_days]
+      formula: |
+        score = 0
+        if gross_margin_rate >= 40: score += 40
+        elif gross_margin_rate >= 30: score += 25
+        elif gross_margin_rate >= 20: score += 10
+
+        if dso_days <= 30: score += 30
+        elif dso_days <= 60: score += 20
+        elif dso_days <= 90: score += 5
+
+        if dio_days <= 45: score += 30
+        elif dio_days <= 75: score += 20
+        elif dio_days <= 100: score += 5
+
+        if score >= 80: "A"
+        elif score >= 60: "B"
+        elif score >= 40: "C"
+        else: "D"
+      output_type: string
+      overridable: false
+
+
+# ============================================================
+# L4: Business Logic（业务逻辑层）
+# ============================================================
+business_logic:
+
+  rule_definitions:
+
+    - id: RD201_ops_exception_detection
+      name: "经营异常门店识别"
+      description: |
+        识别经营异常门店，支持按门店类型差异化阈值。
+        v1: 所有门店 DSO > 60 统一判定
+        v2: 直营 DSO > 60，加盟 DSO > 75
+      rule_type: alert
+      priority: 100
+      applies_to: [Store]
+      applicable_categorizations: [ops_health_review]
+      inputs:
+        - { id: gross_margin_rate, name: "毛利率", type: metric }
+        - { id: dso_days,         name: "DSO",    type: metric }
+        - { id: dio_days,         name: "DIO",    type: metric }
+        - { id: store_type,       name: "门店类型", type: attribute }
+      outputs:
+        - { id: is_exception_store, name: "是否异常", type: flag }
+        - { id: exception_type,     name: "异常类型", type: computed_value }
+      logic_ids:
+        - RL201_exception_v1
+        - RL201_exception_v2
+      enabled: true
+
+    - id: RD202_budget_variance_alert
+      name: "预算偏差预警"
+      description: "当毛利率低于预算超过 2 个百分点时触发预警"
+      rule_type: alert
+      priority: 90
+      applies_to: [Store]
+      applicable_categorizations: [ops_health_review]
+      inputs:
+        - { id: budget_variance_margin, name: "毛利率预算偏差", type: metric }
+      outputs:
+        - { id: budget_alert, name: "预算偏差预警", type: alert }
+      logic_ids: [RL202_budget_check]
+      enabled: true
+
+    - id: RD203_cash_collection_alert
+      name: "回款效率预警"
+      description: "按门店类型差异化检测回款效率异常"
+      rule_type: alert
+      priority: 95
+      applies_to: [Store]
+      applicable_categorizations: [cash_collection_monitoring]
+      inputs:
+        - { id: dso_days,   name: "DSO",      type: metric }
+        - { id: store_type, name: "门店类型",   type: attribute }
+      outputs:
+        - { id: cash_alert, name: "回款预警", type: alert }
+      logic_ids:
+        - RL203_cash_v1
+        - RL203_cash_v2
+      enabled: true
+
+  rule_logics:
+
+    # ---- RL201 v1: 统一阈值 ----
+    - id: RL201_exception_v1
+      definition_id: RD201_ops_exception_detection
+      name: "异常门店识别 v1（统一阈值）"
+      description: "所有门店统一使用 DSO > 60 天阈值"
+      applicable_conditions: []
+      when:
+        expression: |
+          (gross_margin_rate > 45 AND dso_days > 60)
+          OR (gross_margin_rate < 25 AND dio_days > 90)
+          OR (gross_margin_rate < 25 AND dso_days > 60 AND dio_days > 75)
+      then_action:
+        action_type: set_flag
+        output:
+          is_exception_store: true
+          exception_type: |
+            if gross_margin_rate > 45 AND dso_days > 60: "HIGH_MARGIN_SLOW_CASH"
+            elif gross_margin_rate < 25 AND dio_days > 90: "LOW_MARGIN_HIGH_INVENTORY"
+            else: "COMPREHENSIVE_RISK"
+      else_action:
+        action_type: set_flag
+        output:
+          is_exception_store: false
+          exception_type: "NONE"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL201 v2: 按门店类型差异化阈值 ----
+    - id: RL201_exception_v2
+      definition_id: RD201_ops_exception_detection
+      name: "异常门店识别 v2（按门店类型差异化）"
+      description: |
+        直营门店：DSO > 60 天触发
+        加盟门店：DSO > 75 天触发（加盟回款节奏天然较慢）
+      applicable_conditions: []
+      when:
+        expression: |
+          (store_type == 'DIRECT' AND gross_margin_rate > 45 AND dso_days > 60)
+          OR (store_type == 'FRANCHISE' AND gross_margin_rate > 45 AND dso_days > 75)
+          OR (gross_margin_rate < 25 AND dio_days > 90)
+          OR (gross_margin_rate < 25 AND dso_days > 60 AND dio_days > 75)
+      then_action:
+        action_type: set_flag
+        output:
+          is_exception_store: true
+          exception_type: |
+            if (store_type == 'DIRECT' AND gross_margin_rate > 45 AND dso_days > 60) OR (store_type == 'FRANCHISE' AND gross_margin_rate > 45 AND dso_days > 75): "HIGH_MARGIN_SLOW_CASH"
+            elif gross_margin_rate < 25 AND dio_days > 90: "LOW_MARGIN_HIGH_INVENTORY"
+            else: "COMPREHENSIVE_RISK"
+      else_action:
+        action_type: set_flag
+        output:
+          is_exception_store: false
+          exception_type: "NONE"
+      priority: 100
+      version: 2
+      environment: default
+
+    # ---- RL202: 预算偏差预警 ----
+    - id: RL202_budget_check
+      definition_id: RD202_budget_variance_alert
+      name: "毛利率预算偏差检查"
+      applicable_conditions: []
+      when:
+        expression: "budget_variance_margin < -2.0"
+      then_action:
+        action_type: alert
+        output:
+          budget_alert:
+            level: WARNING
+            message_template: "毛利率低于预算 {budget_variance_margin:.1f} 个百分点，需关注折扣加深与退货冲减"
+      priority: 90
+      version: 1
+      environment: default
+
+    # ---- RL203 v1: 回款统一阈值 ----
+    - id: RL203_cash_v1
+      definition_id: RD203_cash_collection_alert
+      name: "回款预警 v1（统一阈值）"
+      applicable_conditions: []
+      when:
+        expression: "dso_days > 60"
+      then_action:
+        action_type: alert
+        output:
+          cash_alert:
+            level: WARNING
+            message_template: "DSO={dso_days:.0f}天，超过60天预警阈值"
+      priority: 100
+      version: 1
+      environment: default
+
+    # ---- RL203 v2: 回款差异化阈值 ----
+    - id: RL203_cash_v2
+      definition_id: RD203_cash_collection_alert
+      name: "回款预警 v2（差异化阈值）"
+      applicable_conditions: []
+      when:
+        expression: |
+          (store_type == 'DIRECT' AND dso_days > 60)
+          OR (store_type == 'FRANCHISE' AND dso_days > 75)
+      then_action:
+        action_type: alert
+        output:
+          cash_alert:
+            level: WARNING
+            message_template: |
+              if store_type == 'DIRECT':
+                  f"直营门店DSO={dso_days:.0f}天，超过60天预警阈值"
+              else:
+                  f"加盟门店DSO={dso_days:.0f}天，超过75天预警阈值"
+      priority: 100
+      version: 2
+      environment: default

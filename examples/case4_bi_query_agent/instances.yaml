@@ -1,0 +1,592 @@
+# ============================================================
+# OntologyEngine 零售经营分析 - 验收实例数据
+#
+# 包含四个典型验收场景：
+#   CASE-EAST:  华东大区门店（毛利率偏低 + 回款慢 + 库存压力）
+#   CASE-SOUTH: 华南大区门店（经营稳健，部分门店回款偏慢）
+#   CASE-NORTH: 华北大区门店（低毛利 + 高库存 + 高 DSO）
+#   CASE-ECOM:  电商渠道门店（高毛利 + 低 DSO + 低 DIO）
+#
+# 行业基准参考：
+#   百货零售毛利率 ~41%（中国百货商业协会 2024）
+#   超市毛利率 ~25%
+#   电商渠道毛利率 ~49%
+#   零售 DSO 行业基准 5-30 天（CreditPulse 2025）
+#   零售 DIO 行业基准 30-90 天
+#
+# 数据为合成数据，结构参考真实零售企业经营分析场景
+# ============================================================
+
+instances:
+
+  # ============================================================
+  # 华东大区门店
+  # ============================================================
+  - fact_object: Store
+    data:
+      - store_id: "SH-001"
+        store_name: "上海南京东路旗舰店"
+        store_type: DIRECT
+        region: EAST
+        city: "上海"
+        open_date: "2018-03-15"
+        area_sqm: 3200.0
+        is_active: true
+
+      - store_id: "SH-014"
+        store_name: "上海浦东联洋店"
+        store_type: DIRECT
+        region: EAST
+        city: "上海"
+        open_date: "2019-06-01"
+        area_sqm: 1800.0
+        is_active: true
+
+      - store_id: "HZ-003"
+        store_name: "杭州武林广场店"
+        store_type: DIRECT
+        region: EAST
+        city: "杭州"
+        open_date: "2020-01-10"
+        area_sqm: 2400.0
+        is_active: true
+
+      - store_id: "NJ-007"
+        store_name: "南京新街口加盟店"
+        store_type: FRANCHISE
+        region: EAST
+        city: "南京"
+        open_date: "2021-04-20"
+        area_sqm: 1200.0
+        is_active: true
+
+      - store_id: "NB-012"
+        store_name: "宁波天一广场加盟店"
+        store_type: FRANCHISE
+        region: EAST
+        city: "宁波"
+        open_date: "2022-08-15"
+        area_sqm: 950.0
+        is_active: true
+
+  - fact_object: MonthlySales
+    data:
+      # SH-001: 华东主力直营店，毛利率尚可但低于预算
+      - record_id: "SLS-SH001-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 89500000, currency: CNY }
+        returns_and_allowances: { value: 5370000, currency: CNY }
+        net_revenue: { value: 84130000, currency: CNY }
+        cogs: { value: 49220000, currency: CNY }
+        gross_profit: { value: 34910000, currency: CNY }
+        budget_net_revenue: { value: 88000000, currency: CNY }
+        budget_cogs: { value: 50200000, currency: CNY }
+        primary_category: APPAREL
+        belongs_to_store: { store_id: "SH-001" }
+
+      # SH-014: 高毛利但回款慢（典型异常门店）
+      - record_id: "SLS-SH014-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 42500000, currency: CNY }
+        returns_and_allowances: { value: 2125000, currency: CNY }
+        net_revenue: { value: 40375000, currency: CNY }
+        cogs: { value: 21800000, currency: CNY }
+        gross_profit: { value: 18575000, currency: CNY }
+        budget_net_revenue: { value: 40000000, currency: CNY }
+        budget_cogs: { value: 21600000, currency: CNY }
+        primary_category: BEAUTY
+        belongs_to_store: { store_id: "SH-014" }
+
+      # HZ-003: 经营稳健
+      - record_id: "SLS-HZ003-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 62800000, currency: CNY }
+        returns_and_allowances: { value: 3140000, currency: CNY }
+        net_revenue: { value: 59660000, currency: CNY }
+        cogs: { value: 34800000, currency: CNY }
+        gross_profit: { value: 24860000, currency: CNY }
+        budget_net_revenue: { value: 60000000, currency: CNY }
+        budget_cogs: { value: 35400000, currency: CNY }
+        primary_category: APPAREL
+        belongs_to_store: { store_id: "HZ-003" }
+
+      # NJ-007: 加盟店，毛利率高但 DSO 偏高
+      - record_id: "SLS-NJ007-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 28500000, currency: CNY }
+        returns_and_allowances: { value: 1425000, currency: CNY }
+        net_revenue: { value: 27075000, currency: CNY }
+        cogs: { value: 14620000, currency: CNY }
+        gross_profit: { value: 12455000, currency: CNY }
+        budget_net_revenue: { value: 28000000, currency: CNY }
+        budget_cogs: { value: 15400000, currency: CNY }
+        primary_category: HOUSEHOLD
+        belongs_to_store: { store_id: "NJ-007" }
+
+      # NB-012: 加盟店，DSO 68天（v1 判异常，v2 不判异常）
+      - record_id: "SLS-NB012-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 18900000, currency: CNY }
+        returns_and_allowances: { value: 945000, currency: CNY }
+        net_revenue: { value: 17955000, currency: CNY }
+        cogs: { value: 9700000, currency: CNY }
+        gross_profit: { value: 8255000, currency: CNY }
+        budget_net_revenue: { value: 18500000, currency: CNY }
+        budget_cogs: { value: 10180000, currency: CNY }
+        primary_category: FOOD
+        belongs_to_store: { store_id: "NB-012" }
+
+  - fact_object: ARAging
+    data:
+      # SH-001: DSO ≈ 63 天
+      - aging_id: "AR-SH001-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 58900000, currency: CNY }
+        aging_0_30: { value: 29450000, currency: CNY }
+        aging_31_60: { value: 17670000, currency: CNY }
+        aging_61_90: { value: 8830000, currency: CNY }
+        aging_over_90: { value: 2950000, currency: CNY }
+        net_credit_sales: { value: 84130000, currency: CNY }
+        belongs_to_store: { store_id: "SH-001" }
+
+      # SH-014: DSO ≈ 82 天（高毛利但回款极慢）
+      - aging_id: "AR-SH014-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 36800000, currency: CNY }
+        aging_0_30: { value: 11040000, currency: CNY }
+        aging_31_60: { value: 11040000, currency: CNY }
+        aging_61_90: { value: 9200000, currency: CNY }
+        aging_over_90: { value: 5520000, currency: CNY }
+        net_credit_sales: { value: 40375000, currency: CNY }
+        belongs_to_store: { store_id: "SH-014" }
+
+      # HZ-003: DSO ≈ 51 天
+      - aging_id: "AR-HZ003-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 33800000, currency: CNY }
+        aging_0_30: { value: 20280000, currency: CNY }
+        aging_31_60: { value: 10140000, currency: CNY }
+        aging_61_90: { value: 3380000, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 59660000, currency: CNY }
+        belongs_to_store: { store_id: "HZ-003" }
+
+      # NJ-007: DSO ≈ 68 天（加盟店，v1 判异常，v2 不判异常）
+      - aging_id: "AR-NJ007-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 20400000, currency: CNY }
+        aging_0_30: { value: 8160000, currency: CNY }
+        aging_31_60: { value: 8160000, currency: CNY }
+        aging_61_90: { value: 3060000, currency: CNY }
+        aging_over_90: { value: 1020000, currency: CNY }
+        net_credit_sales: { value: 27075000, currency: CNY }
+        belongs_to_store: { store_id: "NJ-007" }
+
+      # NB-012: DSO ≈ 65 天（加盟店，v1 判异常，v2 不判异常）
+      - aging_id: "AR-NB012-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 13000000, currency: CNY }
+        aging_0_30: { value: 6500000, currency: CNY }
+        aging_31_60: { value: 4550000, currency: CNY }
+        aging_61_90: { value: 1950000, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 17955000, currency: CNY }
+        belongs_to_store: { store_id: "NB-012" }
+
+  - fact_object: InventorySnapshot
+    data:
+      # SH-001: DIO ≈ 74 天
+      - snapshot_id: "INV-SH001-2026Q2"
+        period: "2026-Q2"
+        category: APPAREL
+        average_inventory: { value: 40500000, currency: CNY }
+        cogs_for_category: { value: 49220000, currency: CNY }
+        belongs_to_store: { store_id: "SH-001" }
+
+      # SH-014: DIO ≈ 37 天
+      - snapshot_id: "INV-SH014-2026Q2"
+        period: "2026-Q2"
+        category: BEAUTY
+        average_inventory: { value: 8950000, currency: CNY }
+        cogs_for_category: { value: 21800000, currency: CNY }
+        belongs_to_store: { store_id: "SH-014" }
+
+      # HZ-003: DIO ≈ 61 天
+      - snapshot_id: "INV-HZ003-2026Q2"
+        period: "2026-Q2"
+        category: APPAREL
+        average_inventory: { value: 23600000, currency: CNY }
+        cogs_for_category: { value: 34800000, currency: CNY }
+        belongs_to_store: { store_id: "HZ-003" }
+
+      # NJ-007: DIO ≈ 58 天
+      - snapshot_id: "INV-NJ007-2026Q2"
+        period: "2026-Q2"
+        category: HOUSEHOLD
+        average_inventory: { value: 9400000, currency: CNY }
+        cogs_for_category: { value: 14620000, currency: CNY }
+        belongs_to_store: { store_id: "NJ-007" }
+
+      # NB-012: DIO ≈ 52 天
+      - snapshot_id: "INV-NB012-2026Q2"
+        period: "2026-Q2"
+        category: FOOD
+        average_inventory: { value: 5600000, currency: CNY }
+        cogs_for_category: { value: 9700000, currency: CNY }
+        belongs_to_store: { store_id: "NB-012" }
+
+  # ============================================================
+  # 华南大区门店
+  # ============================================================
+  - fact_object: Store
+    data:
+      - store_id: "GZ-005"
+        store_name: "广州天河城旗舰店"
+        store_type: DIRECT
+        region: SOUTH
+        city: "广州"
+        open_date: "2017-09-01"
+        area_sqm: 3500.0
+        is_active: true
+
+      - store_id: "SZ-009"
+        store_name: "深圳万象城店"
+        store_type: DIRECT
+        region: SOUTH
+        city: "深圳"
+        open_date: "2019-12-15"
+        area_sqm: 2100.0
+        is_active: true
+
+      - store_id: "XM-015"
+        store_name: "厦门SM广场加盟店"
+        store_type: FRANCHISE
+        region: SOUTH
+        city: "厦门"
+        open_date: "2022-03-01"
+        area_sqm: 800.0
+        is_active: true
+
+  - fact_object: MonthlySales
+    data:
+      - record_id: "SLS-GZ005-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 72300000, currency: CNY }
+        returns_and_allowances: { value: 3615000, currency: CNY }
+        net_revenue: { value: 68685000, currency: CNY }
+        cogs: { value: 40640000, currency: CNY }
+        gross_profit: { value: 28045000, currency: CNY }
+        budget_net_revenue: { value: 70000000, currency: CNY }
+        budget_cogs: { value: 41300000, currency: CNY }
+        primary_category: APPAREL
+        belongs_to_store: { store_id: "GZ-005" }
+
+      - record_id: "SLS-SZ009-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 51200000, currency: CNY }
+        returns_and_allowances: { value: 2560000, currency: CNY }
+        net_revenue: { value: 48640000, currency: CNY }
+        cogs: { value: 28700000, currency: CNY }
+        gross_profit: { value: 19940000, currency: CNY }
+        budget_net_revenue: { value: 50000000, currency: CNY }
+        budget_cogs: { value: 29500000, currency: CNY }
+        primary_category: BEAUTY
+        belongs_to_store: { store_id: "SZ-009" }
+
+      - record_id: "SLS-XM015-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 15200000, currency: CNY }
+        returns_and_allowances: { value: 760000, currency: CNY }
+        net_revenue: { value: 14440000, currency: CNY }
+        cogs: { value: 8610000, currency: CNY }
+        gross_profit: { value: 5830000, currency: CNY }
+        budget_net_revenue: { value: 15000000, currency: CNY }
+        budget_cogs: { value: 9000000, currency: CNY }
+        primary_category: HOUSEHOLD
+        belongs_to_store: { store_id: "XM-015" }
+
+  - fact_object: ARAging
+    data:
+      # GZ-005: DSO ≈ 51 天
+      - aging_id: "AR-GZ005-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 38900000, currency: CNY }
+        aging_0_30: { value: 23340000, currency: CNY }
+        aging_31_60: { value: 11670000, currency: CNY }
+        aging_61_90: { value: 3890000, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 68685000, currency: CNY }
+        belongs_to_store: { store_id: "GZ-005" }
+
+      # SZ-009: DSO ≈ 48 天
+      - aging_id: "AR-SZ009-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 25900000, currency: CNY }
+        aging_0_30: { value: 15540000, currency: CNY }
+        aging_31_60: { value: 7770000, currency: CNY }
+        aging_61_90: { value: 2590000, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 48640000, currency: CNY }
+        belongs_to_store: { store_id: "SZ-009" }
+
+      # XM-015: DSO ≈ 55 天
+      - aging_id: "AR-XM015-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 8830000, currency: CNY }
+        aging_0_30: { value: 5300000, currency: CNY }
+        aging_31_60: { value: 2650000, currency: CNY }
+        aging_61_90: { value: 880000, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 14440000, currency: CNY }
+        belongs_to_store: { store_id: "XM-015" }
+
+  - fact_object: InventorySnapshot
+    data:
+      # GZ-005: DIO ≈ 61 天
+      - snapshot_id: "INV-GZ005-2026Q2"
+        period: "2026-Q2"
+        category: APPAREL
+        average_inventory: { value: 27500000, currency: CNY }
+        cogs_for_category: { value: 40640000, currency: CNY }
+        belongs_to_store: { store_id: "GZ-005" }
+
+      # SZ-009: DIO ≈ 42 天
+      - snapshot_id: "INV-SZ009-2026Q2"
+        period: "2026-Q2"
+        category: BEAUTY
+        average_inventory: { value: 13400000, currency: CNY }
+        cogs_for_category: { value: 28700000, currency: CNY }
+        belongs_to_store: { store_id: "SZ-009" }
+
+      # XM-015: DIO ≈ 55 天
+      - snapshot_id: "INV-XM015-2026Q2"
+        period: "2026-Q2"
+        category: HOUSEHOLD
+        average_inventory: { value: 5260000, currency: CNY }
+        cogs_for_category: { value: 8610000, currency: CNY }
+        belongs_to_store: { store_id: "XM-015" }
+
+  # ============================================================
+  # 华北大区门店
+  # ============================================================
+  - fact_object: Store
+    data:
+      - store_id: "BJ-002"
+        store_name: "北京国贸旗舰店"
+        store_type: DIRECT
+        region: NORTH
+        city: "北京"
+        open_date: "2016-05-20"
+        area_sqm: 3800.0
+        is_active: true
+
+      - store_id: "BJ-009"
+        store_name: "北京望京店"
+        store_type: DIRECT
+        region: NORTH
+        city: "北京"
+        open_date: "2020-11-01"
+        area_sqm: 1500.0
+        is_active: true
+
+      - store_id: "TJ-011"
+        store_name: "天津滨江道加盟店"
+        store_type: FRANCHISE
+        region: NORTH
+        city: "天津"
+        open_date: "2021-07-10"
+        area_sqm: 1100.0
+        is_active: true
+
+  - fact_object: MonthlySales
+    data:
+      # BJ-002: 低毛利 + 高库存
+      - record_id: "SLS-BJ002-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 58900000, currency: CNY }
+        returns_and_allowances: { value: 4123000, currency: CNY }
+        net_revenue: { value: 54777000, currency: CNY }
+        cogs: { value: 33720000, currency: CNY }
+        gross_profit: { value: 21057000, currency: CNY }
+        budget_net_revenue: { value: 58000000, currency: CNY }
+        budget_cogs: { value: 34800000, currency: CNY }
+        primary_category: ELECTRONICS
+        belongs_to_store: { store_id: "BJ-002" }
+
+      # BJ-009: 低毛利 + 高 DSO + 高 DIO（综合风险）
+      - record_id: "SLS-BJ009-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 22800000, currency: CNY }
+        returns_and_allowances: { value: 1596000, currency: CNY }
+        net_revenue: { value: 21204000, currency: CNY }
+        cogs: { value: 13780000, currency: CNY }
+        gross_profit: { value: 7424000, currency: CNY }
+        budget_net_revenue: { value: 24000000, currency: CNY }
+        budget_cogs: { value: 14400000, currency: CNY }
+        primary_category: ELECTRONICS
+        belongs_to_store: { store_id: "BJ-009" }
+
+      # TJ-011: 加盟店，低毛利
+      - record_id: "SLS-TJ011-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 16500000, currency: CNY }
+        returns_and_allowances: { value: 990000, currency: CNY }
+        net_revenue: { value: 15510000, currency: CNY }
+        cogs: { value: 10080000, currency: CNY }
+        gross_profit: { value: 5430000, currency: CNY }
+        budget_net_revenue: { value: 17000000, currency: CNY }
+        budget_cogs: { value: 10540000, currency: CNY }
+        primary_category: HOUSEHOLD
+        belongs_to_store: { store_id: "TJ-011" }
+
+  - fact_object: ARAging
+    data:
+      # BJ-002: DSO ≈ 69 天
+      - aging_id: "AR-BJ002-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 41900000, currency: CNY }
+        aging_0_30: { value: 16760000, currency: CNY }
+        aging_31_60: { value: 12570000, currency: CNY }
+        aging_61_90: { value: 8380000, currency: CNY }
+        aging_over_90: { value: 4190000, currency: CNY }
+        net_credit_sales: { value: 54777000, currency: CNY }
+        belongs_to_store: { store_id: "BJ-002" }
+
+      # BJ-009: DSO ≈ 72 天
+      - aging_id: "AR-BJ009-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 16960000, currency: CNY }
+        aging_0_30: { value: 5088000, currency: CNY }
+        aging_31_60: { value: 5088000, currency: CNY }
+        aging_61_90: { value: 3392000, currency: CNY }
+        aging_over_90: { value: 3392000, currency: CNY }
+        net_credit_sales: { value: 21204000, currency: CNY }
+        belongs_to_store: { store_id: "BJ-009" }
+
+      # TJ-011: DSO ≈ 78 天（加盟店，v1 判异常，v2 不判异常）
+      - aging_id: "AR-TJ011-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 13450000, currency: CNY }
+        aging_0_30: { value: 4035000, currency: CNY }
+        aging_31_60: { value: 5380000, currency: CNY }
+        aging_61_90: { value: 2690000, currency: CNY }
+        aging_over_90: { value: 1345000, currency: CNY }
+        net_credit_sales: { value: 15510000, currency: CNY }
+        belongs_to_store: { store_id: "TJ-011" }
+
+  - fact_object: InventorySnapshot
+    data:
+      # BJ-002: DIO ≈ 83 天
+      - snapshot_id: "INV-BJ002-2026Q2"
+        period: "2026-Q2"
+        category: ELECTRONICS
+        average_inventory: { value: 31100000, currency: CNY }
+        cogs_for_category: { value: 33720000, currency: CNY }
+        belongs_to_store: { store_id: "BJ-002" }
+
+      # BJ-009: DIO ≈ 89 天
+      - snapshot_id: "INV-BJ009-2026Q2"
+        period: "2026-Q2"
+        category: ELECTRONICS
+        average_inventory: { value: 13600000, currency: CNY }
+        cogs_for_category: { value: 13780000, currency: CNY }
+        belongs_to_store: { store_id: "BJ-009" }
+
+      # TJ-011: DIO ≈ 68 天
+      - snapshot_id: "INV-TJ011-2026Q2"
+        period: "2026-Q2"
+        category: HOUSEHOLD
+        average_inventory: { value: 7620000, currency: CNY }
+        cogs_for_category: { value: 10080000, currency: CNY }
+        belongs_to_store: { store_id: "TJ-011" }
+
+  # ============================================================
+  # 电商渠道
+  # ============================================================
+  - fact_object: Store
+    data:
+      - store_id: "EC-001"
+        store_name: "天猫旗舰店"
+        store_type: DIRECT
+        region: ECOM
+        city: "杭州"
+        open_date: "2019-01-01"
+        area_sqm: 0
+        is_active: true
+
+      - store_id: "EC-002"
+        store_name: "京东自营店"
+        store_type: DIRECT
+        region: ECOM
+        city: "北京"
+        open_date: "2020-06-01"
+        area_sqm: 0
+        is_active: true
+
+  - fact_object: MonthlySales
+    data:
+      - record_id: "SLS-EC001-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 39800000, currency: CNY }
+        returns_and_allowances: { value: 1990000, currency: CNY }
+        net_revenue: { value: 37810000, currency: CNY }
+        cogs: { value: 19270000, currency: CNY }
+        gross_profit: { value: 18540000, currency: CNY }
+        budget_net_revenue: { value: 38000000, currency: CNY }
+        budget_cogs: { value: 19760000, currency: CNY }
+        primary_category: BEAUTY
+        belongs_to_store: { store_id: "EC-001" }
+
+      - record_id: "SLS-EC002-2026Q2"
+        period: "2026-Q2"
+        gross_sales: { value: 24200000, currency: CNY }
+        returns_and_allowances: { value: 1210000, currency: CNY }
+        net_revenue: { value: 22990000, currency: CNY }
+        cogs: { value: 11710000, currency: CNY }
+        gross_profit: { value: 11280000, currency: CNY }
+        budget_net_revenue: { value: 23000000, currency: CNY }
+        budget_cogs: { value: 11960000, currency: CNY }
+        primary_category: ELECTRONICS
+        belongs_to_store: { store_id: "EC-002" }
+
+  - fact_object: ARAging
+    data:
+      # EC-001: DSO ≈ 18 天
+      - aging_id: "AR-EC001-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 7560000, currency: CNY }
+        aging_0_30: { value: 7560000, currency: CNY }
+        aging_31_60: { value: 0, currency: CNY }
+        aging_61_90: { value: 0, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 37810000, currency: CNY }
+        belongs_to_store: { store_id: "EC-001" }
+
+      # EC-002: DSO ≈ 15 天
+      - aging_id: "AR-EC002-2026Q2"
+        period: "2026-Q2"
+        total_receivable: { value: 3830000, currency: CNY }
+        aging_0_30: { value: 3830000, currency: CNY }
+        aging_31_60: { value: 0, currency: CNY }
+        aging_61_90: { value: 0, currency: CNY }
+        aging_over_90: { value: 0, currency: CNY }
+        net_credit_sales: { value: 22990000, currency: CNY }
+        belongs_to_store: { store_id: "EC-002" }
+
+  - fact_object: InventorySnapshot
+    data:
+      # EC-001: DIO ≈ 37 天
+      - snapshot_id: "INV-EC001-2026Q2"
+        period: "2026-Q2"
+        category: BEAUTY
+        average_inventory: { value: 7920000, currency: CNY }
+        cogs_for_category: { value: 19270000, currency: CNY }
+        belongs_to_store: { store_id: "EC-001" }
+
+      # EC-002: DIO ≈ 35 天
+      - snapshot_id: "INV-EC002-2026Q2"
+        period: "2026-Q2"
+        category: ELECTRONICS
+        average_inventory: { value: 4550000, currency: CNY }
+        cogs_for_category: { value: 11710000, currency: CNY }
+        belongs_to_store: { store_id: "EC-002" }

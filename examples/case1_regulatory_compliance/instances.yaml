@@ -1,492 +1,533 @@
-# ============================================================
-# OntologyEngine - Circular 23 合规测试实例数据
-#
-# 包含五个典型测试场景：
-#   C1: 完全合规供应商（通过所有Circular 23检查）
-#   C2: 核心企业不在白名单（触发RD_CIRCULAR23_core_enterprise_whitelist）
-#   C3: 发票真实性核验失败（触发RD_CIRCULAR23_invoice_authenticity）
-#   C4: 担保限额超出（触发RD_CIRCULAR23_guarantee_limit）
-#   C5: 风险集中度超限（触发RD_CIRCULAR23_risk_concentration）
-#
-# ============================================================
-
 instances:
-
-  # ============================================================
-  # 核心企业数据（三个核心企业）
-  # ============================================================
-  - fact_object: CoreEnterprise
-    data:
-      - enterprise_id: "CE_WHITELISTED_001"
-        company_name: "华为技术有限公司"
-        credit_rating: "AAA"
-        annual_procurement_volume: { value: 50000000000, currency: CNY }
-        is_in_regulatory_whitelist: true
-        whitelist_expiry_date: "2027-12-31"
-
-      - enterprise_id: "CE_WHITELISTED_002"
-        company_name: "比亚迪股份有限公司"
-        credit_rating: "AA+"
-        annual_procurement_volume: { value: 30000000000, currency: CNY }
-        is_in_regulatory_whitelist: true
-        whitelist_expiry_date: "2027-06-30"
-
-      - enterprise_id: "CE_NOT_IN_WHITELIST"
-        company_name: "某地产集团有限公司"
-        credit_rating: "BBB"
-        annual_procurement_volume: { value: 15000000000, currency: CNY }
-        is_in_regulatory_whitelist: false
-        whitelist_expiry_date: null
-
-  # ============================================================
-  # C1: 完全合规供应商 — 深圳恒通科技有限公司
-  # 定位：所有Circular 23检查均通过的优质供应商
-  # 检查项：
-  #   - 核心企业均在白名单（华为+比亚迪）✓
-  #   - 发票真实性核验率100% ✓
-  #   - 最大单笔担保占比5%（<=10%）✓
-  #   - 风险集中度35%（<50%）✓
-  # 预期：is_circular23_compliant = true → APPROVE
-  # ============================================================
-  - fact_object: Supplier
-    data:
-      - supplier_id: "SUP_C1"
-        company_name: "深圳恒通科技有限公司"
-        unified_credit_code: "91440300MA5GCASE_C1"
-        registered_capital: { value: 50000000, currency: CNY }
-        establishment_date: "2018-03-15"
-        industry_type: MANUFACTURING
-        company_size: MEDIUM
-        status: ACTIVE
-        address: { province: "广东省", city: "深圳市", district: "南山区" }
-        tax_compliance_score: 88
-        negative_news_count_90d: 0
-        risk_concentration_ratio: 35
-        circular23_compliance_status: COMPLIANT
-
-  - fact_object: Invoice
-    data:
-      - invoice_no: "INV_C1_001"
-        invoice_type: SPECIAL
-        amount: { value: 3000000, currency: CNY }
-        issue_date: "2026-03-15"
-        due_date: "2026-06-15"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C1" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-03-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C1_002"
-        invoice_type: SPECIAL
-        amount: { value: 2500000, currency: CNY }
-        issue_date: "2026-02-28"
-        due_date: "2026-05-28"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C1" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_002" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-03-01"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C1_003"
-        invoice_type: SPECIAL
-        amount: { value: 1800000, currency: CNY }
-        issue_date: "2026-04-01"
-        due_date: "2026-07-01"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C1" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-04-02"
-        authenticity_source: "国家税务总局发票查验平台"
-
-  - fact_object: Contract
-    data:
-      - contract_no: "CTR_C1_001"
-        contract_amount: { value: 10000000, currency: CNY }
-        start_date: "2026-01-01"
-        end_date: "2026-12-31"
-        status: ACTIVE
-        signed_by: { supplier_id: "SUP_C1" }
-        signed_with: { enterprise_id: "CE_WHITELISTED_001" }
-
-      - contract_no: "CTR_C1_002"
-        contract_amount: { value: 8000000, currency: CNY }
-        start_date: "2026-02-01"
-        end_date: "2026-08-31"
-        status: ACTIVE
-        signed_by: { supplier_id: "SUP_C1" }
-        signed_with: { enterprise_id: "CE_WHITELISTED_002" }
-
-  # C1的担保关系：2笔担保，最大单笔500万（=注册资本5000万的1%，远低于10%）
-  - fact_object: GuaranteeRelation
-    data:
-      - guarantor_id: "SUP_C1"
-        guaranteed_id: "SUP_C1"
-        guarantee_amount: { value: 5000000, currency: CNY }
-        guarantee_type: JOINT_LIABILITY
-        start_date: "2026-01-01"
-        status: ACTIVE
-        circular23_compliant: true
-
-  # ============================================================
-  # C2: 核心企业不在白名单 — 上海贸易有限公司
-  # 定位：引用了不在监管白名单的核心企业
-  # 检查项：
-  #   - 核心企业：某地产集团（不在白名单）✗
-  #   - 发票真实性核验率100% ✓
-  #   - 最大单笔担保占比3%（<=10%）✓
-  #   - 风险集中度40%（<50%）✓
-  # 预期：is_circular23_compliant = false（核心企业白名单检查失败）
-  # ============================================================
-  - fact_object: Supplier
-    data:
-      - supplier_id: "SUP_C2"
-        company_name: "上海贸易有限公司"
-        unified_credit_code: "91440300MA5GCASE_C2"
-        registered_capital: { value: 20000000, currency: CNY }
-        establishment_date: "2019-06-01"
-        industry_type: RETAIL
-        company_size: MEDIUM
-        status: ACTIVE
-        address: { province: "上海市", city: "上海市", district: "浦东新区" }
-        tax_compliance_score: 75
-        negative_news_count_90d: 1
-        risk_concentration_ratio: 40
-        circular23_compliance_status: NON_COMPLIANT
-
-  - fact_object: Invoice
-    data:
-      - invoice_no: "INV_C2_001"
-        invoice_type: SPECIAL
-        amount: { value: 1500000, currency: CNY }
-        issue_date: "2026-03-10"
-        due_date: "2026-06-10"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C2" }
-        issued_to: { enterprise_id: "CE_NOT_IN_WHITELIST" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-03-11"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C2_002"
-        invoice_type: NORMAL
-        amount: { value: 800000, currency: CNY }
-        issue_date: "2026-02-15"
-        due_date: "2026-05-15"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C2" }
-        issued_to: { enterprise_id: "CE_NOT_IN_WHITELIST" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-02-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-  - fact_object: Contract
-    data:
-      - contract_no: "CTR_C2_001"
-        contract_amount: { value: 5000000, currency: CNY }
-        start_date: "2026-01-01"
-        end_date: "2026-12-31"
-        status: ACTIVE
-        signed_by: { supplier_id: "SUP_C2" }
-        signed_with: { enterprise_id: "CE_NOT_IN_WHITELIST" }
-
-  # ============================================================
-  # C3: 发票真实性核验失败 — 广州制造有限公司
-  # 定位：发票真实性核验通过率仅60%（低于95%阈值）
-  # 检查项：
-  #   - 核心企业均在白名单（华为）✓
-  #   - 发票真实性核验率60%（<95%）✗
-  #   - 无担保关系 ✓
-  #   - 风险集中度45%（<50%）✓
-  # 预期：is_circular23_compliant = false（发票真实性检查失败）
-  # ============================================================
-  - fact_object: Supplier
-    data:
-      - supplier_id: "SUP_C3"
-        company_name: "广州制造有限公司"
-        unified_credit_code: "91440300MA5GCASE_C3"
-        registered_capital: { value: 30000000, currency: CNY }
-        establishment_date: "2017-09-01"
-        industry_type: MANUFACTURING
-        company_size: MEDIUM
-        status: ACTIVE
-        address: { province: "广东省", city: "广州市", district: "天河区" }
-        tax_compliance_score: 70
-        negative_news_count_90d: 2
-        risk_concentration_ratio: 45
-        circular23_compliance_status: NON_COMPLIANT
-
-  - fact_object: Invoice
-    data:
-      # 3张已核验通过的发票
-      - invoice_no: "INV_C3_001"
-        invoice_type: SPECIAL
-        amount: { value: 2000000, currency: CNY }
-        issue_date: "2026-01-10"
-        due_date: "2026-04-10"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-01-11"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C3_002"
-        invoice_type: SPECIAL
-        amount: { value: 1500000, currency: CNY }
-        issue_date: "2026-02-15"
-        due_date: "2026-05-15"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-02-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      # 5张未通过真实性核验的发票（疑似虚假发票）
-      - invoice_no: "INV_C3_003"
-        invoice_type: SPECIAL
-        amount: { value: 3000000, currency: CNY }
-        issue_date: "2026-03-01"
-        due_date: "2026-06-01"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: false
-        authenticity_verify_date: "2026-03-02"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C3_004"
-        invoice_type: SPECIAL
-        amount: { value: 2500000, currency: CNY }
-        issue_date: "2026-03-05"
-        due_date: "2026-06-05"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: false
-        authenticity_verify_date: "2026-03-06"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C3_005"
-        invoice_type: NORMAL
-        amount: { value: 1000000, currency: CNY }
-        issue_date: "2026-03-10"
-        due_date: "2026-06-10"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: false
-        authenticity_verify_date: "2026-03-11"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C3_006"
-        invoice_type: ELECTRONIC
-        amount: { value: 800000, currency: CNY }
-        issue_date: "2026-03-15"
-        due_date: "2026-06-15"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: false
-        authenticity_verify_date: "2026-03-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C3_007"
-        invoice_type: ELECTRONIC
-        amount: { value: 500000, currency: CNY }
-        issue_date: "2026-03-20"
-        due_date: "2026-06-20"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: false
-        authenticity_verify_date: "2026-03-21"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C3_008"
-        invoice_type: ELECTRONIC
-        amount: { value: 200000, currency: CNY }
-        issue_date: "2026-03-25"
-        due_date: "2026-06-25"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C3" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: false
-        authenticity_verify_date: "2026-03-26"
-        authenticity_source: "国家税务总局发票查验平台"
-
-  # C3无担保关系，无合同
-
-  # ============================================================
-  # C4: 担保限额超出 — 北京担保有限公司
-  # 定位：单笔担保金额1500万，超出注册资本1亿的10%（即1000万）限制
-  # 检查项：
-  #   - 核心企业均在白名单 ✓
-  #   - 发票真实性核验率100% ✓
-  #   - 单笔担保占比15%（>10%）✗
-  #   - 风险集中度30%（<50%）✓
-  # 预期：is_circular23_compliant = false（担保限额检查失败）
-  # ============================================================
-  - fact_object: Supplier
-    data:
-      - supplier_id: "SUP_C4"
-        company_name: "北京担保有限公司"
-        unified_credit_code: "91440300MA5GCASE_C4"
-        registered_capital: { value: 100000000, currency: CNY }
-        establishment_date: "2016-01-01"
-        industry_type: MANUFACTURING
-        company_size: LARGE
-        status: ACTIVE
-        address: { province: "北京市", city: "北京市", district: "朝阳区" }
-        tax_compliance_score: 82
-        negative_news_count_90d: 0
-        risk_concentration_ratio: 30
-        circular23_compliance_status: NON_COMPLIANT
-
-  - fact_object: Invoice
-    data:
-      - invoice_no: "INV_C4_001"
-        invoice_type: SPECIAL
-        amount: { value: 5000000, currency: CNY }
-        issue_date: "2026-03-15"
-        due_date: "2026-06-15"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C4" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-03-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C4_002"
-        invoice_type: SPECIAL
-        amount: { value: 3000000, currency: CNY }
-        issue_date: "2026-04-01"
-        due_date: "2026-07-01"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C4" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_002" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-04-02"
-        authenticity_source: "国家税务总局发票查验平台"
-
-  - fact_object: Contract
-    data:
-      - contract_no: "CTR_C4_001"
-        contract_amount: { value: 15000000, currency: CNY }
-        start_date: "2026-01-01"
-        end_date: "2026-12-31"
-        status: ACTIVE
-        signed_by: { supplier_id: "SUP_C4" }
-        signed_with: { enterprise_id: "CE_WHITELISTED_001" }
-
-  # C4的担保关系：单笔担保1500万，占注册资本1亿的15%，超过10%限制
-  - fact_object: GuaranteeRelation
-    data:
-      - guarantor_id: "SUP_C4"
-        guaranteed_id: "SUP_C4"
-        guarantee_amount: { value: 15000000, currency: CNY }
-        guarantee_type: JOINT_LIABILITY
-        start_date: "2026-01-01"
-        status: ACTIVE
-        circular23_compliant: false
-
-  # ============================================================
-  # C5: 风险集中度超限 — 成都供应链有限公司
-  # 定位：对单一核心企业（华为）销售占比65%，超过50%限制
-  # 检查项：
-  #   - 核心企业均在白名单 ✓
-  #   - 发票真实性核验率100% ✓
-  #   - 最大单笔担保占比5%（<=10%）✓
-  #   - 风险集中度65%（>=50%）✗
-  # 预期：is_circular23_compliant = false（风险集中度检查失败）
-  #       但由于是单一维度失败，可考虑 APPROVE_WITH_CONDITIONS
-  # ============================================================
-  - fact_object: Supplier
-    data:
-      - supplier_id: "SUP_C5"
-        company_name: "成都供应链有限公司"
-        unified_credit_code: "91440300MA5GCASE_C5"
-        registered_capital: { value: 25000000, currency: CNY }
-        establishment_date: "2019-01-01"
-        industry_type: LOGISTICS
-        company_size: MEDIUM
-        status: ACTIVE
-        address: { province: "四川省", city: "成都市", district: "高新区" }
-        tax_compliance_score: 78
-        negative_news_count_90d: 0
-        risk_concentration_ratio: 65
-        circular23_compliance_status: NON_COMPLIANT
-
-  - fact_object: Invoice
-    data:
-      # 大量发票给华为（占比65%）
-      - invoice_no: "INV_C5_001"
-        invoice_type: SPECIAL
-        amount: { value: 5000000, currency: CNY }
-        issue_date: "2026-01-15"
-        due_date: "2026-04-15"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C5" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-01-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C5_002"
-        invoice_type: SPECIAL
-        amount: { value: 4500000, currency: CNY }
-        issue_date: "2026-02-15"
-        due_date: "2026-05-15"
-        status: PAID
-        issued_by: { supplier_id: "SUP_C5" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-02-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      - invoice_no: "INV_C5_003"
-        invoice_type: SPECIAL
-        amount: { value: 4800000, currency: CNY }
-        issue_date: "2026-03-15"
-        due_date: "2026-06-15"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C5" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_001" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-03-16"
-        authenticity_source: "国家税务总局发票查验平台"
-
-      # 小量发票给比亚迪（占比35%）
-      - invoice_no: "INV_C5_004"
-        invoice_type: SPECIAL
-        amount: { value: 2700000, currency: CNY }
-        issue_date: "2026-03-01"
-        due_date: "2026-06-01"
-        status: PENDING
-        issued_by: { supplier_id: "SUP_C5" }
-        issued_to: { enterprise_id: "CE_WHITELISTED_002" }
-        authenticity_verified: true
-        authenticity_verify_date: "2026-03-02"
-        authenticity_source: "国家税务总局发票查验平台"
-
-  - fact_object: Contract
-    data:
-      - contract_no: "CTR_C5_001"
-        contract_amount: { value: 20000000, currency: CNY }
-        start_date: "2026-01-01"
-        end_date: "2026-12-31"
-        status: ACTIVE
-        signed_by: { supplier_id: "SUP_C5" }
-        signed_with: { enterprise_id: "CE_WHITELISTED_001" }
-
-      - contract_no: "CTR_C5_002"
-        contract_amount: { value: 10000000, currency: CNY }
-        start_date: "2026-01-01"
-        end_date: "2026-12-31"
-        status: ACTIVE
-        signed_by: { supplier_id: "SUP_C5" }
-        signed_with: { enterprise_id: "CE_WHITELISTED_002" }
+- fact_object: CoreEnterprise
+  data:
+  - enterprise_id: CE_WHITELISTED_001
+    company_name: 华为技术有限公司
+    credit_rating: AAA
+    annual_procurement_volume:
+      value: 50000000000
+      currency: CNY
+    is_in_regulatory_whitelist: true
+    whitelist_expiry_date: '2027-12-31'
+  - enterprise_id: CE_WHITELISTED_002
+    company_name: 比亚迪股份有限公司
+    credit_rating: AA+
+    annual_procurement_volume:
+      value: 30000000000
+      currency: CNY
+    is_in_regulatory_whitelist: true
+    whitelist_expiry_date: '2027-06-30'
+  - enterprise_id: CE_NOT_IN_WHITELIST
+    company_name: 某地产集团有限公司
+    credit_rating: BBB
+    annual_procurement_volume:
+      value: 15000000000
+      currency: CNY
+    is_in_regulatory_whitelist: false
+    whitelist_expiry_date: null
+- fact_object: Supplier
+  data:
+  - supplier_id: SUP_C1
+    company_name: 深圳恒通科技有限公司
+    unified_credit_code: 91440300MA5GCASE_C1
+    registered_capital:
+      value: 50000000
+      currency: CNY
+    establishment_date: '2018-03-15'
+    industry_type: MANUFACTURING
+    company_size: MEDIUM
+    status: ACTIVE
+    address:
+      province: 广东省
+      city: 深圳市
+      district: 南山区
+    tax_compliance_score: 88
+    negative_news_count_90d: 0
+    risk_concentration_ratio: 35
+    circular23_compliance_status: COMPLIANT
+    supplies_to:
+    - enterprise_id: CE_WHITELISTED_001
+    - enterprise_id: CE_WHITELISTED_002
+- fact_object: Invoice
+  data:
+  - invoice_no: INV_C1_001
+    invoice_type: SPECIAL
+    amount:
+      value: 3000000
+      currency: CNY
+    issue_date: '2026-03-15'
+    due_date: '2026-06-15'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C1
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-03-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C1_002
+    invoice_type: SPECIAL
+    amount:
+      value: 2500000
+      currency: CNY
+    issue_date: '2026-02-28'
+    due_date: '2026-05-28'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C1
+    issued_to:
+      enterprise_id: CE_WHITELISTED_002
+    authenticity_verified: true
+    authenticity_verify_date: '2026-03-01'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C1_003
+    invoice_type: SPECIAL
+    amount:
+      value: 1800000
+      currency: CNY
+    issue_date: '2026-04-01'
+    due_date: '2026-07-01'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C1
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-04-02'
+    authenticity_source: 国家税务总局发票查验平台
+- fact_object: Contract
+  data:
+  - contract_no: CTR_C1_001
+    contract_amount:
+      value: 10000000
+      currency: CNY
+    start_date: '2026-01-01'
+    end_date: '2026-12-31'
+    status: ACTIVE
+    signed_by:
+      supplier_id: SUP_C1
+    signed_with:
+      enterprise_id: CE_WHITELISTED_001
+  - contract_no: CTR_C1_002
+    contract_amount:
+      value: 8000000
+      currency: CNY
+    start_date: '2026-02-01'
+    end_date: '2026-08-31'
+    status: ACTIVE
+    signed_by:
+      supplier_id: SUP_C1
+    signed_with:
+      enterprise_id: CE_WHITELISTED_002
+- fact_object: GuaranteeRelation
+  data:
+  - guarantor_id: SUP_C1
+    guaranteed_id: SUP_C1
+    guarantee_amount:
+      value: 5000000
+      currency: CNY
+    guarantee_type: JOINT_LIABILITY
+    start_date: '2026-01-01'
+    status: ACTIVE
+    circular23_compliant: true
+    guarantee_id: GR-C1-001
+- fact_object: Supplier
+  data:
+  - supplier_id: SUP_C2
+    company_name: 上海贸易有限公司
+    unified_credit_code: 91440300MA5GCASE_C2
+    registered_capital:
+      value: 20000000
+      currency: CNY
+    establishment_date: '2019-06-01'
+    industry_type: RETAIL
+    company_size: MEDIUM
+    status: ACTIVE
+    address:
+      province: 上海市
+      city: 上海市
+      district: 浦东新区
+    tax_compliance_score: 75
+    negative_news_count_90d: 1
+    risk_concentration_ratio: 40
+    circular23_compliance_status: NON_COMPLIANT
+    supplies_to:
+    - enterprise_id: CE_NOT_IN_WHITELIST
+- fact_object: Invoice
+  data:
+  - invoice_no: INV_C2_001
+    invoice_type: SPECIAL
+    amount:
+      value: 1500000
+      currency: CNY
+    issue_date: '2026-03-10'
+    due_date: '2026-06-10'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C2
+    issued_to:
+      enterprise_id: CE_NOT_IN_WHITELIST
+    authenticity_verified: true
+    authenticity_verify_date: '2026-03-11'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C2_002
+    invoice_type: NORMAL
+    amount:
+      value: 800000
+      currency: CNY
+    issue_date: '2026-02-15'
+    due_date: '2026-05-15'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C2
+    issued_to:
+      enterprise_id: CE_NOT_IN_WHITELIST
+    authenticity_verified: true
+    authenticity_verify_date: '2026-02-16'
+    authenticity_source: 国家税务总局发票查验平台
+- fact_object: Contract
+  data:
+  - contract_no: CTR_C2_001
+    contract_amount:
+      value: 5000000
+      currency: CNY
+    start_date: '2026-01-01'
+    end_date: '2026-12-31'
+    status: ACTIVE
+    signed_by:
+      supplier_id: SUP_C2
+    signed_with:
+      enterprise_id: CE_NOT_IN_WHITELIST
+- fact_object: Supplier
+  data:
+  - supplier_id: SUP_C3
+    company_name: 广州制造有限公司
+    unified_credit_code: 91440300MA5GCASE_C3
+    registered_capital:
+      value: 30000000
+      currency: CNY
+    establishment_date: '2017-09-01'
+    industry_type: MANUFACTURING
+    company_size: MEDIUM
+    status: ACTIVE
+    address:
+      province: 广东省
+      city: 广州市
+      district: 天河区
+    tax_compliance_score: 70
+    negative_news_count_90d: 2
+    risk_concentration_ratio: 45
+    circular23_compliance_status: NON_COMPLIANT
+    supplies_to:
+    - enterprise_id: CE_WHITELISTED_001
+- fact_object: Invoice
+  data:
+  - invoice_no: INV_C3_001
+    invoice_type: SPECIAL
+    amount:
+      value: 2000000
+      currency: CNY
+    issue_date: '2026-01-10'
+    due_date: '2026-04-10'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-01-11'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_002
+    invoice_type: SPECIAL
+    amount:
+      value: 1500000
+      currency: CNY
+    issue_date: '2026-02-15'
+    due_date: '2026-05-15'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-02-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_003
+    invoice_type: SPECIAL
+    amount:
+      value: 3000000
+      currency: CNY
+    issue_date: '2026-03-01'
+    due_date: '2026-06-01'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: false
+    authenticity_verify_date: '2026-03-02'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_004
+    invoice_type: SPECIAL
+    amount:
+      value: 2500000
+      currency: CNY
+    issue_date: '2026-03-05'
+    due_date: '2026-06-05'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: false
+    authenticity_verify_date: '2026-03-06'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_005
+    invoice_type: NORMAL
+    amount:
+      value: 1000000
+      currency: CNY
+    issue_date: '2026-03-10'
+    due_date: '2026-06-10'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: false
+    authenticity_verify_date: '2026-03-11'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_006
+    invoice_type: ELECTRONIC
+    amount:
+      value: 800000
+      currency: CNY
+    issue_date: '2026-03-15'
+    due_date: '2026-06-15'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: false
+    authenticity_verify_date: '2026-03-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_007
+    invoice_type: ELECTRONIC
+    amount:
+      value: 500000
+      currency: CNY
+    issue_date: '2026-03-20'
+    due_date: '2026-06-20'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: false
+    authenticity_verify_date: '2026-03-21'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C3_008
+    invoice_type: ELECTRONIC
+    amount:
+      value: 200000
+      currency: CNY
+    issue_date: '2026-03-25'
+    due_date: '2026-06-25'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C3
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: false
+    authenticity_verify_date: '2026-03-26'
+    authenticity_source: 国家税务总局发票查验平台
+- fact_object: Supplier
+  data:
+  - supplier_id: SUP_C4
+    company_name: 北京担保有限公司
+    unified_credit_code: 91440300MA5GCASE_C4
+    registered_capital:
+      value: 100000000
+      currency: CNY
+    establishment_date: '2016-01-01'
+    industry_type: MANUFACTURING
+    company_size: LARGE
+    status: ACTIVE
+    address:
+      province: 北京市
+      city: 北京市
+      district: 朝阳区
+    tax_compliance_score: 82
+    negative_news_count_90d: 0
+    risk_concentration_ratio: 30
+    circular23_compliance_status: NON_COMPLIANT
+    supplies_to:
+    - enterprise_id: CE_WHITELISTED_001
+    - enterprise_id: CE_WHITELISTED_002
+- fact_object: Invoice
+  data:
+  - invoice_no: INV_C4_001
+    invoice_type: SPECIAL
+    amount:
+      value: 5000000
+      currency: CNY
+    issue_date: '2026-03-15'
+    due_date: '2026-06-15'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C4
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-03-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C4_002
+    invoice_type: SPECIAL
+    amount:
+      value: 3000000
+      currency: CNY
+    issue_date: '2026-04-01'
+    due_date: '2026-07-01'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C4
+    issued_to:
+      enterprise_id: CE_WHITELISTED_002
+    authenticity_verified: true
+    authenticity_verify_date: '2026-04-02'
+    authenticity_source: 国家税务总局发票查验平台
+- fact_object: Contract
+  data:
+  - contract_no: CTR_C4_001
+    contract_amount:
+      value: 15000000
+      currency: CNY
+    start_date: '2026-01-01'
+    end_date: '2026-12-31'
+    status: ACTIVE
+    signed_by:
+      supplier_id: SUP_C4
+    signed_with:
+      enterprise_id: CE_WHITELISTED_001
+- fact_object: GuaranteeRelation
+  data:
+  - guarantor_id: SUP_C4
+    guaranteed_id: SUP_C4
+    guarantee_amount:
+      value: 15000000
+      currency: CNY
+    guarantee_type: JOINT_LIABILITY
+    start_date: '2026-01-01'
+    status: ACTIVE
+    circular23_compliant: false
+    guarantee_id: GR-C1-002
+- fact_object: Supplier
+  data:
+  - supplier_id: SUP_C5
+    company_name: 成都供应链有限公司
+    unified_credit_code: 91440300MA5GCASE_C5
+    registered_capital:
+      value: 25000000
+      currency: CNY
+    establishment_date: '2019-01-01'
+    industry_type: LOGISTICS
+    company_size: MEDIUM
+    status: ACTIVE
+    address:
+      province: 四川省
+      city: 成都市
+      district: 高新区
+    tax_compliance_score: 78
+    negative_news_count_90d: 0
+    risk_concentration_ratio: 65
+    circular23_compliance_status: NON_COMPLIANT
+    supplies_to:
+    - enterprise_id: CE_WHITELISTED_001
+    - enterprise_id: CE_WHITELISTED_002
+- fact_object: Invoice
+  data:
+  - invoice_no: INV_C5_001
+    invoice_type: SPECIAL
+    amount:
+      value: 5000000
+      currency: CNY
+    issue_date: '2026-01-15'
+    due_date: '2026-04-15'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C5
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-01-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C5_002
+    invoice_type: SPECIAL
+    amount:
+      value: 4500000
+      currency: CNY
+    issue_date: '2026-02-15'
+    due_date: '2026-05-15'
+    status: PAID
+    issued_by:
+      supplier_id: SUP_C5
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-02-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C5_003
+    invoice_type: SPECIAL
+    amount:
+      value: 4800000
+      currency: CNY
+    issue_date: '2026-03-15'
+    due_date: '2026-06-15'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C5
+    issued_to:
+      enterprise_id: CE_WHITELISTED_001
+    authenticity_verified: true
+    authenticity_verify_date: '2026-03-16'
+    authenticity_source: 国家税务总局发票查验平台
+  - invoice_no: INV_C5_004
+    invoice_type: SPECIAL
+    amount:
+      value: 2700000
+      currency: CNY
+    issue_date: '2026-03-01'
+    due_date: '2026-06-01'
+    status: PENDING
+    issued_by:
+      supplier_id: SUP_C5
+    issued_to:
+      enterprise_id: CE_WHITELISTED_002
+    authenticity_verified: true
+    authenticity_verify_date: '2026-03-02'
+    authenticity_source: 国家税务总局发票查验平台
+- fact_object: Contract
+  data:
+  - contract_no: CTR_C5_001
+    contract_amount:
+      value: 20000000
+      currency: CNY
+    start_date: '2026-01-01'
+    end_date: '2026-12-31'
+    status: ACTIVE
+    signed_by:
+      supplier_id: SUP_C5
+    signed_with:
+      enterprise_id: CE_WHITELISTED_001
+  - contract_no: CTR_C5_002
+    contract_amount:
+      value: 10000000
+      currency: CNY
+    start_date: '2026-01-01'
+    end_date: '2026-12-31'
+    status: ACTIVE
+    signed_by:
+      supplier_id: SUP_C5
+    signed_with:
+      enterprise_id: CE_WHITELISTED_002

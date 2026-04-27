@@ -161,6 +161,7 @@ fact_objects:
           target: LoanApplication
           cardinality: "0..*"
           description: "历史贷款申请记录"
+          inverse: applied_by
 
         - name: co_borrows_with
           target: Borrower
@@ -257,6 +258,7 @@ fact_objects:
         - name: belongs_to
           target: Borrower
           cardinality: "1"
+          inverse: has_repayment_records
 
   relations:
     - id: BorrowerRelation
@@ -265,6 +267,12 @@ fact_objects:
       from: Borrower
       to: Borrower
       attributes:
+        - name: relation_id
+          type: string
+          required: true
+          unique: true
+          description: "借款人关系唯一标识"
+
         - name: relation_type
           type: RelationshipType
           required: true

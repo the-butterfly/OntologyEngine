@@ -1,0 +1,131 @@
+instances:
+- fact_object: Supplier
+  data:
+  - supplier_id: SUP_R001
+    supplier_name: 瑞丰新材料有限公司
+    credit_grade: BB
+    guarantee_chain_depth: 5
+    negative_news_count_90d: 3
+    overdue_invoice_ratio: 18.5
+    business_stability_score: 35
+    has_risk_flag:
+    - flag_id: FLAG-R001-20260418
+  - supplier_id: SUP_R002
+    supplier_name: 恒达电子科技有限公司
+    credit_grade: BBB
+    guarantee_chain_depth: 4
+    negative_news_count_90d: 2
+    overdue_invoice_ratio: 8.2
+    business_stability_score: 55
+    has_risk_flag:
+    - flag_id: FLAG-R002-20260418
+  - supplier_id: SUP_R003
+    supplier_name: 锦程物流集团
+    credit_grade: A
+    guarantee_chain_depth: 2
+    negative_news_count_90d: 0
+    overdue_invoice_ratio: 3.1
+    business_stability_score: 75
+  - supplier_id: SUP_R004
+    supplier_name: 华信贸易发展有限公司
+    credit_grade: BB
+    guarantee_chain_depth: 4
+    negative_news_count_90d: 1
+    overdue_invoice_ratio: 12.0
+    business_stability_score: 40
+  - supplier_id: SUP_R005
+    supplier_name: 天宇精密制造有限公司
+    credit_grade: BBB
+    guarantee_chain_depth: 3
+    negative_news_count_90d: 0
+    overdue_invoice_ratio: 6.5
+    business_stability_score: 60
+  - supplier_id: SUP_R006
+    supplier_name: 东方化工集团
+    credit_grade: AA
+    guarantee_chain_depth: 1
+    negative_news_count_90d: 0
+    overdue_invoice_ratio: 1.2
+    business_stability_score: 85
+- fact_object: ExpertObservation
+  data:
+  - observation_id: OBS-ZHANG-20260412
+    expert_name: 张工
+    observation_date: '2026-04-12'
+    category: PATTERN
+    pattern_description: 担保链深度>=4且近90天负面舆情>=2的供应商，违约概率显著高于单独指标
+    sample_entities:
+    - SUP_R001
+    - SUP_R002
+    confidence: 0.85
+    status: AGGREGATED
+    observed_supplier:
+      supplier_id: SUP_R001
+    aggregated_to:
+      candidate_id: CAND-GUARANTEE-NEWS-001
+  - observation_id: OBS-LI-20260413
+    expert_name: 李工
+    observation_date: '2026-04-13'
+    category: CORRELATION
+    pattern_description: 确认张工观察，SUP_R002 也符合担保链+舆情组合风险模式
+    sample_entities:
+    - SUP_R002
+    confidence: 0.78
+    status: AGGREGATED
+    observed_supplier:
+      supplier_id: SUP_R002
+    aggregated_to:
+      candidate_id: CAND-GUARANTEE-NEWS-001
+  - observation_id: OBS-WANG-20260414
+    expert_name: 王工
+    observation_date: '2026-04-14'
+    category: ANOMALY
+    pattern_description: SUP_R004 担保链深度4但舆情仅1条，需观察是否达到组合风险阈值
+    sample_entities:
+    - SUP_R004
+    confidence: 0.65
+    status: DRAFT
+    observed_supplier:
+      supplier_id: SUP_R004
+- fact_object: CandidateRule
+  data:
+  - candidate_id: CAND-GUARANTEE-NEWS-001
+    candidate_name: 担保链深度+负面舆情组合规则
+    condition_expression: guarantee_chain_depth >= 4 AND negative_news_count_90d >=
+      2
+    sample_coverage: 2
+    hit_rate: 0.85
+    false_positive_rate: 0.12
+    supporting_observations: 2
+    review_status: APPROVED
+    published_as:
+      group_id: risk_pattern_pack
+  - candidate_id: CAND-OVERDUE-CHAIN-001
+    candidate_name: 逾期+担保链组合规则
+    condition_expression: overdue_invoice_ratio >= 10 AND guarantee_chain_depth >=
+      3
+    sample_coverage: 2
+    hit_rate: 0.72
+    false_positive_rate: 0.18
+    supporting_observations: 1
+    review_status: TRIAL_RUN
+- fact_object: PublishedRuleGroup
+  data:
+  - group_id: risk_pattern_pack
+    group_name: 风险模式规则包
+    version: 1
+    status: ACTIVE
+    published_date: '2026-04-18'
+    published_by: 风控委员会
+- fact_object: RiskFlag
+  data:
+  - flag_id: FLAG-R001-20260418
+    flag_type: COMPOSITE
+    flag_date: '2026-04-18'
+    source_rule: RD301_guarantee_depth_news_check
+    severity: HIGH
+  - flag_id: FLAG-R002-20260418
+    flag_type: COMPOSITE
+    flag_date: '2026-04-18'
+    source_rule: RD301_guarantee_depth_news_check
+    severity: MEDIUM

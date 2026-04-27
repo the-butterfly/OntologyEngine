@@ -1,0 +1,120 @@
+{
+  "title": "规则版本 v1 → v2 对异常门店的影响",
+  "nodes": [
+    {
+      "id": "v1_total",
+      "label": "v1 异常门店",
+      "value": 3
+    },
+    {
+      "id": "v2_kept",
+      "label": "v2 保留异常",
+      "value": 1
+    },
+    {
+      "id": "v2_removed",
+      "label": "v2 移出异常",
+      "value": 2
+    },
+    {
+      "id": "SH-014",
+      "label": "SH-014\n浦东联洋",
+      "value": 1
+    },
+    {
+      "id": "NJ-007",
+      "label": "NJ-007\n南京新街口",
+      "value": 1
+    },
+    {
+      "id": "NB-012",
+      "label": "NB-012\n宁波天一",
+      "value": 1
+    },
+    {
+      "id": "HIGH_MARGIN_SLOW_CASH",
+      "label": "高毛利慢回款",
+      "value": 3
+    },
+    {
+      "id": "direct_threshold",
+      "label": "直营DSO>60",
+      "value": 1
+    },
+    {
+      "id": "franchise_threshold",
+      "label": "加盟DSO>60(v1)",
+      "value": 2
+    },
+    {
+      "id": "franchise_new_threshold",
+      "label": "加盟DSO>75(v2)",
+      "value": 0
+    }
+  ],
+  "links": [
+    {
+      "source": "v1_total",
+      "target": "v2_kept",
+      "value": 1,
+      "reason": "直营门店阈值不变"
+    },
+    {
+      "source": "v1_total",
+      "target": "v2_removed",
+      "value": 2,
+      "reason": "加盟门店阈值调整"
+    },
+    {
+      "source": "SH-014",
+      "target": "HIGH_MARGIN_SLOW_CASH",
+      "value": 1
+    },
+    {
+      "source": "NJ-007",
+      "target": "HIGH_MARGIN_SLOW_CASH",
+      "value": 1
+    },
+    {
+      "source": "NB-012",
+      "target": "HIGH_MARGIN_SLOW_CASH",
+      "value": 1
+    },
+    {
+      "source": "SH-014",
+      "target": "direct_threshold",
+      "value": 1,
+      "dso": 82
+    },
+    {
+      "source": "NJ-007",
+      "target": "franchise_threshold",
+      "value": 1,
+      "dso": 68
+    },
+    {
+      "source": "NB-012",
+      "target": "franchise_threshold",
+      "value": 1,
+      "dso": 65
+    },
+    {
+      "source": "v2_kept",
+      "target": "direct_threshold",
+      "value": 1,
+      "reason": "DSO=82>60"
+    },
+    {
+      "source": "v2_removed",
+      "target": "franchise_new_threshold",
+      "value": 0,
+      "reason": "DSO=68,65均<75"
+    }
+  ],
+  "summary": {
+    "v1_exception_count": 3,
+    "v2_exception_count": 1,
+    "removed_count": 2,
+    "removal_reason": "加盟门店DSO阈值从60天调整为75天"
+  }
+}
