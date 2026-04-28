@@ -126,6 +126,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    from ontology_engine.api.middleware import DeprecationMiddleware
+    app.add_middleware(DeprecationMiddleware, mode="header")
+
     from ontology_engine.api.routes import (
         schema,
         entities,
@@ -142,6 +145,8 @@ def create_app() -> FastAPI:
         categories,
         simulation,
     )
+    from ontology_engine.api.routes.actions import router as actions_router
+    from ontology_engine.api.routes.ontology import router as ontology_router
 
     app.include_router(schema.router, tags=["Schema"])
     app.include_router(entities.router, tags=["Entities"])
@@ -157,6 +162,8 @@ def create_app() -> FastAPI:
     app.include_router(incremental.router, tags=["Incremental Update"])
     app.include_router(categories.router, tags=["Categories"])
     app.include_router(simulation.router, tags=["Simulation"])
+    app.include_router(actions_router, tags=["Actions"])
+    app.include_router(ontology_router, tags=["Ontology"])
 
     @app.get("/health")
     async def health_check():

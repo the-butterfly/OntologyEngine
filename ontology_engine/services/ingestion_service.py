@@ -198,3 +198,92 @@ class IngestionService:
                 })
 
         return valid_entities, invalid_reasons
+
+    async def ingest_structured(
+        self,
+        space_id: str,
+        data: dict[str, Any],
+        format_type: str = "yaml",
+    ) -> dict[str, Any]:
+        result = await self.import_from_dict(data, space_id=space_id)
+        return {
+            "entity_count": result.entity_count,
+            "relation_count": result.relation_count,
+            "error_count": result.error_count,
+            "errors": result.errors,
+            "channel": "fast",
+        }
+
+    async def ingest_unstructured(
+        self,
+        space_id: str,
+        documents: list[dict[str, Any]],
+        pipeline_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        from ontology_engine.engine.extraction.pipeline import ExtractionPipeline
+        from ontology_engine.storage.base import KnowledgeFragment
+
+        fragments_created = 0
+        entities_created = 0
+        relations_created = 0
+
+        for doc in documents:
+            text = doc.get("text", "")
+            document_id = doc.get("document_id", "")
+            dataset_id = doc.get("dataset_id", space_id)
+
+            chunk_size = (pipeline_config or {}).get("chunk_size", 1000)
+            chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+            for idx, chunk in enumerate(chunks):
+                fragment = KnowledgeFragment(
+                    dataset_id=dataset_id,
+                    document_id=document_id,
+                    chunk_index=idx,
+                    text=chunk,
+                    extraction_status="pending",
+                )
+                await self.storage.save_knowledge_fragment(fragment)
+                fragments_created += 1
+
+        pipeline = ExtractionPipeline()
+        all_fragments = await self.storage.list_knowledge_fragments(
+            dataset_id=space_id, extraction_status="pending"
+        )
+
+        for fragment in all_fragments:
+            try:
+                extraction_result = await pipeline.extract(fragment.text)
+                for entity_data in extraction_result.get("entities", []):
+                    entity = EntityInstance(
+                        _fact_object=entity_data.get("_fact_object", "Unknown"),
+                        entity_id=entity_data.get("entity_id", ""),
+                        data=entity_data.get("data", {}),
+                        source_pipeline="extraction",
+                    )
+                    await self.storage.save_entity(entity)
+                    entities_created += 1
+
+                for rel_data in extraction_result.get("relations", []):
+                    relation = RelationInstance(
+                        relation_name=rel_data.get("relation_name", ""),
+                        from_entity_id=rel_data.get("from_entity_id", ""),
+                        to_entity_id=rel_data.get("to_entity_id", ""),
+                        data=rel_data.get("data", {}),
+                        source_pipeline="extraction",
+                    )
+                    await self.storage.save_relation(relation)
+                    relations_created += 1
+
+                fragment.extraction_status = "completed"
+                await self.storage.save_knowledge_fragment(fragment)
+            except Exception:
+                fragment.extraction_status = "failed"
+                await self.storage.save_knowledge_fragment(fragment)
+
+        return {
+            "fragments_created": fragments_created,
+            "entities_created": entities_created,
+            "relations_created": relations_created,
+            "channel": "slow",
+        }

@@ -465,3 +465,23 @@ class DAGService:
             dag = DAGGraphData(nodes=[], edges=[])
 
         return dag.to_dict()
+
+    def build_execution_dag(self, steps: list[RuleStep]) -> dict[str, Any]:
+        from ontology_engine.engine.rule.dag_builder import DAGBuilder
+
+        if not steps:
+            return {"layers": [], "step_map": {}, "has_cycle": False}
+
+        dag_builder = DAGBuilder()
+        try:
+            dag = dag_builder.build(steps)
+            return {
+                "layers": [
+                    [{"id": s.id, "name": s.name} for s in layer]
+                    for layer in dag.layers
+                ],
+                "step_map": {sid: {"id": s.id, "name": s.name} for sid, s in dag.step_map.items()},
+                "has_cycle": False,
+            }
+        except Exception as e:
+            return {"layers": [], "step_map": {}, "has_cycle": True, "error": str(e)}

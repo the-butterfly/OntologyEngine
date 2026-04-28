@@ -82,14 +82,16 @@ def _utc_now() -> str:
 class PipelineStateManager:
     """Manages pipeline runs and step snapshots in memory.
 
-    This class does NOT write to any persistent storage. It maintains
-    all state in memory to support pipeline execution tracking.
+    Optionally persists state to SQLite for crash recovery.
     """
 
-    def __init__(self) -> None:
-        """Initialize the state manager with empty storage."""
+    def __init__(self, db_path: str | None = None) -> None:
         self._runs: dict[str, PipelineRun] = {}
         self._step_snapshots: dict[str, list[ExecutionStepSnapshot]] = {}
+        self._db_path = db_path
+        self._db_conn: Any = None
+        if db_path:
+            self._init_db()
 
     # =============================================================================
     # PipelineRun Management
@@ -137,6 +139,7 @@ class PipelineStateManager:
         )
         self._runs[run_id] = run
         self._step_snapshots[run_id] = []
+        self._persist_run(run)
         return run
 
     async def start_run(self, run_id: str) -> None:
@@ -156,6 +159,7 @@ class PipelineStateManager:
             raise ValueError(f"Cannot start run in status {run.status.value}, expected PENDING")
         run.status = PipelineStatus.RUNNING
         run.started_at = _utc_now()
+        self._persist_run(run)
 
     async def complete_run(self, run_id: str) -> None:
         """Mark a run as COMPLETED.
@@ -174,6 +178,7 @@ class PipelineStateManager:
             raise ValueError(f"Cannot complete run in status {run.status.value}, expected RUNNING")
         run.status = PipelineStatus.COMPLETED
         run.completed_at = _utc_now()
+        self._persist_run(run)
 
     async def fail_run(self, run_id: str, error: str) -> None:
         """Mark a run as FAILED with an error message.
@@ -194,6 +199,7 @@ class PipelineStateManager:
         run.status = PipelineStatus.FAILED
         run.completed_at = _utc_now()
         run.error_message = error
+        self._persist_run(run)
 
     async def partial_complete_run(self, run_id: str) -> None:
         """Mark a run as PARTIALLY_COMPLETED (some steps failed/skipped).
@@ -430,3 +436,81 @@ class PipelineStateManager:
                 if snapshot.id == snapshot_id:
                     return snapshot
         return None
+
+    def _init_db(self) -> None:
+        import sqlite3
+
+        self._db_conn = sqlite3.connect(self._db_path)
+        self._db_conn.execute("""CREATE TABLE IF NOT EXISTS pipeline_runs (
+            id TEXT PRIMARY KEY,
+            rule_logic_name TEXT,
+            rule_definition_name TEXT,
+            entity_id TEXT,
+            dimension TEXT,
+            status TEXT,
+            created_at TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            error_message TEXT
+        )""")
+        self._db_conn.execute("""CREATE TABLE IF NOT EXISTS pipeline_steps (
+            id TEXT,
+            pipeline_run_id TEXT,
+            step_id TEXT,
+            step_name TEXT,
+            status TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            input_snapshot TEXT,
+            output_snapshot TEXT,
+            error_message TEXT,
+            PRIMARY KEY (id)
+        )""")
+        self._db_conn.commit()
+
+    def _persist_run(self, run: PipelineRun) -> None:
+        if not self._db_conn:
+            return
+        self._db_conn.execute(
+            "INSERT OR REPLACE INTO pipeline_runs (id, rule_logic_name, rule_definition_name, entity_id, dimension, status, created_at, started_at, completed_at, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [run.id, run.rule_logic_name, run.rule_definition_name, run.entity_id, run.dimension, run.status.value, run.created_at, run.started_at, run.completed_at, run.error_message],
+        )
+        self._db_conn.commit()
+
+    def _persist_step(self, snapshot: ExecutionStepSnapshot) -> None:
+        if not self._db_conn:
+            return
+        import json
+
+        self._db_conn.execute(
+            "INSERT OR REPLACE INTO pipeline_steps (id, pipeline_run_id, step_id, step_name, status, started_at, completed_at, input_snapshot, output_snapshot, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                snapshot.id, snapshot.pipeline_run_id, snapshot.step_id, snapshot.step_name,
+                snapshot.status.value, snapshot.started_at, snapshot.completed_at,
+                json.dumps(snapshot.input_snapshot) if snapshot.input_snapshot else None,
+                json.dumps(snapshot.output_snapshot) if snapshot.output_snapshot else None,
+                snapshot.error_message,
+            ],
+        )
+        self._db_conn.commit()
+
+    async def recover_runs(self) -> list[PipelineRun]:
+        if not self._db_conn:
+            return []
+        cursor = self._db_conn.execute(
+            "SELECT id, rule_logic_name, rule_definition_name, entity_id, dimension, status, created_at, started_at, completed_at, error_message FROM pipeline_runs WHERE status IN ('PENDING', 'RUNNING')"
+        )
+        rows = cursor.fetchall()
+        recovered = []
+        for row in rows:
+            run = PipelineRun(
+                id=row[0], rule_logic_name=row[1], rule_definition_name=row[2],
+                entity_id=row[3], dimension=row[4],
+                status=PipelineStatus(row[5]),
+                created_at=row[6], started_at=row[7], completed_at=row[8],
+                error_message=row[9],
+            )
+            self._runs[run.id] = run
+            self._step_snapshots[run.id] = []
+            recovered.append(run)
+        return recovered

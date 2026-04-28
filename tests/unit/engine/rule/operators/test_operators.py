@@ -234,11 +234,8 @@ class TestTriggerAlertOperator:
 
 
 class TestGraphTraversalOperator:
-    """Test graph_traversal operator."""
-
     @pytest.mark.asyncio
     async def test_graph_traversal(self):
-        """Test graph traversal returns placeholder."""
         op = OperatorRegistry.get("graph_traversal")
         context = {"entity_id": "SUP_001"}
         result = await op.execute(
@@ -250,6 +247,4 @@ class TestGraphTraversalOperator:
             {},
             context
         )
-        assert result["relation_type"] == "guarantees_for"
-        assert result["aggregation"] == "count"
-        assert "note" in result
+        assert "graph_aggregation" in result

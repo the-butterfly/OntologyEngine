@@ -105,6 +105,26 @@ class KnowledgeFragment:
     updated_at: datetime | None = None
 
 
+@dataclass
+class FeedbackRecord:
+    """User feedback on entity/metric results.
+
+    Supports confirm, override, and dispute feedback types.
+    """
+
+    record_id: str
+    entity_id: str
+    metric_name: str | None = None
+    feedback_type: str = "confirm"
+    value: float = 1.0
+    previous_weight: float = 1.0
+    updated_weight: float = 1.0
+    source: str = "user"
+    text_feedback: str | None = None
+    applied: bool = False
+    created_at: datetime | None = None
+
+
 class StorageBackend(ABC):
     """Abstract storage contract for analysis and visualization layers."""
 
@@ -115,6 +135,8 @@ class StorageBackend(ABC):
     @abstractmethod
     async def close(self) -> None:
         """Release storage resources."""
+
+    # ---- Core Entity/Relation Operations ----
 
     @abstractmethod
     async def save_entity(self, entity: EntityInstance) -> str:
@@ -167,6 +189,8 @@ class StorageBackend(ABC):
             include_history: If true, include all historical versions.
         """
 
+    # ---- Metrics & Tags ----
+
     @abstractmethod
     async def save_metric(self, entity_id: str, metric_name: str, value: Any) -> None:
         """Persist computed metric values."""
@@ -183,6 +207,8 @@ class StorageBackend(ABC):
     async def get_category_tags(self, entity_id: str) -> dict[str, str] | None:
         """Load categorization tags for one entity."""
 
+    # ---- Rule Audit ----
+
     @abstractmethod
     async def log_rule_execution(self, entity_id: str, rule_id: str, result: str) -> None:
         """Persist rule execution audit records."""
@@ -195,9 +221,7 @@ class StorageBackend(ABC):
     ) -> list[dict[str, Any]]:
         """Query rule execution audit records for an entity."""
 
-    # -------------------------------------------------------------------------
-    # Phase 1 Enhancement: Dataset Management
-    # -------------------------------------------------------------------------
+    # ---- Dataset Management ----
 
     @abstractmethod
     async def create_dataset(
@@ -270,9 +294,7 @@ class StorageBackend(ABC):
     async def get_snapshots(self, dataset_id: str) -> list[dict[str, Any]]:
         """Get snapshots for a dataset."""
 
-    # -------------------------------------------------------------------------
-    # Phase 1 Enhancement: Dimension Applicability & Category Rule Mapping
-    # -------------------------------------------------------------------------
+    # ---- Dimension Applicability ----
 
     @abstractmethod
     async def save_dimension_applicability(
@@ -327,9 +349,7 @@ class StorageBackend(ABC):
     ) -> None:
         """Delete a category rule mapping."""
 
-    # -------------------------------------------------------------------------
-    # Phase 1 Enhancement: Incremental Update
-    # -------------------------------------------------------------------------
+    # ---- Incremental Update ----
 
     @abstractmethod
     async def create_change_batch(
@@ -436,6 +456,36 @@ class StorageBackend(ABC):
         Returns:
             List of EntityInstance objects ordered by valid_from
         """
+
+    # ---- Feedback & Knowledge Fragments ----
+
+    @abstractmethod
+    async def save_feedback(self, feedback: FeedbackRecord) -> None:
+        """Save a feedback record."""
+
+    @abstractmethod
+    async def get_feedback(
+        self,
+        entity_id: str,
+        metric_name: str | None = None,
+    ) -> list[FeedbackRecord]:
+        """Get feedback records for an entity/metric."""
+
+    @abstractmethod
+    async def save_knowledge_fragment(self, fragment: KnowledgeFragment) -> str:
+        """Save a knowledge fragment and return its ID."""
+
+    @abstractmethod
+    async def get_knowledge_fragment(self, fragment_id: str) -> KnowledgeFragment | None:
+        """Get a knowledge fragment by ID."""
+
+    @abstractmethod
+    async def list_knowledge_fragments(
+        self,
+        dataset_id: str | None = None,
+        extraction_status: str | None = None,
+    ) -> list[KnowledgeFragment]:
+        """List knowledge fragments with optional filters."""
 
 
 class GraphQueryError(StorageError):

@@ -340,3 +340,74 @@ class QueryService:
             start_filters=start_filters,
             limit=limit,
         )
+
+    async def query_raw(
+        self,
+        query_text: str,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        results = await self.semantic_search(query_text, top_k)
+        return [
+            {"id": r.id, "score": r.score, "metadata": r.metadata}
+            for r in results
+        ]
+
+    async def query_structured(
+        self,
+        filters: dict[str, Any],
+        sort: str | None = None,
+        pagination: dict[str, int] | None = None,
+    ) -> list[dict[str, Any]]:
+        fact_object = filters.pop("_fact_object", None) if filters else None
+        entities = await self.storage.query_entities(fact_object, filters)
+        offset = (pagination or {}).get("offset", 0)
+        limit = (pagination or {}).get("limit", 100)
+        entities = entities[offset:offset + limit]
+        return [
+            {"entity_id": e.entity_id, "fact_object": e._fact_object, "data": e.data}
+            for e in entities
+        ]
+
+    async def query_hybrid(
+        self,
+        query_text: str,
+        filters: dict[str, Any] | None = None,
+        fusion_strategy: str = "independent_then_fuse",
+    ) -> dict[str, Any]:
+        semantic_results = await self.semantic_search(query_text, top_k=20)
+        semantic_ids = {r.id for r in semantic_results}
+
+        structured_results = []
+        if filters:
+            fact_object = filters.pop("_fact_object", None) if filters else None
+            entities = await self.storage.query_entities(fact_object, filters)
+            structured_results = [
+                {"entity_id": e.entity_id, "fact_object": e._fact_object, "data": e.data}
+                for e in entities
+            ]
+
+        if filters and structured_results:
+            structured_ids = {r["entity_id"] for r in structured_results}
+            if fusion_strategy == "filter_then_fuse":
+                filtered_semantic = [r for r in semantic_results if r.id in structured_ids]
+                return {
+                    "results": [{"id": r.id, "score": r.score, "metadata": r.metadata} for r in filtered_semantic],
+                    "strategy": fusion_strategy,
+                    "semantic_count": len(semantic_results),
+                    "structured_count": len(structured_results),
+                }
+            else:
+                all_ids = semantic_ids | structured_ids
+                return {
+                    "results": list(all_ids),
+                    "strategy": fusion_strategy,
+                    "semantic_count": len(semantic_results),
+                    "structured_count": len(structured_results),
+                }
+
+        return {
+            "results": [{"id": r.id, "score": r.score, "metadata": r.metadata} for r in semantic_results],
+            "strategy": "semantic_only",
+            "semantic_count": len(semantic_results),
+            "structured_count": 0,
+        }

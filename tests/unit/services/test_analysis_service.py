@@ -100,6 +100,7 @@ class TestAnalysisService:
             svc.categorization_engine = mock_categorization_engine
             svc.metric_engine = mock_metric_engine
             svc.rule_executor = mock_rule_executor
+            svc._psm = None
             return svc
 
     @pytest.mark.asyncio

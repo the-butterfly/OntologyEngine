@@ -55,6 +55,31 @@ async def execute_analysis(
         return error_response(code="INTERNAL_ERROR", message=str(e))
 
 
+class ExplainRequestBody(BaseModel):
+    entity_id: str
+    dimension: str | None = None
+    context: dict[str, Any] | None = None
+
+
+@router.post("/spaces/{space_id}/explain")
+async def explain_analysis(
+    space_id: str,
+    body: ExplainRequestBody,
+    service: AnalysisService = Depends(get_analysis_service),
+):
+    try:
+        result = await service.explain(
+            entity_id=body.entity_id,
+            dimension=body.dimension,
+            context=body.context,
+        )
+        return success_response(data=result)
+    except EntityNotFoundError as e:
+        return error_response(code="ENTITY_NOT_FOUND", message=str(e))
+    except Exception as e:
+        return error_response(code="INTERNAL_ERROR", message=str(e))
+
+
 @router.post("/dry-run")
 async def execute_dry_run(
     body: AnalysisRequestBody,

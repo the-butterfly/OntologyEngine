@@ -363,13 +363,13 @@ def _init_services() -> dict[str, object]:
     from ontology_engine.services.visualization_service import VisualizationService
     from ontology_engine.services.dag_service import DAGService
     from ontology_engine.services.simulation_service import SimulationService
+    from ontology_engine.storage.config import create_meta_store
     from ontology_engine.core.schema import SchemaLoader
-    from ontology_engine.storage.sqlite.store import SQLiteStorage
 
-    storage = SQLiteStorage()
-    schema_loader = SchemaLoader()
+    storage = create_meta_store()
     schema = None
     try:
+        schema_loader = SchemaLoader()
         schema = schema_loader.load("examples/supply_chain_finance/schema.yaml")
     except FileNotFoundError:
         pass
