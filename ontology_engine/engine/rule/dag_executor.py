@@ -114,12 +114,14 @@ class DAGExecutor:
         run_id = None
         if self._psm:
             try:
-                run = self._psm.create_run(
+                run = await self._psm.create_run(
                     rule_logic_name="dag_execution",
+                    rule_definition_name="dag_execution",
                     entity_id=context.entity_id if hasattr(context, 'entity_id') else "",
+                    dimension=context.dimension if hasattr(context, 'dimension') else "",
                 )
                 run_id = run.id
-                self._psm.start_run(run_id)
+                await self._psm.start_run(run_id)
             except Exception:
                 run_id = None
 
@@ -138,7 +140,7 @@ class DAGExecutor:
                 if failures and self.error_strategy == ErrorStrategy.STOP_LAYER:
                     transaction.restore(snapshot)
                     if self._psm and run_id:
-                        self._psm.fail_run(run_id, f"Layer {layer.index} failed")
+                        await self._psm.fail_run(run_id, f"Layer {layer.index} failed")
                     raise LayerExecutionError(layer.index, [
                         StepExecutionError(r.step_id, r.error) for r in failures
                     ])
@@ -146,7 +148,7 @@ class DAGExecutor:
                 if failures and self.error_strategy == ErrorStrategy.ABORT_ALL:
                     transaction.restore(snapshot)
                     if self._psm and run_id:
-                        self._psm.fail_run(run_id, f"Aborted at layer {layer.index}")
+                        await self._psm.fail_run(run_id, f"Aborted at layer {layer.index}")
                     raise ExecutionAbortedError(
                         f"Execution aborted at layer {layer.index} due to {len(failures)} failure(s)"
                     )
@@ -154,13 +156,13 @@ class DAGExecutor:
                 transaction.commit()
 
             if self._psm and run_id:
-                self._psm.complete_run(run_id)
+                await self._psm.complete_run(run_id)
 
         except (LayerExecutionError, ExecutionAbortedError):
             raise
         except Exception as e:
             if self._psm and run_id:
-                self._psm.fail_run(run_id, str(e))
+                await self._psm.fail_run(run_id, str(e))
             raise
 
         return ExecutionResult(results=results, context=context)

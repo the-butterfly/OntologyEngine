@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from ontology_engine.api.dependencies import (
     get_analysis_service,
     get_entity_service,
+    get_feedback_service,
     get_ingestion_service,
     get_query_service,
 )
@@ -72,14 +73,9 @@ async def query(
 async def feedback(
     space_id: str,
     request: dict[str, Any],
-    entity_service=Depends(get_entity_service),
+    feedback_svc=Depends(get_feedback_service),
 ):
     try:
-        from ontology_engine.api.dependencies import get_storage
-        storage = get_storage()
-        from ontology_engine.services.feedback_service import FeedbackService
-        feedback_svc = FeedbackService(storage)
-
         entity_id = request.get("entity_id")
         feedback_type = request.get("feedback_type", "confirm")
         value = request.get("value", 1.0)
@@ -113,10 +109,10 @@ async def export_data(
     try:
         fact_object = request.get("fact_object")
         format_type = request.get("format", "json")
-        entities = await entity_service.list_entities(fact_object)
+        entities = await entity_service.query_entities(fact_object)
         return success_response(data={
             "space_id": space_id,
-            "entities": [{"entity_id": e.entity_id, "fact_object": e._fact_object, "data": e.data} for e in entities],
+            "entities": [{"entity_id": e.entity_id, "fact_object": e.fact_object, "data": e.attributes} for e in entities],
             "count": len(entities),
             "format": format_type,
         })

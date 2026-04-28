@@ -43,24 +43,35 @@ class LogicalEdgeEngine:
         if not self._graph:
             return []
         edges: list[dict[str, Any]] = []
-        neighbors = await self._graph.get_neighbors(
-            entity_id, direction=direction, limit=500
-        )
-        for n in neighbors:
-            rel_name = n.get("edge_type", n.get("relation_name", ""))
-            classified = self.classify(rel_name)
-            if classified is None:
-                continue
-            if edge_type is not None and classified != edge_type:
-                continue
-            edges.append({
-                "from_entity_id": entity_id,
-                "to_entity_id": n.get("neighbor_id", n.get("node_id", "")),
-                "relation_name": rel_name,
-                "logical_type": classified.value,
-                "direction": n.get("direction", "outgoing"),
-                "data": n.get("properties", {}),
-            })
+        visited: set[str] = {entity_id}
+        frontier: list[str] = [entity_id]
+        for depth in range(max_depth):
+            next_frontier: list[str] = []
+            for nid in frontier:
+                neighbors = await self._graph.get_neighbors(
+                    nid, direction=direction, limit=500
+                )
+                for n in neighbors:
+                    rel_name = n.get("edge_type", n.get("relation_name", ""))
+                    classified = self.classify(rel_name)
+                    if classified is None:
+                        continue
+                    if edge_type is not None and classified != edge_type:
+                        continue
+                    target_id = n.get("neighbor_id", n.get("node_id", ""))
+                    edges.append({
+                        "from_entity_id": nid,
+                        "to_entity_id": target_id,
+                        "relation_name": rel_name,
+                        "logical_type": classified.value,
+                        "direction": n.get("direction", "outgoing"),
+                        "data": n.get("properties", {}),
+                        "depth": depth + 1,
+                    })
+                    if target_id not in visited:
+                        visited.add(target_id)
+                        next_frontier.append(target_id)
+            frontier = next_frontier
         return edges
 
     async def trace_causal_chain(
