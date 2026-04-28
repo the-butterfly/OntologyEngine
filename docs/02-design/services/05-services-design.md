@@ -1,8 +1,10 @@
 # Services 层设计
 
 > **定位**: Application Service 层 —— 编排用例、管理事务、协调引擎
-> **状态**: 当前实现与本文档存在偏差，详见 `docs/04-migration-and-gap/README.md`
-> **最后核验**: 2026-04-16
+> **状态**: 当前实现与本文档存在偏差，详见 `docs-dev/04-migration-and-gap/README.md`
+> **⚠️ 注意**: VectorEngine 引用已过时，当前架构使用 QueryService + RetrievalBackend 模式。AnalysisService 构造函数已变更（接受 storage/schema/pipeline_state_manager），hybrid_search 功能已移至 QueryService。
+> **最后核验**: 2026-04-28
+> **[部分已核对]**: AnalysisService 签名已核对，VectorEngine 引用已标注废弃
 
 ## 架构位置
 

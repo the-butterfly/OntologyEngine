@@ -1,10 +1,11 @@
 # RFC-011: RuleExecutor DAG 引擎
 
-> **状态**: draft
+> **状态**: implemented
 > **父 RFC**: [RFC-010](./RFC-010-phase2-roadmap.md)
 > **创建日期**: 2026-04-14
 > **作者**: the-butterfly
 > **评审截止**: 待定
+> **实现核验日期**: 2026-04-28
 
 ## 动机
 
@@ -112,19 +113,19 @@ class RuleStep(BaseModel):
 
 ## 开放问题
 
-| 问题 | 选项 | 推荐 |
+| 问题 | 选项 | 决策 |
 |------|------|------|
 | DAG 可视化输出格式？ | A) JSON DAG B) DOT C) Mermaid | A) JSON，兼容前端渲染 |
-| 循环依赖是 ERROR 还是 WARN？ | A) ERROR（阻断执行）B) WARN（记录后跳过） | A) ERROR |
+| 循环依赖是 ERROR 还是 WARN？ | A) ERROR（阻断执行）B) WARN（记录后跳过） | A) ERROR（DAGBuilder 使用 Kahn 算法检测，抛出 CycleError） |
 | 是否需要 DAG 执行历史记录？ | A) 是（用于追溯）B) 否 | A) 复用 rule_execution_log |
 
 ## 实现范围
 
 ### 包含
-- [ ] `RuleExecutorV2` 类：DAG 拓扑排序执行
-- [ ] 循环依赖检测算法
-- [ ] 中间结果传递（RuleExecutionContext 扩展）
-- [ ] 降级路径：若无 steps[]，降级为现有 when/then_action 执行
+- [x] `RuleExecutorV2` 类：DAG 拓扑排序执行（DAGBuilder + DAGExecutor）
+- [x] 循环依赖检测算法（Kahn 算法，抛出 CycleError）
+- [x] 中间结果传递（RuleExecutionContext 扩展）
+- [x] 降级路径：若无 steps[]，降级为现有 when/then_action 执行
 
 ### 不包含
 - 算子增强（SCOREBOARD / DECISION_TABLE 已在 Phase 1 实现）

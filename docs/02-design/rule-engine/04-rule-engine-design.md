@@ -1,7 +1,9 @@
 # 规则引擎设计
 
-> **状态**: 当前实现与本文档存在偏差，详见 `docs/04-migration-and-gap/README.md`
-> **最后核验**: 2026-04-16
+> **状态**: 当前实现与本文档存在偏差，详见 `docs-dev/04-migration-and-gap/README.md`
+> **⚠️ 注意**: 本文档部分内容已被 dag-execution.md 和 logical-edges.md 替代，算子体系请以 dag-execution.md 为准。旧算子命名（MATH_ADD/LOGIC_IF 等）已废弃，新算子命名（SET_FLAG/COMPUTE/BINNING 等）请参考 dag-execution.md。
+> **最后核验**: 2026-04-28
+> **[部分已核对]**: 算子表已核对（15个实际算子），ExpressionEngine 已实现 ASTSandboxExecutor
 
 ## 核心流程
 
@@ -173,17 +175,21 @@ class OperatorRegistry:
 
 内置算子：
 
-| 算子 | 用途 |
-|------|------|
-| `MATH_ADD` | 加法 |
-| `MATH_SUB` | 减法 |
-| `MATH_MUL` | 乘法 |
-| `MATH_DIV` | 除法 |
-| `LOGIC_IF` | 条件分支 |
-| `LOGIC_SWITCH` | 多分支 |
-| `AGG_SUM` | 求和 |
-| `AGG_AVG` | 平均 |
-| `GRAPH_PATH` | 图路径 |
+> **⚠️ 以下旧算子已废弃，代码中不存在。新算子体系请参考 dag-execution.md。**
+
+| ~~旧算子~~ | ~~用途~~ | 替代方案 |
+|------------|----------|----------|
+| ~~`MATH_ADD`~~ | ~~加法~~ | `compute_formula` / `weighted_sum` |
+| ~~`MATH_SUB`~~ | ~~减法~~ | `compute_formula` |
+| ~~`MATH_MUL`~~ | ~~乘法~~ | `compute_formula` |
+| ~~`MATH_DIV`~~ | ~~除法~~ | `compute_formula` |
+| ~~`LOGIC_IF`~~ | ~~条件分支~~ | `switch` |
+| ~~`LOGIC_SWITCH`~~ | ~~多分支~~ | `switch` |
+| ~~`AGG_SUM`~~ | ~~求和~~ | `weighted_sum` |
+| ~~`AGG_AVG`~~ | ~~平均~~ | `weighted_sum` |
+| ~~`GRAPH_PATH`~~ | ~~图路径~~ | `graph_traversal` |
+
+当前实际实现的算子（共 15 个）：`set_flag`, `approve_eligibility`, `reject_eligibility`, `compute_formula`, `calculate_credit_score`, `calculate_credit_limit`, `determine_interest_rate`, `switch`, `binning`, `scorecard`, `trigger_alert`, `graph_traversal`, `decision_table`, `llm_judge`, `weighted_sum`
 
 ---
 
@@ -429,7 +435,7 @@ ruleset:
     then:
       action: calculate_credit_score
       computation:
-        operator: MATH_ADD
+        operator: weighted_sum
         inputs:
           - source: registered_capital
             weight: 0.3
