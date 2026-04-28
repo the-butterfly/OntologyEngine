@@ -87,6 +87,51 @@ class SchemaService:
             warnings=warnings
         )
 
+    async def load_schema_from_data(self, schema_data: dict) -> SchemaInfo:
+        """Load schema from a dict (e.g. API request body).
+
+        Args:
+            schema_data: Schema definition as a dict
+
+        Returns:
+            SchemaInfo with loaded schema details
+
+        Raises:
+            SchemaValidationError: If schema validation fails
+        """
+        schema = self._loader.load_from_dict(schema_data)
+
+        issues = self._loader.validate(schema)
+        errors = [i for i in issues if getattr(i, 'level', None) == 'error']
+        if errors:
+            raise SchemaValidationError([str(e) for e in errors])
+
+        self._version_counter += 1
+        version_info = {
+            "version": f"v{self._version_counter}",
+            "schema_id": schema.metadata.id if hasattr(schema, 'metadata') else 'unknown',
+            "description": "Loaded from API data"
+        }
+        self._schema_versions.append(version_info)
+
+        self._current_schema = schema
+
+        entity_count = len(getattr(schema, 'concepts', []))
+        metric_count = len(getattr(schema, 'metrics', []))
+        rules_def = getattr(schema, 'rules', None)
+        rule_count = len(rules_def.ruleset) if rules_def else 0
+
+        warnings = [str(i) for i in issues if getattr(i, 'level', None) == 'warning']
+
+        return SchemaInfo(
+            schema_id=schema.metadata.id if hasattr(schema, 'metadata') else 'unknown',
+            version=version_info["version"],
+            entity_count=entity_count,
+            metric_count=metric_count,
+            rule_count=rule_count,
+            warnings=warnings
+        )
+
     async def get_schema(self) -> KGMLSchema | None:
         """Get current active schema.
 

@@ -23,6 +23,7 @@ from ontology_engine.services import (
 from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
+from ontology_engine.services.category_service import CategoryService
 from ontology_engine.storage.config import create_meta_store
 from ontology_engine.core.schema import SchemaLoader
 from ontology_engine.core.instances import InstanceLoader
@@ -96,6 +97,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     services["rule"] = RuleService(storage=storage)
     services["dag"] = DAGService(storage=storage, schema=schema)
     services["simulation"] = SimulationService()
+    services["category"] = CategoryService(storage=storage)
 
     dependencies.init_dependencies(storage, services)
 

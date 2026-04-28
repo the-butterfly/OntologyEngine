@@ -19,7 +19,7 @@ async def get_schema(
     schema_service=Depends(get_schema_service),
 ):
     try:
-        schema = schema_service.get_schema()
+        schema = await schema_service.get_schema()
         return success_response(data=schema)
     except Exception as e:
         return error_response(code="SCHEMA_ERROR", message=str(e))
@@ -33,8 +33,9 @@ async def update_schema(
 ):
     try:
         schema_data = request.get("schema")
-        source = request.get("source", "api")
-        result = schema_service.load_schema(schema_data, source=source)
+        if not schema_data:
+            return error_response(code="BAD_REQUEST", message="schema data is required")
+        result = await schema_service.load_schema_from_data(schema_data)
         return success_response(data=result)
     except Exception as e:
         return error_response(code="SCHEMA_UPDATE_ERROR", message=str(e))
@@ -47,9 +48,9 @@ async def list_entities(
     entity_service=Depends(get_entity_service),
 ):
     try:
-        entities = await entity_service.list_entities(fact_object)
+        entities = await entity_service.query_entities(fact_object)
         return success_response(data=[
-            {"entity_id": e.entity_id, "fact_object": e._fact_object, "data": e.data}
+            {"entity_id": e.entity_id, "fact_object": e.fact_object, "data": e.attributes}
             for e in entities
         ])
     except Exception as e:
@@ -78,16 +79,20 @@ async def create_entity(
 async def get_entity(
     space_id: str,
     entity_id: str,
+    fact_object: str | None = None,
     entity_service=Depends(get_entity_service),
 ):
     try:
-        entity = await entity_service.get_entity(entity_id)
+        if fact_object:
+            entity = await entity_service.get_entity(fact_object, entity_id)
+        else:
+            entity = await entity_service.get_entity_by_id(entity_id)
         if entity is None:
             return error_response(code="NOT_FOUND", message=f"Entity {entity_id} not found")
         return success_response(data={
             "entity_id": entity.entity_id,
-            "fact_object": entity._fact_object,
-            "data": entity.data,
+            "fact_object": entity.fact_object,
+            "data": entity.attributes,
         })
     except Exception as e:
         return error_response(code="ENTITY_ERROR", message=str(e))
@@ -102,18 +107,18 @@ async def list_relations(
 ):
     try:
         if from_entity_id:
-            relations = await entity_service.get_relations(from_entity_id, relation_name)
+            neighbors = await entity_service.get_neighbors(from_entity_id, relation_name)
+            results = []
+            for n in neighbors:
+                results.append({
+                    "relation_name": n.relation.relation_name,
+                    "from_entity_id": from_entity_id,
+                    "to_entity_id": n.entity.entity_id,
+                    "data": n.relation.attributes if hasattr(n.relation, 'attributes') else {},
+                })
+            return success_response(data=results)
         else:
-            relations = []
-        return success_response(data=[
-            {
-                "relation_name": r.relation_name,
-                "from_entity_id": r.from_entity_id,
-                "to_entity_id": r.to_entity_id,
-                "data": r.data,
-            }
-            for r in relations
-        ])
+            return success_response(data=[])
     except Exception as e:
         return error_response(code="RELATION_ERROR", message=str(e))
 
@@ -145,10 +150,13 @@ async def list_metrics(
 ):
     try:
         if entity_id:
-            from ontology_engine.api.dependencies import get_storage
-            storage = get_storage()
-            metrics = await storage.get_metric(entity_id, "")
-            return success_response(data={"entity_id": entity_id, "metrics": metrics})
+            entity = await entity_service.get_entity_by_id(entity_id)
+            if entity:
+                metrics = {}
+                if hasattr(entity, 'attributes') and entity.attributes:
+                    metrics = entity.attributes.get("metrics", {})
+                return success_response(data={"entity_id": entity_id, "metrics": metrics})
+            return error_response(code="NOT_FOUND", message=f"Entity {entity_id} not found")
         return success_response(data=[])
     except Exception as e:
         return error_response(code="METRIC_ERROR", message=str(e))

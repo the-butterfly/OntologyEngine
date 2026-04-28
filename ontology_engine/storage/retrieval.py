@@ -116,8 +116,10 @@ class DefaultRetrievalBackend(RetrievalBackend):
 
         # --- Semantic leg ---
         semantic_scores: dict[str, float] = {}
+        semantic_results: list[VectorSearchResult] = []
         if self.vector is not None and query_vector is not None:
-            for r in await self.vector.search(query_vector, top_k=top_k * 2):
+            semantic_results = await self.vector.search(query_vector, top_k=top_k * 2)
+            for r in semantic_results:
                 semantic_scores[r.id] = r.score
 
         # --- Graph leg ---
@@ -182,16 +184,35 @@ class DefaultRetrievalBackend(RetrievalBackend):
             )
 
         # Build results
+        semantic_meta: dict[str, dict[str, Any]] = {
+            r.id: r.metadata for r in semantic_results
+        }
+
+        non_semantic_ids = [vid for vid in final_ids if vid not in semantic_meta]
+        if non_semantic_ids and self.storage is not None:
+            for vid in non_semantic_ids:
+                try:
+                    entity = await self.storage.get_entity_by_id(vid)
+                    if entity is not None:
+                        semantic_meta[vid] = {
+                            "entity_id": entity.entity_id,
+                            "fact_object": entity.concept,
+                            "attributes": entity.data if hasattr(entity, 'data') else {},
+                        }
+                except Exception:
+                    semantic_meta[vid] = {}
+
+        fused_scores: dict[str, float] = {}
+        for vid in final_ids:
+            s = semantic_scores.get(vid, 0.0) * semantic_weight
+            g = graph_scores.get(vid, 0.0) * graph_weight
+            p = path_match_scores.get(vid, 0.0) * path_weight
+            fused_scores[vid] = s + g + p
+
         results: list[VectorSearchResult] = []
         for vid in final_ids:
-            meta = {}
-            if vid in semantic_scores and self.vector is not None:
-                # Try to get metadata from vector search result
-                for r in (await self.vector.search([query_vector[0] if query_vector else 0], top_k=100)):
-                    if r.id == vid:
-                        meta = r.metadata
-                        break
-            results.append(VectorSearchResult(id=vid, score=semantic_scores.get(vid, 0.0), metadata=meta))
+            meta = semantic_meta.get(vid, {})
+            results.append(VectorSearchResult(id=vid, score=fused_scores.get(vid, 0.0), metadata=meta))
 
         fusion_metadata = {
             "strategy": fusion_strategy,
@@ -236,8 +257,13 @@ class DefaultRetrievalBackend(RetrievalBackend):
                 )
                 for neighbor_info in neighbors:
                     nid = neighbor_info["neighbor_id"]
-                    # Check if edge has weight in properties
-                    edge_weight = 1.0  # Default unweighted = binary
+                    edge_weight = 1.0
+                    edge_confidence = neighbor_info.get("confidence")
+                    if edge_confidence is not None:
+                        try:
+                            edge_weight = float(edge_confidence)
+                        except (ValueError, TypeError):
+                            pass
                     edge_props = neighbor_info.get("properties", {})
                     if edge_props and "weight" in edge_props:
                         edge_weight = float(edge_props["weight"])
@@ -255,29 +281,28 @@ class DefaultRetrievalBackend(RetrievalBackend):
         seed_id: str,
         path_pattern: list[tuple[str, str]],
     ) -> dict[str, float]:
-        """Score entities based on long path pattern (>2 hops) using Cypher."""
         if self.graph is None:
             return {}
 
-        # Build Cypher MATCH pattern
-        segments = [f"(start:Entity {{entity_id: '{seed_id}'}})"]
+        segments = [f"(start:Entity {{entity_id: $seed_id}})"]
+        params: dict[str, Any] = {"seed_id": seed_id}
         for i, (rel_type, target_concept) in enumerate(path_pattern):
-            segments.append(f"-[r{i}:Relation {{relation_type: '{rel_type}'}}]->")
-            segments.append(f"(n{i+1}:Entity {{concept: '{target_concept}'}})")
+            params[f"rel_type_{i}"] = rel_type
+            params[f"concept_{i+1}"] = target_concept
+            segments.append(f"-[r{i}:Relation {{relation_type: $rel_type_{i}}}]->")
+            segments.append(f"(n{i+1}:Entity {{concept: $concept_{i+1}}})")
 
         cypher = "MATCH " + "".join(segments)
         return_cols = [f"n{i+1}.entity_id" for i in range(len(path_pattern))]
         cypher += f" RETURN {', '.join(return_cols)}"
 
         try:
-            result = await self.graph.execute_cypher(cypher)
+            result = await self.graph.execute_cypher(cypher, params)
             scores: dict[str, float] = {}
             for row in result:
-                # Last node in path is the target
                 last_col = f"n{len(path_pattern)}.entity_id"
                 if last_col in row:
                     entity_id = row[last_col]
-                    # Binary score for matched path
                     scores[entity_id] = 1.0
             return scores
         except Exception:
@@ -543,28 +568,30 @@ class DefaultRetrievalBackend(RetrievalBackend):
         start_filters: dict[str, Any] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        """Execute Cypher native MATCH for long path patterns."""
         if self.graph is None:
             return []
-        # Build MATCH pattern
-        # (start)-[r0:{rel0}]->(n1:{concept1})-[r1:{rel1}]->(n2:{concept2})...
-        segments = [f"(start:Entity {{concept: '{start_concept}'}})"]
+        segments = [f"(start:Entity {{concept: $start_concept}})"]
+        params: dict[str, Any] = {"start_concept": start_concept}
         for i, (rel_type, target_concept) in enumerate(path_pattern):
-            segments.append(f"-[r{i}:Relation {{relation_type: '{rel_type}'}}]->")
-            segments.append(f"(n{i+1}:Entity {{concept: '{target_concept}'}})")
+            params[f"rel_type_{i}"] = rel_type
+            params[f"concept_{i+1}"] = target_concept
+            segments.append(f"-[r{i}:Relation {{relation_type: $rel_type_{i}}}]->")
+            segments.append(f"(n{i+1}:Entity {{concept: $concept_{i+1}}})")
 
         cypher = "MATCH " + "".join(segments)
 
-        # WHERE clause for start_filters
         if start_filters:
-            where_parts = [f"start.{k} = '{v}'" for k, v in start_filters.items()]
+            where_parts = []
+            for k, v in start_filters.items():
+                param_name = f"sf_{k}"
+                where_parts.append(f"start.{k} = ${param_name}")
+                params[param_name] = v
             cypher += " WHERE " + " AND ".join(where_parts)
 
-        # RETURN + LIMIT
         return_cols = ["start.entity_id"] + [f"n{i+1}.entity_id" for i in range(len(path_pattern))]
         cypher += f" RETURN {', '.join(return_cols)} LIMIT {limit}"
 
-        result = await self.graph.execute_cypher(cypher)
+        result = await self.graph.execute_cypher(cypher, params)
         return [self._format_pattern_result(row, start_concept, path_pattern) for row in result]
 
     def _format_pattern_result(

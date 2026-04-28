@@ -80,6 +80,23 @@ class SchemaLoader:
 
         return self._parse(raw)
 
+    def load_from_dict(self, data: dict[str, Any]) -> KGMLSchema:
+        """Load KGML schema from a dict.
+
+        Args:
+            data: Schema definition as a dict (e.g. parsed from API request)
+
+        Returns:
+            KGMLSchema object
+
+        Raises:
+            SchemaValidationError: If schema is invalid
+        """
+        if not data:
+            raise SchemaValidationError("Schema data is empty")
+
+        return self._parse(data)
+
     def _parse(self, raw: dict[str, Any]) -> KGMLSchema:
         """Parse raw YAML dict into KGMLSchema.
 

@@ -29,7 +29,7 @@ class EntityInstance:
     confidence: float = 1.0
     source_pipeline: str | None = None
     source_content_hash: str | None = None
-    feedback_weight: float = 1.0
+    feedback_weight: float = 0.5
     domain_id: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -125,6 +125,22 @@ class FeedbackRecord:
     created_at: datetime | None = None
 
 
+@dataclass
+class CategoryTag:
+    """Category assignment tag for an entity.
+
+    Maps an entity to a dimension value, recording how and when
+    the assignment was made.
+    """
+
+    entity_id: str
+    dimension_name: str
+    value_code: str
+    assigned_at: datetime | None = None
+    assigned_by: str = "rule"
+    confidence: float = 1.0
+
+
 class StorageBackend(ABC):
     """Abstract storage contract for analysis and visualization layers."""
 
@@ -157,6 +173,30 @@ class StorageBackend(ABC):
         filters: dict[str, Any] | None = None,
     ) -> list[EntityInstance]:
         """Query entities, optionally across all fact object types."""
+
+    @abstractmethod
+    async def delete_entity(self, fact_object: str, entity_id: str) -> bool:
+        """Delete an entity by fact object type and identifier.
+
+        Returns:
+            True if the entity was deleted, False if not found.
+        """
+
+    @abstractmethod
+    async def save_category_tag(self, tag: CategoryTag) -> None:
+        """Persist a category tag assignment."""
+
+    @abstractmethod
+    async def get_category_tags(
+        self, entity_id: str, dimension_name: str | None = None
+    ) -> list[CategoryTag]:
+        """Retrieve category tags for an entity, optionally filtered by dimension."""
+
+    @abstractmethod
+    async def delete_category_tag(
+        self, entity_id: str, dimension_name: str, value_code: str
+    ) -> bool:
+        """Delete a specific category tag assignment."""
 
     @abstractmethod
     async def save_relation(self, relation: RelationInstance) -> None:
@@ -201,11 +241,11 @@ class StorageBackend(ABC):
 
     @abstractmethod
     async def save_category_tags(self, entity_id: str, tags: dict[str, str]) -> None:
-        """Persist categorization tags."""
+        """Persist categorization tags (bulk convenience method)."""
 
     @abstractmethod
-    async def get_category_tags(self, entity_id: str) -> dict[str, str] | None:
-        """Load categorization tags for one entity."""
+    async def get_category_tags_dict(self, entity_id: str) -> dict[str, str] | None:
+        """Load categorization tags as a simple dimension->value mapping."""
 
     # ---- Rule Audit ----
 
