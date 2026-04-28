@@ -129,13 +129,19 @@ class KuzuGraphStore(GraphStoreBackend):
         self._conn.execute("""
             CREATE NODE TABLE IF NOT EXISTS KnowledgeFragment(
                 fragment_id STRING PRIMARY KEY,
+                dataset_id STRING,
                 document_id STRING,
                 space_id STRING,
+                chunk_index INT,
                 offset_start INT,
                 offset_end INT,
                 text STRING,
+                vector_id STRING,
+                metadata JSON,
                 extraction_status STRING,
-                created_at STRING
+                content_hash STRING,
+                created_at STRING,
+                updated_at STRING
             )
         """)
 
@@ -409,46 +415,111 @@ class KuzuGraphStore(GraphStoreBackend):
         labels: list[str],
         properties: dict[str, Any],
     ) -> None:
-        """Create or update a node."""
+        """Create or update a node.
+
+        Supports both Entity and KnowledgeFragment node types.
+        """
         self._ensure_initialized()
         import json
 
-        concept = labels[0] if labels else "Unknown"
-        space_id = properties.get("space_id", "default")
-        props_json = json.dumps(properties)
+        is_fragment = "KnowledgeFragment" in labels or node_id.startswith("frag:")
 
-        self._conn.execute(
-            "MERGE (n:Entity {entity_id: $id}) SET n.concept = $concept, "
-            "n.space_id = $space_id, n.properties = $props",
-            {"id": node_id, "concept": concept, "space_id": space_id, "props": props_json},
-        )
+        if is_fragment:
+            self._conn.execute(
+                "MERGE (n:KnowledgeFragment {fragment_id: $id}) "
+                "SET n.dataset_id = $dataset_id, n.document_id = $document_id, "
+                "n.space_id = $space_id, n.chunk_index = $chunk_index, "
+                "n.offset_start = $offset_start, n.offset_end = $offset_end, "
+                "n.text = $text, n.vector_id = $vector_id, "
+                "n.metadata = $metadata, n.extraction_status = $extraction_status, "
+                "n.content_hash = $content_hash, "
+                "n.created_at = $created_at, n.updated_at = $updated_at",
+                {
+                    "id": node_id,
+                    "dataset_id": properties.get("dataset_id", ""),
+                    "document_id": properties.get("document_id", ""),
+                    "space_id": properties.get("space_id", "default"),
+                    "chunk_index": properties.get("chunk_index", 0),
+                    "offset_start": properties.get("offset_start", 0),
+                    "offset_end": properties.get("offset_end", 0),
+                    "text": properties.get("text", ""),
+                    "vector_id": properties.get("vector_id", ""),
+                    "metadata": json.dumps(properties.get("metadata", {})),
+                    "extraction_status": properties.get("extraction_status", "pending"),
+                    "content_hash": properties.get("content_hash", ""),
+                    "created_at": properties.get("created_at", ""),
+                    "updated_at": properties.get("updated_at", ""),
+                },
+            )
+        else:
+            concept = labels[0] if labels else "Unknown"
+            space_id = properties.get("space_id", "default")
+            props_json = json.dumps(properties)
+
+            self._conn.execute(
+                "MERGE (n:Entity {entity_id: $id}) SET n.concept = $concept, "
+                "n.space_id = $space_id, n.properties = $props",
+                {"id": node_id, "concept": concept, "space_id": space_id, "props": props_json},
+            )
 
     async def get_node(self, node_id: str) -> dict[str, Any] | None:
-        """Get a single node by ID."""
+        """Get a single node by ID.
+
+        Tries Entity first, then KnowledgeFragment.
+        """
         self._ensure_initialized()
+        import json
+
         result = self._conn.execute(
             "MATCH (n:Entity {entity_id: $id}) RETURN n.entity_id AS id, "
             "n.concept AS concept, n.space_id AS space_id, n.properties AS properties",
             {"id": node_id},
         )
         df = result.get_as_df()
-        if df.empty:
-            return None
-        row = df.iloc[0]
-        import json
+        if not df.empty:
+            row = df.iloc[0]
+            return {
+                "id": row["id"],
+                "fact_object": row["concept"],
+                "space_id": row["space_id"],
+                "properties": json.loads(row["properties"]) if row["properties"] else {},
+            }
 
-        return {
-            "id": row["id"],
-            "fact_object": row["concept"],
-            "space_id": row["space_id"],
-            "properties": json.loads(row["properties"]) if row["properties"] else {},
-        }
+        result = self._conn.execute(
+            "MATCH (n:KnowledgeFragment {fragment_id: $id}) RETURN n.fragment_id AS id, "
+            "n.dataset_id AS dataset_id, n.document_id AS document_id, "
+            "n.space_id AS space_id, n.chunk_index AS chunk_index, "
+            "n.text AS text, n.extraction_status AS extraction_status",
+            {"id": node_id},
+        )
+        df = result.get_as_df()
+        if not df.empty:
+            row = df.iloc[0]
+            return {
+                "id": row["id"],
+                "type": "KnowledgeFragment",
+                "dataset_id": row["dataset_id"],
+                "document_id": row["document_id"],
+                "space_id": row["space_id"],
+                "chunk_index": row["chunk_index"],
+                "text": row["text"],
+                "extraction_status": row["extraction_status"],
+            }
+
+        return None
 
     async def delete_node(self, node_id: str) -> None:
-        """Delete a node and all its edges."""
+        """Delete a node and all its edges.
+
+        Tries Entity first, then KnowledgeFragment.
+        """
         self._ensure_initialized()
         self._conn.execute(
             "MATCH (n:Entity {entity_id: $id}) DELETE n",
+            {"id": node_id},
+        )
+        self._conn.execute(
+            "MATCH (n:KnowledgeFragment {fragment_id: $id}) DELETE n",
             {"id": node_id},
         )
 
@@ -462,23 +533,47 @@ class KuzuGraphStore(GraphStoreBackend):
         edge_type: str,
         properties: dict[str, Any] | None = None,
     ) -> None:
-        """Create or update an edge."""
+        """Create or update an edge (idempotent).
+
+        Note: Kuzu Python binding is not thread-safe, so we keep
+        synchronous calls here.  See ADR-008 D3 for details.
+        """
         self._ensure_initialized()
         import json
 
         props_json = json.dumps(properties or {})
-        self._conn.execute(
-            "MATCH (a:Entity {entity_id: $from}), (b:Entity {entity_id: $to}) "
-            "CREATE (a)-[r:Relation {relation_type: $rtype, relation_id: $eid, "
-            "properties: $props}]->(b)",
-            {
-                "from": from_node_id,
-                "to": to_node_id,
-                "rtype": edge_type,
-                "eid": edge_id,
-                "props": props_json,
-            },
+
+        existing = self._conn.execute(
+            "MATCH (a:Entity {entity_id: $from})-[r:Relation {relation_id: $eid}]->(b:Entity {entity_id: $to}) "
+            "RETURN r.relation_type",
+            {"from": from_node_id, "to": to_node_id, "eid": edge_id},
         )
+        df = existing.get_as_df()
+        if not df.empty:
+            self._conn.execute(
+                "MATCH (a:Entity {entity_id: $from})-[r:Relation {relation_id: $eid}]->(b:Entity {entity_id: $to}) "
+                "SET r.relation_type = $rtype, r.properties = $props",
+                {
+                    "from": from_node_id,
+                    "to": to_node_id,
+                    "eid": edge_id,
+                    "rtype": edge_type,
+                    "props": props_json,
+                },
+            )
+        else:
+            self._conn.execute(
+                "MATCH (a:Entity {entity_id: $from}), (b:Entity {entity_id: $to}) "
+                "CREATE (a)-[r:Relation {relation_type: $rtype, relation_id: $eid, "
+                "properties: $props}]->(b)",
+                {
+                    "from": from_node_id,
+                    "to": to_node_id,
+                    "rtype": edge_type,
+                    "eid": edge_id,
+                    "props": props_json,
+                },
+            )
 
     async def get_edges(
         self,
@@ -1200,15 +1295,34 @@ class KuzuGraphStore(GraphStoreBackend):
         elif edge_type == "DEFINED_IN" and from_id.startswith("metric:"):
             from_label = "MetricDeclaration"
             from_id_field = "id"
+        elif edge_type == "DEFINED_IN" and from_id.startswith("rule:"):
+            from_label = "RuleDefinitionNode"
+            from_id_field = "id"
         else:
             from_label = "Entity"
             from_id_field = "entity_id"
-        to_label = "Entity"
-        to_id_field = "entity_id"
 
-        rel_label = "DEFINED_IN_FROM_METRIC" if (
-            edge_type == "DEFINED_IN" and from_label == "MetricDeclaration"
-        ) else edge_type
+        if edge_type == "EXTRACTED_FROM":
+            to_label = "KnowledgeFragment"
+            to_id_field = "fragment_id"
+        elif edge_type == "DEFINED_IN" and from_label in ("MetricDeclaration", "RuleDefinitionNode"):
+            to_label = "KnowledgeFragment"
+            to_id_field = "fragment_id"
+        elif edge_type == "TRACE_TO":
+            to_label = "KnowledgeFragment"
+            to_id_field = "fragment_id"
+        else:
+            to_label = "Entity"
+            to_id_field = "entity_id"
+
+        if edge_type == "DEFINED_IN" and from_label == "MetricDeclaration":
+            rel_label = "DEFINED_IN_FROM_METRIC"
+        elif edge_type == "DEFINED_IN" and from_label == "RuleDefinitionNode":
+            rel_label = "DEFINED_IN_FROM_RULE"
+        elif edge_type == "SUPPORTED_BY" and from_label == "KnowledgeFragment":
+            rel_label = "SUPPORTED_BY_FRAGMENT"
+        else:
+            rel_label = edge_type
 
         props_parts = []
         params: dict[str, Any] = {"from_id": from_id, "to_id": to_id}

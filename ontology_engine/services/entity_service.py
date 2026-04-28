@@ -62,12 +62,11 @@ class EntityService:
         )
 
         if atomic:
-            try:
-                await self.storage.save_entity(entity)
-            except Exception:
-                raise
-        else:
-            await self.storage.save_entity(entity)
+            existing = await self.storage.get_entity(fo, entity_id)
+            if existing is not None:
+                raise ValueError(f"Entity {entity_id} already exists in {fo}")
+
+        await self.storage.save_entity(entity)
 
         return EntityResponse.from_domain(entity)
 
@@ -118,6 +117,16 @@ class EntityService:
             return None
         return EntityResponse.from_domain(entity)
 
+    async def get_entity_by_id(
+        self,
+        entity_id: str
+    ) -> EntityResponse | None:
+        """Get an entity by ID only (across all fact object types)."""
+        entity = await self.storage.get_entity_by_id(entity_id)
+        if entity is None:
+            return None
+        return EntityResponse.from_domain(entity)
+
     async def query_entities(
         self,
         fact_object: str | None = None,
@@ -134,7 +143,7 @@ class EntityService:
         """
         fo = concept_type or fact_object
         entities = await self.storage.query_entities(
-            fact_object=fo or "",
+            fact_object=fo,
             filters=filters
         )
 

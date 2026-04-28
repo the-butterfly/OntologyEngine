@@ -13,6 +13,7 @@ from ontology_engine.services import (
     IngestionService,
     DatasetService,
     IncrementalUpdateService,
+    CategoryService,
 )
 from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.services.rule_service import RuleService
@@ -121,3 +122,9 @@ def get_feedback_service():
     if _storage is None:
         raise HTTPException(status_code=500, detail="Storage not initialized")
     return FeedbackService(_storage)
+
+
+def get_category_service() -> CategoryService:
+    if _services is None or "category" not in _services:
+        raise HTTPException(status_code=500, detail="Category service not initialized")
+    return _services["category"]

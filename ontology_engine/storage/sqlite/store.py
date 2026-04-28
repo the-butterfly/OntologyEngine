@@ -16,6 +16,7 @@ import uuid
 from typing import Any
 
 from ontology_engine.storage.base import (
+    CategoryTag,
     EntityInstance,
     FeedbackRecord,
     KnowledgeFragment,
@@ -80,8 +81,10 @@ class SQLiteStorage(StorageBackend):
                 confidence REAL DEFAULT 1.0,
                 source_pipeline TEXT,
                 source_content_hash TEXT,
-                feedback_weight REAL DEFAULT 1.0,
+                feedback_weight REAL DEFAULT 0.5,
                 domain_id TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 PRIMARY KEY (concept, entity_id)
             );
             CREATE INDEX IF NOT EXISTS idx_entities_concept ON entities(concept);
@@ -108,13 +111,21 @@ class SQLiteStorage(StorageBackend):
                 metric_name TEXT NOT NULL,
                 value TEXT NOT NULL,
                 computed_at TEXT NOT NULL DEFAULT (datetime('now')),
+                valid_from TEXT,
+                valid_to TEXT,
+                computed_by TEXT,
+                computation_snapshot TEXT,
                 PRIMARY KEY (entity_id, metric_name)
             );
 
             CREATE TABLE IF NOT EXISTS category_tags (
-                entity_id TEXT,
-                tags TEXT NOT NULL,
-                categorized_at TEXT NOT NULL DEFAULT (datetime('now'))
+                entity_id TEXT NOT NULL,
+                dimension_name TEXT NOT NULL,
+                value_code TEXT NOT NULL,
+                assigned_at TEXT,
+                assigned_by TEXT DEFAULT 'rule',
+                confidence REAL DEFAULT 1.0,
+                PRIMARY KEY (entity_id, dimension_name, value_code)
             );
 
             CREATE TABLE IF NOT EXISTS rule_execution_log (
@@ -203,6 +214,8 @@ class SQLiteStorage(StorageBackend):
                 concept TEXT NOT NULL,
                 version INTEGER DEFAULT 1,
                 data TEXT NOT NULL,
+                valid_from TEXT,
+                valid_to TEXT,
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_by TEXT DEFAULT 'system',
                 PRIMARY KEY (entity_id, version)
@@ -313,7 +326,8 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             await asyncio.to_thread(
                 self._conn.execute,
-                "INSERT OR REPLACE INTO entities (concept, entity_id, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO entities (concept, entity_id, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id, created_at, updated_at) "
+                "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM entities WHERE concept = ? AND entity_id = ?), datetime('now')), datetime('now')",
                 [
                     entity._fact_object, entity.entity_id, json.dumps(entity.data),
                     entity.valid_from.isoformat() if entity.valid_from else None,
@@ -323,6 +337,7 @@ class SQLiteStorage(StorageBackend):
                     entity.source_content_hash,
                     entity.feedback_weight,
                     entity.domain_id,
+                    entity._fact_object, entity.entity_id,
                 ],
             )
             self._conn.commit()
@@ -335,7 +350,7 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             def _fetch() -> tuple | None:
                 cursor = self._conn.execute(
-                    "SELECT data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id FROM entities WHERE concept = ? AND entity_id = ?",
+                    "SELECT data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id, created_at, updated_at FROM entities WHERE concept = ? AND entity_id = ?",
                     [fact_object, entity_id],
                 )
                 return cursor.fetchone()
@@ -351,8 +366,10 @@ class SQLiteStorage(StorageBackend):
             confidence=result[3] or 1.0,
             source_pipeline=result[4],
             source_content_hash=result[5],
-            feedback_weight=result[6] or 1.0,
+            feedback_weight=result[6] if result[6] is not None else 0.5,
             domain_id=result[7],
+            created_at=datetime.fromisoformat(result[8]) if result[8] else None,
+            updated_at=datetime.fromisoformat(result[9]) if result[9] else None,
         )
 
     async def get_entity_by_id(self, entity_id: str) -> EntityInstance | None:
@@ -362,7 +379,7 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             def _fetch() -> tuple | None:
                 cursor = self._conn.execute(
-                    "SELECT concept, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id FROM entities WHERE entity_id = ?",
+                    "SELECT concept, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id, created_at, updated_at FROM entities WHERE entity_id = ?",
                     [entity_id],
                 )
                 return cursor.fetchone()
@@ -378,8 +395,10 @@ class SQLiteStorage(StorageBackend):
             confidence=result[4] or 1.0,
             source_pipeline=result[5],
             source_content_hash=result[6],
-            feedback_weight=result[7] or 1.0,
+            feedback_weight=result[7] if result[7] is not None else 0.5,
             domain_id=result[8],
+            created_at=datetime.fromisoformat(result[9]) if result[9] else None,
+            updated_at=datetime.fromisoformat(result[10]) if result[10] else None,
         )
 
     async def query_entities(
@@ -391,25 +410,119 @@ class SQLiteStorage(StorageBackend):
         assert self._conn is not None
         assert self._lock is not None
         async with self._lock:
-            def _fetch() -> list[tuple[str, str, str]]:
+            def _fetch() -> list[tuple]:
                 if fact_object:
                     cursor = self._conn.execute(
-                        "SELECT concept, entity_id, data FROM entities WHERE concept = ? ORDER BY entity_id",
+                        "SELECT concept, entity_id, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id, created_at, updated_at FROM entities WHERE concept = ? ORDER BY entity_id",
                         [fact_object],
                     )
                 else:
                     cursor = self._conn.execute(
-                        "SELECT concept, entity_id, data FROM entities ORDER BY concept, entity_id"
+                        "SELECT concept, entity_id, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id, created_at, updated_at FROM entities ORDER BY concept, entity_id"
                     )
                 return cursor.fetchall()
             rows = await asyncio.to_thread(_fetch)
+        from datetime import datetime
         entities = [
-            EntityInstance(_fact_object=row[0], entity_id=row[1], data=json.loads(row[2]))
+            EntityInstance(
+                _fact_object=row[0],
+                entity_id=row[1],
+                data=json.loads(row[2]),
+                valid_from=datetime.fromisoformat(row[3]) if row[3] else None,
+                valid_to=datetime.fromisoformat(row[4]) if row[4] else None,
+                confidence=row[5] or 1.0,
+                source_pipeline=row[6],
+                source_content_hash=row[7],
+                feedback_weight=row[8] if row[8] is not None else 0.5,
+                domain_id=row[9],
+                created_at=datetime.fromisoformat(row[10]) if row[10] else None,
+                updated_at=datetime.fromisoformat(row[11]) if row[11] else None,
+            )
             for row in rows
         ]
         if filters:
             entities = [e for e in entities if _matches_filters(e.data, filters)]
         return entities
+
+    async def delete_entity(self, fact_object: str, entity_id: str) -> bool:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            cursor = await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM entities WHERE concept = ? AND entity_id = ?",
+                [fact_object, entity_id],
+            )
+            self._conn.commit()
+        return cursor.rowcount > 0
+
+    async def save_category_tag(self, tag: CategoryTag) -> None:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "INSERT OR REPLACE INTO category_tags (entity_id, dimension_name, value_code, assigned_at, assigned_by, confidence) VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    tag.entity_id,
+                    tag.dimension_name,
+                    tag.value_code,
+                    tag.assigned_at.isoformat() if tag.assigned_at else None,
+                    tag.assigned_by,
+                    tag.confidence,
+                ],
+            )
+            self._conn.commit()
+
+    async def get_category_tags(
+        self, entity_id: str, dimension_name: str | None = None
+    ) -> list[CategoryTag]:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                if dimension_name:
+                    cursor = self._conn.execute(
+                        "SELECT entity_id, dimension_name, value_code, assigned_at, assigned_by, confidence FROM category_tags WHERE entity_id = ? AND dimension_name = ?",
+                        [entity_id, dimension_name],
+                    )
+                else:
+                    cursor = self._conn.execute(
+                        "SELECT entity_id, dimension_name, value_code, assigned_at, assigned_by, confidence FROM category_tags WHERE entity_id = ?",
+                        [entity_id],
+                    )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        from datetime import datetime
+        return [
+            CategoryTag(
+                entity_id=row[0],
+                dimension_name=row[1],
+                value_code=row[2],
+                assigned_at=datetime.fromisoformat(row[3]) if row[3] else None,
+                assigned_by=row[4] or "rule",
+                confidence=row[5] if row[5] is not None else 1.0,
+            )
+            for row in rows
+        ]
+
+    async def delete_category_tag(
+        self, entity_id: str, dimension_name: str, value_code: str
+    ) -> bool:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            cursor = await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM category_tags WHERE entity_id = ? AND dimension_name = ? AND value_code = ?",
+                [entity_id, dimension_name, value_code],
+            )
+            self._conn.commit()
+        return cursor.rowcount > 0
 
     # =========================================================================
     # Relation CRUD
@@ -572,36 +685,27 @@ class SQLiteStorage(StorageBackend):
         return json.loads(result[0])
 
     # =========================================================================
-    # Category Tags
+    # Category Tags (legacy dict-based, delegates to new CategoryTag methods)
     # =========================================================================
 
     async def save_category_tags(self, entity_id: str, tags: dict[str, str]) -> None:
-        self._ensure_initialized()
-        assert self._conn is not None
-        assert self._lock is not None
-        async with self._lock:
-            await asyncio.to_thread(
-                self._conn.execute,
-                "INSERT OR REPLACE INTO category_tags (entity_id, tags) VALUES (?, ?)",
-                [entity_id, json.dumps(tags)],
+        from datetime import datetime, timezone
+        for dim_name, value_code in tags.items():
+            tag = CategoryTag(
+                entity_id=entity_id,
+                dimension_name=dim_name,
+                value_code=value_code,
+                assigned_at=datetime.now(timezone.utc),
+                assigned_by="rule",
+                confidence=1.0,
             )
-            self._conn.commit()
+            await self.save_category_tag(tag)
 
-    async def get_category_tags(self, entity_id: str) -> dict[str, str] | None:
-        self._ensure_initialized()
-        assert self._conn is not None
-        assert self._lock is not None
-        async with self._lock:
-            def _fetch() -> tuple[str] | None:
-                cursor = self._conn.execute(
-                    "SELECT tags FROM category_tags WHERE entity_id = ?",
-                    [entity_id],
-                )
-                return cursor.fetchone()
-            result = await asyncio.to_thread(_fetch)
-        if result is None:
+    async def get_category_tags_dict(self, entity_id: str) -> dict[str, str] | None:
+        tags = await self.get_category_tags(entity_id)
+        if not tags:
             return None
-        return json.loads(result[0])
+        return {t.dimension_name: t.value_code for t in tags}
 
     # =========================================================================
     # Rule Execution Log
@@ -710,6 +814,10 @@ class SQLiteStorage(StorageBackend):
         assert self._lock is not None
         if not fragment.id:
             fragment.id = str(uuid.uuid4())
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        created_at_val = fragment.created_at.isoformat() if fragment.created_at else now_iso
+        updated_at_val = fragment.updated_at.isoformat() if fragment.updated_at else now_iso
         async with self._lock:
             await asyncio.to_thread(
                 self._conn.execute,
@@ -720,8 +828,8 @@ class SQLiteStorage(StorageBackend):
                     fragment.text, fragment.vector_id,
                     json.dumps(fragment.metadata) if fragment.metadata else None,
                     fragment.extraction_status, fragment.content_hash,
-                    fragment.created_at.isoformat() if fragment.created_at else None,
-                    fragment.updated_at.isoformat() if fragment.updated_at else None,
+                    created_at_val,
+                    updated_at_val,
                 ],
             )
             self._conn.commit()
@@ -1402,14 +1510,23 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             def _fetch() -> tuple | None:
                 cursor = self._conn.execute(
-                    "SELECT concept, data FROM entity_versions WHERE entity_id = ? AND updated_at <= ? ORDER BY version DESC LIMIT 1",
-                    [entity_id, as_of_str],
+                    "SELECT concept, data, valid_from, valid_to FROM entity_versions "
+                    "WHERE entity_id = ? AND (valid_from IS NULL OR valid_from <= ?) AND (valid_to IS NULL OR valid_to > ?) "
+                    "ORDER BY version DESC LIMIT 1",
+                    [entity_id, as_of_str, as_of_str],
                 )
                 return cursor.fetchone()
             row = await asyncio.to_thread(_fetch)
         if row is None:
             return None
-        return EntityInstance(_fact_object=row[0], entity_id=entity_id, data=json.loads(row[1]))
+        from datetime import datetime
+        return EntityInstance(
+            _fact_object=row[0],
+            entity_id=entity_id,
+            data=json.loads(row[1]),
+            valid_from=datetime.fromisoformat(row[2]) if row[2] else None,
+            valid_to=datetime.fromisoformat(row[3]) if row[3] else None,
+        )
 
     async def get_entity_history(
         self,
@@ -1421,13 +1538,20 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             def _fetch() -> list[tuple]:
                 cursor = self._conn.execute(
-                    "SELECT concept, version, data, updated_at FROM entity_versions WHERE entity_id = ? ORDER BY version",
+                    "SELECT concept, version, data, valid_from, valid_to, updated_at FROM entity_versions WHERE entity_id = ? ORDER BY version",
                     [entity_id],
                 )
                 return cursor.fetchall()
             rows = await asyncio.to_thread(_fetch)
+        from datetime import datetime
         return [
-            EntityInstance(_fact_object=row[0], entity_id=entity_id, data=json.loads(row[2]))
+            EntityInstance(
+                _fact_object=row[0],
+                entity_id=entity_id,
+                data=json.loads(row[2]),
+                valid_from=datetime.fromisoformat(row[3]) if row[3] else None,
+                valid_to=datetime.fromisoformat(row[4]) if row[4] else None,
+            )
             for row in rows
         ]
 

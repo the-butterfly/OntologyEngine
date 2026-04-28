@@ -357,14 +357,20 @@ class QueryService:
         filters: dict[str, Any],
         sort: str | None = None,
         pagination: dict[str, int] | None = None,
-    ) -> list[dict[str, Any]]:
-        fact_object = filters.pop("_fact_object", None) if filters else None
-        entities = await self.storage.query_entities(fact_object, filters)
+    ) -> list[SearchResultResponse]:
+        fact_object = filters.get("_fact_object") if filters else None
+        query_filters = {k: v for k, v in filters.items() if k != "_fact_object"} if filters else None
+        entities = await self.storage.query_entities(fact_object, query_filters)
         offset = (pagination or {}).get("offset", 0)
         limit = (pagination or {}).get("limit", 100)
         entities = entities[offset:offset + limit]
         return [
-            {"entity_id": e.entity_id, "fact_object": e._fact_object, "data": e.data}
+            SearchResultResponse(
+                entity_id=e.entity_id,
+                fact_object=e._fact_object,
+                score=1.0,
+                attributes=e.data,
+            )
             for e in entities
         ]
 
@@ -376,15 +382,24 @@ class QueryService:
     ) -> dict[str, Any]:
         semantic_results = await self.semantic_search(query_text, top_k=20)
         semantic_ids = {r.id for r in semantic_results}
+        semantic_meta = {r.id: r.metadata for r in semantic_results}
 
         structured_results = []
+        structured_meta: dict[str, dict[str, Any]] = {}
         if filters:
-            fact_object = filters.pop("_fact_object", None) if filters else None
-            entities = await self.storage.query_entities(fact_object, filters)
+            fact_object = filters.get("_fact_object") if filters else None
+            query_filters = {k: v for k, v in filters.items() if k != "_fact_object"} if filters else None
+            entities = await self.storage.query_entities(fact_object, query_filters)
             structured_results = [
                 {"entity_id": e.entity_id, "fact_object": e._fact_object, "data": e.data}
                 for e in entities
             ]
+            for e in entities:
+                structured_meta[e.entity_id] = {
+                    "entity_id": e.entity_id,
+                    "fact_object": e._fact_object,
+                    "attributes": e.data,
+                }
 
         if filters and structured_results:
             structured_ids = {r["entity_id"] for r in structured_results}
@@ -398,8 +413,13 @@ class QueryService:
                 }
             else:
                 all_ids = semantic_ids | structured_ids
+                results = []
+                for eid in all_ids:
+                    meta = semantic_meta.get(eid) or structured_meta.get(eid, {})
+                    score = next((r.score for r in semantic_results if r.id == eid), 0.0)
+                    results.append({"id": eid, "score": score, "metadata": meta})
                 return {
-                    "results": list(all_ids),
+                    "results": results,
                     "strategy": fusion_strategy,
                     "semantic_count": len(semantic_results),
                     "structured_count": len(structured_results),
