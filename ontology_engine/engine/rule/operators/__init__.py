@@ -28,6 +28,8 @@ from ontology_engine.engine.rule.operators.switch import (
 )
 from ontology_engine.engine.rule.operators.alert import (
     TriggerAlertOperator,
+)
+from ontology_engine.engine.rule.operators.graph_traversal import (
     GraphTraversalOperator,
 )
 from ontology_engine.engine.rule.operators.decision_table import (

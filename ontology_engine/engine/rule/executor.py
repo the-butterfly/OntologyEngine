@@ -88,9 +88,10 @@ DECISION_APPROVE_RESTRICTED = "APPROVE_RESTRICTED"
 class RuleExecutor:
     """Executes KGML rules against entities."""
 
-    def __init__(self, schema: KGMLSchema):
+    def __init__(self, schema: KGMLSchema, metric_engine: Any = None):
         self.schema = schema
         self.evaluator = ExpressionEvaluator()
+        self._metric_engine = metric_engine
 
     def _get_eval_context(self, context: ExecutionContext) -> dict:
         """Get evaluation context combining entity_data and computed_metrics."""

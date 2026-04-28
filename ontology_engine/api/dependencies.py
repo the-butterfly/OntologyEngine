@@ -113,3 +113,11 @@ def get_simulation_service() -> SimulationService:
     if _services is None or "simulation" not in _services:
         raise HTTPException(status_code=500, detail="Simulation service not initialized")
     return _services["simulation"]
+
+
+def get_feedback_service():
+    from ontology_engine.services.feedback_service import FeedbackService
+
+    if _storage is None:
+        raise HTTPException(status_code=500, detail="Storage not initialized")
+    return FeedbackService(_storage)

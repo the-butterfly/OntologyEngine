@@ -82,17 +82,13 @@ class DAGExecutor:
         self,
         max_concurrency: int = 8,
         error_strategy: ErrorStrategy = ErrorStrategy.STOP_LAYER,
+        pipeline_state_manager: Any = None,
     ):
-        """Initialize DAGExecutor.
-
-        Args:
-            max_concurrency: Maximum concurrent step executions per layer.
-            error_strategy: Strategy for handling step failures.
-        """
         self.max_concurrency = max_concurrency
         self.error_strategy = error_strategy
         self.expression_engine = ExpressionEngine()
         self._semaphore: asyncio.Semaphore | None = None
+        self._psm = pipeline_state_manager
 
     async def execute(
         self,
@@ -115,36 +111,57 @@ class DAGExecutor:
         results: dict[str, StepResult] = {}
         transaction = RuleTransaction(context)
 
-        for layer in dag.layers:
-            # Snapshot before layer execution
-            snapshot = transaction.snapshot()
+        run_id = None
+        if self._psm:
+            try:
+                run = self._psm.create_run(
+                    rule_logic_name="dag_execution",
+                    entity_id=context.entity_id if hasattr(context, 'entity_id') else "",
+                )
+                run_id = run.id
+                self._psm.start_run(run_id)
+            except Exception:
+                run_id = None
 
-            # Execute all nodes in layer with concurrency control
-            layer_results = await self._execute_layer(
-                layer, context, results, transaction, snapshot
-            )
+        try:
+            for layer in dag.layers:
+                snapshot = transaction.snapshot()
 
-            # Check for failures
-            failures = [
-                r for r in layer_results if r.error is not None
-            ]
-
-            if failures and self.error_strategy == ErrorStrategy.STOP_LAYER:
-                # Restore to snapshot state
-                transaction.restore(snapshot)
-                raise LayerExecutionError(layer.index, [
-                    StepExecutionError(r.step_id, r.error) for r in failures
-                ])
-
-            if failures and self.error_strategy == ErrorStrategy.ABORT_ALL:
-                # Restore all executed layers
-                transaction.restore(snapshot)
-                raise ExecutionAbortedError(
-                    f"Execution aborted at layer {layer.index} due to {len(failures)} failure(s)"
+                layer_results = await self._execute_layer(
+                    layer, context, results, transaction, snapshot
                 )
 
-            # CONTINUE strategy: commit even if some steps failed
-            transaction.commit()
+                failures = [
+                    r for r in layer_results if r.error is not None
+                ]
+
+                if failures and self.error_strategy == ErrorStrategy.STOP_LAYER:
+                    transaction.restore(snapshot)
+                    if self._psm and run_id:
+                        self._psm.fail_run(run_id, f"Layer {layer.index} failed")
+                    raise LayerExecutionError(layer.index, [
+                        StepExecutionError(r.step_id, r.error) for r in failures
+                    ])
+
+                if failures and self.error_strategy == ErrorStrategy.ABORT_ALL:
+                    transaction.restore(snapshot)
+                    if self._psm and run_id:
+                        self._psm.fail_run(run_id, f"Aborted at layer {layer.index}")
+                    raise ExecutionAbortedError(
+                        f"Execution aborted at layer {layer.index} due to {len(failures)} failure(s)"
+                    )
+
+                transaction.commit()
+
+            if self._psm and run_id:
+                self._psm.complete_run(run_id)
+
+        except (LayerExecutionError, ExecutionAbortedError):
+            raise
+        except Exception as e:
+            if self._psm and run_id:
+                self._psm.fail_run(run_id, str(e))
+            raise
 
         return ExecutionResult(results=results, context=context)
 

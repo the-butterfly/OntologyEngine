@@ -16,7 +16,6 @@ from ontology_engine.api.dependencies import (
     get_simulation_service,
 )
 from ontology_engine.api.dto.responses import success_response, error_response
-from ontology_engine.engine.rule.dag_builder import DAGBuilder
 from ontology_engine.services.schema_service import SchemaService
 from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.rule_service import RuleService, RuleServiceError
@@ -561,6 +560,7 @@ async def get_rule_group_dag(
     name: str,
     schema_id: str | None = Query(None, description="Semantic space ID (required for name-based lookup)"),
     service: RuleService = Depends(get_rule_service),
+    dag_service: DAGService = Depends(get_dag_service),
 ):
     """Get DAG structure for a rule group for visualization.
 
@@ -568,11 +568,9 @@ async def get_rule_group_dag(
     dependencies between steps.
     """
     try:
-        # Get rule group and steps
         rule_group = await service.get_rule_group(name, schema_id=schema_id)
         if rule_group is None:
             return error_response(code="NOT_FOUND", message=f"Rule group '{name}' not found")
-
         steps = await service.list_rule_steps(name, schema_id=schema_id)
         if not steps:
             return success_response(data={
@@ -582,31 +580,28 @@ async def get_rule_group_dag(
                 "layers": [],
             })
 
-        # Build DAG
-        dag_builder = DAGBuilder()
-        execution_dag = dag_builder.build(steps)
+        execution_dag = dag_service.build_execution_dag(steps)
 
-        # Format response
         layers = []
-        for layer in execution_dag.layers:
+        for i, layer in enumerate(execution_dag.get("layers", [])):
             layer_steps = []
-            for node in layer.nodes:
-                step = node.step
+            for step_info in layer:
+                step_id = step_info.get("id", "")
+                step_obj = next((s for s in steps if s.id == step_id), None)
                 layer_steps.append({
-                    "id": step.id,
-                    "name": step.name,
-                    "depends_on": step.depends_on,
-                    "in_degree": node.in_degree,
+                    "id": step_id,
+                    "name": step_info.get("name", ""),
+                    "depends_on": step_obj.depends_on if step_obj else [],
                 })
             layers.append({
-                "index": layer.index,
+                "index": i,
                 "steps": layer_steps,
             })
 
         return success_response(data={
             "rule_group_name": name,
             "total_steps": len(steps),
-            "total_layers": len(execution_dag.layers),
+            "total_layers": len(execution_dag.get("layers", [])),
             "layers": layers,
         })
     except Exception as e:

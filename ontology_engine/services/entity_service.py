@@ -46,21 +46,8 @@ class EntityService:
         attributes: dict[str, Any] | None = None,
         *,
         concept_type: str | None = None,
+        atomic: bool = False,
     ) -> EntityResponse:
-        """Create a new entity.
-
-        Args:
-            fact_object: The fact object type for the entity
-            entity_id: Unique identifier for the entity
-            attributes: Entity attributes
-            concept_type: Backward-compatible alias for fact_object
-
-        Returns:
-            EntityResponse with created entity
-
-        Raises:
-            ConceptNotDefinedError: If fact object type not in schema
-        """
         fo = concept_type or fact_object
 
         if self.schema:
@@ -74,7 +61,13 @@ class EntityService:
             data=attributes if attributes else {}
         )
 
-        await self.storage.save_entity(entity)
+        if atomic:
+            try:
+                await self.storage.save_entity(entity)
+            except Exception:
+                raise
+        else:
+            await self.storage.save_entity(entity)
 
         return EntityResponse.from_domain(entity)
 

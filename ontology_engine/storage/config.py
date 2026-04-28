@@ -59,6 +59,11 @@ class StorageConfig:
     learning_rate: float = 0.1
     semantic_weight: float = 0.7
 
+    space_isolation_mode: str = "shared"
+    space_db_prefix: str = "space_"
+    lance_db_path: str | None = None
+    enable_dual_write: bool = True
+
     def __post_init__(self) -> None:
         if not self.kuzu_db_path:
             self.kuzu_db_path = os.path.join(self.data_dir, "ontology.kuzu")
@@ -66,6 +71,8 @@ class StorageConfig:
             self.chroma_persist_dir = os.path.join(self.data_dir, "vectors")
         if not self.sqlite_db_path:
             self.sqlite_db_path = os.path.join(self.data_dir, "meta.db")
+        if not self.lance_db_path:
+            self.lance_db_path = os.path.join(self.data_dir, "lance")
         if not self.openai_api_key:
             self.openai_api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -84,14 +91,19 @@ class StorageConfig:
             openai_api_key=os.environ.get("OE_STORAGE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"),
             learning_rate=float(os.environ.get("OE_STORAGE_LEARNING_RATE", "0.1")),
             semantic_weight=float(os.environ.get("OE_STORAGE_SEMANTIC_WEIGHT", "0.7")),
+            space_isolation_mode=os.environ.get("OE_STORAGE_SPACE_ISOLATION_MODE", "shared"),
+            space_db_prefix=os.environ.get("OE_STORAGE_SPACE_DB_PREFIX", "space_"),
+            lance_db_path=os.environ.get("OE_STORAGE_LANCE_DB_PATH") or None,
+            enable_dual_write=os.environ.get("OE_STORAGE_ENABLE_DUAL_WRITE", "true").lower() != "false",
         )
 
 
-def create_meta_store(config: StorageConfig | None = None) -> StorageBackend:
+def create_meta_store(config: StorageConfig | None = None, space_id: str | None = None) -> StorageBackend:
     """Create a MetaStore (StorageBackend) instance.
 
     Args:
         config: Storage configuration. Uses defaults if None.
+        space_id: Optional space ID for per-space database isolation.
 
     Returns:
         StorageBackend instance.
@@ -100,7 +112,12 @@ def create_meta_store(config: StorageConfig | None = None) -> StorageBackend:
 
     cfg = config or StorageConfig()
     if cfg.meta_backend == "sqlite":
-        return SQLiteStorage(db_path=cfg.sqlite_db_path)
+        db_path = cfg.sqlite_db_path
+        if cfg.space_isolation_mode == "database_per_space" and space_id:
+            db_dir = os.path.dirname(cfg.sqlite_db_path)
+            db_name = f"{cfg.space_db_prefix}{space_id}.db"
+            db_path = os.path.join(db_dir, db_name)
+        return SQLiteStorage(db_path=db_path)
     raise ValueError(f"Unsupported meta backend: {cfg.meta_backend}")
 
 

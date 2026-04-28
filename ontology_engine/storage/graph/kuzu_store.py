@@ -46,20 +46,19 @@ class KuzuGraphStore(GraphStoreBackend):
     # the actual node types involved.
     _MUTUAL_INDEX_QUERIES: dict[str, list[dict[str, str]]] = {
         "EXTRACTED_FROM": [
-            {"rel": "EXTRACTED_FROM", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
+            {"rel": "EXTRACTED_FROM", "from_label": "Entity", "from_pk": "entity_id", "to_label": "KnowledgeFragment", "to_pk": "fragment_id"},
         ],
         "SUPPORTED_BY": [
-            # Canonical design: KnowledgeFragment → Entity (Layer-R → Layer-S)
             {"rel": "SUPPORTED_BY_FRAGMENT", "from_label": "KnowledgeFragment", "from_pk": "fragment_id", "to_label": "Entity", "to_pk": "entity_id"},
-            # Legacy / inline-annotation variant: Entity → Entity
             {"rel": "SUPPORTED_BY", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
         ],
         "DEFINED_IN": [
             {"rel": "DEFINED_IN", "from_label": "Entity", "from_pk": "entity_id", "to_label": "Entity", "to_pk": "entity_id"},
-            {"rel": "DEFINED_IN_FROM_METRIC", "from_label": "MetricDeclaration", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
+            {"rel": "DEFINED_IN_FROM_METRIC", "from_label": "MetricDeclaration", "from_pk": "id", "to_label": "KnowledgeFragment", "to_pk": "fragment_id"},
+            {"rel": "DEFINED_IN_FROM_RULE", "from_label": "RuleDefinitionNode", "from_pk": "id", "to_label": "KnowledgeFragment", "to_pk": "fragment_id"},
         ],
         "TRACE_TO": [
-            {"rel": "TRACE_TO", "from_label": "ExecutionStepSnapshot", "from_pk": "id", "to_label": "Entity", "to_pk": "entity_id"},
+            {"rel": "TRACE_TO", "from_label": "ExecutionStepSnapshot", "from_pk": "id", "to_label": "KnowledgeFragment", "to_pk": "fragment_id"},
         ],
     }
 
@@ -167,6 +166,30 @@ class KuzuGraphStore(GraphStoreBackend):
         """)
 
         self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS RuleDefinitionNode(
+                id STRING PRIMARY KEY,
+                name STRING,
+                description STRING,
+                rule_type STRING,
+                priority INT64 DEFAULT 100,
+                applies_to STRING,
+                applicable_categorizations STRING,
+                inputs STRING,
+                outputs STRING,
+                preconditions STRING,
+                overrides STRING,
+                applicability STRING,
+                enabled BOOLEAN DEFAULT true,
+                logic_ids STRING,
+                domain_id STRING,
+                source_pipeline STRING,
+                source_content_hash STRING,
+                created_at STRING,
+                updated_at STRING
+            )
+        """)
+
+        self._conn.execute("""
             CREATE NODE TABLE IF NOT EXISTS CategoryTag(
                 id STRING PRIMARY KEY,
                 entity_id STRING,
@@ -203,7 +226,7 @@ class KuzuGraphStore(GraphStoreBackend):
 
         self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS EXTRACTED_FROM(
-                FROM Entity TO Entity,
+                FROM Entity TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'EXTRACTED_FROM',
                 source_file STRING,
                 offset_start INT,
@@ -255,7 +278,20 @@ class KuzuGraphStore(GraphStoreBackend):
 
         self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS DEFINED_IN_FROM_METRIC(
-                FROM MetricDeclaration TO Entity,
+                FROM MetricDeclaration TO KnowledgeFragment,
+                edge_type STRING DEFAULT 'DEFINED_IN',
+                source_file STRING,
+                offset_start INT,
+                offset_end INT,
+                confidence DOUBLE,
+                edge_text STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS DEFINED_IN_FROM_RULE(
+                FROM RuleDefinitionNode TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'DEFINED_IN',
                 source_file STRING,
                 offset_start INT,
@@ -268,7 +304,7 @@ class KuzuGraphStore(GraphStoreBackend):
 
         self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS TRACE_TO(
-                FROM ExecutionStepSnapshot TO Entity,
+                FROM ExecutionStepSnapshot TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'TRACE_TO',
                 source_file STRING,
                 offset_start INT,

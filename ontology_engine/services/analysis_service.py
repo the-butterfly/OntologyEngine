@@ -33,18 +33,11 @@ class AnalysisService:
         self,
         storage: StorageBackend,
         schema: KGMLSchema | None = None,
+        pipeline_state_manager: Any = None,
     ):
-        """Initialize AnalysisService.
-
-        Creates engine instances internally from schema and storage,
-        following the module boundary rule: api/ → services/ only.
-
-        Args:
-            storage: StorageBackend for entity retrieval
-            schema: Optional schema for engine initialization
-        """
         self.storage = storage
         self.schema = schema
+        self._psm = pipeline_state_manager
 
         self.categorization_engine: Any = None
         self.metric_engine: Any = None
@@ -68,64 +61,89 @@ class AnalysisService:
         dimension: str,
         context: dict[str, Any] | None = None
     ) -> AnalysisResponse:
-        """Execute complete dimension analysis.
+        run_id = None
+        if self._psm:
+            run = self._psm.create_run(
+                rule_logic_name="analysis",
+                rule_definition_name=dimension,
+                entity_id=entity_id,
+                dimension=dimension,
+            )
+            run_id = run.id
+            self._psm.start_run(run_id)
 
-        Flow:
-        1. Get entity from storage
-        2. L2 Categorization
-        3. L3 Metric computation (Decision #11: direct call)
-        4. L4 Rule execution
-        5. Assemble results
+        try:
+            result = await self._execute_six_steps(entity_id, dimension, context, run_id)
+            if self._psm and run_id:
+                self._psm.complete_run(run_id)
+            return result
+        except Exception as e:
+            if self._psm and run_id:
+                self._psm.fail_run(run_id, str(e))
+            raise
 
-        Args:
-            entity_id: Entity to analyze
-            dimension: Dimension name (e.g., "credit_assessment")
-            context: Optional analysis context/overrides
+    async def _execute_six_steps(
+        self,
+        entity_id: str,
+        dimension: str,
+        context: dict[str, Any] | None,
+        run_id: str | None,
+    ) -> AnalysisResponse:
+        import asyncio
 
-        Returns:
-            AnalysisResponse with complete analysis results
-
-        Raises:
-            EntityNotFoundError: If entity not found
-        """
-        # 1. Get entity - we need to find it first
+        # Step 1: Entity resolution
         entity = await self._find_entity(entity_id)
         if entity is None:
             raise EntityNotFoundError(entity_id)
 
-        # 2. L2 Categorization
+        # Step 6: Feedback integration (pre-check)
+        if hasattr(self.storage, 'get_feedback'):
+            try:
+                from ontology_engine.services.feedback_service import FeedbackService
+                feedback_svc = FeedbackService(self.storage)
+                await feedback_svc.apply_feedback(entity_id)
+                entity = await self._find_entity(entity_id) or entity
+            except Exception:
+                pass
+
+        # Step 2: L2 Categorization
         category_tags = await self.categorization_engine.categorize(entity)
         category_tags_dict = category_tags.tags if hasattr(category_tags, 'tags') else {}
 
-        # 3. L3 Metric computation
-        # Get required metrics for this dimension from schema
+        # Step 3: L3 Metric pre-computation (parallel when multiple)
         required_metrics = self._collect_required_metrics(dimension)
         computed_metrics = {}
 
-        if required_metrics and hasattr(self.metric_engine, 'compute_batch'):
-            computed_metrics = await self.metric_engine.compute_batch(
-                required_metrics, entity,
-                context=context
-            )
-            # Convert to serializable dict
-            computed_metrics = self._serialize_metrics(computed_metrics)
+        if required_metrics and self.metric_engine:
+            if hasattr(self.metric_engine, 'compute_batch'):
+                computed_metrics = await self.metric_engine.compute_batch(
+                    required_metrics, entity, context=context
+                )
+                computed_metrics = self._serialize_metrics(computed_metrics)
+            elif hasattr(self.metric_engine, 'compute_metric'):
+                tasks = [
+                    self.metric_engine.compute_metric(m, entity, context=context)
+                    for m in required_metrics
+                ]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for m, r in zip(required_metrics, results):
+                    if not isinstance(r, Exception):
+                        computed_metrics[m] = r
 
-        # 4. L4 Rule execution
+        # Step 4: L4 Rule execution
         entity_data = dict(entity.data) if hasattr(entity, 'data') else {}
         entity_data["_fact_object"] = entity._fact_object
 
-        # Add computed metrics to entity data for rule evaluation
         for key, value in computed_metrics.items():
             entity_data[key] = value
 
-        # Execute rules
         analysis_result = await self.rule_executor.execute_dimension(
             dimension=dimension,
             entity_id=entity_id,
             entity_data=entity_data
         )
 
-        # 5. Assemble response
+        # Step 5: Result assembly
         rule_results = [
             RuleResultResponse(
                 rule_id=r.rule_id if hasattr(r, 'rule_id') else '',
@@ -158,6 +176,74 @@ class AnalysisService:
             decision=analysis_result.decision,
             decision_reasoning=analysis_result.decision_reasoning
         )
+
+    async def explain(
+        self,
+        entity_id: str,
+        dimension: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        entity = await self._find_entity(entity_id)
+        if entity is None:
+            raise EntityNotFoundError(entity_id)
+
+        explanation: dict[str, Any] = {
+            "entity_id": entity_id,
+            "fact_object": entity._fact_object,
+            "feedback_weight": entity.feedback_weight,
+            "steps": [],
+        }
+
+        if self.categorization_engine:
+            try:
+                cat_result = await self.categorization_engine.categorize(entity)
+                explanation["steps"].append({
+                    "step": "L2_categorization",
+                    "result": cat_result.tags if hasattr(cat_result, 'tags') else {},
+                })
+            except Exception as e:
+                explanation["steps"].append({"step": "L2_categorization", "error": str(e)})
+
+        if self.metric_engine and dimension:
+            try:
+                required = self._collect_required_metrics(dimension)
+                explanation["steps"].append({
+                    "step": "L3_metric_precomputation",
+                    "required_metrics": required,
+                })
+            except Exception as e:
+                explanation["steps"].append({"step": "L3_metric_precomputation", "error": str(e)})
+
+        if self.rule_executor and dimension:
+            try:
+                entity_data = dict(entity.data)
+                entity_data["_fact_object"] = entity._fact_object
+                rule_result = await self.rule_executor.execute_dimension(
+                    dimension=dimension, entity_id=entity_id, entity_data=entity_data
+                )
+                explanation["steps"].append({
+                    "step": "L4_rule_execution",
+                    "decision": rule_result.decision if hasattr(rule_result, 'decision') else None,
+                    "rules_fired": [
+                        {"rule_id": r.rule_id, "passed": r.passed}
+                        for r in rule_result.rule_results
+                        if hasattr(r, 'rule_id') and r.passed
+                    ] if hasattr(rule_result, 'rule_results') else [],
+                })
+            except Exception as e:
+                explanation["steps"].append({"step": "L4_rule_execution", "error": str(e)})
+
+        if hasattr(self.storage, 'get_feedback'):
+            try:
+                feedback_records = await self.storage.get_feedback(entity_id)
+                explanation["feedback"] = [
+                    {"type": r.feedback_type, "weight": r.updated_weight, "applied": r.applied}
+                    for r in feedback_records
+                ]
+            except Exception:
+                explanation["feedback"] = []
+
+        return explanation
 
     async def execute_dry_run(
         self,

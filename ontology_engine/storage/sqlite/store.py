@@ -17,6 +17,8 @@ from typing import Any
 
 from ontology_engine.storage.base import (
     EntityInstance,
+    FeedbackRecord,
+    KnowledgeFragment,
     RelationInstance,
     StorageBackend,
     StorageError,
@@ -73,15 +75,30 @@ class SQLiteStorage(StorageBackend):
                 concept TEXT NOT NULL,
                 entity_id TEXT NOT NULL,
                 data TEXT NOT NULL,
+                valid_from TEXT,
+                valid_to TEXT,
+                confidence REAL DEFAULT 1.0,
+                source_pipeline TEXT,
+                source_content_hash TEXT,
+                feedback_weight REAL DEFAULT 1.0,
+                domain_id TEXT,
                 PRIMARY KEY (concept, entity_id)
             );
             CREATE INDEX IF NOT EXISTS idx_entities_concept ON entities(concept);
 
             CREATE TABLE IF NOT EXISTS relations (
+                id TEXT,
                 relation_type TEXT NOT NULL,
                 from_entity_id TEXT NOT NULL,
                 to_entity_id TEXT NOT NULL,
                 data TEXT,
+                edge_text TEXT,
+                weight REAL DEFAULT 1.0,
+                valid_from TEXT,
+                valid_to TEXT,
+                confidence REAL DEFAULT 1.0,
+                source_pipeline TEXT,
+                source_content_hash TEXT,
                 PRIMARY KEY (relation_type, from_entity_id, to_entity_id)
             );
             CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(from_entity_id);
@@ -244,6 +261,39 @@ class SQLiteStorage(StorageBackend):
                 output_types TEXT,
                 enabled INTEGER DEFAULT 1
             );
+
+            CREATE TABLE IF NOT EXISTS feedback_records (
+                record_id TEXT PRIMARY KEY,
+                entity_id TEXT NOT NULL,
+                metric_name TEXT,
+                feedback_type TEXT NOT NULL DEFAULT 'confirm',
+                value REAL NOT NULL DEFAULT 1.0,
+                previous_weight REAL NOT NULL DEFAULT 1.0,
+                updated_weight REAL NOT NULL DEFAULT 1.0,
+                source TEXT NOT NULL DEFAULT 'user',
+                text_feedback TEXT,
+                applied INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_feedback_entity ON feedback_records(entity_id);
+
+            CREATE TABLE IF NOT EXISTS knowledge_fragments (
+                id TEXT PRIMARY KEY,
+                dataset_id TEXT,
+                document_id TEXT,
+                chunk_index INTEGER,
+                offset_start INTEGER,
+                offset_end INTEGER,
+                text TEXT NOT NULL,
+                vector_id TEXT,
+                metadata TEXT,
+                extraction_status TEXT NOT NULL DEFAULT 'pending',
+                content_hash TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_kf_dataset ON knowledge_fragments(dataset_id);
+            CREATE INDEX IF NOT EXISTS idx_kf_status ON knowledge_fragments(extraction_status);
         """)
 
     async def close(self) -> None:
@@ -263,8 +313,17 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             await asyncio.to_thread(
                 self._conn.execute,
-                "INSERT OR REPLACE INTO entities (concept, entity_id, data) VALUES (?, ?, ?)",
-                [entity._fact_object, entity.entity_id, json.dumps(entity.data)],
+                "INSERT OR REPLACE INTO entities (concept, entity_id, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    entity._fact_object, entity.entity_id, json.dumps(entity.data),
+                    entity.valid_from.isoformat() if entity.valid_from else None,
+                    entity.valid_to.isoformat() if entity.valid_to else None,
+                    entity.confidence,
+                    entity.source_pipeline,
+                    entity.source_content_hash,
+                    entity.feedback_weight,
+                    entity.domain_id,
+                ],
             )
             self._conn.commit()
         return entity.entity_id
@@ -274,32 +333,54 @@ class SQLiteStorage(StorageBackend):
         assert self._conn is not None
         assert self._lock is not None
         async with self._lock:
-            def _fetch() -> tuple[str] | None:
+            def _fetch() -> tuple | None:
                 cursor = self._conn.execute(
-                    "SELECT data FROM entities WHERE concept = ? AND entity_id = ?",
+                    "SELECT data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id FROM entities WHERE concept = ? AND entity_id = ?",
                     [fact_object, entity_id],
                 )
                 return cursor.fetchone()
             result = await asyncio.to_thread(_fetch)
         if result is None:
             return None
-        return EntityInstance(_fact_object=fact_object, entity_id=entity_id, data=json.loads(result[0]))
+        from datetime import datetime
+        return EntityInstance(
+            _fact_object=fact_object, entity_id=entity_id,
+            data=json.loads(result[0]),
+            valid_from=datetime.fromisoformat(result[1]) if result[1] else None,
+            valid_to=datetime.fromisoformat(result[2]) if result[2] else None,
+            confidence=result[3] or 1.0,
+            source_pipeline=result[4],
+            source_content_hash=result[5],
+            feedback_weight=result[6] or 1.0,
+            domain_id=result[7],
+        )
 
     async def get_entity_by_id(self, entity_id: str) -> EntityInstance | None:
         self._ensure_initialized()
         assert self._conn is not None
         assert self._lock is not None
         async with self._lock:
-            def _fetch() -> tuple[str, str, str] | None:
+            def _fetch() -> tuple | None:
                 cursor = self._conn.execute(
-                    "SELECT concept, entity_id, data FROM entities WHERE entity_id = ?",
+                    "SELECT concept, data, valid_from, valid_to, confidence, source_pipeline, source_content_hash, feedback_weight, domain_id FROM entities WHERE entity_id = ?",
                     [entity_id],
                 )
                 return cursor.fetchone()
             result = await asyncio.to_thread(_fetch)
         if result is None:
             return None
-        return EntityInstance(_fact_object=result[0], entity_id=entity_id, data=json.loads(result[2]))
+        from datetime import datetime
+        return EntityInstance(
+            _fact_object=result[0], entity_id=entity_id,
+            data=json.loads(result[1]),
+            valid_from=datetime.fromisoformat(result[2]) if result[2] else None,
+            valid_to=datetime.fromisoformat(result[3]) if result[3] else None,
+            confidence=result[4] or 1.0,
+            source_pipeline=result[5],
+            source_content_hash=result[6],
+            feedback_weight=result[7] or 1.0,
+            domain_id=result[8],
+        )
 
     async def query_entities(
         self,
@@ -341,8 +422,17 @@ class SQLiteStorage(StorageBackend):
         async with self._lock:
             await asyncio.to_thread(
                 self._conn.execute,
-                "INSERT OR REPLACE INTO relations (relation_type, from_entity_id, to_entity_id, data) VALUES (?, ?, ?, ?)",
-                [relation.relation_name, relation.from_entity_id, relation.to_entity_id, json.dumps(relation.data)],
+                "INSERT OR REPLACE INTO relations (id, relation_type, from_entity_id, to_entity_id, data, edge_text, weight, valid_from, valid_to, confidence, source_pipeline, source_content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    relation.id,
+                    relation.relation_name, relation.from_entity_id, relation.to_entity_id,
+                    json.dumps(relation.data),
+                    relation.edge_text, relation.weight,
+                    relation.valid_from.isoformat() if relation.valid_from else None,
+                    relation.valid_to.isoformat() if relation.valid_to else None,
+                    relation.confidence, relation.source_pipeline,
+                    relation.source_content_hash,
+                ],
             )
             self._conn.commit()
 
@@ -355,25 +445,34 @@ class SQLiteStorage(StorageBackend):
         assert self._conn is not None
         assert self._lock is not None
         async with self._lock:
-            def _fetch() -> list[tuple[str, str, str | None]]:
+            def _fetch() -> list[tuple]:
                 if relation_name:
                     cursor = self._conn.execute(
-                        "SELECT relation_type, to_entity_id, data FROM relations WHERE from_entity_id = ? AND relation_type = ?",
+                        "SELECT relation_type, to_entity_id, data, id, edge_text, weight, valid_from, valid_to, confidence, source_pipeline, source_content_hash FROM relations WHERE from_entity_id = ? AND relation_type = ?",
                         [from_entity_id, relation_name],
                     )
                 else:
                     cursor = self._conn.execute(
-                        "SELECT relation_type, to_entity_id, data FROM relations WHERE from_entity_id = ?",
+                        "SELECT relation_type, to_entity_id, data, id, edge_text, weight, valid_from, valid_to, confidence, source_pipeline, source_content_hash FROM relations WHERE from_entity_id = ?",
                         [from_entity_id],
                     )
                 return cursor.fetchall()
             results = await asyncio.to_thread(_fetch)
+        from datetime import datetime
         return [
             RelationInstance(
                 relation_name=row[0],
                 from_entity_id=from_entity_id,
                 to_entity_id=row[1],
                 data=json.loads(row[2]) if row[2] else {},
+                id=row[3],
+                edge_text=row[4],
+                weight=row[5] or 1.0,
+                valid_from=datetime.fromisoformat(row[6]) if row[6] else None,
+                valid_to=datetime.fromisoformat(row[7]) if row[7] else None,
+                confidence=row[8] or 1.0,
+                source_pipeline=row[9],
+                source_content_hash=row[10],
             )
             for row in results
         ]
@@ -544,6 +643,151 @@ class SQLiteStorage(StorageBackend):
             rows = await asyncio.to_thread(_fetch)
         return [
             {"entity_id": r[0], "rule_id": r[1], "result": r[2], "executed_at": str(r[3])}
+            for r in rows
+        ]
+
+    # =========================================================================
+    # Feedback & Knowledge Fragments
+    # =========================================================================
+
+    async def save_feedback(self, feedback: FeedbackRecord) -> None:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "INSERT OR REPLACE INTO feedback_records (record_id, entity_id, metric_name, feedback_type, value, previous_weight, updated_weight, source, text_feedback, applied, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    feedback.record_id, feedback.entity_id, feedback.metric_name,
+                    feedback.feedback_type, feedback.value,
+                    feedback.previous_weight, feedback.updated_weight,
+                    feedback.source, feedback.text_feedback,
+                    int(feedback.applied),
+                    feedback.created_at.isoformat() if feedback.created_at else None,
+                ],
+            )
+            self._conn.commit()
+
+    async def get_feedback(
+        self,
+        entity_id: str,
+        metric_name: str | None = None,
+    ) -> list[FeedbackRecord]:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                if metric_name:
+                    cursor = self._conn.execute(
+                        "SELECT record_id, entity_id, metric_name, feedback_type, value, previous_weight, updated_weight, source, text_feedback, applied, created_at FROM feedback_records WHERE entity_id = ? AND metric_name = ? ORDER BY created_at DESC",
+                        [entity_id, metric_name],
+                    )
+                else:
+                    cursor = self._conn.execute(
+                        "SELECT record_id, entity_id, metric_name, feedback_type, value, previous_weight, updated_weight, source, text_feedback, applied, created_at FROM feedback_records WHERE entity_id = ? ORDER BY created_at DESC",
+                        [entity_id],
+                    )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        from datetime import datetime
+        return [
+            FeedbackRecord(
+                record_id=r[0], entity_id=r[1], metric_name=r[2],
+                feedback_type=r[3], value=r[4],
+                previous_weight=r[5], updated_weight=r[6],
+                source=r[7], text_feedback=r[8],
+                applied=bool(r[9]),
+                created_at=datetime.fromisoformat(r[10]) if r[10] else None,
+            )
+            for r in rows
+        ]
+
+    async def save_knowledge_fragment(self, fragment: KnowledgeFragment) -> str:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        if not fragment.id:
+            fragment.id = str(uuid.uuid4())
+        async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "INSERT OR REPLACE INTO knowledge_fragments (id, dataset_id, document_id, chunk_index, offset_start, offset_end, text, vector_id, metadata, extraction_status, content_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    fragment.id, fragment.dataset_id, fragment.document_id,
+                    fragment.chunk_index, fragment.offset_start, fragment.offset_end,
+                    fragment.text, fragment.vector_id,
+                    json.dumps(fragment.metadata) if fragment.metadata else None,
+                    fragment.extraction_status, fragment.content_hash,
+                    fragment.created_at.isoformat() if fragment.created_at else None,
+                    fragment.updated_at.isoformat() if fragment.updated_at else None,
+                ],
+            )
+            self._conn.commit()
+        return fragment.id
+
+    async def get_knowledge_fragment(self, fragment_id: str) -> KnowledgeFragment | None:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> tuple | None:
+                cursor = self._conn.execute(
+                    "SELECT id, dataset_id, document_id, chunk_index, offset_start, offset_end, text, vector_id, metadata, extraction_status, content_hash, created_at, updated_at FROM knowledge_fragments WHERE id = ?",
+                    [fragment_id],
+                )
+                return cursor.fetchone()
+            row = await asyncio.to_thread(_fetch)
+        if row is None:
+            return None
+        from datetime import datetime
+        return KnowledgeFragment(
+            id=row[0], dataset_id=row[1], document_id=row[2],
+            chunk_index=row[3], offset_start=row[4], offset_end=row[5],
+            text=row[6], vector_id=row[7],
+            metadata=json.loads(row[8]) if row[8] else {},
+            extraction_status=row[9], content_hash=row[10],
+            created_at=datetime.fromisoformat(row[11]) if row[11] else None,
+            updated_at=datetime.fromisoformat(row[12]) if row[12] else None,
+        )
+
+    async def list_knowledge_fragments(
+        self,
+        dataset_id: str | None = None,
+        extraction_status: str | None = None,
+    ) -> list[KnowledgeFragment]:
+        self._ensure_initialized()
+        assert self._conn is not None
+        assert self._lock is not None
+        async with self._lock:
+            def _fetch() -> list[tuple]:
+                conditions = []
+                params: list[Any] = []
+                if dataset_id:
+                    conditions.append("dataset_id = ?")
+                    params.append(dataset_id)
+                if extraction_status:
+                    conditions.append("extraction_status = ?")
+                    params.append(extraction_status)
+                where = " WHERE " + " AND ".join(conditions) if conditions else ""
+                cursor = self._conn.execute(
+                    f"SELECT id, dataset_id, document_id, chunk_index, offset_start, offset_end, text, vector_id, metadata, extraction_status, content_hash, created_at, updated_at FROM knowledge_fragments{where} ORDER BY id",
+                    params,
+                )
+                return cursor.fetchall()
+            rows = await asyncio.to_thread(_fetch)
+        from datetime import datetime
+        return [
+            KnowledgeFragment(
+                id=r[0], dataset_id=r[1], document_id=r[2],
+                chunk_index=r[3], offset_start=r[4], offset_end=r[5],
+                text=r[6], vector_id=r[7],
+                metadata=json.loads(r[8]) if r[8] else {},
+                extraction_status=r[9], content_hash=r[10],
+                created_at=datetime.fromisoformat(r[11]) if r[11] else None,
+                updated_at=datetime.fromisoformat(r[12]) if r[12] else None,
+            )
             for r in rows
         ]
 

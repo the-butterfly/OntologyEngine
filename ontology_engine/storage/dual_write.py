@@ -55,6 +55,7 @@ class DualWriteCoordinator:
         self.graph = graph_store
         self.vector = vector_store
         self._sync_failures: list[dict[str, Any]] = []
+        self._compensation_log: list[dict[str, Any]] = []
 
     @property
     def graph_enabled(self) -> bool:
@@ -95,7 +96,7 @@ class DualWriteCoordinator:
             except Exception as e:
                 self._log_sync_failure("upsert_node", entity_id, e)
                 logger.warning(f"Graph sync failed for node {entity_id}: {e}")
-                await self._mark_pending_sync(entity_id)
+                await self._write_compensation("entity", entity_id, "graph_upsert")
 
         # Step 3: Write to VectorStore (eventual consistency)
         if self.vector:
@@ -131,12 +132,136 @@ class DualWriteCoordinator:
 
         return entity_id
 
+    async def write_entity(
+        self,
+        entity: EntityInstance,
+        space_id: str = "default",
+    ) -> str:
+        entity_id = await self.storage.save_entity(entity)
+
+        if self.graph:
+            try:
+                node_props = {**entity.data, "space_id": space_id}
+                await self.graph.upsert_node(
+                    node_id=entity_id,
+                    labels=[entity._fact_object],
+                    properties=node_props,
+                )
+            except Exception as e:
+                self._log_sync_failure("upsert_node", entity_id, e)
+                logger.warning(f"Graph sync failed for node {entity_id}: {e}")
+                await self._write_compensation("entity", entity_id, "graph_upsert")
+
+        if self.vector:
+            try:
+                await self._sync_entity_to_vector(entity)
+            except Exception as e:
+                self._log_sync_failure("vector_upsert", entity_id, e)
+                logger.warning(f"Vector sync failed for entity {entity_id}: {e}")
+                await self._write_compensation("entity", entity_id, "vector_upsert")
+
+        return entity_id
+
+    async def write_relation(
+        self,
+        relation: RelationInstance,
+        space_id: str = "default",
+    ) -> None:
+        await self.storage.save_relation(relation)
+
+        if self.graph:
+            try:
+                edge_id = relation.id or f"{relation.from_entity_id}:{relation.to_entity_id}:{relation.relation_name}"
+                await self.graph.upsert_edge(
+                    edge_id=edge_id,
+                    from_node_id=relation.from_entity_id,
+                    to_node_id=relation.to_entity_id,
+                    edge_type=relation.relation_name,
+                    properties=relation.data or {},
+                )
+            except Exception as e:
+                self._log_sync_failure("upsert_edge", f"{relation.from_entity_id}:{relation.to_entity_id}", e)
+                logger.warning(f"Graph sync failed for edge: {e}")
+                await self._write_compensation("relation", f"{relation.from_entity_id}:{relation.to_entity_id}:{relation.relation_name}", "graph_upsert")
+
+        if self.vector:
+            try:
+                await self._sync_relation_to_vector(relation)
+            except Exception as e:
+                self._log_sync_failure("vector_edge_upsert", f"{relation.from_entity_id}:{relation.to_entity_id}", e)
+                logger.warning(f"Vector sync failed for edge: {e}")
+                await self._write_compensation("relation", f"{relation.from_entity_id}:{relation.to_entity_id}:{relation.relation_name}", "vector_upsert")
+
+    async def delete_entity(self, entity_id: str) -> None:
+        if self.graph:
+            try:
+                await self.graph.delete_node(node_id=entity_id)
+            except Exception as e:
+                self._log_sync_failure("delete_node", entity_id, e)
+                logger.warning(f"Graph delete failed for node {entity_id}: {e}")
+
+        if self.vector:
+            try:
+                await self.vector.delete_vectors([entity_id])
+                await self.vector.delete_vectors([f"{entity_id}:summary"])
+            except Exception as e:
+                self._log_sync_failure("vector_delete", entity_id, e)
+                logger.warning(f"Vector delete failed for entity {entity_id}: {e}")
+
+    async def sync_to_graph(
+        self,
+        entity_id: str,
+        entity: EntityInstance | None = None,
+        space_id: str = "default",
+    ) -> None:
+        if not self.graph:
+            return
+
+        if entity is None:
+            entity = await self.storage.get_entity_by_id(entity_id=entity_id)
+        if entity is None:
+            logger.warning(f"Entity {entity_id} not found for graph sync")
+            return
+
+        try:
+            node_props = {**entity.data, "space_id": space_id}
+            await self.graph.upsert_node(
+                node_id=entity_id,
+                labels=[entity._fact_object],
+                properties=node_props,
+            )
+        except Exception as e:
+            self._log_sync_failure("sync_to_graph", entity_id, e)
+            logger.warning(f"Graph sync failed for node {entity_id}: {e}")
+            await self._write_compensation("entity", entity_id, "graph_upsert")
+
     async def _sync_entity_to_vector(self, entity: EntityInstance) -> None:
         """Sync entity data to VectorStore collections.
 
         Writes to entity_name and entity_summary collections.
+        Handles KnowledgeFragment entities specially.
         """
         if self.vector is None:
+            return
+
+        if entity._fact_object == "KnowledgeFragment":
+            text = entity.data.get("text", "")
+            if not text:
+                return
+            metadata_base = {
+                "_fact_object": entity._fact_object,
+                "entity_id": entity.entity_id,
+                "dataset_id": entity.data.get("dataset_id", ""),
+                "document_id": entity.data.get("document_id", ""),
+                "extraction_status": entity.data.get("extraction_status", "pending"),
+            }
+            if hasattr(self.vector, "upsert_to_collection"):
+                await self.vector.upsert_to_collection(
+                    collection_name="knowledge_fragment",
+                    ids=[entity.entity_id],
+                    documents=[text],
+                    metadatas=[metadata_base],
+                )
             return
 
         name = entity.data.get("name", entity.entity_id)
@@ -186,6 +311,9 @@ class DualWriteCoordinator:
             "relation_name": rel.relation_name,
             "confidence": rel.data.get("confidence", 1.0),
         }
+
+        if rel.relation_name in ("EXTRACTED_FROM", "SUPPORTED_BY", "DEFINED_IN", "TRACE_TO"):
+            metadata_base["edge_category"] = "mutual_index"
 
         if hasattr(self.vector, "upsert_to_collection"):
             await self.vector.upsert_to_collection(
@@ -289,11 +417,21 @@ class DualWriteCoordinator:
             "vectors_written": vectors_written,
         }
 
-    async def _mark_pending_sync(self, entity_id: str) -> None:
-        """Mark entity as pending graph sync for background reconciliation."""
-        logger.info(f"Entity {entity_id} marked as pending graph sync")
-        # TODO: In production, update entity in MetaStore with sync_pending flag
-        # e.g., await self.storage.update_entity_sync_status(entity_id, "pending")
+    async def _write_compensation(
+        self,
+        target_type: str,
+        target_id: str,
+        operation: str,
+    ) -> None:
+        self._compensation_log.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "target_type": target_type,
+            "target_id": target_id,
+            "operation": operation,
+            "status": "pending",
+            "retry_count": 0,
+        })
+        logger.info(f"Compensation record written: {target_type} {target_id} {operation}")
 
     def get_sync_failures(self) -> list[dict[str, Any]]:
         """Get list of sync failures for debugging."""
