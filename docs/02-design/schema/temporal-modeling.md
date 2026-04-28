@@ -287,6 +287,6 @@ query_entity(id, include_history=true)
 | 主题 | 文档位置 |
 |------|----------|
 | 核心概念（单一事实源） | [01-overview/05-concepts.md](../../01-overview/05-concepts.md) |
-| Schema v2 完整规范 | `docs/05-schema-v2/09-canonical-schema-spec.md` |
+| Schema v2 完整规范 | `docs/02-design/schema/01-schema-spec.md` |
 | 查询路由设计 | [01-overview/08-knowledge-retrieval.md](../../01-overview/08-knowledge-retrieval.md) |
 | 参考项目对齐分析 | [02-design/schema/reference-alignment.md](./reference-alignment.md) |

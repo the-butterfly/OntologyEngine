@@ -94,7 +94,10 @@ class TestSQLiteStorage:
         await storage.save_category_tags("SUP_001", {"risk_level": "LOW"})
 
         assert await storage.get_metric("SUP_001", "credit_score") == 88
-        assert await storage.get_category_tags("SUP_001") == {"risk_level": "LOW"}
+        tags = await storage.get_category_tags("SUP_001")
+        assert len(tags) == 1
+        assert tags[0].dimension_name == "risk_level"
+        assert tags[0].value_code == "LOW"
 
     @pytest.mark.asyncio
     async def test_rule_execution_log_accepts_multiple_rows(self, storage: SQLiteStorage) -> None:

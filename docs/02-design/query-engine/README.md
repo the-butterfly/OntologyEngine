@@ -1,6 +1,6 @@
 # 查询引擎设计
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/01-overview/08-knowledge-retrieval.md` | **last_verified**: 2026-04-19
+> **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/01-overview/08-knowledge-retrieval.md` | **last_verified**: 2026-04-19 | **[待核对代码]**
 
 ## 目的
 
