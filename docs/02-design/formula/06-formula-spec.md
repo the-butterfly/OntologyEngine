@@ -411,7 +411,7 @@ result = engine.evaluate(
 
 ### 目标设计 (Target) **[待扩展]**
 
-两级执行模型（L0/L1），详见 `docs/06-module-detailed-design/07-expression-engine.md`：
+两级执行模型（L0/L1），详见 `docs/02-design/formula/l0-l1-execution.md`：
 
 - L0: SimpleEvalExecutor — 简单表达式快速执行
 - L1: ASTSandboxExecutor — 复杂控制流 AST 沙箱执行 **[待扩展]**

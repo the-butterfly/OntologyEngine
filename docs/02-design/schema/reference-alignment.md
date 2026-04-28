@@ -197,5 +197,5 @@ MemPalace 在时态窗口、软删除、分层记忆和轻量级存储架构方�
 |------|----------|
 | 核心概念（单一事实源） | [01-overview/05-concepts.md](../../01-overview/05-concepts.md) |
 | 时序建模 Grammar | [02-design/schema/temporal-modeling.md](./temporal-modeling.md) |
-| Schema v2 完整规范 | `docs/05-schema-v2/09-canonical-schema-spec.md` |
+| Schema v2 完整规范 | `docs/02-design/schema/01-schema-spec.md` |
 | 当前态 Schema 规范 | [02-design/schema/01-schema-spec.md](./01-schema-spec.md) |

@@ -1,6 +1,6 @@
 # 项目目标
 
-> **status**: proposed | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
 > **[关键设计点]**: 本文档定义 OntologyEngine 的阶段性目标，是项目阶段判断的唯一入口
 
 ---
@@ -34,7 +34,7 @@ OntologyEngine 的解法：**三层资产链接 + Layer-R/S 双层认知架构 +
 | **通用 NLP 平台** | 专注结构化知识推理，不做通用文本理解 |
 | **替代数据仓库** | 不做 OLAP，专注实时规则推理 |
 | **通用文档检索** | RAG 广度层由外部系统提供，OntologyEngine 专注深度推理层 |
-| **Agent 会话记忆** | Memory 连续性层由外部 Agent 框架提供，OntologyEngine 提供知识接口 |
+| **Agent 会话记忆** | Phase 2 规划：区分"会话记忆（外部 Agent 框架提供）"与"知识记忆（OntologyEngine Phase 2 实现，详见 09-agent-memory.md）" |
 | **拖拽式规则设计器** | Phase 2 前无可视化编排 |
 | **多租户 SaaS** | Phase 3 前不考虑租户隔离 |
 | **通用图计算引擎** | 专注业务规则推理，不做通用图分析 |

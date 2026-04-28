@@ -554,9 +554,9 @@ ontology-engine-ui/src/
 | [RFC-010](./RFC-010-phase2-roadmap.md) | Phase 2 整体路线 |
 | [RFC-011](./RFC-011-rule-executor-dag.md) | RuleExecutor DAG 执行引擎 |
 | [RFC-012](./RFC-012-kuzu-storage.md) | kuzu 图存储升级 |
-| `docs/06-module-detailed-design/06-rule-engine.md` | 现有规则引擎设计（本计划扩展基础） |
-| `docs/06-module-detailed-design/04-metric-engine.md` | 指标引擎（DAG 模块扩展依据） |
-| `docs/05-schema-v2/09-canonical-schema-spec.md` | YAML 规范（导入/导出合规基准） |
+| `docs/02-design/rule-engine/dag-execution.md` | 现有规则引擎设计（本计划扩展基础） |
+| `docs/02-design/schema/01-schema-spec.md` | 指标引擎（DAG 模块扩展依据） |
+| `docs/02-design/schema/01-schema-spec.md` | YAML 规范（导入/导出合规基准） |
 
 ---
 

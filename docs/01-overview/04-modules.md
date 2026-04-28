@@ -119,7 +119,7 @@ OntologyEngine 在 AI Agent 上下文栈中占据**深度层**，与广度层（
 - `local/` 只实现接口，不依赖上层
 - 三类资产的链接关系在存储层统一管理
 - **废弃**：~~DuckDBStorage~~（分析引擎不适合高频写入，改为 SQLite + KuzuDB）
-- **废弃**：~~NetworkXGraph~~（内存图，无持久化，改为 KuzuDB）
+- **回退保留**：~~NetworkXGraph~~（作为 KuzuDB 不可用时的回退实现保留）
 
 ### 引擎层 (L2)
 

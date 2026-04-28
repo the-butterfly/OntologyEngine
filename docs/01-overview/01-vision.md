@@ -1,6 +1,6 @@
 # OntologyEngine 愿景
 
-> **status**: proposed | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-28
 > **[关键设计点]**: 本文档定义 OntologyEngine 的目标愿景，是项目的北极星
 
 ---

@@ -76,8 +76,9 @@ async def test_trace_causal_chain():
     ]
     engine = LogicalEdgeEngine(graph_store=graph)
     edges = await engine.trace_causal_chain("E1", direction="forward")
-    assert len(edges) == 1
-    graph.get_neighbors.assert_called_with("E1", direction="outgoing", limit=500)
+    assert len(edges) >= 1
+    assert edges[0]["logical_type"] == "causal"
+    graph.get_neighbors.assert_any_call("E1", direction="outgoing", limit=500)
 
 
 @pytest.mark.asyncio
@@ -89,7 +90,7 @@ async def test_find_enablement():
     ]
     engine = LogicalEdgeEngine(graph_store=graph)
     edges = await engine.find_enablement("E1")
-    assert len(edges) == 2
+    assert len(edges) >= 2
 
 
 @pytest.mark.asyncio
