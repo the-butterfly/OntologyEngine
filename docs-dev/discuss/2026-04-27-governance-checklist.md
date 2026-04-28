@@ -73,7 +73,7 @@
 | C-02 | RelationInstance 缺 id/edge_text/weight/valid_from/valid_to/confidence/source_* | storage/base.py | 补全字段 | 与 instance-layer.md 一致 |
 | C-03 | 无独立 MetricValue 数据类 | storage/base.py | 新增 MetricValue dataclass | 与 instance-layer.md 一致 |
 | C-04 | 无独立 KnowledgeFragment 数据类 | storage/base.py | 新增 KnowledgeFragment dataclass | 与 instance-layer.md 一致 |
-| C-05 | CategoryTags 结构偏差（dict vs 独立记录） | engine/categorization/models.py | 重构为独立记录模型 | 与 instance-layer.md 一致 |
+| C-05 | CategoryTags 结构偏差（dict vs 独立记录） | engine/categorization/models.py | 重构为独立记录模型 | 与 instance-layer.md 一致 | **部分完成**：storage 层已实现 CategoryTag 独立记录，engine/categorization 层待对齐 |
 
 ### 2.2 Schema 声明层模型对齐
 
@@ -94,7 +94,7 @@
 | C-13 | temporal 声明缺失 | core/schema/models.py | FactObjectEntity 增加 temporal: bool | Schema YAML 可声明时序实体 |
 | C-14 | identity_fields 声明缺失 | core/schema/models.py | FactObjectEntity 增加 identity_fields | Schema YAML 可声明唯一性字段 |
 | C-15 | UUID5 确定性 ID 未在 InstanceLoader 中使用 | core/instances/loader.py | 基于 identity_fields 生成 UUID5 | 幂等写入验证 |
-| C-16 | overrides 声明和覆盖优先级逻辑缺失 | core/schema/models.py + engine/rule/ | 补全 overrides 字段 + 覆盖逻辑 | What-if 模拟验证 |
+| C-16 | overrides 声明和覆盖优先级逻辑缺失 | core/schema/models.py + engine/rule/ | 补全 overrides 字段 + 覆盖逻辑 | What-if 模拟验证 | **拆分为 C-16a/C-16b**：C-16a 声明层已完成（C-11），C-16b 执行层覆盖逻辑待实现 |
 | C-17 | 声明约束未在实例层强制执行 | core/instances/loader.py | 增加属性合规校验 | 非法属性被拒绝 |
 
 ---
@@ -177,6 +177,42 @@
 | T-08 | services/SpaceService 测试 | 空间服务 | 新增测试 |
 | T-09 | 样例 case1 端到端验证 | consumer_credit | API/MCP/CLI 跑通 |
 | T-10 | 样例 case3 端到端验证 | tax_simulation | API/MCP/CLI 跑通 |
+
+---
+
+## 2026-04-28 修复进度
+
+### 已完成修复项
+
+| 优先级 | ID | 修复内容 | 影响文件 |
+|--------|-----|---------|---------|
+| P0 | P0-2 | dag_executor.py PSM async 调用缺 await + create_run 签名不匹配 | engine/rule/dag_executor.py |
+| P0 | P0-3 | ontology.py/actions.py EntityService 方法名不匹配 + 边界违规 | api/routes/ontology.py, api/routes/actions.py |
+| P1 | P1-1 | feedback_weight 默认值 1.0→0.5 | storage/base.py, storage/sqlite/store.py |
+| P1 | P1-2 | SQLite entities 表缺 created_at/updated_at + computed_metrics 缺字段 | storage/sqlite/store.py |
+| P1 | P1-3 | query_entities 返回部分 EntityInstance | storage/sqlite/store.py |
+| P1 | P1-4 | 添加 delete_entity 方法到 StorageBackend + SQLite 实现 | storage/base.py, storage/sqlite/store.py |
+| P1 | P1-5 | KuzuDB Cypher 注入 + KnowledgeFragment 缺字段 | storage/graph/kuzu_store.py, storage/retrieval.py |
+| P1 | P1-6 | retrieval.py hybrid_search 错误的向量检索 + 元数据获取 | storage/retrieval.py |
+| P1 | P1-7 | entity_service.py atomic 参数无效 + pipeline_state fail_step + 步骤持久化 | services/entity_service.py, engine/rule/pipeline_state.py |
+| P2 | P2-1 | API 层边界违规 (categories 消除 get_storage 直接调用) | api/routes/categories.py, services/category_service.py, api/dependencies.py, api/server.py |
+| P2 | P2-2 | logical_edges max_depth 未使用 + query_service filters mutation + 返回类型不一致 | engine/rule/logical_edges.py, services/query_service.py |
+| P2 | P2-3 | 更新 5 份严重偏离的设计文档标注 [待核对代码] | docs/02-design/ 下 5 份文档 |
+| P2 | P2-4 | 更新 STATUS.md + governance-checklist 进度 | docs/STATUS.md, docs-dev/discuss/2026-04-27-governance-checklist.md |
+
+### 测试验证
+
+- pytest: 648 passed, 5 failed (5 个失败为预存在的 simulation_tree_builder 问题，非本次修改引起)
+- ruff: 通过（仅预存在的 lint 警告）
+
+### 待后续处理
+
+| 项目 | 说明 |
+|------|------|
+| simulation_tree_builder.py | 5 个预存在的测试失败，RuleGroupDefinition.get() AttributeError |
+| 语义缓存 save_semantic_cache | C-30 仍未实现 |
+| CategorizationEngine._compile_to_l4_rules | C-31 仍未实现 |
+| Phase 8 测试补全 | T-01~T-10 仍未执行 |
 | T-11 | 样例 supply_chain 端到端验证 | supply_chain_finance | API/MCP/CLI 跑通 |
 
 ---

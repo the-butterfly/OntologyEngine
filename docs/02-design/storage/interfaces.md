@@ -1,6 +1,6 @@
 # 存储接口升级规范
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/02-design/storage/README.md` | **last_verified**: 2026-04-19
+> **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/02-design/storage/README.md` | **last_verified**: 2026-04-28 | **[部分已核对]**: 异步策略已实施（KuzuGraphStore 已异步化），CategoryTag 接口已更新
 
 ---
 

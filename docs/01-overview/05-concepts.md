@@ -2,7 +2,7 @@
 
 > **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档（术语定义） | **last_verified**: 2026-04-19
 > **[关键设计点]**: 本文档基于 Schema v2 四层架构定义核心术语，作为项目唯一术语规范入口
-> **[单一事实源]**: 术语定义与 Schema v2 规范保持一致，详见 `docs/05-schema-v2/09-canonical-schema-spec.md`
+> **[单一事实源]**: 术语定义与 Schema v2 规范保持一致，详见 `docs/02-design/schema/01-schema-spec.md`
 
 ## 术语对照表
 
@@ -504,7 +504,7 @@ categorization:
 rule_logic:
   rule_id: "R001_risk_grade"
   computation:
-    operator: "SWITCH"
+    operator: "switch"
     cases:
       - condition: "value >= 85"
         output: { "risk_grade": "A" }
@@ -651,7 +651,7 @@ rule_definition:
   when:
     expression: "credit_score != null AND debt_ratio != null"
   then:
-    operator: "SWITCH"
+    operator: "switch"
     cases:
       - condition: "credit_score >= 85 AND debt_ratio < 0.3"
         output: { "risk_grade": "A" }
@@ -738,7 +738,7 @@ rule_node:
   
   # 规则表达式（结构化配置+表达式，非严格 DSL）
   expression:
-    operator: "SWITCH"
+    operator: "switch"
     cases:
       - condition: "credit_score >= 85 AND debt_ratio < 0.3"
         output: { "risk_grade": "A" }
@@ -782,7 +782,7 @@ RuleDefinition[rule_001] ──[evidence_from]──▶ KnowledgeFragment[doc_00
 | Schema完整规范 | `docs/02-design/schema/01-canonical-schema-spec.md` |
 | 四层架构设计 | `docs/02-design/schema/L1-L4-declarations.md` |
 | 规则引擎设计 | `docs/02-design/rule-engine/README.md` |
-| 存储设计 | `docs/storage/README.md` |
+| 存储设计 | `docs/02-design/storage/README.md` |
 | 知识检索设计 | `docs/01-overview/08-knowledge-retrieval.md` |
 | 上下文栈参考 | [AI Memory vs RAG vs Knowledge Graph (Atlan 2026)](https://atlan.com/know/ai-memory-vs-rag-vs-knowledge-graph/) |
 | Agent Memory 架构 | [The Agent Memory Race of 2026 (OSSInsight)](https://ossinsight.io/blog/agent-memory-race-2026) |
