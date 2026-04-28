@@ -95,6 +95,12 @@ class InstanceLoader:
                     data["_fact_object"] = concept
                     entity_index[entity_id] = concept
 
+                    validation_errors = self._validate_entity_against_schema(concept, data)
+                    if validation_errors:
+                        raise InstanceValidationError(
+                            f"Entity {entity_id} ({concept}): {'; '.join(validation_errors)}"
+                        )
+
                     entities.append(EntityInstance(
                         _fact_object=concept,
                         entity_id=entity_id,
@@ -109,6 +115,13 @@ class InstanceLoader:
                 if entity_id:
                     data["_fact_object"] = concept
                     entity_index[entity_id] = concept
+
+                    validation_errors = self._validate_entity_against_schema(concept, data)
+                    if validation_errors:
+                        raise InstanceValidationError(
+                            f"Entity {entity_id} ({concept}): {'; '.join(validation_errors)}"
+                        )
+
                     entities.append(EntityInstance(
                         _fact_object=concept,
                         entity_id=entity_id,
@@ -126,7 +139,28 @@ class InstanceLoader:
                 relations.append(br)
                 existing.add(key)
 
+        self._validate_relations(relations, entity_index)
+
         return entities, relations
+
+    def _validate_relations(
+        self,
+        relations: list[RelationInstance],
+        entity_index: dict[str, str],
+    ) -> None:
+        for r in relations:
+            if r.from_entity_id == r.to_entity_id:
+                raise InstanceValidationError(
+                    f"Self-loop detected: {r.relation_name} from {r.from_entity_id} to itself"
+                )
+            if r.from_entity_id not in entity_index:
+                raise InstanceValidationError(
+                    f"Relation {r.relation_name}: from_entity_id '{r.from_entity_id}' not found in loaded entities"
+                )
+            if r.to_entity_id not in entity_index:
+                raise InstanceValidationError(
+                    f"Relation {r.relation_name}: to_entity_id '{r.to_entity_id}' not found in loaded entities"
+                )
 
     def _extract_relations(
         self,

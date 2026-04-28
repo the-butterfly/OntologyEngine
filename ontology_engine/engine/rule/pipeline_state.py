@@ -291,6 +291,7 @@ class PipelineStateManager:
         snapshot.status = StepStatus.RUNNING
         snapshot.started_at = _utc_now()
         snapshot.input_snapshot = input_snapshot
+        self._persist_step(snapshot)
 
     async def complete_step(
         self,
@@ -318,6 +319,7 @@ class PipelineStateManager:
         snapshot.completed_at = _utc_now()
         snapshot.condition_met = condition_met
         snapshot.output_snapshot = output_snapshot
+        self._persist_step(snapshot)
 
     async def skip_step(self, snapshot_id: str, reason: str) -> None:
         """Mark a step as SKIPPED.
@@ -338,6 +340,28 @@ class PipelineStateManager:
         snapshot.status = StepStatus.SKIPPED
         snapshot.completed_at = _utc_now()
         snapshot.skip_reason = reason
+        self._persist_step(snapshot)
+
+    async def fail_step(self, snapshot_id: str, error: str) -> None:
+        """Mark a step as FAILED with an error message.
+
+        Args:
+            snapshot_id: The ID of the step snapshot to fail
+            error: Error message describing the failure
+
+        Raises:
+            KeyError: If snapshot_id not found
+            ValueError: If step is not in RUNNING status
+        """
+        snapshot = self._find_step_snapshot(snapshot_id)
+        if snapshot is None:
+            raise KeyError(f"Step snapshot {snapshot_id} not found")
+        if snapshot.status != StepStatus.RUNNING:
+            raise ValueError(f"Cannot fail step in status {snapshot.status.value}, expected RUNNING")
+        snapshot.status = StepStatus.FAILED
+        snapshot.completed_at = _utc_now()
+        snapshot.error_message = error
+        self._persist_step(snapshot)
 
     async def rollback_step(self, snapshot_id: str) -> None:
         """Mark a step as ROLLED_BACK.
@@ -356,6 +380,7 @@ class PipelineStateManager:
             raise ValueError(f"Cannot rollback step in status {snapshot.status.value}, expected COMPLETED or FAILED")
         snapshot.status = StepStatus.ROLLED_BACK
         snapshot.completed_at = _utc_now()
+        self._persist_step(snapshot)
 
     # =============================================================================
     # Query Methods

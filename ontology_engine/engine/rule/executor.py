@@ -1,5 +1,8 @@
 """Rule executor for KGML rules."""
 from __future__ import annotations
+
+from typing import Any
+
 from ontology_engine.core.schema.models import KGMLSchema, RuleDefinition
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
