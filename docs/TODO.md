@@ -1,7 +1,7 @@
 # 实施 Backlog
 
 > **作用**: `docs/` 下唯一开放事项列表
-> **最后更新**: 2026-04-19
+> **最后更新**: 2026-04-29
 > **说明**: 本文件只保留进行中 / 未完成事项；文档状态看 [`STATUS.md`](./STATUS.md)，阶段路线看 [`ROADMAP.md`](./ROADMAP.md)
 
 ## Now
@@ -9,6 +9,8 @@
 | 优先级 | 事项                                    | 关联文档                                            | 备注                                                |
 | --- | ------------------------------------- | ----------------------------------------------- | ------------------------------------------------- |
 | P0  | 修复跨模块一致性严重问题 S-1\~S-5                 | `docs-dev/review-reports/consistency-report.md` | TRACE\_TO 源端类型、DEFINED\_IN 源端、API 旧术语、时序查询参数、时序边表 |
+| P0  | 规则模型双分离实施                              | `docs-dev/03-rfc/RFC-018-rule-model-dual-separation.md` | RFC-018 draft，待评审后实施 |
+| P0  | Step.action 结构化实施                         | `docs-dev/03-rfc/RFC-019-step-action-structization.md` | RFC-019 draft，待 P0-3 完成后实施 |
 | P1  | 按 Schema v2 设计实现代码                    | `02-design/schema/`                             | Instance 层 + 互索引边 + 时序建模                          |
 | P1  | 按 Storage 设计实现 KuzuDB+ChromaDB+SQLite | `02-design/storage/`                            | 三引擎迁移                                             |
 | P1  | 按 Rule Engine 设计实现 DAG 执行             | `02-design/rule-engine/`                        | DAGBuilder + 并行执行 + 回滚                            |

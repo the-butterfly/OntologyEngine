@@ -1,7 +1,7 @@
 # 文档状态总表
 
 > **作用**: `docs/` 下唯一状态页
-> **最后更新**: 2026-04-28
+> **最后更新**: 2026-04-29
 > **使用规则**: 判断文档是否可信、是否过期、是否仍是当前入口时，以本页为准
 
 ## 状态说明
@@ -62,7 +62,7 @@
 
 | 主题 | 标注 | 现状 | 处理入口 |
 |------|------|------|----------|
-| 跨模块一致性 | **[关键设计点]** | ⚠️ 5 个严重问题待修复 | `docs-dev/review-reports/consistency-report.md` |
+| 跨模块一致性 | **[关键设计点]** | ⚠️ 5 个严重问题待修复；C-05 CategoryTag 对齐已完成 | `docs-dev/review-reports/consistency-report.md` |
 | Schema v2 grammar 与 overview 对齐 | **[关键设计点]** | ✅ 审视重写完成 | `02-design/schema/` |
 | Rule Engine DAG | **[关键设计点]** | ✅ 实现完成 | `02-design/rule-engine/` |
 | Query Engine | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/query-engine/` |
@@ -70,6 +70,9 @@
 | API 路由统一 | **[关键设计点]** | ✅ 设计完成，待实现 | `02-design/api/` |
 | Simulation Embeddable UI | **[已完成]** | ✅ 实现完成 | `docs/plans/2026-04-21-simulation-embeddable-ui.md` |
 | Agent 记忆系统 | **[关键设计点]** | ✅ 概念+设计文档完成 | `02-design/agent-memory/` |
+| 规则模型双分离 | **[关键设计点]** | 📝 RFC-018 draft | `docs-dev/03-rfc/RFC-018-rule-model-dual-separation.md` |
+| Step.action 结构化 | **[关键设计点]** | 📝 RFC-019 draft | `docs-dev/03-rfc/RFC-019-step-action-structization.md` |
+| Overrides 逻辑统一 | **[已完成]** | ✅ C-16b 已修复 | `docs-dev/discuss/2026-04-29-review-followup-decisions.md` |
 
 ## 更新要求
 
