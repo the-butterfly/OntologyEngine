@@ -537,6 +537,331 @@ class BusinessLogic(BaseModel):
     rule_logics: list[RuleLogic] = Field(default_factory=list)
 
 
+# ============== L4 V3 Models (RFC-018 / RFC-019) ==============
+
+
+from enum import Enum
+
+
+class ActionType(str, Enum):
+    SET_FLAG = "set_flag"
+    COMPUTE = "compute"
+    REJECT = "reject"
+    EMIT_ALERT = "emit_alert"
+    ASSIGN_CATEGORY = "assign_category"
+
+
+class OperatorType(str, Enum):
+    GRAPH = "GRAPH"
+    BINNING = "BINNING"
+    SWITCH = "SWITCH"
+    SCORECARD = "SCORECARD"
+    WEIGHTED_SUM = "WEIGHTED_SUM"
+    FORMULA = "FORMULA"
+
+
+class StepAction(BaseModel):
+    """Structured action within a step (RFC-019).
+
+    Aligned with L4 grammar steps[].action:
+      type: set_flag | compute | reject | emit_alert | assign_category
+    Each type has dedicated fields; unused fields should be None.
+    """
+    type: ActionType
+
+    flag: str | None = None
+    value: Any = None
+
+    output: str | None = None
+    operator: OperatorType | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    formula: str | None = None
+
+    query: dict[str, Any] | None = None
+    aggregation: list[dict[str, Any]] | None = None
+    bins: list[dict[str, Any]] | None = None
+    branches: list[dict[str, Any]] | None = None
+    variables: list[dict[str, Any]] | None = None
+
+    reason: str | None = None
+    severity: str | None = None
+
+    category: str | None = None
+
+    output_mapping: dict[str, str] = Field(default_factory=dict)
+
+
+class StepCondition(BaseModel):
+    """Structured condition within a step.
+
+    Aligned with L4 grammar steps[].condition:
+      expression | and | or | not
+    """
+    expression: str | None = None
+    and_: list[str] | None = Field(default=None, alias="and")
+    or_: list[str] | None = Field(default=None, alias="or")
+    not_: str | None = Field(default=None, alias="not")
+
+
+class AppliesToDecl(BaseModel):
+    """Rule applies_to declaration (RFC-018).
+
+    Aligned with L4 grammar rule_definitions[].applies_to:
+      fact_objects: entity type name list; empty = GLOBAL
+      categories: dimension → value_codes filter
+    """
+    fact_objects: list[str] = Field(default_factory=list)
+    categories: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class PreconditionDecl(BaseModel):
+    """Rule precondition declaration (RFC-018).
+
+    Aligned with L4 grammar rule_definitions[].preconditions[].
+    """
+    expression: str
+    reject: bool | None = None
+    reason: str | None = None
+    action: str | None = None
+
+
+class IOElementDecl(BaseModel):
+    """Rule input/output element declaration (RFC-018).
+
+    Aligned with L4 grammar rule_definitions[].inputs[] / outputs[].
+    Reference priority: metric > attribute > rule_output.
+    """
+    name: str
+    type: str = "string"
+    metric: str | None = None
+    attribute: str | None = None
+    rule_output: str | None = None
+    description: str | None = None
+
+
+class ApplicabilityDecl(BaseModel):
+    """Rule applicability six-dimension declaration (RFC-018).
+
+    Aligned with L4 grammar rule_definitions[].applicability.
+    Follows m_flow ContextPack model.
+    """
+    when_text: str | None = None
+    why_text: str | None = None
+    boundary_text: str | None = None
+    outcome_text: str | None = None
+    prereq_text: str | None = None
+    exception_text: str | None = None
+
+
+class StepDeclaration(BaseModel):
+    """Step declaration within a rule logic (RFC-018 / RFC-019).
+
+    Aligned with L4 grammar rule_logics[].steps[].
+    Uses structured StepAction and StepCondition.
+    """
+    id: str
+    name: str | None = None
+    description: str | None = None
+    priority: int = 100
+    depends_on: list[str] = Field(default_factory=list)
+
+    condition: StepCondition | None = None
+    action: StepAction | None = None
+    else_action: StepAction | None = None
+
+    enabled: bool = True
+
+
+class RuleDefinitionDeclaration(BaseModel):
+    """Rule definition declaration (RFC-018).
+
+    Aligned with L4 grammar rule_definitions[].
+    Declares WHAT the rule operates on: scope, inputs, outputs.
+    One definition can be associated with multiple RuleLogicDeclaration.
+    """
+    name: str
+    description: str | None = None
+    type: str = "constraint"
+    priority: int = 100
+
+    applies_to: AppliesToDecl = Field(default_factory=AppliesToDecl)
+    preconditions: list[PreconditionDecl] = Field(default_factory=list)
+    inputs: list[IOElementDecl] = Field(default_factory=list)
+    outputs: list[IOElementDecl] = Field(default_factory=list)
+
+    overrides: str | None = None
+    applicability: ApplicabilityDecl | None = None
+
+    enabled: bool = True
+
+    @classmethod
+    def from_v2(cls, v2: RuleDefinitionV2) -> "RuleDefinitionDeclaration":
+        """Create from RuleDefinitionV2 (schema layer V2 model)."""
+        applies_to = AppliesToDecl()
+        if isinstance(v2.applies_to, list):
+            applies_to = AppliesToDecl(fact_objects=v2.applies_to)
+        elif isinstance(v2.applies_to, dict):
+            applies_to = AppliesToDecl(
+                fact_objects=v2.applies_to.get("fact_objects", []),
+                categories=v2.applies_to.get("categories", {}),
+            )
+
+        preconditions = []
+        for p in v2.preconditions:
+            if isinstance(p, PreconditionDecl):
+                preconditions.append(p)
+            elif isinstance(p, dict):
+                preconditions.append(PreconditionDecl(
+                    expression=p.get("expression", ""),
+                    reject=p.get("reject"),
+                    reason=p.get("reason"),
+                    action=p.get("action"),
+                ))
+
+        inputs = []
+        for i in v2.inputs:
+            if isinstance(i, dict):
+                inputs.append(IOElementDecl(
+                    name=i.get("name", i.get("id", "")),
+                    type=i.get("type", "string"),
+                    metric=i.get("metric"),
+                    attribute=i.get("attribute"),
+                    rule_output=i.get("rule_output"),
+                    description=i.get("description"),
+                ))
+            elif isinstance(i, IOElementDecl):
+                inputs.append(i)
+
+        outputs = []
+        for o in v2.outputs:
+            if isinstance(o, dict):
+                outputs.append(IOElementDecl(
+                    name=o.get("name", o.get("id", "")),
+                    type=o.get("type", "string"),
+                    metric=o.get("metric"),
+                    attribute=o.get("attribute"),
+                    rule_output=o.get("rule_output"),
+                    description=o.get("description"),
+                ))
+            elif isinstance(o, IOElementDecl):
+                outputs.append(o)
+
+        applicability = None
+        if v2.applicability:
+            applicability = ApplicabilityDecl(**v2.applicability)
+
+        return cls(
+            name=v2.name or v2.id,
+            description=v2.description,
+            type=v2.rule_type,
+            priority=v2.priority,
+            applies_to=applies_to,
+            preconditions=preconditions,
+            inputs=inputs,
+            outputs=outputs,
+            overrides=",".join(v2.overrides) if v2.overrides else None,
+            applicability=applicability,
+            enabled=v2.enabled,
+        )
+
+
+class RuleLogicDeclaration(BaseModel):
+    """Rule logic declaration (RFC-018).
+
+    Aligned with L4 grammar rule_logics[].
+    Declares HOW the rule is executed: steps with DAG dependencies.
+    definition_ref references a RuleDefinitionDeclaration.name.
+    """
+    name: str
+    description: str | None = None
+    type: str = "decision_table"
+    steps: list[StepDeclaration] = Field(default_factory=list)
+
+    definition_ref: str = ""
+    enabled: bool = True
+
+    @classmethod
+    def from_legacy_logic(cls, logic: RuleLogic) -> "RuleLogicDeclaration":
+        """Create from RuleLogic (schema layer V2 model)."""
+        steps = []
+        for s in logic.steps:
+            condition = None
+            if s.condition:
+                condition = StepCondition(
+                    expression=s.condition.expression,
+                    **{"and": s.condition.allOf} if s.condition.allOf else {},
+                    **{"or": s.condition.anyOf} if s.condition.anyOf else {},
+                )
+
+            action = None
+            if s.action or s.operator:
+                action_type = _infer_action_type(s.action or s.operator, s.computation)
+                operator = None
+                if s.operator and s.operator in [e.value for e in OperatorType]:
+                    operator = OperatorType(s.operator)
+                action = StepAction(
+                    type=action_type,
+                    output=s.output_field,
+                    operator=operator,
+                    formula=s.computation.get("formula") if s.computation else None,
+                    params=s.computation.get("params", {}) if s.computation else {},
+                )
+
+            steps.append(StepDeclaration(
+                id=s.id,
+                name=s.name,
+                description=s.description,
+                priority=s.priority,
+                depends_on=s.depends_on,
+                condition=condition,
+                action=action,
+                enabled=s.enabled,
+            ))
+
+        return cls(
+            name=logic.name or logic.id,
+            description=logic.description if hasattr(logic, "description") else None,
+            type=logic.type or "decision_table",
+            steps=steps,
+            definition_ref=logic.definition_id,
+            enabled=True,
+        )
+
+
+def _infer_action_type(action_str: str | None, computation: dict | None = None) -> ActionType:
+    """Infer ActionType from legacy action string."""
+    if not action_str:
+        return ActionType.COMPUTE
+    lower = action_str.lower()
+    if lower in ("set_flag", "approve_eligibility", "reject_eligibility"):
+        return ActionType.SET_FLAG
+    elif lower in ("reject",):
+        return ActionType.REJECT
+    elif lower in ("trigger_alert", "alert"):
+        return ActionType.EMIT_ALERT
+    elif lower in ("assign_category",):
+        return ActionType.ASSIGN_CATEGORY
+    else:
+        return ActionType.COMPUTE
+
+
+class BusinessLogicV3(BaseModel):
+    """L4 Business Logic container (V3, RFC-018).
+
+    Uses RuleDefinitionDeclaration + RuleLogicDeclaration
+    aligned with L4 grammar rule_definitions + rule_logics.
+    """
+    rule_definitions: list[RuleDefinitionDeclaration] = Field(default_factory=list)
+    rule_logics: list[RuleLogicDeclaration] = Field(default_factory=list)
+
+    @classmethod
+    def from_business_logic(cls, bl: BusinessLogic) -> "BusinessLogicV3":
+        """Create from BusinessLogic (V2 container)."""
+        rule_definitions = [RuleDefinitionDeclaration.from_v2(rd) for rd in bl.rule_definitions]
+        rule_logics = [RuleLogicDeclaration.from_legacy_logic(rl) for rl in bl.rule_logics]
+        return cls(rule_definitions=rule_definitions, rule_logics=rule_logics)
+
+
 # ============== KGML Schema (Complete) ==============
 
 

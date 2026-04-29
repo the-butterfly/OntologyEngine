@@ -82,8 +82,13 @@ class RuleTreeBuilder:
         layers = []
         current_outputs = {target_output}
         visited_groups = set()
+        max_iterations = 100
 
+        iteration = 0
         while current_outputs:
+            iteration += 1
+            if iteration > max_iterations:
+                break
             next_groups = []
             for output_name in current_outputs:
                 groups = await self._locate_by_output(output_name, schema_id)
@@ -192,7 +197,6 @@ class RuleTreeBuilder:
             group_name = group.get("name") or group_id
             rule_type = group.get("rule_type", "constraint")
             priority = group.get("priority", 100)
-            logic_ids = group.get("logic_ids", [])
 
             # Build step from rule definition
             step = {

@@ -1,9 +1,9 @@
 """Rule executor for KGML rules."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
-from ontology_engine.core.schema.models import KGMLSchema, RuleDefinition
+from ontology_engine.core.schema.models import KGMLSchema, RuleDefinition, ActionType
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
     RuleResult,
@@ -12,6 +12,10 @@ from ontology_engine.engine.rule.models import (
     RuleGroupDefinition,
     RuleStep,
     ActionClause,
+    ConditionClause,
+    StructuredActionClause,
+    RuleDefinitionDecl,
+    RuleLogicDecl,
 )
 from ontology_engine.engine.rule.evaluator import ExpressionEvaluator
 
@@ -21,71 +25,6 @@ from ontology_engine.engine.rule.operators import OperatorRegistry
 # Import DAG components for execute_rule_group
 from ontology_engine.engine.rule.dag_builder import DAGBuilder
 from ontology_engine.engine.rule.dag_executor import DAGExecutor
-
-
-# Action type constants
-ACTION_APPROVE_ELIGIBILITY = "approve_eligibility"
-ACTION_REJECT_ELIGIBILITY = "reject_eligibility"
-ACTION_TRIGGER_ALERT = "trigger_alert"
-ACTION_CALCULATE_CREDIT_SCORE = "calculate_credit_score"
-ACTION_CALCULATE_CREDIT_LIMIT = "calculate_credit_limit"
-ACTION_DETERMINE_INTEREST_RATE = "determine_interest_rate"
-ACTION_GENERATE_DECISION = "generate_decision"
-
-# Credit grade thresholds (score -> grade), sorted descending by score
-CREDIT_GRADE_THRESHOLDS = [
-    (90, "AAA"),
-    (85, "AA"),
-    (80, "A"),
-    (70, "BBB"),
-    (60, "BB"),
-    (50, "B"),
-    (40, "CCC"),
-    (30, "CC"),
-    (20, "C"),
-]
-CREDIT_GRADE_DEFAULT = "D"
-
-# Credit grade multipliers for limit calculation
-CREDIT_GRADE_MULTIPLIERS = {
-    "AAA": 2.0,
-    "AA": 1.8,
-    "A": 1.5,
-    "BBB": 1.2,
-    "BB": 1.0,
-    "B": 0.8,
-}
-CREDIT_GRADE_MULTIPLIER_DEFAULT = 0.5
-
-# Interest rate constants
-BASE_INTEREST_RATE = 0.05
-
-# Credit score calculation constants
-CREDIT_SCORE_BASE = 50
-CREDIT_SCORE_OVERDUE_RATIO_LOW = 5
-CREDIT_SCORE_OVERDUE_RATIO_MED = 10
-CREDIT_SCORE_BONUS_LOW = 15
-CREDIT_SCORE_BONUS_MED = 5
-CREDIT_SCORE_CRITICAL_PENALTY = 30
-CREDIT_SCORE_CRITICAL_MIN = 20
-CREDIT_SCORE_MAX = 100
-CREDIT_SCORE_MIN = 0
-
-# Credit limit calculation constants
-CREDIT_LIMIT_BASE_RATIO = 0.5
-GUARANTEE_CHAIN_PENALTY_RATE = 0.1
-
-# Approval decision thresholds
-APPROVAL_SCORE_EXCELLENT = 80
-APPROVAL_SCORE_ACCEPTABLE = 60
-GUARANTEE_CHAIN_DEPTH_WARNING = 2
-
-# Decision constants
-DECISION_REJECT = "REJECT"
-DECISION_REVIEW = "REVIEW"
-DECISION_APPROVE = "APPROVE"
-DECISION_APPROVE_WITH_CONDITIONS = "APPROVE_WITH_CONDITIONS"
-DECISION_APPROVE_RESTRICTED = "APPROVE_RESTRICTED"
 
 
 class RuleExecutor:
@@ -101,6 +40,14 @@ class RuleExecutor:
         eval_context = dict(context.entity_data)
         eval_context.update(context.computed_metrics)
         return eval_context
+
+    def get_eval_context(self, context: ExecutionContext) -> dict:
+        """Public interface for _get_eval_context.
+
+        Used by visualization and simulation modules that need
+        to evaluate conditions against the current execution context.
+        """
+        return self._get_eval_context(context)
 
     async def execute_rule(
         self,
@@ -203,140 +150,17 @@ class RuleExecutor:
             # Handle alert triggering
             if result.get("alert_triggered"):
                 alert = Alert(
-                    level=result.get("level", "info"),
-                    type=result.get("type", "general"),
-                    message=result.get("message", ""),
-                    data=result.get("data", {})
+                    level=str(result.get("level", "WARNING")),
+                    type=str(result.get("type", "general")),
+                    message=str(result.get("message", "")),
+                    data=result.get("data", {}),
                 )
                 context.alerts.append(alert)
 
             return result
 
         except KeyError:
-            # Fall back to legacy action handling for backward compatibility
-            return self._execute_legacy_action(action, output, context)
-
-    def _execute_legacy_action(
-        self,
-        action: str | None,
-        output: dict,
-        context: ExecutionContext,
-    ) -> dict:
-        """Handle legacy action constants for backward compatibility.
-
-        This method handles the original hardcoded action types
-        (ACTION_APPROVE_ELIGIBILITY, ACTION_REJECT_ELIGIBILITY, etc.)
-        """
-        eval_context = self._get_eval_context(context)
-
-        # Handle special actions
-        if action == ACTION_APPROVE_ELIGIBILITY:
-            output["eligible"] = True
-            context.computed_metrics["eligible"] = True
-
-        elif action == ACTION_REJECT_ELIGIBILITY:
-            output["eligible"] = False
-            context.computed_metrics["eligible"] = False
-            output["rejection_reason"] = output.get("rejection_reason", "Did not meet eligibility criteria")
-
-        elif action == ACTION_TRIGGER_ALERT and output:
-            alert_level = output.get("alert_level", "warning")
-            message = output.get("message", "")
-            message_template = output.get("message_template")
-            if message_template:
-                try:
-                    message = message_template.format(**eval_context)
-                except (KeyError, ValueError):
-                    message = message_template
-            alert = Alert(
-                level=alert_level,
-                type=output.get("alert_type", "general"),
-                message=message,
-                data=output
-            )
-            context.alerts.append(alert)
-
-        elif action == ACTION_CALCULATE_CREDIT_SCORE:
-            score = self._calculate_credit_score(context)
-            output["credit_score"] = score
-            context.computed_metrics["credit_score"] = score
-
-            grade = self._get_credit_grade(score)
-            output["credit_grade"] = grade
-            context.computed_metrics["credit_grade"] = grade
-
-        elif action == ACTION_CALCULATE_CREDIT_LIMIT:
-            credit_score = context.computed_metrics.get("credit_score", CREDIT_SCORE_BASE)
-            credit_grade = context.computed_metrics.get("credit_grade", "B")
-            registered_capital = eval_context.get("registered_capital", {}).get("value", 0) if isinstance(eval_context.get("registered_capital"), dict) else 0
-            guarantee_chain_depth = context.computed_metrics.get("guarantee_chain_depth", 0)
-
-            base = registered_capital * CREDIT_LIMIT_BASE_RATIO
-            multiplier = CREDIT_GRADE_MULTIPLIERS.get(credit_grade, CREDIT_GRADE_MULTIPLIER_DEFAULT)
-
-            if guarantee_chain_depth > 0:
-                multiplier = multiplier * (1 - guarantee_chain_depth * GUARANTEE_CHAIN_PENALTY_RATE)
-
-            credit_limit = base * multiplier
-            output["credit_limit"] = round(credit_limit, 2)
-            output["level"] = credit_grade
-            context.computed_metrics["credit_limit"] = round(credit_limit, 2)
-
-        elif action == ACTION_DETERMINE_INTEREST_RATE:
-            credit_score = context.computed_metrics.get("credit_score", 50)
-            risk_premium = (100 - credit_score) / 100 * BASE_INTEREST_RATE
-            rate = (BASE_INTEREST_RATE + risk_premium) * 100
-            output["interest_rate"] = round(rate, 2)
-            context.computed_metrics["interest_rate"] = round(rate, 2)
-
-        elif action == ACTION_GENERATE_DECISION:
-            # Implement R007 comprehensive credit decision logic
-            credit_score = context.computed_metrics.get("credit_score", 0)
-            guarantee_chain_depth = context.computed_metrics.get("guarantee_chain_depth", 0)
-            registered_capital = eval_context.get("registered_capital", {}).get("value", 0) if isinstance(eval_context.get("registered_capital"), dict) else 0
-            
-            # R007 rule chain logic
-            decision = None
-            limit_multiplier = 0.0
-            requires_guarantee = True
-            reasoning = ""
-            
-            if credit_score >= 80 and guarantee_chain_depth < 2:
-                decision = DECISION_APPROVE
-                limit_multiplier = 1.5
-                requires_guarantee = False
-                reasoning = "Credit score excellent, minimal guarantee chain risk"
-            elif credit_score >= 60 and guarantee_chain_depth < 3:
-                decision = DECISION_APPROVE_WITH_CONDITIONS
-                limit_multiplier = 1.0
-                requires_guarantee = True
-                reasoning = "Credit score acceptable but requires guarantee"
-            elif credit_score >= 40:
-                decision = DECISION_APPROVE_RESTRICTED
-                limit_multiplier = 0.5
-                requires_guarantee = True
-                reasoning = "Credit score below recommended threshold"
-            else:
-                decision = DECISION_REJECT
-                limit_multiplier = 0.0
-                requires_guarantee = True
-                reasoning = "Credit score too low for approval"
-            
-            # Calculate approved limit
-            base_limit = registered_capital * CREDIT_LIMIT_BASE_RATIO
-            approved_limit = base_limit * limit_multiplier
-            
-            output["final_decision"] = decision
-            output["approved_credit_limit"] = round(approved_limit, 2)
-            output["requires_additional_guarantee"] = requires_guarantee
-            output["decision_reasoning"] = reasoning
-            
-            # Update context
-            context.computed_metrics["final_decision"] = decision
-            context.computed_metrics["approved_credit_limit"] = approved_limit
-            context.computed_metrics["requires_additional_guarantee"] = requires_guarantee
-
-        return output
+            raise ValueError(f"Unknown operator: {action}. Register it in OperatorRegistry first.")
 
     async def _execute_then_action(
         self,
@@ -363,57 +187,6 @@ class RuleExecutor:
 
         # Delegate to _execute_action for the actual action handling
         return await self._execute_action(action, output, context, rule.id)
-
-    def _calculate_credit_score(self, context: ExecutionContext) -> int:
-        """Calculate credit score based on Schema-defined composite formula.
-
-        Components (from schema.yaml):
-        - business_stability_score: 30%
-        - tax_compliance_score: 25%
-        - network_centrality_score: 15%
-        - reputation_score: 15%
-        - guarantee_risk_adjustment: 15%
-        """
-        eval_context = self._get_eval_context(context)
-
-        # Get component scores with defaults
-        business_stability = eval_context.get("business_stability_score", 50)
-        tax_compliance = eval_context.get("tax_compliance_score", 60)
-        network_centrality = eval_context.get("network_centrality_score", 50)
-        reputation = eval_context.get("reputation_score", 80)
-        guarantee_chain_depth = eval_context.get("guarantee_chain_depth", 0)
-
-        # Calculate guarantee_risk_adjustment (0-100, higher is better)
-        if guarantee_chain_depth >= 5:
-            guarantee_risk = 20
-        elif guarantee_chain_depth >= 3:
-            guarantee_risk = 40
-        elif guarantee_chain_depth >= 1:
-            guarantee_risk = 70
-        else:
-            guarantee_risk = 100
-
-        # Apply Schema-defined weights
-        score = (
-            business_stability * 0.30 +
-            tax_compliance * 0.25 +
-            network_centrality * 0.15 +
-            reputation * 0.15 +
-            guarantee_risk * 0.15
-        )
-
-        # Critical alerts penalty
-        if any(a.level == "critical" for a in context.alerts):
-            score = max(20, score - 30)
-
-        return int(min(100, max(0, score)))
-
-    def _get_credit_grade(self, score: int) -> str:
-        """Get credit grade from score using threshold table."""
-        for threshold, grade in CREDIT_GRADE_THRESHOLDS:
-            if score >= threshold:
-                return grade
-        return CREDIT_GRADE_DEFAULT
 
     async def execute_rule_group(
         self,
@@ -542,7 +315,7 @@ class RuleExecutor:
             context.rule_results.append(rule_result)
 
             # Check if step output indicates rejection
-            if rule_result.output.get("rejected") or rule_result.output.get("eligible") is False:
+            if rule_result.output.get("_rejected") or rule_result.output.get("rejected") or rule_result.output.get("eligible") is False:
                 # Early termination on rejection
                 break
 
@@ -665,10 +438,10 @@ class RuleExecutor:
         # Handle alert triggering
         if output.get("alert_triggered"):
             alert = Alert(
-                level=output.get("level", "info"),
-                type=output.get("type", "general"),
-                message=output.get("message", ""),
-                data=output.get("data", {}),
+                level=str(output.get("level", "WARNING")),
+                type=str(output.get("type", "general")),
+                message=str(output.get("message", "")),
+                data=cast(dict[str, Any] | None, output.get("data")),
             )
             context.alerts.append(alert)
 
@@ -712,31 +485,28 @@ class RuleExecutor:
         decision = None
         reasoning = None
 
-        # Check computed eligibility first
         eligible = context.computed_metrics.get("eligible")
         if eligible is False:
-            decision = DECISION_REJECT
+            decision = "REJECT"
             reasoning = context.computed_metrics.get("rejection_reason", "Did not meet eligibility criteria")
 
-        # Check for critical alerts
         critical_alerts = [a for a in context.alerts if a.level == "critical"]
         if critical_alerts:
-            decision = DECISION_REJECT if decision else DECISION_REVIEW
+            decision = "REJECT" if decision else "REVIEW"
             reasoning = f"Critical alerts: {', '.join(a.type for a in critical_alerts)}"
 
-        # If eligible and no critical alerts, determine approval level
         if eligible is True and not critical_alerts:
             credit_score = context.computed_metrics.get("credit_score", 0)
             guarantee_chain_depth = context.computed_metrics.get("guarantee_chain_depth", 0)
 
-            if credit_score >= APPROVAL_SCORE_EXCELLENT and guarantee_chain_depth < GUARANTEE_CHAIN_DEPTH_WARNING:
-                decision = DECISION_APPROVE
+            if credit_score >= 80 and guarantee_chain_depth < 2:
+                decision = "APPROVE"
                 reasoning = "Credit score excellent, minimal guarantee chain risk"
-            elif credit_score >= APPROVAL_SCORE_ACCEPTABLE:
-                decision = DECISION_APPROVE_WITH_CONDITIONS
+            elif credit_score >= 60:
+                decision = "APPROVE_WITH_CONDITIONS"
                 reasoning = "Credit score acceptable but requires guarantee"
             else:
-                decision = DECISION_APPROVE_RESTRICTED
+                decision = "APPROVE_RESTRICTED"
                 reasoning = "Credit score below recommended threshold"
 
         return AnalysisResult(
@@ -748,3 +518,209 @@ class RuleExecutor:
             decision=decision,
             decision_reasoning=reasoning
         )
+
+    # ============== V3 Execution Methods (RFC-018 / RFC-019) ==============
+
+    async def execute_v3(
+        self,
+        definition: RuleDefinitionDecl,
+        logic: RuleLogicDecl,
+        context: ExecutionContext,
+    ) -> AnalysisResult:
+        """Execute rules using V3 models (RuleDefinitionDecl + RuleLogicDecl).
+
+        This is the new execution path that uses StructuredActionClause
+        with ActionType enum for type-safe dispatch.
+        """
+        sorted_steps = sorted(logic.steps, key=lambda s: -s.priority)
+
+        for step in sorted_steps:
+            if not step.enabled:
+                continue
+
+            condition_passed = await self._evaluate_v3_condition(step.condition, context)
+
+            if condition_passed:
+                output = await self._execute_structured_action(step.action, context)
+                rule_result = RuleResult(
+                    rule_id=step.id,
+                    rule_name=step.name,
+                    passed=True,
+                    output=output,
+                )
+            else:
+                if step.else_action:
+                    output = await self._execute_structured_action(step.else_action, context)
+                    rule_result = RuleResult(
+                        rule_id=step.id,
+                        rule_name=step.name,
+                        passed=False,
+                        output=output,
+                    )
+                else:
+                    rule_result = RuleResult(
+                        rule_id=step.id,
+                        rule_name=step.name,
+                        passed=False,
+                        output={"skipped": "condition not met"},
+                    )
+
+            context.rule_results.append(rule_result)
+
+            if rule_result.output.get("_rejected") or rule_result.output.get("eligible") is False:
+                break
+
+        return AnalysisResult(
+            entity_id=context.entity_id,
+            dimension=context.dimension,
+            rule_results=context.rule_results,
+            computed_metrics=context.computed_metrics,
+            alerts=context.alerts,
+            decision=context.computed_metrics.get("final_decision"),
+            decision_reasoning=context.computed_metrics.get("decision_reasoning"),
+        )
+
+    async def _evaluate_v3_condition(
+        self,
+        condition: ConditionClause | None,
+        context: ExecutionContext,
+    ) -> bool:
+        """Evaluate a V3 step condition."""
+        if condition is None:
+            return True
+
+        from ontology_engine.engine.rule.models import ConditionClause
+        if isinstance(condition, ConditionClause):
+            if condition.type == "expression" and condition.expression:
+                try:
+                    eval_context = self._get_eval_context(context)
+                    result = self.evaluator.evaluate(condition.expression, eval_context)
+                    return bool(result)
+                except Exception:
+                    return False
+            elif condition.type in ("all_of", "any_of") and condition.sub_conditions:
+                results = []
+                for sub in condition.sub_conditions:
+                    if isinstance(sub, str):
+                        try:
+                            eval_context = self._get_eval_context(context)
+                            results.append(bool(self.evaluator.evaluate(sub, eval_context)))
+                        except Exception:
+                            results.append(False)
+                    elif isinstance(sub, dict):
+                        expr = sub.get("expression", "")
+                        try:
+                            eval_context = self._get_eval_context(context)
+                            results.append(bool(self.evaluator.evaluate(expr, eval_context)))
+                        except Exception:
+                            results.append(False)
+                if condition.type == "all_of":
+                    return all(results)
+                else:
+                    return any(results)
+
+        return True
+
+    async def _execute_structured_action(
+        self,
+        action: StructuredActionClause | None,
+        context: ExecutionContext,
+    ) -> dict[str, Any]:
+        """Execute a StructuredActionClause using match action.type dispatch (RFC-019).
+
+        This replaces _execute_action (str+dict) and _execute_step_action (ActionClause)
+        with a unified, type-safe dispatch based on ActionType enum.
+        """
+        if action is None:
+            return {}
+
+        eval_context = self._get_eval_context(context)
+
+        match action.type:
+            case ActionType.SET_FLAG:
+                flag_name = action.flag if action.flag is not None else "default_flag"
+                flag_value = action.value if action.value is not None else True
+                context.flags[flag_name] = flag_value
+                context.computed_metrics[flag_name] = flag_value
+                return {flag_name: flag_value}
+
+            case ActionType.COMPUTE:
+                if action.operator:
+                    try:
+                        operator = OperatorRegistry.get(action.operator.value)
+                        operator_context = {
+                            **eval_context,
+                            "entity_id": context.entity_id,
+                            "dimension": context.dimension,
+                            "entity_data": context.entity_data,
+                            "computed_metrics": context.computed_metrics,
+                            "flags": context.flags,
+                            "categories": context.categories,
+                        }
+                        output = await operator.execute(
+                            inputs=action.params,
+                            config={},
+                            context=operator_context,
+                        )
+                    except Exception as e:
+                        output = {"error": str(e)}
+                elif action.formula:
+                    try:
+                        result = self.evaluator.evaluate(action.formula, eval_context)
+                        output = {action.output or "result": result}
+                    except Exception as e:
+                        output = {"error": str(e)}
+                else:
+                    output = {}
+
+                if action.output_mapping:
+                    mapped = {}
+                    for target_key, source_key in action.output_mapping.items():
+                        mapped[target_key] = output.get(source_key, output.get(target_key))
+                    output = mapped
+
+                for key, value in output.items():
+                    if key not in ("error", "alert_triggered", "alerts"):
+                        if isinstance(value, bool):
+                            context.flags[key] = value
+                        else:
+                            context.computed_metrics[key] = value
+
+                if output.get("alert_triggered"):
+                    alert = Alert(
+                        level=str(output.get("level", "WARNING")),
+                        type=str(output.get("type", "general")),
+                        message=str(output.get("message", "")),
+                        data=cast(dict[str, Any] | None, output.get("data")),
+                    )
+                    context.alerts.append(alert)
+
+                return output
+
+            case ActionType.REJECT:
+                context.flags["rejected"] = True
+                context.computed_metrics["rejected"] = True
+                result: dict[str, Any] = {"_rejected": True}
+                if action.reason:
+                    result["reason"] = action.reason
+                    context.computed_metrics["rejection_reason"] = action.reason
+                return result
+
+            case ActionType.EMIT_ALERT:
+                alert = Alert(
+                    level=action.severity or "WARNING",
+                    type="general",
+                    message=action.reason or "",
+                    data={},
+                )
+                context.alerts.append(alert)
+                return {"_alert": {"severity": action.severity or "WARNING", "reason": action.reason or ""}}
+
+            case ActionType.ASSIGN_CATEGORY:
+                if action.category:
+                    context.categories[action.category] = action.category
+                    context.computed_metrics["assigned_category"] = action.category
+                return {"_category": action.category}
+
+            case _:
+                raise ValueError(f"Unknown ActionType: {action.type}")

@@ -19,6 +19,7 @@ from ontology_engine.core.semantic_space import (
     SpaceType,
     SemanticSpaceStorage,
 )
+from ontology_engine.core.types import apply_overrides, deep_copy_entity_data
 from ontology_engine.services.simulation_service import SimulationService
 from ontology_engine.services.simulation_orchestrator import SimulationOrchestrator
 
@@ -42,6 +43,14 @@ def _rule_inputs(rule: dict) -> list[dict]:
 def _rule_outputs(rule: dict) -> list[dict]:
     """Get rule outputs, supporting both canonical and legacy field names."""
     return rule.get("outputs") or rule.get("output_elements") or []
+
+
+def _rule_applies_to(rule: dict) -> list:
+    """Get rule applies_to, supporting both canonical and legacy field names."""
+    applies = rule.get("applies_to") or rule.get("target_objects") or []
+    if isinstance(applies, dict):
+        return applies.get("fact_objects", [])
+    return applies
 
 
 # ============================================================================
@@ -501,7 +510,7 @@ async def get_rules_for_entity(
             continue
 
         # Check target_objects
-        target_objects = rule.get("target_objects", [])
+        target_objects = _rule_applies_to(rule)
         if target_objects and entity_concept and entity_concept not in target_objects:
             continue
 
@@ -949,9 +958,9 @@ async def _run_full_analysis(
     """
     expression_engine = SimulationService.create_expression_engine()
 
-    entity_data = dict(entity)
+    entity_data = deep_copy_entity_data(entity)
     entity_data["_fact_object"] = entity.get("_fact_object") or entity.get("_concept", "Unknown")
-    entity_data.update(overrides)
+    apply_overrides(entity_data, overrides)
 
     context = SimulationService.create_execution_context(
         entity_id=entity.get("entity_id", ""),
@@ -1024,8 +1033,11 @@ async def _run_full_analysis(
             )
             steps.append(step)
             if step["status"] == "passed":
-                for k, v in step.get("outputs", []):
-                    final_outputs[k] = v
+                for item in step.get("outputs", []):
+                    if isinstance(item, dict):
+                        final_outputs[item.get("name", item.get("id", ""))] = item.get("value")
+                    elif isinstance(item, (list, tuple)) and len(item) == 2:
+                        final_outputs[item[0]] = item[1]
 
         return _build_result(entity, dimension, steps, final_outputs, context)
 
@@ -1050,7 +1062,7 @@ async def _run_full_analysis(
 
         for rule in level_rules:
             # Additional filter: check if entity type matches target_objects
-            target_objects = rule.get("target_objects", [])
+            target_objects = _rule_applies_to(rule)
             if target_objects and entity_type and entity_type not in target_objects:
                 steps.append({
                     "step": len(steps) + 1,

@@ -1,7 +1,13 @@
 """Rule engine data models."""
 from __future__ import annotations
+import warnings
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+from ontology_engine.core.schema.models import ActionType, OperatorType
+
+if TYPE_CHECKING:
+    from ontology_engine.core.schema.models import StepAction
 
 
 @dataclass
@@ -102,6 +108,13 @@ class RuleGroupDefinition:
     created_at: str = ""
     updated_at: str = ""
 
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "RuleGroupDefinition is deprecated. Use RuleDefinitionDecl instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
         return {
@@ -187,10 +200,21 @@ class RuleGroupDefinition:
 
 @dataclass
 class ActionClause:
-    """动作子句：算子配置"""
-    operator: str  # 算子名称
-    params: dict[str, Any] = field(default_factory=dict)  # 算子参数
-    output_mapping: dict[str, str] = field(default_factory=dict)  # 输出变量别名
+    """动作子句：算子配置
+
+    .. deprecated::
+        Use StructuredActionClause instead.
+    """
+    operator: str
+    params: dict[str, Any] = field(default_factory=dict)
+    output_mapping: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "ActionClause is deprecated. Use StructuredActionClause instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -212,10 +236,21 @@ class ActionClause:
 
 @dataclass
 class ConditionClause:
-    """条件子句：支持单一/AND/OR"""
+    """条件子句：支持单一/AND/OR
+
+    .. deprecated::
+        Prefer StepCondition (core/schema/models.py) for new code.
+    """
     type: Literal["expression", "all_of", "any_of"] = "expression"
-    expression: str | None = None  # type=expression 时使用
-    sub_conditions: list[str] = field(default_factory=list)  # type=all_of/any_of 时使用
+    expression: str | None = None
+    sub_conditions: list[str | dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "ConditionClause is deprecated. Prefer StepCondition for new code.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -241,18 +276,28 @@ class RuleStep:
 
     具体的逻辑表达式，一个 when → then/else 结构。
     使用算子执行计算。
+
+    .. deprecated::
+        Use StepDecl instead.
     """
     id: str
     name: str
-    rule_group: str  # 所属规则组
-    order: int  # 执行顺序
+    rule_group: str
+    order: int
     when: ConditionClause
     then: ActionClause
     else_: ActionClause | None = None
     enabled: bool = True
     description: str = ""
     tags: list[str] = field(default_factory=list)
-    depends_on: list[str] = field(default_factory=list)  # DAG 依赖声明，格式: "rule_group/step_id" 或 "step_id"
+    depends_on: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "RuleStep is deprecated. Use StepDecl instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -338,4 +383,307 @@ class OperatorSchema:
             input_types=data.get("input_types", []),
             output_types=data.get("output_types", []),
             enabled=data.get("enabled", True),
+        )
+
+
+# ============== V3 Runtime Models (RFC-018 / RFC-019) ==============
+
+_SET_FLAG_OPERATORS = frozenset({"set_flag", "approve_eligibility", "reject_eligibility"})
+_REJECT_OPERATORS = frozenset({"reject"})
+_ALERT_OPERATORS = frozenset({"trigger_alert", "alert"})
+_CATEGORY_OPERATORS = frozenset({"assign_category"})
+
+
+def _infer_action_type_from_operator(operator: str | None) -> ActionType:
+    """Infer ActionType from legacy operator name."""
+    if not operator:
+        return ActionType.COMPUTE
+    lower = operator.lower()
+    if lower in _SET_FLAG_OPERATORS:
+        return ActionType.SET_FLAG
+    if lower in _REJECT_OPERATORS:
+        return ActionType.REJECT
+    if lower in _ALERT_OPERATORS:
+        return ActionType.EMIT_ALERT
+    if lower in _CATEGORY_OPERATORS:
+        return ActionType.ASSIGN_CATEGORY
+    return ActionType.COMPUTE
+
+
+@dataclass
+class StructuredActionClause:
+    """Structured action clause (RFC-019).
+
+    Runtime dataclass version of core.schema.models.StepAction.
+    Uses ActionType enum for type-safe dispatch.
+    """
+    type: ActionType
+
+    flag: str | None = None
+    value: Any = None
+
+    output: str | None = None
+    operator: OperatorType | None = None
+    params: dict[str, Any] = field(default_factory=dict)
+    formula: str | None = None
+
+    query: dict[str, Any] | None = None
+    aggregation: list[dict[str, Any]] | None = None
+    bins: list[dict[str, Any]] | None = None
+    branches: list[dict[str, Any]] | None = None
+    variables: list[dict[str, Any]] | None = None
+
+    reason: str | None = None
+    severity: str | None = None
+
+    category: str | None = None
+
+    output_mapping: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_step_action(cls, action: "StepAction") -> "StructuredActionClause":
+        """Create from Pydantic StepAction model."""
+        return cls(
+            type=action.type,
+            flag=action.flag,
+            value=action.value,
+            output=action.output,
+            operator=action.operator,
+            params=dict(action.params) if action.params else {},
+            formula=action.formula,
+            query=dict(action.query) if action.query else None,
+            aggregation=list(action.aggregation) if action.aggregation else None,
+            bins=list(action.bins) if action.bins else None,
+            branches=list(action.branches) if action.branches else None,
+            variables=list(action.variables) if action.variables else None,
+            reason=action.reason,
+            severity=action.severity,
+            category=action.category,
+            output_mapping=dict(action.output_mapping) if action.output_mapping else {},
+        )
+
+    @classmethod
+    def from_legacy(cls, action_str: str | None, output: dict | None = None, computation: dict | None = None) -> "StructuredActionClause | None":
+        """Create from legacy action: str + output: dict pattern.
+
+        Maps old ACTION_* constants and operator names to ActionType enum.
+        """
+        if action_str is None:
+            return None
+
+        output = output or {}
+        computation = computation or {}
+
+        action_lower = action_str.lower()
+
+        if action_lower in ("approve_eligibility",):
+            return cls(type=ActionType.SET_FLAG, flag="eligible", value=True)
+        elif action_lower in ("reject_eligibility",):
+            return cls(type=ActionType.SET_FLAG, flag="eligible", value=False, reason=output.get("rejection_reason"))
+        elif action_lower in ("trigger_alert", "alert"):
+            return cls(
+                type=ActionType.EMIT_ALERT,
+                severity=output.get("alert_level", "WARNING"),
+                reason=output.get("message", ""),
+            )
+        elif action_lower in ("reject",):
+            return cls(type=ActionType.REJECT, reason=output.get("reason", ""))
+        elif action_lower in ("assign_category",):
+            return cls(type=ActionType.ASSIGN_CATEGORY, category=output.get("category"))
+        elif action_lower in ("set_flag",):
+            return cls(type=ActionType.SET_FLAG, flag=output.get("flag"), value=output.get("value"))
+        else:
+            return cls(
+                type=ActionType.COMPUTE,
+                output=computation.get("output_field") or output.get("output_field"),
+                operator=OperatorType(action_str) if action_str in [e.value for e in OperatorType] else None,
+                params=computation.get("params", {}),
+                formula=computation.get("formula") or output.get("formula"),
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {"type": self.type.value}
+        if self.flag is not None:
+            result["flag"] = self.flag
+        if self.value is not None:
+            result["value"] = self.value
+        if self.output is not None:
+            result["output"] = self.output
+        if self.operator is not None:
+            result["operator"] = self.operator.value
+        if self.params:
+            result["params"] = self.params
+        if self.formula is not None:
+            result["formula"] = self.formula
+        if self.query is not None:
+            result["query"] = self.query
+        if self.aggregation is not None:
+            result["aggregation"] = self.aggregation
+        if self.bins is not None:
+            result["bins"] = self.bins
+        if self.branches is not None:
+            result["branches"] = self.branches
+        if self.variables is not None:
+            result["variables"] = self.variables
+        if self.reason is not None:
+            result["reason"] = self.reason
+        if self.severity is not None:
+            result["severity"] = self.severity
+        if self.category is not None:
+            result["category"] = self.category
+        if self.output_mapping:
+            result["output_mapping"] = self.output_mapping
+        return result
+
+
+@dataclass
+class StepDecl:
+    """Step declaration (RFC-018 / RFC-019) runtime model.
+
+    Uses StructuredActionClause for type-safe action dispatch.
+    """
+    id: str
+    name: str = ""
+    description: str = ""
+    priority: int = 100
+    depends_on: list[str] = field(default_factory=list)
+
+    condition: ConditionClause | None = None
+    action: StructuredActionClause | None = None
+    else_action: StructuredActionClause | None = None
+
+    enabled: bool = True
+
+
+@dataclass
+class RuleDefinitionDecl:
+    """Rule definition declaration (RFC-018) runtime model.
+
+    Declares WHAT the rule operates on.
+    Aligned with L4 grammar rule_definitions[].
+    """
+    name: str
+    description: str = ""
+    type: str = "constraint"
+    priority: int = 100
+
+    applies_to: AppliesToConfig = field(default_factory=AppliesToConfig)
+    preconditions: list[Precondition] = field(default_factory=list)
+    inputs: list[IOElement] = field(default_factory=list)
+    outputs: list[IOElement] = field(default_factory=list)
+
+    overrides: str | None = None
+    applicability: dict[str, str | None] | None = None
+
+    enabled: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+            "type": self.type,
+            "priority": self.priority,
+            "applies_to": self.applies_to.__dict__ if self.applies_to else {},
+            "enabled": self.enabled,
+        }
+        if self.preconditions:
+            result["preconditions"] = [{"expression": p.expression, "fail": p.fail} for p in self.preconditions]
+        if self.inputs:
+            result["inputs"] = [{"name": i.name, "type": i.type} for i in self.inputs]
+        if self.outputs:
+            result["outputs"] = [{"name": o.name, "type": o.type} for o in self.outputs]
+        if self.overrides is not None:
+            result["overrides"] = self.overrides
+        if self.applicability is not None:
+            result["applicability"] = self.applicability
+        return result
+
+    @classmethod
+    def from_rule_group(cls, rg: RuleGroupDefinition) -> "RuleDefinitionDecl":
+        """Create from RuleGroupDefinition (Phase 2 runtime model)."""
+        return cls(
+            name=rg.name,
+            description=rg.description,
+            type=rg.type,
+            priority=rg.priority,
+            applies_to=rg.applies_to,
+            preconditions=rg.preconditions,
+            inputs=rg.inputs,
+            outputs=rg.outputs,
+            enabled=rg.enabled,
+        )
+
+
+@dataclass
+class RuleLogicDecl:
+    """Rule logic declaration (RFC-018) runtime model.
+
+    Declares HOW the rule is executed.
+    Aligned with L4 grammar rule_logics[].
+    """
+    name: str
+    description: str = ""
+    type: str = "decision_table"
+    steps: list[StepDecl] = field(default_factory=list)
+
+    definition_ref: str = ""
+    enabled: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "type": self.type,
+            "steps": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "priority": s.priority,
+                    "depends_on": s.depends_on,
+                    "action": s.action.to_dict() if s.action else None,
+                    "else_action": s.else_action.to_dict() if s.else_action else None,
+                    "enabled": s.enabled,
+                }
+                for s in self.steps
+            ],
+            "definition_ref": self.definition_ref,
+            "enabled": self.enabled,
+        }
+
+    @classmethod
+    def from_rule_steps(cls, steps: list[RuleStep], definition_ref: str = "") -> "RuleLogicDecl":
+        """Create from list of RuleStep (Phase 2 runtime model)."""
+        v3_steps = []
+        for s in steps:
+            action = None
+            if s.then:
+                action = StructuredActionClause(
+                    type=_infer_action_type_from_operator(s.then.operator),
+                    operator=OperatorType(s.then.operator) if s.then.operator and s.then.operator in [e.value for e in OperatorType] else None,
+                    params=dict(s.then.params) if s.then.params else {},
+                    output_mapping=dict(s.then.output_mapping) if s.then.output_mapping else {},
+                )
+            else_action = None
+            if s.else_:
+                else_action = StructuredActionClause(
+                    type=_infer_action_type_from_operator(s.else_.operator),
+                    operator=OperatorType(s.else_.operator) if s.else_.operator and s.else_.operator in [e.value for e in OperatorType] else None,
+                    params=dict(s.else_.params) if s.else_.params else {},
+                    output_mapping=dict(s.else_.output_mapping) if s.else_.output_mapping else {},
+                )
+            v3_steps.append(StepDecl(
+                id=s.id,
+                name=s.name,
+                description=s.description,
+                priority=s.order if hasattr(s, "order") else 100,
+                depends_on=s.depends_on,
+                condition=s.when,
+                action=action,
+                else_action=else_action,
+                enabled=s.enabled,
+            ))
+        return cls(
+            name=definition_ref or "",
+            definition_ref=definition_ref,
+            steps=v3_steps,
         )

@@ -61,6 +61,7 @@ class SQLiteStorage(StorageBackend):
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.row_factory = sqlite3.Row
         self._create_tables_sync()
+        self._migrate_schema_sync()
 
     async def _create_tables(self) -> None:
         assert self._conn is not None
@@ -309,6 +310,140 @@ class SQLiteStorage(StorageBackend):
             CREATE INDEX IF NOT EXISTS idx_kf_status ON knowledge_fragments(extraction_status);
         """)
 
+    _SCHEMA_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+        "entities": [
+            ("valid_from", "TEXT"),
+            ("valid_to", "TEXT"),
+            ("confidence", "REAL DEFAULT 1.0"),
+            ("source_pipeline", "TEXT"),
+            ("source_content_hash", "TEXT"),
+            ("feedback_weight", "REAL DEFAULT 0.5"),
+            ("domain_id", "TEXT"),
+            ("created_at", "TEXT"),
+            ("updated_at", "TEXT"),
+        ],
+        "relations": [
+            ("id", "TEXT"),
+            ("edge_text", "TEXT"),
+            ("weight", "REAL DEFAULT 1.0"),
+            ("valid_from", "TEXT"),
+            ("valid_to", "TEXT"),
+            ("confidence", "REAL DEFAULT 1.0"),
+            ("source_pipeline", "TEXT"),
+            ("source_content_hash", "TEXT"),
+        ],
+        "computed_metrics": [
+            ("computed_at", "TEXT"),
+            ("valid_from", "TEXT"),
+            ("valid_to", "TEXT"),
+            ("computed_by", "TEXT"),
+            ("computation_snapshot", "TEXT"),
+        ],
+        "category_tags": [
+            ("assigned_at", "TEXT"),
+            ("assigned_by", "TEXT DEFAULT 'rule'"),
+            ("confidence", "REAL DEFAULT 1.0"),
+        ],
+        "rule_groups": [
+            ("description", "TEXT"),
+            ("type", "TEXT NOT NULL DEFAULT ''"),
+            ("priority", "INTEGER DEFAULT 100"),
+            ("applies_to", "TEXT"),
+            ("preconditions", "TEXT"),
+            ("inputs", "TEXT"),
+            ("outputs", "TEXT"),
+            ("enabled", "INTEGER DEFAULT 1"),
+            ("schema_id", "TEXT"),
+            ("source_declaration_id", "TEXT"),
+            ("created_at", "TEXT"),
+            ("updated_at", "TEXT"),
+        ],
+        "rule_steps": [
+            ("step_order", "INTEGER NOT NULL DEFAULT 0"),
+            ("name", "TEXT"),
+            ("when_clause", "TEXT"),
+            ("then_clause", "TEXT"),
+            ("else_clause", "TEXT"),
+            ("enabled", "INTEGER DEFAULT 1"),
+            ("description", "TEXT"),
+            ("tags", "TEXT"),
+            ("created_at", "TEXT"),
+            ("updated_at", "TEXT"),
+        ],
+        "entity_dataset_membership": [
+            ("concept", "TEXT NOT NULL DEFAULT ''"),
+            ("imported_at", "TEXT"),
+            ("source_line", "INTEGER"),
+            ("is_primary", "INTEGER DEFAULT 0"),
+        ],
+        "entity_versions": [
+            ("concept", "TEXT NOT NULL DEFAULT ''"),
+            ("version", "INTEGER DEFAULT 1"),
+            ("valid_from", "TEXT"),
+            ("valid_to", "TEXT"),
+            ("updated_at", "TEXT"),
+            ("updated_by", "TEXT DEFAULT 'system'"),
+        ],
+        "feedback_records": [
+            ("metric_name", "TEXT"),
+            ("feedback_type", "TEXT NOT NULL DEFAULT 'confirm'"),
+            ("value", "REAL NOT NULL DEFAULT 1.0"),
+            ("previous_weight", "REAL NOT NULL DEFAULT 1.0"),
+            ("updated_weight", "REAL NOT NULL DEFAULT 1.0"),
+            ("source", "TEXT NOT NULL DEFAULT 'user'"),
+            ("text_feedback", "TEXT"),
+            ("applied", "INTEGER NOT NULL DEFAULT 0"),
+            ("created_at", "TEXT"),
+        ],
+        "knowledge_fragments": [
+            ("dataset_id", "TEXT"),
+            ("document_id", "TEXT"),
+            ("chunk_index", "INTEGER"),
+            ("offset_start", "INTEGER"),
+            ("offset_end", "INTEGER"),
+            ("vector_id", "TEXT"),
+            ("metadata", "TEXT"),
+            ("extraction_status", "TEXT NOT NULL DEFAULT 'pending'"),
+            ("content_hash", "TEXT"),
+            ("created_at", "TEXT"),
+            ("updated_at", "TEXT"),
+        ],
+    }
+
+    _TIMESTAMP_COLUMNS: dict[str, list[str]] = {
+        "entities": ["created_at", "updated_at"],
+        "rule_groups": ["created_at", "updated_at"],
+        "rule_steps": ["created_at", "updated_at"],
+        "feedback_records": ["created_at"],
+        "knowledge_fragments": ["created_at", "updated_at"],
+        "entity_versions": ["updated_at"],
+        "entity_dataset_membership": ["imported_at"],
+    }
+
+    def _migrate_schema_sync(self) -> None:
+        assert self._conn is not None
+        c = self._conn
+        for table_name, expected_columns in self._SCHEMA_MIGRATIONS.items():
+            cursor = c.execute(f"PRAGMA table_info({table_name})")
+            existing = {row[1] for row in cursor.fetchall()}
+            added = []
+            for col_name, col_def in expected_columns:
+                if col_name not in existing:
+                    try:
+                        c.execute(
+                            f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}"
+                        )
+                        added.append(col_name)
+                    except sqlite3.OperationalError:
+                        pass
+            ts_cols = self._TIMESTAMP_COLUMNS.get(table_name, [])
+            for col_name in added:
+                if col_name in ts_cols:
+                    c.execute(
+                        f"UPDATE {table_name} SET {col_name} = datetime('now') WHERE {col_name} IS NULL"
+                    )
+        c.commit()
+
     async def close(self) -> None:
         if self._conn is not None:
             conn = self._conn
@@ -449,6 +584,41 @@ class SQLiteStorage(StorageBackend):
         assert self._conn is not None
         assert self._lock is not None
         async with self._lock:
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM category_tags WHERE entity_id = ?",
+                [entity_id],
+            )
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM computed_metrics WHERE entity_id = ?",
+                [entity_id],
+            )
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM entity_versions WHERE entity_id = ?",
+                [entity_id],
+            )
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM entity_dataset_membership WHERE entity_id = ?",
+                [entity_id],
+            )
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM rule_execution_log WHERE entity_id = ?",
+                [entity_id],
+            )
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM feedback_records WHERE entity_id = ?",
+                [entity_id],
+            )
+            await asyncio.to_thread(
+                self._conn.execute,
+                "DELETE FROM relations WHERE from_entity_id = ? OR to_entity_id = ?",
+                [entity_id, entity_id],
+            )
             cursor = await asyncio.to_thread(
                 self._conn.execute,
                 "DELETE FROM entities WHERE concept = ? AND entity_id = ?",

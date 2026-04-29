@@ -7,9 +7,13 @@ for derived categorization types.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from ontology_engine.engine.categorization.models import CategoryTags
+from ontology_engine.storage.base import CategoryTag
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ontology_engine.core.schema.models import KGMLSchema
@@ -114,8 +118,9 @@ class CategorizationEngine:
 
             if value is not None:
                 tags.set(dim_name, value)
-                # Persist to storage
-                await self.storage.save_category_tags(entity.entity_id, tags.to_dict()["tags"])
+                tag_record = tags.get_tag(dim_name)
+                if tag_record is not None:
+                    await self.storage.save_category_tag(tag_record)
 
         return tags
 
@@ -128,7 +133,7 @@ class CategorizationEngine:
         Returns:
             CategoryTags if found, None otherwise
         """
-        stored = await self.storage.get_category_tags(entity_id)
+        stored: list[CategoryTag] = await self.storage.get_category_tags(entity_id)
         if stored is None:
             return None
         return CategoryTags(entity_id=entity_id, tags=stored)
@@ -192,7 +197,7 @@ class CategorizationEngine:
         """
         # Build entity data dict
         entity_data = dict(entity.data) if hasattr(entity, 'data') else {}
-        entity_data["_fact_object"] = entity._fact_object
+        entity_data["_fact_object"] = getattr(entity, 'fact_object', None) or getattr(entity, '_fact_object', '')
 
         # Execute rules with L2_ prefix dimension
         l2_dimension = f"L2_{dimension}"
@@ -216,8 +221,8 @@ class CategorizationEngine:
             if dimension in result.computed_metrics:
                 return str(result.computed_metrics[dimension])
 
-        except Exception:
-            # If rule execution fails, fall back to hierarchical
+        except Exception as e:
+            logger.warning(f"Derived categorization failed for {dimension}: {e}")
             pass
 
         return None
