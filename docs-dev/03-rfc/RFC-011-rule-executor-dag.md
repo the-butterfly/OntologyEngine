@@ -6,6 +6,8 @@
 > **作者**: the-butterfly
 > **评审截止**: 待定
 > **实现核验日期**: 2026-04-28
+>
+> **注意**: 本文档「数据模型」章节中的 RuleStep 定义已被 [RFC-014](./RFC-014-rule-orchestration-system.md) 部分取代。Engine 层的 RuleStep 已重构为 `when/then/else_` 结构，取代了本文件原始的 `condition/action/operator/computation/output_field` 字段。DAG 执行引擎（拓扑排序、循环检测、中间结果传递）的设计仍以本文档为准。
 
 ## 动机
 
@@ -105,7 +107,7 @@ class RuleStep(BaseModel):
 
 ### Q2: 循环依赖如何处理？
 
-**决策**: 执行前检测。若检测到环，执行中止并抛出 `CircularDependencyError`，包含环形路径信息。
+**决策**: 执行前检测。若检测到环，执行中止并抛出 `CycleError`，包含环形路径信息。
 
 ### Q3: 中间结果如何在 steps 间传递？
 
