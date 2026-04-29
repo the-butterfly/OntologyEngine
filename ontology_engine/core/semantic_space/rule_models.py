@@ -1,10 +1,23 @@
 # ontology_engine/core/semantic_space/rule_models.py
-"""Rule models for semantic space management - separates declaration from logic."""
+"""Rule models for semantic space management - separates declaration from logic.
+
+.. deprecated::
+    The models in this module are being superseded by the V3 models in
+    core.schema.models (RuleDefinitionDeclaration, RuleLogicDeclaration).
+    They are retained for backward compatibility with existing JSON data files.
+    Use to_v3_declaration() / to_v3_logic() to convert to the new models.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from ontology_engine.core.schema.models import (
+        RuleDefinitionDeclaration,
+        RuleLogicDeclaration,
+    )
 
 
 class TargetObject(BaseModel):
@@ -89,6 +102,43 @@ class RuleDefinition(BaseModel):
     then_action: RuleAction | None = None
     else_action: RuleAction | None = None
 
+    def to_v3_declaration(self) -> RuleDefinitionDeclaration:
+        """Convert to V3 RuleDefinitionDeclaration model."""
+        from ontology_engine.core.schema.models import (
+            RuleDefinitionDeclaration,
+            AppliesToDecl,
+            IOElementDecl,
+        )
+
+        fact_objects = [t.concept for t in self.target_objects]
+        categories = {}
+        if self.applicable_scope.scope_type == "by_classification":
+            path = self.applicable_scope.classification_path or ""
+            for val in self.applicable_scope.classification_values:
+                categories[path] = val
+
+        return RuleDefinitionDeclaration(
+            id=self.id,
+            name=self.name or self.id,
+            description=self.description,
+            rule_type=self.rule_type,
+            priority=self.priority,
+            applies_to=AppliesToDecl(
+                fact_objects=fact_objects,
+                categories=categories,
+            ),
+            inputs=[
+                IOElementDecl(name=i.name, type=i.element_type)
+                for i in self.input_elements
+            ],
+            outputs=[
+                IOElementDecl(name=o.name, type=o.element_type)
+                for o in self.output_elements
+            ],
+            logic_ids=self.logic_ids,
+            enabled=self.enabled,
+        )
+
 
 class ApplicableCondition(BaseModel):
     """
@@ -154,6 +204,59 @@ class RuleLogic(BaseModel):
 
     # Environment (for multi-environment support)
     environment: str = "default"
+
+    def to_v3_logic(self) -> RuleLogicDeclaration:
+        """Convert to V3 RuleLogicDeclaration model."""
+        from ontology_engine.core.schema.models import (
+            RuleLogicDeclaration,
+            StepDeclaration,
+            StepCondition,
+            StepAction,
+        )
+
+        steps = []
+        if self.when and (self.then_action or self.else_action):
+            condition = None
+            if self.when.expression:
+                condition = StepCondition(expression=self.when.expression)
+            elif self.when.allOf:
+                condition = StepCondition(and_=self.when.allOf)
+            elif self.when.anyOf:
+                condition = StepCondition(or_=self.when.anyOf)
+
+            then_step_action = None
+            if self.then_action:
+                then_step_action = StepAction(
+                    type=self.then_action.action_type,
+                    output=self.then_action.output,
+                    formula=self.then_action.formula,
+                    operator=self.then_action.operator,
+                )
+
+            else_step_action = None
+            if self.else_action:
+                else_step_action = StepAction(
+                    type=self.else_action.action_type,
+                    output=self.else_action.output,
+                    formula=self.else_action.formula,
+                    operator=self.else_action.operator,
+                )
+
+            steps.append(StepDeclaration(
+                id=f"{self.id}_step1",
+                name=self.name or self.id,
+                condition=condition,
+                action=then_step_action,
+                else_action=else_step_action,
+            ))
+
+        return RuleLogicDeclaration(
+            id=self.id,
+            name=self.name or self.id,
+            definition_ref=self.definition_id,
+            steps=steps,
+            version=self.version,
+        )
 
 
 # Re-export

@@ -12,6 +12,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from ontology_engine.core.types import apply_overrides, deep_copy_entity_data
+
 logger = logging.getLogger(__name__)
 
 from ontology_engine.core.schema.models import KGMLSchema, RuleDefinition
@@ -102,7 +104,7 @@ class RuleChainSimulator:
             # 3. Apply overrides
             if overrides:
                 logger.info(f"Applying overrides: {overrides}")
-                self._apply_overrides(entity_data, overrides)
+                apply_overrides(entity_data, overrides)
 
             # 4. Execute with snapshots
             logger.info(f"Executing simulation with dimension: {dimension}")
@@ -257,7 +259,7 @@ class RuleChainSimulator:
         condition_details: list[ConditionDetail] = []
 
         if rule.when:
-            eval_context = self.rule_executor._get_eval_context(context)
+            eval_context = self.rule_executor.get_eval_context(context)
             try:
                 condition_result = self.rule_executor.evaluator.evaluate(
                     rule.when, eval_context
@@ -340,12 +342,10 @@ class RuleChainSimulator:
     def _snapshot_context(self, context: ExecutionContext) -> dict[str, Any]:
         """Create a safe snapshot of the execution context.
 
-        Uses shallow copy for performance and to avoid deep recursion issues.
-        Assumes entity_data and computed_metrics contain simple JSON-serializable types.
+        Uses deep copy to prevent shared references in nested dicts.
         """
-        # Use dict.copy() for shallow copy - safe for JSON data from storage
-        entity_data_snapshot = dict(context.entity_data) if context.entity_data else {}
-        computed_metrics_snapshot = dict(context.computed_metrics) if context.computed_metrics else {}
+        entity_data_snapshot = deep_copy_entity_data(context.entity_data) if context.entity_data else {}
+        computed_metrics_snapshot = deep_copy_entity_data(context.computed_metrics) if context.computed_metrics else {}
 
         return {
             "entity_data": entity_data_snapshot,
@@ -549,28 +549,6 @@ class RuleChainSimulator:
             diffs=diffs,
             impact_chains=impact_chains,
         )
-
-    def _apply_overrides(
-        self,
-        entity_data: dict[str, Any],
-        overrides: dict[str, Any],
-    ) -> None:
-        """Apply override values to entity data.
-
-        Supports nested paths like "registered_capital.value".
-        """
-        for key, value in overrides.items():
-            if "." in key:
-                # Nested path
-                parts = key.split(".")
-                target = entity_data
-                for part in parts[:-1]:
-                    if part not in target or not isinstance(target[part], dict):
-                        target[part] = {}
-                    target = target[part]
-                target[parts[-1]] = value
-            else:
-                entity_data[key] = value
 
     def _serialize_condition(self, when: Any) -> str:
         """Serialize a RuleWhen to string expression."""

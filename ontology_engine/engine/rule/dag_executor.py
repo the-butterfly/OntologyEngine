@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import re
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -56,12 +58,17 @@ class ExecutionAbortedError(Exception):
 class StepResult:
     """Result of a single step execution."""
     step_id: str
+    step_name: str = ""
     skipped: bool = False
     rejected: bool = False
     reason: str | None = None
     output: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
     alert_emitted: bool = False
+    condition_result: bool | None = None
+    condition_detail: dict[str, Any] | None = None
+    input_values_used: dict[str, Any] = field(default_factory=dict)
+    duration_ms: int = 0
 
 
 @dataclass
@@ -194,7 +201,17 @@ class DAGExecutor:
             self._execute_with_semaphore(node, context, results, transaction, snapshot)
             for node in layer.nodes
         ]
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        processed: list[StepResult] = []
+        for r in raw_results:
+            if isinstance(r, Exception):
+                processed.append(StepResult(
+                    step_id="unknown",
+                    error=str(r),
+                ))
+            else:
+                processed.append(r)
+        return processed
 
     async def _execute_with_semaphore(
         self,
@@ -239,63 +256,85 @@ class DAGExecutor:
         """
         step = node.step
         step_id = step.id
+        step_name = step.name or step_id
+        start_time = time.time()
 
         try:
-            # Check if step is enabled
             if not step.enabled:
-                result = StepResult(step_id=step_id, skipped=True, reason="Step disabled")
+                result = StepResult(step_id=step_id, step_name=step_name, skipped=True, reason="Step disabled", duration_ms=int((time.time() - start_time) * 1000))
                 results[step_id] = result
                 return result
 
-            # Evaluate condition
             condition_passed = await self._evaluate_condition(step.when, context)
 
+            input_values_used = {}
+            eval_ctx = self._build_expression_context(context)
+            if step.when and step.when.expression:
+                for token in _extract_variable_names(step.when.expression):
+                    if token in eval_ctx:
+                        input_values_used[token] = eval_ctx[token]
+
             if not condition_passed:
-                # Execute else clause if condition is false
                 if step.else_:
                     output = await self._execute_action(step.else_, context)
                     result = StepResult(
                         step_id=step_id,
+                        step_name=step_name,
                         skipped=False,
                         output=output,
-                        reason="Condition false, else branch executed"
+                        reason="Condition false, else branch executed",
+                        condition_result=False,
+                        condition_detail=_build_condition_detail(step.when, False),
+                        input_values_used=input_values_used,
+                        duration_ms=int((time.time() - start_time) * 1000),
                     )
                 else:
                     result = StepResult(
                         step_id=step_id,
+                        step_name=step_name,
                         skipped=True,
-                        reason="Condition not met"
+                        reason="Condition not met",
+                        condition_result=False,
+                        condition_detail=_build_condition_detail(step.when, False),
+                        input_values_used=input_values_used,
+                        duration_ms=int((time.time() - start_time) * 1000),
                     )
                 results[step_id] = result
                 return result
 
-            # Execute then clause
             output = await self._execute_action(step.then, context)
 
-            # Check if action returned an error
             if "error" in output:
                 result = StepResult(
                     step_id=step_id,
+                    step_name=step_name,
                     skipped=False,
                     error=output.get("error"),
                     output=output,
+                    condition_result=True,
+                    condition_detail=_build_condition_detail(step.when, True),
+                    input_values_used=input_values_used,
+                    duration_ms=int((time.time() - start_time) * 1000),
                 )
                 results[step_id] = result
                 return result
 
             result = StepResult(
                 step_id=step_id,
+                step_name=step_name,
                 skipped=False,
                 output=output,
+                condition_result=True,
+                condition_detail=_build_condition_detail(step.when, True),
+                input_values_used=input_values_used,
+                duration_ms=int((time.time() - start_time) * 1000),
             )
 
-            # Check if rejected
-            if output.get("rejected") or output.get("eligible") is False:
+            if output.get("_rejected") or output.get("rejected") or output.get("eligible") is False:
                 result.rejected = True
                 result.reason = output.get("rejection_reason", "Rejected by rule")
 
-            # Check for alerts
-            if output.get("alerts"):
+            if output.get("alerts") or output.get("alert_triggered"):
                 result.alert_emitted = True
 
             results[step_id] = result
@@ -304,8 +343,10 @@ class DAGExecutor:
         except Exception as e:
             result = StepResult(
                 step_id=step_id,
+                step_name=step_name,
                 skipped=False,
                 error=str(e),
+                duration_ms=int((time.time() - start_time) * 1000),
             )
             results[step_id] = result
             return result
@@ -465,3 +506,41 @@ class DAGExecutor:
             "alerts": [a.__dict__ for a in context.alerts],
             "categories": context.categories,
         }
+
+
+_VAR_PATTERN = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
+
+
+def _extract_variable_names(expression: str) -> list[str]:
+    """Extract potential variable names from an expression string."""
+    if not expression:
+        return []
+    return _VAR_PATTERN.findall(expression)
+
+
+def _build_condition_detail(condition: ConditionClause | None, result: bool) -> dict[str, Any]:
+    """Build condition detail dict for frontend display."""
+    if condition is None:
+        return {"type": "none", "result": result, "explanation": "No condition"}
+    if condition.type == "expression":
+        return {
+            "type": "expression",
+            "expression": condition.expression or "",
+            "result": result,
+            "explanation": f"Condition '{condition.expression}' evaluated to {result}",
+        }
+    if condition.type == "all_of":
+        return {
+            "type": "all_of",
+            "sub_conditions": condition.sub_conditions,
+            "result": result,
+            "explanation": f"All conditions evaluated to {result}",
+        }
+    if condition.type == "any_of":
+        return {
+            "type": "any_of",
+            "sub_conditions": condition.sub_conditions,
+            "result": result,
+            "explanation": f"Any condition evaluated to {result}",
+        }
+    return {"type": condition.type, "result": result}

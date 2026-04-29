@@ -2,13 +2,44 @@
 """Tests for RuleLocator service."""
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock
+
 from ontology_engine.services.rule_locator import RuleLocator
 from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage
 
 
+def _make_mock_storage():
+    """Create a SemanticSpaceStorage with mocked load method."""
+    storage = SemanticSpaceStorage()
+
+    async def mock_load(space_id):
+        if space_id == "space_supply_chain_finance":
+            space = MagicMock()
+            rule_defs = [
+                {
+                    "id": "RD006_final_decision",
+                    "name": "综合授信决策",
+                    "inputs": [{"id": "credit_score", "type": "metric"}],
+                    "outputs": [{"id": "final_decision", "type": "flag"}],
+                },
+                {
+                    "id": "RD003_risk_assessment",
+                    "name": "风险评估",
+                    "inputs": [{"id": "credit_score", "type": "metric"}],
+                    "outputs": [{"id": "risk_flag", "type": "flag"}],
+                },
+            ]
+            space.layers.L4_business_logic.rule_definitions = rule_defs
+            return space
+        return None
+
+    storage.load = mock_load
+    return storage
+
+
 @pytest.fixture
 def storage():
-    return SemanticSpaceStorage()
+    return _make_mock_storage()
 
 
 @pytest.fixture

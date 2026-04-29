@@ -5,32 +5,28 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
-from ontology_engine.engine.rule.models import (
-    RuleGroupDefinition,
-    RuleStep,
-    IOElement,
-    AppliesToConfig,
-    ConditionClause,
-    ActionClause,
-)
 
 
-def make_rule_group(
+def make_rule_group_dict(
     name: str,
     outputs: list[str] | None = None,
     inputs: list[str] | None = None,
-) -> RuleGroupDefinition:
-    """Helper to create a RuleGroupDefinition for testing."""
+) -> dict:
+    """Helper to create a rule group dict for testing.
+
+    build_tree uses dict.get() to access groups, so test data must be dicts.
+    """
     outputs = outputs or []
     inputs = inputs or []
-
-    return RuleGroupDefinition(
-        id=f"rg_{name}",
-        name=name,
-        outputs=[IOElement(name=o) for o in outputs],
-        inputs=[IOElement(name=i) for i in inputs],
-        applies_to=AppliesToConfig(fact_objects=["TestEntity"]),
-    )
+    return {
+        "id": f"rg_{name}",
+        "name": name,
+        "outputs": [{"id": o} for o in outputs],
+        "inputs": [{"id": i, "type": "metric"} for i in inputs],
+        "rule_type": "decision",
+        "priority": 100,
+        "logic_ids": [],
+    }
 
 
 class TestRuleTreeBuilder:
@@ -47,8 +43,8 @@ class TestRuleTreeBuilder:
         # Mock the rule service
         mock_rule_service = AsyncMock()
         mock_rule_groups = [
-            make_rule_group("decision_maker", outputs=["decision", "reasoning"]),
-            make_rule_group("score_calculator", outputs=["score", "grade"]),
+            make_rule_group_dict("decision_maker", outputs=["decision", "reasoning"]),
+            make_rule_group_dict("score_calculator", outputs=["score", "grade"]),
         ]
         mock_rule_service.locate_rule_groups = AsyncMock(return_value=mock_rule_groups)
         tree_builder._rule_service = mock_rule_service
@@ -57,7 +53,7 @@ class TestRuleTreeBuilder:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        assert result[0].name == "decision_maker"
+        assert result[0]["name"] == "decision_maker"
         mock_rule_service.locate_rule_groups.assert_called_once_with("decision", "schema_001")
 
     @pytest.mark.asyncio
@@ -95,7 +91,7 @@ class TestRuleTreeBuilder:
         """Test building execution tree with single rule group."""
         mock_rule_service = AsyncMock()
         mock_rule_groups = [
-            make_rule_group("decision_maker", outputs=["decision"]),
+            make_rule_group_dict("decision_maker", outputs=["decision"]),
         ]
         mock_rule_service.locate_rule_groups = AsyncMock(return_value=mock_rule_groups)
         tree_builder._rule_service = mock_rule_service

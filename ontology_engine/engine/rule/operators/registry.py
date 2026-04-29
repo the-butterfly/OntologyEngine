@@ -208,12 +208,15 @@ def get_operator_schema(name: str) -> dict[str, Any] | None:
     """Get the JSON Schema for an operator by name.
 
     Args:
-        name: Operator name
+        name: Operator name (case-insensitive)
 
     Returns:
         JSON Schema dict or None if not found
     """
-    return OPERATOR_SCHEMAS.get(name)
+    result = OPERATOR_SCHEMAS.get(name)
+    if result is None:
+        result = OPERATOR_SCHEMAS.get(name.upper())
+    return result
 
 
 def get_all_operator_schemas() -> dict[str, dict[str, Any]]:

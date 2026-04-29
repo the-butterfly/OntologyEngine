@@ -41,6 +41,14 @@ from ontology_engine.core.semantic_space.rule_models import (
     RuleLogic,
 )
 
+from ontology_engine.core.schema.models import (
+    RuleDefinitionDeclaration,
+    RuleLogicDeclaration,
+    StepDeclaration,
+    StepAction,
+    StepCondition,
+)
+
 from ontology_engine.core.semantic_space.storage import (
     SemanticSpaceStorage,
     SemanticSpaceStorageError,
@@ -69,7 +77,7 @@ __all__ = [
     "SpaceInstances",
     "Authorization",
     "ConsumptionView",
-    # Rule models
+    # Rule models (legacy - use V3 models below)
     "TargetObject",
     "InputElement",
     "OutputElement",
@@ -79,6 +87,12 @@ __all__ = [
     "RuleWhen",
     "RuleAction",
     "RuleLogic",
+    # V3 Rule models (preferred)
+    "RuleDefinitionDeclaration",
+    "RuleLogicDeclaration",
+    "StepDeclaration",
+    "StepAction",
+    "StepCondition",
     # Storage
     "SemanticSpaceStorage",
     "SemanticSpaceStorageError",

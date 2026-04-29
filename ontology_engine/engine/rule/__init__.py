@@ -13,7 +13,13 @@ from ontology_engine.engine.rule.models import (
     AppliesToConfig,
     Precondition,
     IOElement,
+    # V3: RFC-018 / RFC-019 Models
+    StructuredActionClause,
+    StepDecl,
+    RuleDefinitionDecl,
+    RuleLogicDecl,
 )
+from ontology_engine.core.schema.models import ActionType, OperatorType
 from ontology_engine.engine.rule.evaluator import ExpressionEvaluator, ExpressionSyntaxError
 from ontology_engine.engine.rule.executor import RuleExecutor
 
@@ -35,6 +41,13 @@ __all__ = [
     "AppliesToConfig",
     "Precondition",
     "IOElement",
+    # V3 Models (RFC-018 / RFC-019)
+    "StructuredActionClause",
+    "StepDecl",
+    "RuleDefinitionDecl",
+    "RuleLogicDecl",
+    "ActionType",
+    "OperatorType",
     # Utilities
     "ExpressionEvaluator",
     "ExpressionSyntaxError",
