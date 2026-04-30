@@ -1,12 +1,12 @@
 # 认知操作 API 设计
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` | **last_verified**: 2026-04-25
+> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
 
 ---
 
 ## 目的
 
-定义 OntologyEngine Agent 记忆系统的认知操作 API，以 3 个核心操作覆盖 Agent 的日常记忆交互，保持管理 API 不变。
+定义 OntologyEngine Agent 记忆系统的认知操作 API，以 3 个核心操作覆盖 Agent 的日常记忆交互，保持管理 API 不变。API 采用三层抽象（L1/L2/L3），兼顾简洁性与灵活性。
 
 ## 设计原则
 
@@ -14,6 +14,9 @@
 2. **consolidate 和 forget 是 reflect 的内部流程**，不暴露为独立操作
 3. **memory_type 对 Agent 是可选的提示**，不是必须理解的层次
 4. **高级用户可通过管理 API 单独调用** consolidate / forget
+5. **API 三层抽象**：L1 零配置（Agent 日常）、L2 可选参数（高级 Agent）、L3 完整控制（管理/调试）
+6. **reflect 异步编排**：返回 reflection_id，支持进度查询
+7. **记忆可见性控制**：支持 private / shared / public 三级可见性
 
 ---
 
@@ -127,7 +130,7 @@ async def recall(
     ),
     memory_type: str | None = Field(
         default=None,
-        description="Optional type filter: mental_model, entity, observation, episode, procedure, fragment. Auto-searches all types if not specified.",
+        description="Optional type filter: mental_model, opinion, entity, observation, rule, episode, procedure, fragment. Auto-searches all types if not specified.",
         examples=["entity", "observation"]
     ),
     max_results: int = Field(
@@ -139,6 +142,11 @@ async def recall(
         default=True,
         description="Whether to include evidence chains in results.",
         examples=[true, false]
+    ),
+    evidence_depth: int = Field(
+        default=1,
+        description="Evidence chain expansion depth. 1=direct sources only, 2=include sources of sources. L1/L2 default=1, L3 can specify up to 3.",
+        examples=[1, 2, 3]
     ),
     as_of: str | None = Field(
         default=None,
@@ -229,7 +237,7 @@ async def reflect(
     ),
     focus_types: list[str] | None = Field(
         default=None,
-        description="Optional focus on specific memory types: mental_model, entity, observation, episode, fragment.",
+        description="Optional focus on specific memory types: mental_model, opinion, entity, observation, rule, episode, procedure, fragment.",
         examples=[["observation", "entity"]]
     )
 ) -> dict:
@@ -436,6 +444,214 @@ ontology-cli memory stats     --space space.finance
 
 ---
 
+## 10. API 三层抽象 [新增]
+
+> **[关键设计点]**：L1 零配置是 Agent 日常使用的唯一接口，默认行为必须足够好。
+
+### 10.1 三层定义
+
+| 层级 | 目标用户 | 参数量 | 说明 |
+|------|---------|--------|------|
+| L1 | Agent 日常 | 2-3 | 零配置，默认策略自动选择 |
+| L2 | 高级 Agent | 5-10 | 可选参数，按需使用 |
+| L3 | 管理/调试 | 全部 | 完整参数暴露，精细控制 |
+
+### 10.2 L1 API（Agent 日常）
+
+```python
+remember(content, space_id) → dict
+recall(query, space_id) → dict
+reflect(query, space_id) → dict  # 异步，返回 reflection_id
+```
+
+**关键**：L1 的默认行为必须足够好——
+- `recall` 默认使用分层漏斗 + DispositionProfile 自动选择检索策略
+- `reflect` 默认异步执行，返回 reflection_id
+- `remember` 默认双通道提取（Schema 引导 + 开放提取）
+
+### 10.3 L2 API（高级 Agent）
+
+```python
+remember(content, space_id, tags=None, memory_type="fragment",
+         visibility="shared", auto_consolidate=False) → dict
+
+recall(query, space_id, memory_type=None, max_results=10,
+       include_evidence=True, as_of=None, token_budget=None,
+       allow_short_circuit=True, min_confidence=0.5) → dict
+
+reflect(query, space_id, max_iterations=10, focus_types=None,
+        async_mode=True) → dict  # async_mode=True 返回 reflection_id
+```
+
+### 10.4 L3 API（管理/调试）
+
+```python
+remember(content, space_id, tags=None, memory_type="fragment",
+         visibility="shared", auto_consolidate=False,
+         belief_status="accepted", confidence=1.0,
+         valid_from=None, valid_to=None, recorded_at=None,
+         occurred_at=None, source_pipeline=None) → dict
+
+recall(query, space_id, memory_type=None, max_results=10,
+       include_evidence=True, as_of=None, token_budget=None,
+       allow_short_circuit=True, min_confidence=0.5,
+       belief_status_filter="accepted", cognitive_layer=None,
+       expansion_rules=None, evidence_depth=1,
+       disposition_override=None) → dict
+
+reflect(query, space_id, max_iterations=10, focus_types=None,
+        async_mode=True, cascade_depth=3,
+        skip_consolidation=False, skip_forgetting=False,
+        skip_correction_propagation=False) → dict
+```
+
+---
+
+## 11. 异步 Reflect [新增]
+
+> **[关键设计点]**：reflect 内部编排复杂（7个内部流程），必须异步执行。
+
+### 11.1 异步流程
+
+```
+reflect(query, space_id)
+  ↓
+1. 创建 ReflectionJob → 返回 reflection_id
+  ↓
+2. 后台执行7个内部流程：
+   ├── 分层检索（mental_model → entity → observation → fragment）
+   ├── 矛盾检测（CONTRADICTS 边扫描）
+   ├── 信念修正（BeliefRevisionEngine）
+   ├── 巩固（ConsolidationPipeline）
+   ├── 遗忘（ForgettingEngine）
+   ├── 更正传播（CorrectionPropagation）
+   └── Schema 建议生成（PatternDetector）
+  ↓
+3. 每个流程独立提交，失败不影响其他流程
+  ↓
+4. 结果持久化，不因中途失败而丢失
+```
+
+### 11.2 进度查询
+
+```python
+recall(reflection_id="refl_001") → dict
+```
+
+**返回格式**：
+
+```json
+{
+    "success": true,
+    "data": {
+        "reflection_id": "refl_001",
+        "status": "in_progress",
+        "progress": {
+            "retrieval": "completed",
+            "contradiction_detection": "completed",
+            "belief_revision": "in_progress",
+            "consolidation": "pending",
+            "forgetting": "pending",
+            "correction_propagation": "pending",
+            "schema_suggestion": "pending"
+        },
+        "partial_results": {
+            "insights": [...],
+            "contradictions": [...]
+        }
+    }
+}
+```
+
+### 11.3 Reflect 结果查询
+
+```python
+recall(reflection_id="refl_001") → dict  # status="completed" 时返回完整结果
+```
+
+---
+
+## 12. 记忆可见性 [新增]
+
+> **[关键设计点]**：多用户共享同一 space 时，记忆需要可见性控制。
+
+### 12.1 可见性级别
+
+| 级别 | 说明 | 谁可见 |
+|------|------|--------|
+| private | 仅创建者可见 | 创建者 |
+| shared | space 内共享 | space 内所有用户 |
+| public | 跨 space 共享 | 所有用户 |
+
+### 12.2 可见性判断规则
+
+```python
+def determine_visibility(content, memory_type, source):
+    if contains_personal_info(content):
+        return "private"
+    if memory_type in ("entity", "rule", "mental_model"):
+        return "shared"
+    if source == "user_input" and memory_type == "episode":
+        return "private"
+    return "shared"
+```
+
+### 12.3 可见性过滤
+
+```python
+async def recall_with_visibility(query, space_id, user_id):
+    results = await recall(query, space_id)
+    filtered = [
+        r for r in results
+        if r.visibility == "shared"
+        or (r.visibility == "private" and r.created_by == user_id)
+        or (r.visibility == "public")
+    ]
+    return filtered
+```
+
+---
+
+## 13. Agent 与人协作 API [新增]
+
+> **[关键设计点]**：三区模型（轨道A/轨道B/待审区）的 API 支持。
+
+### 13.1 待审区查询
+
+```python
+recall(query="pending_reviews", space_id=space_id,
+       belief_status_filter="pending_review") → dict
+```
+
+### 13.2 审批操作
+
+```python
+approve_memory(node_id, action="approve", modifier_id="user_001",
+               comment="确认此风险信号") → dict
+```
+
+| action | 说明 |
+|--------|------|
+| approve | 批准晋升到轨道A，belief_status → accepted, confidence → 1.0 |
+| reject | 拒绝，belief_status → rejected |
+| modify | 修改后批准，belief_status → accepted |
+
+### 13.3 更正操作
+
+```python
+remember(content="诉讼已撤诉", space_id=space_id,
+         supersede_target="obs_001", supersede_reason="correction") → dict
+```
+
+### 13.4 审计日志查询
+
+```python
+recall(query="audit_trail", space_id=space_id,
+       entity_name="华为", include_superseded=True) → dict
+```
+
+---
+
 ## 参考文档
 
 | 主题 | 文档位置 |
@@ -445,3 +661,5 @@ ontology-cli memory stats     --space space.finance
 | 记忆层次设计 | `docs/02-design/agent-memory/memory-hierarchy.md` |
 | 记忆生命周期设计 | `docs/02-design/agent-memory/memory-lifecycle.md` |
 | Agent 友好接口设计 | `docs/02-design/agent-friendly-design.md` |
+| 知识库流程主文档 | `docs/01-overview/10-kb-process.md` |
+| 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |

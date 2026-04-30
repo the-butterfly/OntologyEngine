@@ -1,22 +1,25 @@
 # IngestionService 双通道设计
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/01-overview/04-modules.md` | **last_verified**: 2026-04-19
+> **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/01-overview/04-modules.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
 
 ---
 
 ## 目的
 
-定义 IngestionService 的双通道摄入架构，将当前同步顺序导入重写为快速通道（同步写入）+ 慢速通道（后台推理）的分离模式，并集成矛盾检测、Dataset 注册和 Fragment 管理。
+定义 IngestionService 的双通道摄入架构，将当前同步顺序导入重写为快速通道（同步写入）+ 慢速通道（后台推理）的分离模式，并集成 Schema-Aware 提取、双轨矛盾治理、待审区和 Fragment 管理。
 
 ## 解决的问题
 
 | # | 问题 | 当前表现 | 本文如何解决 |
 |---|------|----------|-------------|
-| 1 | **无双通道分离** | `import_instances` 同步顺序写入实体和关系，LLM 推理阻塞主流程 | 快速通道同步写入 EntityNode + 时序链接 + 向量索引，慢速通道后台推理 |
-| 2 | **无矛盾检测** | 导入时不检测矛盾，矛盾在查询时才暴露 | Ingest 时 LLM 比对已有知识，生成 contradiction_report，触发人工确认 |
+| 1 | **无双通道分离** | `import_instances` 同步顺序写入实体和关系，LLM 推理阻塞主流程 | 快速通道同步写入 CognitiveNode + 时序链接 + 向量索引，慢速通道后台推理 |
+| 2 | **无矛盾检测** | 导入时不检测矛盾，矛盾在查询时才暴露 | Ingest 时 LLM 比对已有知识，生成 CONTRADICTS 边，触发双轨治理 |
 | 3 | **无 Dataset 注册** | IngestionService 不处理 Dataset 元数据声明 | Dataset 注册 + linkage_targets 关联 + Fragment 管理 |
 | 4 | **无 Fragment 管理** | 不创建 KnowledgeFragment，Layer-R 为空 | 文档切分为 Fragment + 向量索引 + extraction_status 追踪 |
 | 5 | **术语陈旧** | 使用 concept_type / EntityInstance(concept) | 统一为 Schema v2：_fact_object / EntityInstance |
+| 6 | **无 Schema-Aware 提取** | LLM 提取不利用 Schema 结构，质量不稳定 | 双通道提取：Schema 引导 + 开放提取并行 |
+| 7 | **单轨矛盾治理** | 矛盾=阻塞（阻止写入），Agent 无法自治 | 双轨治理：轨道A（企业）+ 轨道B（Agent）+ 待审区 |
+| 8 | **无双时序写入** | 只有 valid_from/valid_to，无法区分"何时发生"与"何时知晓" | 增加 recorded_at (T') 同步写入 |
 
 ---
 
@@ -165,7 +168,7 @@ consolidation_queue 使用 SQLite 表实现，保证持久化和断电恢复。
 
 | 时机 | 触发条件 | 行为 |
 |------|---------|------|
-| **Ingest 时** | 新 EntityInstance 的 identity_fields 匹配已有实体 | LLM 比对新旧属性值，发现矛盾则阻止写入 |
+| **Ingest 时** | 新 EntityInstance 的 identity_fields 匹配已有实体 | LLM 比对新旧属性值，发现矛盾则创建 CONTRADICTS 边，分流到对应轨道 |
 | **后台扫描** | 定期批次检测 | 发现矛盾通知管理员，不阻塞日常查询 |
 
 ### Ingest 时检测流程
@@ -181,7 +184,7 @@ consolidation_queue 使用 SQLite 表实现，保证持久化和断电恢复。
        ↓
 3. LLM 判断是否矛盾
   ├─ 无矛盾 → 合并属性（取最新值）
-  ├─ 矛盾 → 生成 contradiction_report，阻止写入
+  ├─ 矛盾 → 创建 CONTRADICTS 边 + belief_status=pending_review（分流到待审区）
   └─ 不确定 → 标记 AMBIGUOUS，入队人工审查
 ```
 
@@ -339,15 +342,142 @@ async def ingest_document(
 
 ---
 
+## Schema-Aware 提取 [新增]
+
+> **[关键设计点]**：双通道提取——Schema 引导通道 + 开放提取通道并行，保证 Schema 覆盖范围之外的发现能力。
+
+### 通道 A：Schema 引导提取
+
+```
+输入: Fragment + Schema L1 EntityDeclaration
+  ↓
+1. 匹配 Fragment 内容到 Schema 实体类型
+  ↓
+2. 注入提取模板（"提取 Counterparty 时必须包含 debt_ratio 字段"）
+  ↓
+3. LLM 按模板提取 → 高 alignment_score（平均 0.8+）
+  ↓
+4. 写入 CognitiveNode(memory_type=entity, schema_ref=EntityDeclaration.name)
+```
+
+### 通道 B：开放提取
+
+```
+输入: Fragment（无 Schema 匹配）
+  ↓
+1. LLM 自由提取所有可能的关系和模式
+  ↓
+2. 不受 Schema 约束，可能发现 Schema 外的新实体/关系
+  ↓
+3. 写入 CognitiveNode(memory_type=observation, belief_status=pending_review)
+  ↓
+4. 积累到阈值后触发 Schema 扩展建议
+```
+
+### 双通道协调
+
+```python
+async def extract_with_dual_channel(fragment, schema_registry):
+    schema_matches = schema_registry.match(fragment)
+    
+    if schema_matches:
+        results_a = await schema_guided_extract(fragment, schema_matches)
+        results_b = await open_extract(fragment, exclude=schema_matches)
+    else:
+        results_a = []
+        results_b = await open_extract(fragment)
+    
+    all_results = results_a + results_b
+    
+    for result in all_results:
+        if result.schema_aligned:
+            result.belief_status = "accepted"
+        else:
+            result.belief_status = "pending_review"
+    
+    return all_results
+```
+
+---
+
+## 双轨矛盾治理 [新增]
+
+> **[关键设计点]**：矛盾不再阻塞写入，而是分流到不同轨道处理。
+
+### 三区模型
+
+```
+Agent 自治区（轨道B）          待审区              企业治理区（轨道A）
+┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
+│ Agent 自动     │    │ belief_status=    │    │ 人工确认的    │
+│ 生成/更新记忆 │───▶│ pending_review    │───▶│ 正式知识      │
+│               │    │                   │    │               │
+│ 可自由检索    │    │ 可检索但带标记    │    │ 可自由检索    │
+│ 可自由遗忘    │    │ 不可遗忘          │    │ 不可自由遗忘  │
+│ confidence自评│    │ 等待人工决策      │    │ confidence=1.0│
+└──────────────┘    └──────────────────┘    └──────────────┘
+```
+
+### 矛盾检测流程
+
+```
+新 CognitiveNode
+  ↓
+1. 根据 entity_name + schema_ref 查找已有 CognitiveNode
+  ↓
+2. 已有节点存在？
+  ├─ 否 → 直接写入（快速通道）
+  └─ 是 → LLM 比对属性值
+       ↓
+3. LLM 判断是否矛盾
+  ├─ 无矛盾 → 合并属性（取最新值）
+  ├─ 矛盾（企业知识） → 创建 CONTRADICTS 边 + belief_status=pending_review
+  └─ 矛盾（Agent 记忆） → 创建 CONTRADICTS 边 + 轨道B自治处理
+```
+
+### 自动晋升条件
+
+```python
+def can_auto_promote(node, disposition):
+    if node.confidence > 0.9 and node.proof_count >= 3:
+        if disposition.skepticism < 0.7:
+            return True
+    return False
+```
+
+### 人工审批接口
+
+```python
+async def approve_memory(node_id, action, modifier_id, comment=None):
+    node = await get_cognitive_node(node_id)
+    
+    if action == "approve":
+        node.belief_status = "accepted"
+        node.confidence = 1.0
+    elif action == "reject":
+        node.belief_status = "rejected"
+    elif action == "modify":
+        node.belief_status = "accepted"
+        node.attributes.update(modified_attrs)
+    
+    await update_cognitive_node(node)
+    await create_approval_record(node_id, action, modifier_id, comment)
+```
+
+---
+
 ## 设计决策
 
 | # | 决策 | 理由 |
 |---|------|------|
 | D-ING-1 | 快速通道不调用 LLM | 保证低延迟，LLM 调用延迟 1-5 秒不可接受 |
 | D-ING-2 | 慢速通道使用 SQLite 持久化队列 | 断电恢复保证，比内存队列更可靠 |
-| D-ING-3 | 矛盾检测在 Ingest 时触发 | 矛盾越早发现越好，阻止不一致数据写入 |
+| D-ING-3 | 矛盾检测在 Ingest 时触发 | 矛盾越早发现越好，但不阻塞写入 |
 | D-ING-4 | UUID5 确定性 ID | 同一业务实体从不同管道摄入时产出相同 ID，支持幂等写入 |
 | D-ING-5 | Fragment 切分默认 800 字符 | 平衡检索精度和上下文完整性，与 MemPalace 对齐 |
+| D-ING-6 | 双通道提取（Schema引导+开放提取） | Schema引导保证质量，开放提取保证发现能力 |
+| D-ING-7 | 矛盾分流而非阻塞 | Agent 需要自治工作流，阻塞会严重影响效率 |
+| D-ING-8 | 待审区记忆可检索但带标记 | 不阻塞Agent工作流，同时保证信息透明 |
 
 ---
 
@@ -360,3 +490,5 @@ async def ingest_document(
 | 矛盾检测概念 | `docs/01-overview/05-concepts.md` |
 | Dataset 概念 | `docs/01-overview/05-concepts.md` |
 | 查询引擎设计 | `docs/02-design/query-engine/README.md` |
+| 知识库流程主文档 | `docs/01-overview/10-kb-process.md` |
+| 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |

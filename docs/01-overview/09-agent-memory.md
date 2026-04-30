@@ -1,6 +1,6 @@
 # Agent 记忆架构
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-25
+> **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-30
 > **[待扩展]**: 本文档定义 Agent 记忆系统的概念框架，详细设计见 `docs/02-design/agent-memory/`
 
 ---
@@ -95,15 +95,16 @@ OntologyEngine 当前是一个优秀的**知识管理系统**——Schema 驱动
 
 ### 类型定义
 
-| memory_type | 含义 | 来源 | 检索权重 | 对应 Hindsight |
-|-------------|------|------|---------|---------------|
-| `fragment` | 原始知识碎片 | Ingestion 导入 | 1.0（基准） | World/Experience Fact |
-| `observation` | 自动归纳知识 | Consolidation 生成 | 1.5 | Observation |
-| `entity` | Schema 驱动实例 | Schema 加载 + 提取 | 2.0 | — |
-| `rule` | 业务规则定义 | Schema 加载 | 2.0 | — |
-| `mental_model` | 高层摘要 | 用户策划 / Reflect 生成 | 3.0 | Mental Model |
-| `episode` | 经验事件 | 交互自动记录 | 1.2 | Experience Fact |
-| `procedure` | 操作模式 | 从 Episode 归纳 | 1.8 | — |
+| memory_type | 含义 | 来源 | 检索权重 | cognitive_layer | 对应 Hindsight |
+|-------------|------|------|---------|-----------------|---------------|
+| `fragment` | 原始知识碎片 | Ingestion 导入 | 0.5 | perception | World/Experience Fact |
+| `observation` | 自动归纳知识 | Consolidation 生成 | 1.5 | semantic | Observation |
+| `entity` | Schema 驱动实例 | Schema 加载 + 提取 | 1.8 | semantic | — |
+| `opinion` | 主观判断/观点 | Agent/用户表达 | 1.3 | opinion | — |
+| `rule` | 业务规则定义 | Schema 加载 | 1.5 | procedure | — |
+| `mental_model` | 高层摘要 | 用户策划 / Reflect 生成 | 2.0 | opinion | Mental Model |
+| `episode` | 经验事件 | 交互自动记录 | 1.0 | perception | Experience Fact |
+| `procedure` | 操作模式 | 从 Episode 归纳 | 1.2 | procedure | — |
 
 ### 类型间关系（同层内，用边而非层间跳转）
 
@@ -239,6 +240,47 @@ score < 0.6 → 创建新实体
 
 ---
 
+## 认知分层（cognitive_layer）
+
+### 四层认知模型
+
+memory_type 从存储角度区分类型，cognitive_layer 从认知角度区分抽象层次：
+
+| cognitive_layer | 含义 | 包含的 memory_type | 检索优先级 |
+|-----------------|------|-------------------|-----------|
+| opinion | 主观判断层 | mental_model, observation, opinion | 最高 |
+| semantic | 语义知识层 | entity, rule | 高 |
+| procedure | 过程知识层 | procedure, episode | 中 |
+| perception | 感知层 | fragment | 最低 |
+
+### 分层漏斗检索
+
+```
+opinion 层 → semantic 层 → procedure 层 → perception 层
+    ↓ 命中?     ↓ 命中?      ↓ 命中?
+   返回        返回          返回
+```
+
+高认知层命中时可短路低层检索，减少延迟。
+
+---
+
+## DispositionProfile
+
+Agent 的个性化检索偏好配置，7 个维度影响检索和反思行为：
+
+| 维度 | 影响范围 | 高值行为 | 低值行为 |
+|------|---------|---------|---------|
+| skepticism | 检索 + 反思 | 优先检测矛盾，对 opinion 降权 | 接受现有知识 |
+| evidence_demand | 检索 | 要求更多证据（proof_count 阈值提高） | 接受弱证据 |
+| abstraction_preference | 检索 | 偏好 mental_model/entity | 偏好 observation/fragment |
+| thoroughness | 检索 + 反思 | 增加检索深度和迭代次数 | 快速收敛 |
+| recency_bias | 检索 | 偏好近期记忆（recorded_at 权重提高） | 时间中性 |
+| empathy | 反思 | 关注用户体验相关洞察 | 技术导向 |
+| risk_tolerance | 检索 + 反思 | 降低 min_confidence 阈值 | 提高阈值，保守判断 |
+
+---
+
 ## 参考文档
 
 | 主题 | 文档位置 |
@@ -246,6 +288,13 @@ score < 0.6 → 创建新实体
 | 记忆层次详细设计 | `docs/02-design/agent-memory/memory-hierarchy.md` |
 | 记忆生命周期详细设计 | `docs/02-design/agent-memory/memory-lifecycle.md` |
 | 认知操作 API 设计 | `docs/02-design/agent-memory/memory-api.md` |
+| Consolidation 引擎设计 | `docs/02-design/agent-memory/consolidation-engine.md` |
+| Reflect Agent 设计 | `docs/02-design/agent-memory/reflect-agent.md` |
+| 实体解析消歧设计 | `docs/02-design/services/entity-resolver.md` |
+| RRF 融合排序设计 | `docs/02-design/query-engine/rrf-fusion.md` |
+| 查询路由设计 | `docs/02-design/query-engine/query-routing.md` |
+| 时序建模设计 | `docs/02-design/schema/temporal-modeling.md` |
 | 核心概念 | `docs/01-overview/05-concepts.md` |
 | 知识检索机制 | `docs/01-overview/08-knowledge-retrieval.md` |
 | Hindsight 深度调研 | `docs-dev/research/hindsight-deep-analysis.md` |
+| Hindsight 对比验证 | `discuss/2026-04-30-hindsight-comparison-verification-report.md` |
