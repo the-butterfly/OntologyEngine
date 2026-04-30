@@ -1,6 +1,6 @@
 # 时序建模 Grammar
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: [01-overview/05-concepts.md](../../01-overview/05-concepts.md) | **last_verified**: 2026-04-19
+> **status**: draft | **phase**: rewrite | **source_of_truth**: [01-overview/05-concepts.md](../../01-overview/05-concepts.md) + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
 
 ## 目的
 
@@ -15,6 +15,9 @@
 | 3 | 无时序查询语义规范 | 查询当前版本、指定时点、全量历史三种需求无法统一路由 |
 | 4 | 无时序边类型定义 | 事件先后、因果关系无法在图中表达 |
 | 5 | 无版本限制策略 | 时序实体版本无限增长导致存储膨胀 |
+| 6 | 无双时序支持（recorded_at） | 无法区分"事件何时发生"与"系统何时知晓"，更正传播语义不完整 |
+| 7 | 无 SUPERSEDES/CONTRADICTS 边 | 更正链和矛盾链无法在图中表达 |
+| 8 | 版本淘汰策略不完善 | 被淘汰版本被引用时处理不完整，SUPERSEDED→ACTIVE 回退路径缺失 |
 
 ---
 
@@ -282,6 +285,174 @@ query_entity(id, include_history=true)
 
 ---
 
+## 7. 双时序模型 [新增]
+
+> **[关键设计点]**：双时序区分"事实有效时间"（T）和"系统记录时间"（T'），是更正传播和矛盾治理的基础。
+
+### 目的
+
+区分"事件何时发生"与"系统何时知晓"，使更正传播的时序语义完整。
+
+### 解决的问题
+
+单时序（valid_from/valid_to）无法回答：
+- "系统何时收到更正？" → 需要 recorded_at (T')
+- "更正的实际发生时间与系统记录时间是否一致？" → 需要 occurred_at
+- "更正传播应基于哪个时间？" → 传播优先级应基于 occurred_at 而非 recorded_at
+
+### 字段定义
+
+| 字段 | 类型 | 语义 | 说明 |
+|------|------|------|------|
+| `valid_from` | datetime? | 事实有效起始时间（T） | 继承自单时序模型 |
+| `valid_to` | datetime? | 事实有效终止时间（T） | 继承自单时序模型 |
+| `recorded_at` | datetime? | 系统记录时间（T'） | **新增**——系统何时收到此信息 |
+| `occurred_at` | datetime? | 事件实际发生时间 | **新增**——事件何时实际发生 |
+
+### 典型案例
+
+```
+Day 10: observation("华为涉诉") 创建
+  valid_from = Day 10, valid_to = null
+  recorded_at = Day 10, occurred_at = Day 10
+
+Day 20: 用户更正"诉讼已撤诉"
+  旧 observation: valid_to = Day 20
+  新 observation("撤诉"):
+    valid_from = Day 20, valid_to = null
+    recorded_at = Day 20  ← 系统何时收到更正
+    occurred_at = Day 18  ← 撤诉实际发生时间
+
+关键区别：
+  recorded_at = Day 20 → 系统在 Day 20 才知道撤诉
+  occurred_at = Day 18  → 撤诉实际在 Day 18 就发生了
+  级联更新应基于 occurred_at 而非 recorded_at
+```
+
+### 新增查询语义
+
+| 查询类型 | 条件 | 返回 | 示例 |
+|----------|------|------|------|
+| 更正历史 | `SUPERSEDES 边 + ORDER BY recorded_at` | 有序列表 | "华为涉诉信息的更正历史" |
+| 系统知晓时点 | `recorded_at <= as_of` | 单条 | "系统在 Day 15 时知道什么" |
+| 事件时序 | `occurred_at ORDER BY` | 有序列表 | "华为相关事件的时间线" |
+
+---
+
+## 8. SUPERSEDES 与 CONTRADICTS 边 [新增]
+
+> **[关键设计点]**：SUPERSEDES 表达更正链，CONTRADICTS 表达矛盾链。两者是双轨矛盾治理的图结构基础。
+
+### SUPERSEDES 边
+
+| 字段 | 类型 | 语义 |
+|------|------|------|
+| `supersede_reason` | string | 更正原因：correction / update / invalidation |
+| `supersede_type` | string | 更正类型：full（完全取代）/ partial（部分取代） |
+| `confidence` | double | 更正置信度 |
+| `recorded_at` | datetime | 系统记录更正的时间（T'） |
+
+```cypher
+CREATE REL TABLE SUPERSEDES (
+    FROM CognitiveNode TO CognitiveNode,
+    id              STRING,
+    supersede_reason STRING,
+    supersede_type  STRING,
+    confidence      DOUBLE DEFAULT 1.0,
+    recorded_at     DATETIME,
+    created_at      DATETIME
+)
+```
+
+### CONTRADICTS 边
+
+| 字段 | 类型 | 语义 |
+|------|------|------|
+| `contradiction_type` | string | 矛盾类型：factual / temporal / semantic |
+| `contradiction_field` | string | 矛盾字段名 |
+| `old_value` | string | 旧值 |
+| `new_value` | string | 新值 |
+| `resolution_status` | string | 解决状态：pending / resolved_track_a / resolved_track_b / ignored |
+
+```cypher
+CREATE REL TABLE CONTRADICTS (
+    FROM CognitiveNode TO CognitiveNode,
+    id                  STRING,
+    contradiction_type  STRING,
+    contradiction_field STRING,
+    old_value           STRING,
+    new_value           STRING,
+    confidence          DOUBLE DEFAULT 1.0,
+    resolution_status   STRING DEFAULT 'pending',
+    created_at          DATETIME
+)
+```
+
+### SUPERSEDES 链查询
+
+```cypher
+MATCH (new:CognitiveNode)-[r:SUPERSEDES]->(old:CognitiveNode)
+WHERE new.space_id = $space_id AND old.entity_name = $entity_name
+RETURN new, old, r ORDER BY r.recorded_at DESC
+```
+
+### CONTRADICTS 链查询
+
+```cypher
+MATCH (a:CognitiveNode)-[r:CONTRADICTS]->(b:CognitiveNode)
+WHERE a.space_id = $space_id AND r.resolution_status = 'pending'
+RETURN a, b, r
+```
+
+### belief_status 状态机（含回退路径）
+
+```
+accepted ──[矛盾检测]──▶ pending_review ──[人工确认]──▶ accepted
+                                              │
+                                              ├──[人工拒绝]──▶ rejected
+                                              └──[人工修改]──▶ accepted (modified)
+
+accepted ──[更正写入]──▶ superseded (superseded_by 指向新版本)
+superseded ──[更正撤销]──▶ accepted (superseded_by 清空)  ← 新增回退路径
+
+pending_review ──[超时未审]──▶ accepted (自动晋升，需 confidence > 0.9)
+rejected ──[重新提交]──▶ pending_review
+```
+
+---
+
+## 9. 版本淘汰策略（修订）
+
+### 修订内容
+
+原策略"删除最老版本"存在引用完整性风险，修订为"先归档再删除+引用检查"。
+
+### 新策略
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| 单实体最大版本数 | 100 | 超过此阈值触发版本淘汰 |
+| 超限策略 | 先归档再删除 | 按 valid_from 升序，先检查引用再删除 |
+| 淘汰时机 | 写入新版本时 | 惰性淘汰，不主动扫描 |
+| 引用检查 | 检查 SUPERSEDES/CONTRADICTS 边 | 被引用的版本不删除，标记为 archived |
+
+### 实现逻辑
+
+```
+写入新版本
+  ↓
+查询当前版本数
+  ↓ count > 100?
+  ├── false → 直接写入
+  └── true  → 查找 valid_from 最早的版本
+       ↓
+       检查引用关系
+       ├── 有 SUPERSEDES/CONTRADICTS 边引用 → 标记 archived，跳过删除
+       └── 无引用 → 删除 → 写入新版本
+```
+
+---
+
 ## 参考文档
 
 | 主题 | 文档位置 |
@@ -290,3 +461,5 @@ query_entity(id, include_history=true)
 | Schema v2 完整规范 | `docs/02-design/schema/01-schema-spec.md` |
 | 查询路由设计 | [01-overview/08-knowledge-retrieval.md](../../01-overview/08-knowledge-retrieval.md) |
 | 参考项目对齐分析 | [02-design/schema/reference-alignment.md](./reference-alignment.md) |
+| 知识库流程主文档 | `docs/01-overview/10-kb-process.md` |
+| 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |

@@ -1,6 +1,6 @@
 # 记忆生命周期设计
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` | **last_verified**: 2026-04-25
+> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
 
 ---
 
@@ -415,6 +415,218 @@ class ContextAwareRetriever:
 
 ---
 
+## 8. 编译层（Compilation Layer）[新增]
+
+> **[关键设计点]**：编译层是巩固的高级产物，将高频访问的实体信息预编译为 Entity Page / Topic Page，加速检索。
+
+### 8.1 编译产物类型
+
+| 产物 | 输入 | 输出 | Token 消耗 |
+|------|------|------|-----------|
+| Entity Page | 单个 entity + 关联 observation + 关系 | 结构化摘要 + 时间线 + 关键指标 | ~5000 |
+| Topic Page | 多个 entity + mental_model | 主题综合观点 + 实体关联图 | ~3000 |
+
+### 8.2 编译触发策略
+
+| 策略 | 条件 | 说明 |
+|------|------|------|
+| 热点预编译 | access_count > 10/周 | 高频实体自动预编译 |
+| 按需编译 | 首次查询 Entity Page 时 | 低频实体首次访问触发 |
+| 事件触发 | entity 属性变更 | 标记 compiled_at < updated_at → stale |
+
+### 8.3 编译产物一致性
+
+```python
+async def check_compilation_consistency(node_id):
+    node = await get_cognitive_node(node_id)
+    if node.compiled_at and node.compiled_at < node.updated_at:
+        return CompilationStatus.STALE
+    return CompilationStatus.CURRENT
+```
+
+### 8.4 编译防抖策略
+
+```python
+class CompilationDebouncer:
+    def __init__(self, debounce_seconds=300):
+        self.pending = {}
+        self.debounce_seconds = debounce_seconds
+
+    async def schedule_recompilation(self, node_id):
+        if node_id in self.pending:
+            self.pending[node_id].cancel()
+        self.pending[node_id] = asyncio.create_task(
+            self._debounced_compile(node_id)
+        )
+
+    async def _debounced_compile(self, node_id):
+        await asyncio.sleep(self.debounce_seconds)
+        await compile_entity_page(node_id)
+        del self.pending[node_id]
+```
+
+### 8.5 成本感知编译
+
+```python
+async def compile_with_budget(space_id, daily_token_budget=5000000):
+    candidates = await get_compilation_candidates(space_id)
+    candidates.sort(key=lambda n: n.access_count, reverse=True)
+
+    total_cost = 0
+    for node in candidates:
+        estimated_cost = estimate_compilation_cost(node)
+        if total_cost + estimated_cost > daily_token_budget:
+            break
+        await compile_entity_page(node.id)
+        total_cost += estimated_cost
+```
+
+---
+
+## 9. 信念修正规则引擎 [新增]
+
+> **[关键设计点]**：可配置的信念修正规则，支持优先级排序和冲突检测。
+
+### 9.1 规则定义
+
+```python
+@dataclass
+class BeliefRevisionRule:
+    rule_id: str
+    name: str
+    condition: str
+    action: str
+    priority: int
+    track: str  # "track_a" | "track_b" | "both"
+    enabled: bool = True
+```
+
+### 9.2 默认规则集
+
+| 优先级 | 规则 | 条件 | 动作 | 轨道 |
+|--------|------|------|------|------|
+| 100 | 用户明确更正 | source == "user_correction" | 自动取代 | both |
+| 90 | 征信报告优先 | source_type == "credit_report" | 取代非征信来源 | track_a |
+| 80 | 高置信度取代 | new.confidence > old.confidence × 1.5 | 自动取代 | track_b |
+| 70 | 时序更新 | new.recorded_at > old.recorded_at | 自动 supersede | track_b |
+| 60 | 反馈权重保护 | old.feedback_weight > 0.9 | 拒绝自动取代 | both |
+| 50 | Schema 违反 | !schema_valid(new) | 拒绝写入 | both |
+| 40 | 跨域矛盾 | new.domain != old.domain | 需人工确认 | track_a |
+
+### 9.3 规则冲突检测
+
+```python
+def detect_rule_conflicts(rules):
+    conflicts = []
+    for i, r1 in enumerate(rules):
+        for r2 in rules[i+1:]:
+            if condition_overlap(r1.condition, r2.condition):
+                if r1.action != r2.action and r1.priority == r2.priority:
+                    conflicts.append(RuleConflict(r1, r2))
+    return conflicts
+```
+
+---
+
+## 10. 更正传播（CorrectionPropagation）[新增]
+
+> **[关键设计点]**：更正自动传播到下游依赖，基于 SUPERSEDES 边和 COGNITIVE_RELATES_TO 边。
+
+### 10.1 传播流程
+
+```
+更正写入（新 CognitiveNode supersede 旧 CognitiveNode）
+  ↓
+1. 查找旧节点的所有下游依赖
+   ├── SUMMARIZED_AS → mental_model
+   ├── COGNITIVE_RELATES_TO → 关联实体
+   └── CONSOLIDATED_INTO → 上层 observation
+  ↓
+2. 对每个下游依赖：
+   ├── mental_model → 标记 is_stale, compiled_at < updated_at
+   ├── 关联实体 → 检查是否需要更新属性
+   └── 上层 observation → 触发重新归纳
+  ↓
+3. 级联深度限制（默认 max_depth=3）
+  ↓
+4. 级联更新防风暴
+   ├── 单次更正影响节点 > 100 → 需人工审批
+   └── 批量更正分批执行
+```
+
+### 10.2 级联更新防风暴
+
+```python
+class CascadeController:
+    MAX_CASCADE_NODES = 100
+    MAX_CASCADE_DEPTH = 3
+
+    async def propagate_correction(self, old_node_id, new_node_id):
+        impact = await calculate_impact_radius(old_node_id, self.MAX_CASCADE_DEPTH)
+
+        if len(impact.affected_nodes) > self.MAX_CASCADE_NODES:
+            await request_manual_approval(
+                f"Correction affects {len(impact.affected_nodes)} nodes, "
+                f"exceeds threshold {self.MAX_CASCADE_NODES}"
+            )
+            return
+
+        await execute_cascade_update(impact, new_node_id)
+```
+
+---
+
+## 11. 梦境循环（Dream Cycle）[新增]
+
+> **[关键设计点]**：周期性全局维护任务，采用采样策略而非全量扫描，控制资源消耗。
+
+### 11.1 五阶段设计
+
+| Phase | 任务 | 采样策略 | 资源估算 |
+|-------|------|---------|---------|
+| 1 矛盾检测 | 扫描 Compiled Page 检测矛盾 | 最近7天变更的 Page | ~10% 全量 |
+| 2 过期检查 | 检查 valid_to 已过的记忆 | valid_to < now 的记忆 | 精确集合 |
+| 3 孤立清理 | 清理无入边的 CognitiveNode | access_count < 5 的节点 | ~20% 全量 |
+| 4 自链接增强 | 为相关记忆创建 COGNITIVE_RELATES_TO | 新创建的 Page | 增量 |
+| 5 图谱补全 | LLM 建议新链接关系 | 新创建的 Page | 增量 |
+
+### 11.2 执行策略
+
+```python
+async def run_dream_cycle(space_id, config):
+    phase1_results = await detect_contradictions(
+        space_id,
+        filter={"updated_at": {"$gt": now - timedelta(days=7)}}
+    )
+
+    phase2_results = await check_expired(space_id)
+
+    phase3_results = await clean_orphans(
+        space_id,
+        filter={"access_count": {"$lt": 5}}
+    )
+
+    phase4_results = await enhance_self_links(
+        space_id,
+        filter={"created_at": {"$gt": now - timedelta(days=1)}}
+    )
+
+    phase5_results = await complete_graph(
+        space_id,
+        filter={"created_at": {"$gt": now - timedelta(days=1)}}
+    )
+
+    return DreamCycleResult(
+        contradictions=phase1_results,
+        expired=phase2_results,
+        orphans_cleaned=phase3_results,
+        links_enhanced=phase4_results,
+        graph_completed=phase5_results,
+    )
+```
+
+---
+
 ## 参考文档
 
 | 主题 | 文档位置 |
@@ -423,5 +635,16 @@ class ContextAwareRetriever:
 | Agent 记忆设计总览 | `docs/02-design/agent-memory/README.md` |
 | 记忆层次设计 | `docs/02-design/agent-memory/memory-hierarchy.md` |
 | 认知操作 API 设计 | `docs/02-design/agent-memory/memory-api.md` |
+| Consolidation 引擎设计 | `docs/02-design/agent-memory/consolidation-engine.md` |
+| Reflect Agent 设计 | `docs/02-design/agent-memory/reflect-agent.md` |
+| 实体解析消歧设计 | `docs/02-design/services/entity-resolver.md` |
 | 时序建模 | `docs/02-design/schema/temporal-modeling.md` |
 | 查询引擎设计 | `docs/02-design/query-engine/README.md` |
+| 知识库流程主文档 | `docs/01-overview/10-kb-process.md` |
+| 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |
+
+> **[关键设计点]** 巩固的详细实现（三动作模型、证据链更新、自适应分批、并发安全）见 [consolidation-engine.md](./consolidation-engine.md)。本文档定义巩固的概念和触发机制，consolidation-engine.md 定义工程实现细节。
+
+> **[关键设计点]** Reflect Agent 的详细实现（工具定义、迭代循环、幻觉防护、上下文溢出保护）见 [reflect-agent.md](./reflect-agent.md)。本文档定义反思的概念和输出类型，reflect-agent.md 定义 Agent 架构和工程实现。
+
+> **[关键设计点]** 实体消歧的详细实现（三维度评分、双策略切换、共现追踪）见 [entity-resolver.md](../services/entity-resolver.md)。本文档定义消歧的概念和三级策略，entity-resolver.md 定义评分算法和工程实现。

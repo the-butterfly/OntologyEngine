@@ -107,6 +107,7 @@ L1 定义领域模型的核心抽象——实体类型和关系类型。只包�
   pattern: string?                # 当 type=string 时，Regex 校验
   min: number?                    # 数值类属性下界
   max: number?                    # 数值类属性上界
+  extraction_hint: string?        # 提取提示词（如"资产负债率|debt ratio|负债率"），指导 LLM 从非结构化文本提取该属性
   index_fields: boolean = false   # 是否建立存储索引（参考 m_flow）
   display_only: boolean = false   # 仅展示不参与计算（参考 m_flow）
   source_field: string?           # 来源字段映射（参考 Cognee Annotated）
@@ -119,6 +120,7 @@ L1 定义领域模型的核心抽象——实体类型和关系类型。只包�
 
 | 字段 | 来源 | 目的 |
 |------|------|------|
+| `extraction_hint` | 10-kb-process.md 2.3 | 指导 LLM 从非结构化文本中提取该属性值，如"资产负债率\|debt ratio\|负债率"提供多语言同义提示 |
 | `index_fields` | m_flow | 提示存储层为该属性建立索引，优化查询性能。如 `unified_social_code` 需要索引以支持快速查找 |
 | `display_only` | m_flow | 区分展示属性与计算属性。如 `company_short_name` 仅用于 UI 展示，不参与指标计算和规则推理 |
 | `source_field` | Cognee Annotated | 标注属性值来自外部系统的哪个字段，支持数据溯源 |
