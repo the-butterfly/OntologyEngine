@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260505_175001",
+  "llm_model": "sensenova/sensenova-6.7-flash-lite",
+  "total": 10,
+  "passed": 9,
+  "pass_rate": 0.9,
+  "results": [
+    {
+      "name": "T1: LLM Knowledge Extraction",
+      "passed": true,
+      "score": 1.0,
+      "details": "extracted=12 nodes from 3 dialogues",
+      "latency_ms": 64147.562980651855
+    },
+    {
+      "name": "T2: LLM Consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total_nodes=19",
+      "latency_ms": 8.896827697753906
+    },
+    {
+      "name": "T3: LLM Contradiction Detection",
+      "passed": true,
+      "score": 0.2,
+      "details": "contradictions=1, insights=0, rule_fallback=not_needed",
+      "latency_ms": 157221.3900089264
+    },
+    {
+      "name": "T4: LLM Reflection",
+      "passed": true,
+      "score": 0.6,
+      "details": "insights=3, model_updates=0\n  - 华信科技风险等级存在矛盾信息（B级与D级），但重组计划可能显著改善其财务状况。\n  - 华信科技重组后财务改善效果存在争议，需结合债务违约风险进一步验证。\n  - Found 30 high-level memories related to '华信科技的风险变化趋势和重组效果'",
+      "latency_ms": 390010.6360912323
+    },
+    {
+      "name": "T5: LLM Compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_summary=188chars, topic_synthesis=218chars",
+      "latency_ms": 34639.96911048889
+    },
+    {
+      "name": "T6: LLM Entity Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "resolution_result=list",
+      "latency_ms": 114.94302749633789
+    },
+    {
+      "name": "T7: Full Agent Session",
+      "passed": true,
+      "score": 1.0,
+      "details": "risk_appetite=conservative, recall_ok=True",
+      "latency_ms": 11065.3657913208
+    },
+    {
+      "name": "T8: Contradiction Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "superseded=True, new_id=True",
+      "latency_ms": 29398.910999298096
+    },
+    {
+      "name": "T9: Full Lifecycle with LLM",
+      "passed": true,
+      "score": 1.0,
+      "details": "node=True, insights=0, recall=True",
+      "latency_ms": 141724.0490913391
+    },
+    {
+      "name": "T10: Quality Assessment",
+      "passed": false,
+      "score": 0.475,
+      "details": "avg_relevance=0.47, queries_evaluated=2\n  - 华信科技风险等级: 0.00\n  - 中芯科技财务状况: 0.95",
+      "latency_ms": 12068.670272827148
+    }
+  ]
+}

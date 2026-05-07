@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_010227",
+  "case": "case15",
+  "total": 8,
+  "passed": 5,
+  "pass_rate": 0.625,
+  "results": [
+    {
+      "name": "T1",
+      "passed": false,
+      "score": 0.0,
+      "details": "No module named 'ontology_engine.engine.cognitive.modeling_objects'",
+      "latency_ms": 0.10132789611816406
+    },
+    {
+      "name": "T2: Task Model (commitment)",
+      "passed": true,
+      "score": 1.0,
+      "details": "commitment_id=None, pending=1",
+      "latency_ms": 506.06584548950195
+    },
+    {
+      "name": "T3: World Model (constraint)",
+      "passed": true,
+      "score": 1.0,
+      "details": "api_limit_id=mem:constraint:modeling_eval:f232672d1e0a, reg_id=mem:constraint:modeling_eval:bf80ead5a5d2",
+      "latency_ms": 26.675939559936523
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "No module named 'ontology_engine.engine.cognitive.modeling_objects'",
+      "latency_ms": 0.4391670227050781
+    },
+    {
+      "name": "T5: list-my-memories",
+      "passed": true,
+      "score": 0.5,
+      "details": "memories=0",
+      "latency_ms": 24.573087692260742
+    },
+    {
+      "name": "T6: Permission governance",
+      "passed": true,
+      "score": 1.0,
+      "details": "domains_created=4/4",
+      "latency_ms": 48.25282096862793
+    },
+    {
+      "name": "T7",
+      "passed": false,
+      "score": 0.0,
+      "details": "No module named 'ontology_engine.engine.cognitive.modeling_objects'",
+      "latency_ms": 0.31065940856933594
+    },
+    {
+      "name": "T8: Commitment tracking",
+      "passed": true,
+      "score": 1.0,
+      "details": "pending=2, total=2",
+      "latency_ms": 29.185056686401367
+    }
+  ]
+}

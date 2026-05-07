@@ -2,10 +2,8 @@
 """End-to-end credit assessment flow test."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from ontology_engine.storage.sqlite.store import SQLiteStorage
-from ontology_engine.storage.base import EntityInstance, RelationInstance
 from ontology_engine.services import (
     SchemaService,
     EntityService,

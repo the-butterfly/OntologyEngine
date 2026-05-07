@@ -62,6 +62,9 @@
 | D-AM-5 | 认知操作 3 个而非 5 个 | consolidate/forget 合并到 reflect 内部；Agent 只需 remember/recall/reflect | MemOS + Hindsight |
 | D-AM-6 | 类型特有字段存为 JSON attributes | 共享字段统一建表，类型特有字段灵活扩展，避免多表冗余 | Hindsight memory_units_view |
 | D-AM-7 | 实体消歧三级策略 | 精确匹配覆盖结构化数据，模糊匹配覆盖非结构化提取，LLM 辅助覆盖高不确定性 | Hindsight EntityResolver |
+| D-AM-8 | 四建模对象 × 四认知层正交分类 | memory_type 解决"是什么"，model_domain 解决"属于谁" | lencx 批判框架 |
+| D-AM-9 | 治理优先于容量 | 权限治理、来源可信层级、策略性遗忘是核心挑战 | lencx 批判框架 |
+| D-AM-10 | 记忆 ≠ 蒸馏 | Consolidation 是管理环节，不是记忆终极目标；需保留推理轨迹 | lencx 批判框架 |
 
 ---
 
@@ -76,6 +79,10 @@
 | `mental_model` | 高层摘要 | 用户策划 / Reflect 生成 | 3.0 | — |
 | `episode` | 经验事件 | 交互自动记录 | 1.2 | → procedure |
 | `procedure` | 操作模式 | 从 Episode 归纳 | 1.8 | — |
+| `commitment` | 承诺/待办 | Agent 对用户的承诺 | 1.4 | — | [Phase 2c]
+| `constraint` | 环境约束 | 不可违反的边界条件 | 1.6 | — | [Phase 2c]
+| `self_experience` | 自我经验 | Agent 工具调用记录 | 1.1 | — | [Phase 2c]
+| `task_state` | 任务状态 | 任务快照/方案历史 | 1.3 | — | [Phase 2c]
 
 ### 类型间边
 
@@ -85,6 +92,9 @@
 | MAPPED_TO | observation → entity | 观察映射到结构化实例 |
 | SUMMARIZED_AS | entity → mental_model | 实体摘要为高层洞察 |
 | LEARNED_INTO | episode → procedure | 经验归纳为操作模式 |
+| FULFILLED_BY | commitment → episode | 承诺履行记录 |
+| LIMITS | constraint → observation | 约束限制观察范围 |
+| INFORMS | self_experience → procedure | 自我经验指导操作模式 |
 
 ---
 
@@ -109,6 +119,9 @@
 | ForgettingEngine | QueryEngine | 价值评估 + 衰减 + 淘汰 |
 | ReflectAgent | QueryEngine | 按类型权重递减检索 + 洞察生成 |
 | EntityResolver | — | 三级消歧 + 合并策略 |
+| DeduplicationGate | QueryEngine | 写入前去重 + 边际价值判断 + 矛盾前置检测 |
+| ArbitrationEngine | ReflectAgent | 证据权重自动裁决矛盾 |
+| QueryUnderstandingLayer | QueryEngine | 任务约束提取 → 驱动检索策略 |
 
 ### 服务层
 
@@ -127,6 +140,7 @@
 | Phase 2b | 遗忘 + 反思 | ForgettingEngine + ReflectAgent | P1 |
 | Phase 2c | 经验记忆 + 实体消歧 | episode + procedure + EntityResolver | P1 |
 | Phase 2d | 多 Agent 共享 + 记忆调度 | Insight 共享 + Memory Scheduling | P3 |
+| Phase 2e | 治理层完善 | ArbitrationEngine + PermissionService + DeduplicationGate + QueryUnderstandingLayer | P1 |
 
 ---
 
@@ -137,6 +151,10 @@
 | [memory-hierarchy.md](memory-hierarchy.md) | draft | 双层存储 + memory_type 类型体系 + 统一数据模型 |
 | [memory-lifecycle.md](memory-lifecycle.md) | draft | 巩固 + 遗忘 + 反思 + 实体消歧 + 记忆调度 |
 | [memory-api.md](memory-api.md) | draft | 3 个认知操作 API + 管理 API 共存设计 |
+| [consolidation-engine.md](consolidation-engine.md) | under-review | Consolidation 引擎实现（Create/Update/Delete 三动作模型） |
+| [reflect-agent.md](reflect-agent.md) | draft | Reflect Agent 设计（强制检索序列 + 矛盾检测） |
+| [modeling-objects.md](modeling-objects.md) | draft | 四建模对象详细设计（User/Task/World/Self） |
+| [query-understanding-layer.md](query-understanding-layer.md) | draft | 任务约束驱动的检索架构（QueryUnderstandingLayer） |
 
 ---
 

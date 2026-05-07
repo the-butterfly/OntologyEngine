@@ -2,7 +2,7 @@
 """Tests for RuleLocator service."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from ontology_engine.services.rule_locator import RuleLocator
 from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage

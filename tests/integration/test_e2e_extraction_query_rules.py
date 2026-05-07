@@ -26,27 +26,21 @@ from ontology_engine.engine.expression.errors import (
     FormulaError,
     FormulaSecurityError,
     FormulaSyntaxError,
-    FormulaTypeError,
-    FormulaNameError,
 )
 from ontology_engine.engine.query.router import (
     QueryType,
     detect_query_type,
     build_retrieval_params,
-    RRF_WEIGHT_MAP,
 )
 from ontology_engine.engine.query.rrf_fusion import RRFFusion, RRFDocument
-from ontology_engine.engine.extraction.ast_extractor import ASTExtractor, ASTExtractionResult
+from ontology_engine.engine.extraction.ast_extractor import ASTExtractor
 from ontology_engine.engine.extraction.dedup import DedupStrategy
 from ontology_engine.engine.extraction.cache import IncrementalCache
 from ontology_engine.engine.extraction.pipeline import ExtractionPipeline
 from ontology_engine.engine.rule.models import (
     ActionClause,
-    AppliesToConfig,
     ConditionClause,
     ExecutionContext,
-    IOElement,
-    RuleGroupDefinition,
     RuleStep,
 )
 from ontology_engine.engine.rule.dag_builder import DAGBuilder

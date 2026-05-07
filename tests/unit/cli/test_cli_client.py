@@ -1,6 +1,5 @@
 """Unit tests for CLI client and output formatting."""
 
-import pytest
 import json
 
 from ontology_engine.cli.client import APIClient, CLIError, format_output

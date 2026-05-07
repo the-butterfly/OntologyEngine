@@ -1,0 +1,51 @@
+{
+  "timestamp": "20260506_070334",
+  "case": "case9",
+  "total": 6,
+  "passed": 6,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "T1: Multi-session accumulation",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=3",
+      "latency_ms": 334.1522216796875
+    },
+    {
+      "name": "T2: Temporal evolution",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=5, has_latest=False",
+      "latency_ms": 89.71691131591797
+    },
+    {
+      "name": "T3: Contradiction + correction",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=1, corrected=True",
+      "latency_ms": 145.35999298095703
+    },
+    {
+      "name": "T4: Governance pipeline",
+      "passed": true,
+      "score": 1.0,
+      "details": "consolidated=True, forgotten=True",
+      "latency_ms": 323.0111598968506
+    },
+    {
+      "name": "T5: Multi-hop reasoning",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=4",
+      "latency_ms": 85.39795875549316
+    },
+    {
+      "name": "T6: Visibility & access control",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=6",
+      "latency_ms": 84.38992500305176
+    }
+  ]
+}

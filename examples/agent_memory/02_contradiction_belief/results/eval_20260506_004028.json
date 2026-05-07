@@ -1,0 +1,58 @@
+{
+  "timestamp": "20260506_004028",
+  "case": "case6",
+  "total": 7,
+  "passed": 2,
+  "pass_rate": 0.2857142857142857,
+  "results": [
+    {
+      "name": "T1: Rule-based contradiction",
+      "passed": false,
+      "score": 0.0,
+      "details": "contradictions=0, insights=0",
+      "latency_ms": 332.59105682373047
+    },
+    {
+      "name": "T2: LLM semantic contradiction",
+      "passed": false,
+      "score": 0.0,
+      "details": "contradictions=0, insights=0",
+      "latency_ms": 30.340909957885742
+    },
+    {
+      "name": "T3: Belief supersede",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:contradiction_eval:f604ed2a3b3a, new_id=mem:observation:contradiction_eval:98068bc1f326",
+      "latency_ms": 68.25709342956543
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'correct_memory'",
+      "latency_ms": 21.61693572998047
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.approve_memory() got an unexpected keyword argument 'space_id'",
+      "latency_ms": 15.746116638183594
+    },
+    {
+      "name": "T6: Reflect search sequence",
+      "passed": false,
+      "score": 0.0,
+      "details": "insights=0, contradictions=0",
+      "latency_ms": 52.239179611206055
+    },
+    {
+      "name": "T7: Hallucination protection",
+      "passed": true,
+      "score": 1.0,
+      "details": "insights=0, valid_evidence=True",
+      "latency_ms": 50.37212371826172
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "timestamp": "20260505_135429",
+  "total": 10,
+  "passed": 9,
+  "pass_rate": 0.9,
+  "results": [
+    {
+      "name": "T1: User Model",
+      "passed": true,
+      "score": 1.0,
+      "details": "created=True, updated=['communication_style', 'domain_expertise', 'risk_appetite'], style=True, expertise=True",
+      "latency_ms": 509.1238021850586
+    },
+    {
+      "name": "T2: Task Model",
+      "passed": true,
+      "score": 1.0,
+      "details": "task=True, commitment=True, decisions=1",
+      "latency_ms": 52.11973190307617
+    },
+    {
+      "name": "T3: Self Model",
+      "passed": true,
+      "score": 1.0,
+      "details": "rule_reliability=0.5, query_reliability=1.0, selected=oe_query",
+      "latency_ms": 60.243844985961914
+    },
+    {
+      "name": "T4: Compilation Layer",
+      "passed": true,
+      "score": 1.0,
+      "details": "summary=True, metrics=True, synthesis=True",
+      "latency_ms": 32.09280967712402
+    },
+    {
+      "name": "T5: LLM Config",
+      "passed": false,
+      "score": 0.0,
+      "details": "enabled=False, url_match=False, model_match=False",
+      "latency_ms": 0.05602836608886719
+    },
+    {
+      "name": "T6: Task Context Recall",
+      "passed": true,
+      "score": 1.0,
+      "details": "enriched=What is the current task progress?\n[Task Context] Phase: analysis, Pending commitments: 0...",
+      "latency_ms": 43.23410987854004
+    },
+    {
+      "name": "T7: Services Layer",
+      "passed": true,
+      "score": 1.0,
+      "details": "remember=True, stats=True, types=True",
+      "latency_ms": 17.641067504882812
+    },
+    {
+      "name": "T8: Permission Governance",
+      "passed": true,
+      "score": 1.0,
+      "details": "alice_sees=14, bob_sees=12",
+      "latency_ms": 15.506982803344727
+    },
+    {
+      "name": "T9: Cross-Model Reference",
+      "passed": true,
+      "score": 1.0,
+      "details": "domains={'self': 4, 'world': 1, 'task': 6, 'user': 3, 'unknown': 4}",
+      "latency_ms": 43.81299018859863
+    },
+    {
+      "name": "T10: Full Lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "trust=True, scope=True, domain=True, recall=True",
+      "latency_ms": 102.08797454833984
+    }
+  ]
+}

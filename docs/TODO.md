@@ -1,7 +1,7 @@
 # 实施 Backlog
 
 > **作用**: `docs/` 下唯一开放事项列表
-> **最后更新**: 2026-04-29
+> **最后更新**: 2026-05-06
 > **说明**: 本文件只保留进行中 / 未完成事项；文档状态看 [`STATUS.md`](./STATUS.md)，阶段路线看 [`ROADMAP.md`](./ROADMAP.md)
 
 ## Now
@@ -16,6 +16,13 @@
 | P1  | 按 Rule Engine 设计实现 DAG 执行             | `02-design/rule-engine/`                        | DAGBuilder + 并行执行 + 回滚                            |
 | P1  | 按 Query Engine 设计实现 Layer-R/S 检索      | `02-design/query-engine/`                       | Bundle Search + RRF 融合                            |
 | P1  | 按 Extraction Pipeline 设计实现三通道提取       | `02-design/extraction-pipeline/`                | AST + LLM + SHA256 缓存                             |
+| P1  | Agent 记忆治理层设计（外部批判框架）              | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` | DeduplicationGate + ArbitrationEngine + QueryUnderstandingLayer + PermissionService |
+| P1  | CognitiveNode Schema 扩展（新增 5 字段 + 4 记忆类型） | `docs/02-design/agent-memory/memory-hierarchy.md` | model_domain, source_trust_tier, scope, last_confirmed_at, consolidation_reasoning + commitment/constraint/self_experience/task_state |
+| P1  | Agent Memory QUL 约束类型扩展（剩余 5/8） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md` | ✅ temporal+user_preference+decision 已完成，剩余 task_status/entity_type/numeric/negation/scope |
+| P0  | Agent Memory recall 通配符/空查询返回空 | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md §8.2` | ✅ 已修复：query="*" → _recall_wildcard 直接查询所有节点 |
+| P1  | Agent Memory audit 字段扩展（agent_name/activity_type等） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md §8.3 P1-1` | ✅ 已实现：ActivityLog 模型+后台线程+独立存储 + audit 端点扩展 |
+| P1  | Agent Memory 新增 heatmap/disposition/dashboard/reflect-tasks/reflection-status/validation 端点 | `docs-dev/review-reports/frontend-memory-ui-consistency-report.md §5.2` | ✅ 已实现：6 个端点全部添加 |
+| P2  | Agent Memory 证据链扩展（source_fragment_ids/proof_count/related_edges） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md §8.4` | evidence 端点返回简化结构 |
 
 ## Next
 
@@ -25,6 +32,9 @@
 | P2  | 按 API 设计重构路由                            | `02-design/api/`                                     | 新路由结构+301 兼容层   |
 | P2  | 按 Formula 设计实现 L0/L1 执行模型               | `02-design/formula/`                                 | 函数库补全（当前 19%）   |
 | P2  | LLMJudgeOperator.\_call\_llm() 接入实际 LLM | `ontology_engine/engine/rule/operators/llm_judge.py` | 当前为 placeholder |
+| P2  | Self Model / Task Model 详细设计              | `docs/02-design/agent-memory/` | 四建模对象中缺失的两个核心模型 |
+| P2  | 来源可信层级（source_trust_tier）实施           | `docs/01-overview/10-kb-process.md` | 用户声明 > 行为推断 > 环境观测 > Agent 生成 |
+| P2  | 策略性遗忘（否定信号驱动）                       | `docs/02-design/agent-memory/memory-lifecycle.md` | superseded/rejected 触发加速遗忘 |
 
 ## 使用规则
 

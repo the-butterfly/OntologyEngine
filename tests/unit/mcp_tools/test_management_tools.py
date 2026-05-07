@@ -1,7 +1,6 @@
 """Unit tests for P2 MCP management tools — oe_create_entity, oe_define_rule, oe_activate_space."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.mcp import init_mcp_dependencies
 

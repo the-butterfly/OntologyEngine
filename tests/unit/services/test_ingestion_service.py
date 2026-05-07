@@ -2,7 +2,7 @@
 """Tests for IngestionService."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from ontology_engine.services.ingestion_service import IngestionService
 from ontology_engine.services.dto import (
@@ -11,7 +11,6 @@ from ontology_engine.services.dto import (
     RelationCreateRequest,
 )
 from ontology_engine.services.entity_service import EntityService
-from ontology_engine.storage.base import EntityInstance
 
 
 class TestIngestionService:

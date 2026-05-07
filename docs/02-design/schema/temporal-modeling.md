@@ -453,6 +453,120 @@ rejected ──[重新提交]──▶ pending_review
 
 ---
 
+## 10. CONTRADICTS 边自动触发条件 [新增]
+
+### 触发时机
+
+| 触发源 | 触发条件 | contradiction_type | 处理策略 |
+|--------|---------|-------------------|---------|
+| Ingestion 写入 | 新 CognitiveNode 与同 entity_name 已有节点的属性值冲突 | factual | 自动创建 CONTRADICTS 边 + belief_status → pending_review |
+| Reflect Agent | detect_contradictions 工具检测到语义矛盾 | semantic | 创建 CONTRADICTS 边 + 生成矛盾报告 |
+| 梦境循环 | 定期扫描同 entity_name 多版本间的时序重叠 | temporal | 创建 CONTRADICTS 边 + 标记 resolution_status |
+| 人工标注 | 用户通过 UI 标注矛盾 | 任意 | 创建 CONTRADICTS 边 + resolution_status = pending |
+
+### 自动触发逻辑
+
+```python
+async def check_contradiction_on_ingest(new_node: CognitiveNode, space_id: str):
+    existing = await find_same_entity_nodes(
+        entity_name=new_node.entity_name,
+        entity_type=new_node.entity_type,
+        space_id=space_id,
+        belief_status="accepted",
+    )
+
+    for node in existing:
+        if node.id == new_node.id:
+            continue
+
+        conflicts = detect_field_conflicts(new_node, node)
+        for field, old_val, new_val in conflicts:
+            await create_contradicts_edge(
+                from_id=new_node.id,
+                to_id=node.id,
+                contradiction_type="factual",
+                contradiction_field=field,
+                old_value=old_val,
+                new_value=new_val,
+            )
+            await update_belief_status(node.id, "pending_review")
+            await update_belief_status(new_node.id, "pending_review")
+
+def detect_field_conflicts(
+    new_node: CognitiveNode, existing: CognitiveNode
+) -> list[tuple[str, str, str]]:
+    conflicts = []
+    for key in set(new_node.attributes.keys()) & set(existing.attributes.keys()):
+        if new_node.attributes[key] != existing.attributes[key]:
+            conflicts.append((key, existing.attributes[key], new_node.attributes[key]))
+    return conflicts
+```
+
+---
+
+## 11. 双时序查询与 query-routing 集成 [新增]
+
+### 查询语义映射
+
+| temporal-modeling 查询语义 | query-routing 查询类型 | 参数 |
+|---------------------------|----------------------|------|
+| 当前版本 (valid_to IS NULL) | factual | 无时序参数 |
+| 指定时点 (valid_from <= as_of AND valid_to > as_of) | temporal | as_of 参数 |
+| 系统知晓时点 (recorded_at <= as_of) | temporal | as_of + use_recorded_at=true |
+| 全量历史 | temporal | include_history=true |
+
+### query-routing 参数扩展
+
+```python
+class TemporalQueryParams(BaseModel):
+    as_of: datetime | None = None
+    use_recorded_at: bool = False
+    include_history: bool = False
+    period_start: datetime | None = None
+    period_end: datetime | None = None
+```
+
+---
+
+## 12. occurred_at 提取策略 [新增]
+
+### 提取方法
+
+| 方法 | 优先级 | 适用场景 | 精度 |
+|------|--------|---------|------|
+| Schema L1 temporal_fields | 最高 | 结构化数据（如财报日期字段） | 精确 |
+| LLM 提取 | 中 | 非结构化文本（如"2024年第三季度"） | 较高 |
+| 正则提取 | 低 | 标准日期格式（如"2024-01-15"） | 中 |
+| recorded_at 回退 | 最低 | 无法提取时 | 低 |
+
+### 提取流程
+
+```python
+async def extract_occurred_at(
+    text: str,
+    schema: EntityDeclaration | None = None,
+    extracted_attributes: dict | None = None,
+) -> datetime | None:
+    if schema and schema.temporal_fields:
+        for field_name in schema.temporal_fields:
+            if extracted_attributes and field_name in extracted_attributes:
+                return parse_datetime(extracted_attributes[field_name])
+
+    date_patterns = [
+        r'\b(\d{4})年(\d{1,2})月(\d{1,2})日\b',
+        r'\b(\d{4})-(\d{2})-(\d{2})\b',
+        r'\b(\d{4})[年Q](\d{1,2})\b',
+    ]
+    for pattern in date_patterns:
+        match = re.search(pattern, text)
+        if match:
+            return parse_date_match(match)
+
+    return None
+```
+
+---
+
 ## 参考文档
 
 | 主题 | 文档位置 |

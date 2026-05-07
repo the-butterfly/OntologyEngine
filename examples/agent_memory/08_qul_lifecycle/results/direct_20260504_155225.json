@@ -1,0 +1,99 @@
+{
+  "timestamp": "20260504_155225",
+  "total": 8,
+  "passed": 3,
+  "pass_rate": 0.375,
+  "results": [
+    {
+      "name": "T1: Multi-Session Knowledge Accumulation",
+      "passed": false,
+      "score": 0.25,
+      "details": [
+        "Q='TechNova的CEO是谁' expected='李明' found=False",
+        "Q='TechNova总部在哪' expected='深圳' found=True",
+        "Q='TechNova的主要产品' expected='智能客服平台' found=False",
+        "Q='TechNova的CTO' expected='张伟' found=False"
+      ],
+      "latency_ms": 506.9429874420166
+    },
+    {
+      "name": "T2: Temporal Knowledge Evolution",
+      "passed": false,
+      "score": 0.0,
+      "details": [
+        "as_of=2025-01: old policy found=False",
+        "as_of=2025-09: new policy found=False",
+        "static knowledge found=False"
+      ],
+      "latency_ms": 56.899070739746094
+    },
+    {
+      "name": "T3: Contradiction Detection & Correction",
+      "passed": false,
+      "score": 0.0,
+      "details": [
+        "Contradiction detected: False (count=0)",
+        "Superseded: ",
+        "Superseded in audit: False"
+      ],
+      "latency_ms": 273.6961841583252
+    },
+    {
+      "name": "T4: Knowledge Governance Pipeline",
+      "passed": true,
+      "score": 0.75,
+      "details": [
+        "Consolidation: created=1, updated=0",
+        "Forgetting executed: True",
+        "Security rule protected: False",
+        "Stats by_type: {'observation': 1, 'fragment': 1}"
+      ],
+      "latency_ms": 206.29310607910156
+    },
+    {
+      "name": "T5: Multi-hop Reasoning",
+      "passed": false,
+      "score": 0.0,
+      "details": [
+        "Hop1 (李明): found=False",
+        "Hop2 (CloudGroup): found=False",
+        "Hop3 (王芳): found=False",
+        "Hop4 (清华): found=False"
+      ],
+      "latency_ms": 89.08987045288086
+    },
+    {
+      "name": "T6: Entity Resolution & Deduplication",
+      "passed": false,
+      "score": 0.3333333333333333,
+      "details": [
+        "Both entities created: entity1=mem:observation:d58dd774eb61d7e8, entity2=mem:observation:d58dd774eb61d7e8",
+        "Redis entity found in recall: False",
+        "Entity extraction triggered: 0 entities"
+      ],
+      "latency_ms": 30.796051025390625
+    },
+    {
+      "name": "T7: Belief Revision & Approval Workflow",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "Pending review node: mem:observation:e2e_direct:60e47489ab48",
+        "After approve: belief_status=accepted",
+        "After reject: belief_status=rejected",
+        "Rejected entry in audit: True"
+      ],
+      "latency_ms": 90.84010124206543
+    },
+    {
+      "name": "T8: Compilation & Correction Propagation",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "Entity page compiled: name=李明是TechNova的CEO",
+        "Correction propagation: reviewed=0, propagated=0"
+      ],
+      "latency_ms": 36.07678413391113
+    }
+  ]
+}

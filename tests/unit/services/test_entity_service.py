@@ -8,7 +8,6 @@ from ontology_engine.services.entity_service import EntityService
 from ontology_engine.services.dto import (
     EntityCreateRequest,
     ConceptNotDefinedError,
-    EntityNotFoundError,
 )
 from ontology_engine.storage.base import EntityInstance
 from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata, ConceptDefinition

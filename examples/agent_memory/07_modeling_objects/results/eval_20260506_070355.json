@@ -1,0 +1,51 @@
+{
+  "timestamp": "20260506_070355",
+  "case": "case10",
+  "total": 6,
+  "passed": 5,
+  "pass_rate": 0.8333333333333334,
+  "results": [
+    {
+      "name": "T1: Onboarding session",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=3",
+      "latency_ms": 423.2180118560791
+    },
+    {
+      "name": "T2: Policy update session",
+      "passed": false,
+      "score": 0.0,
+      "details": "hits=0, has_new_policy=False",
+      "latency_ms": 62.73198127746582
+    },
+    {
+      "name": "T3: Contradiction discovery",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=1, insights=0",
+      "latency_ms": 92.39506721496582
+    },
+    {
+      "name": "T4: Governance session",
+      "passed": true,
+      "score": 1.0,
+      "details": "consolidate=True, forget=True, dream=True",
+      "latency_ms": 345.8681106567383
+    },
+    {
+      "name": "T5: Multi-hop reasoning",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=4",
+      "latency_ms": 54.30889129638672
+    },
+    {
+      "name": "T6: Belief revision & approval",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:cli_agent_eval:a9592d9c064a, new_id=mem:observation:cli_agent_eval:7634caca6c9d",
+      "latency_ms": 60.32586097717285
+    }
+  ]
+}

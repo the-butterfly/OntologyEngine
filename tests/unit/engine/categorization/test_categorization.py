@@ -3,7 +3,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timezone
 
 from ontology_engine.engine.categorization.models import CategoryTags
 from ontology_engine.engine.categorization.engine import CategorizationEngine

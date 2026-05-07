@@ -1,0 +1,78 @@
+{
+  "timestamp": "20260505_114823",
+  "total": 10,
+  "passed": 0,
+  "pass_rate": 0.0,
+  "results": [
+    {
+      "name": "T1",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.02002716064453125
+    },
+    {
+      "name": "T2",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.006198883056640625
+    },
+    {
+      "name": "T3",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.0030994415283203125
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.009059906005859375
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.0019073486328125
+    },
+    {
+      "name": "T6",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.00286102294921875
+    },
+    {
+      "name": "T7",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.0021457672119140625
+    },
+    {
+      "name": "T8",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.00476837158203125
+    },
+    {
+      "name": "T9",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.00286102294921875
+    },
+    {
+      "name": "T10",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.0040531158447265625
+    }
+  ]
+}

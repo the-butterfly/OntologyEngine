@@ -1,6 +1,6 @@
 # 记忆生命周期设计
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
+> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-05-04
 
 ---
 
@@ -28,11 +28,92 @@ episode → procedure
 
 ---
 
+## 0. 写入前治理：DeduplicationGate [新增]
+
+> **[关键设计点]**：写入不是"这个信息有没有价值"，而是"相对于已有记忆，这个信息的**边际价值**是多少"。来了就存会导致存储膨胀和检索噪声。
+
+### 0.1 概念
+
+在 `oe_remember` 和 Ingestion Pipeline 之间插入去重门，执行三项检查：
+
+| 检查 | 目的 | 动作 |
+|------|------|------|
+| 快速去重 | 防止重复碎片累积 | 向量相似度 > 0.92 → 标记 DUPLICATE，仅更新访问时间 |
+| 矛盾前置检测 | 提前发现与已有知识的冲突 | 语义冲突 → 标记 CONTRADICTION_CANDIDATE，高优先级入队 |
+| 边际价值评估 | 判断新信息是否增加知识 | marginal_value = novelty × relevance / redundancy，低于阈值延迟写入 |
+
+### 0.2 边际价值评分
+
+```python
+class DeduplicationGate:
+    async def assess(self, new_fragment, space_id):
+        # 1. 快速向量去重
+        similar = await vector_similarity_search(new_fragment.embedding, threshold=0.92)
+        if similar:
+            return WriteDecision.DUPLICATE, similar[0].id
+
+        # 2. 矛盾前置检测
+        conflicting = await semantic_conflict_check(new_fragment, space_id)
+        if conflicting:
+            return WriteDecision.CONTRADICTION_CANDIDATE, conflicting
+
+        # 3. 边际价值评估
+        novelty = await compute_novelty(new_fragment, space_id)
+        relevance = await compute_relevance(new_fragment, space_id)
+        redundancy = await compute_redundancy(new_fragment, space_id)
+        marginal_value = novelty * relevance / (redundancy + 0.1)
+
+        if marginal_value < MARGINAL_VALUE_THRESHOLD:
+            return WriteDecision.DELAYED, marginal_value
+
+        return WriteDecision.ACCEPT, marginal_value
+```
+
+### 0.3 与 Consolidation 的关系
+
+DeduplicationGate 在写入前执行，Consolidation 在写入后执行。两者形成"写入漏斗"：
+
+```
+原始数据 → DeduplicationGate（去重+矛盾前置+边际价值）
+              ↓
+          ACCEPT → Layer-R 写入 → Extraction → Layer-S 写入
+              ↓
+          DELAYED → 低优先级队列 → 定期重评估
+              ↓
+          DUPLICATE → 仅更新访问时间
+              ↓
+          CONTRADICTION_CANDIDATE → 高优先级 Consolidation 触发
+```
+
+---
+
 ## 1. 巩固（Consolidation）
 
 ### 1.1 概念
 
 将 fragment 类型记忆自动归纳为 observation 类型，或将 observation 升级为 entity 类型。
+
+> **[关键设计点]**：Consolidation 是记忆管理的一个环节，不是记忆的终极目标。记忆必须同时保留**形成结论的轨迹**，否则 Agent 只能复述结论，无法解释"为什么现在信这个"。
+
+### 1.1a 推理轨迹保留 [新增]
+
+Consolidation 的 LLM 输出从"仅返回结论"扩展为"返回结论 + 推理摘要"：
+
+```python
+class ConsolidationResult:
+    creates: list[CreateAction]
+    updates: list[UpdateAction]
+    deletes: list[DeleteAction]
+    upgrades: list[UpgradeAction]
+    reasoning: str  # [新增] LLM 归纳时的关键推理步骤摘要
+
+async def execute_create(action: CreateAction, space_id: str):
+    await create_cognitive_node(
+        ...,
+        consolidation_reasoning=action.reasoning,  # [新增]
+        ...
+    )
+```
 
 ### 1.2 触发方式
 
@@ -141,18 +222,23 @@ async def upgrade_memory_type(unit_id, new_type, additional_attrs=None):
 class MemoryStrength:
     access_count: int
     last_accessed_at: datetime
+    last_confirmed_at: datetime  # [新增] 上次被后续证据确认的时间
     proof_count: int
     feedback_weight: float
+    confirmation_count: int  # [新增] 被后续证据确认的次数
 
     @property
     def strength(self) -> float:
         days_since_access = (now - self.last_accessed_at).days
+        days_since_confirm = (now - self.last_confirmed_at).days
         recency = math.exp(-0.1 * days_since_access)
+        confirmation = math.exp(-0.05 * days_since_confirm)  # [新增]
         evidence = min(self.proof_count / 10.0, 1.0)
-        value = (recency * 0.3
-                 + evidence * 0.3
+        value = (recency * 0.25
+                 + confirmation * 0.15  # [新增]
+                 + evidence * 0.25
                  + self.feedback_weight * 0.2
-                 + self.access_frequency * 0.2)
+                 + self.access_frequency * 0.15)
         return value
 ```
 
@@ -181,8 +267,38 @@ def decay_strength(current_strength: float, days_elapsed: int, value: float) -> 
 | 归档 | strength < 0.1 | 移至归档存储，不参与常规检索 |
 | 硬删除 | strength < 0.01 且 proof_count == 0 | 永久删除 |
 | 保护 | feedback_weight >= 0.9 | 永不遗忘 |
+| 否定驱动遗忘 | 被裁决为 superseded/rejected | strength 骤降，valid_to 提前 | [新增] |
 
-### 2.5 与版本限制策略的协同
+### 2.5 策略性遗忘（否定信号驱动）[新增]
+
+当记忆被后续证据否定（ArbitrationEngine 裁决为 `superseded` 或 `rejected`）时，触发**加速遗忘**：
+
+```python
+async def handle_negation_signal(node_id, verdict):
+    """verdict: 'superseded' | 'rejected'"""
+    node = await get_cognitive_node(node_id)
+
+    # strength 骤降
+    node.strength *= 0.2 if verdict == "rejected" else 0.5
+
+    # valid_to 提前（如果不是立即失效）
+    if verdict == "rejected":
+        node.valid_to = now()
+        node.belief_status = "rejected"
+    elif verdict == "superseded":
+        node.belief_status = "superseded"
+
+    # 级联：关联的 mental_model / procedure 标记 stale
+    await mark_downstream_stale(node_id)
+
+    await update_cognitive_node(node)
+```
+
+这与纯 Ebbinghaus 衰减的区别：
+- Ebbinghaus：基于"时间流逝+访问减少"的被动衰减
+- 策略性遗忘：基于"被后续信号否定"的主动加速淘汰
+
+### 2.6 与版本限制策略的协同
 
 [temporal-modeling.md](../schema/temporal-modeling.md) 的版本限制策略（单实体最大 100 版本）是**容量管理**，遗忘机制是**认知合理性**。两者协同：
 
@@ -225,6 +341,12 @@ class ReflectAgent:
 
         analysis = await self.llm.call(messages)
 
+        # [新增] 自动裁决
+        contradictions = analysis.contradictions
+        if contradictions:
+            arbitration_results = await ArbitrationEngine.arbitrate(contradictions)
+            analysis.arbitration_results = arbitration_results
+
         actions = await self._execute_reflection_actions(
             analysis, space_id
         )
@@ -232,6 +354,7 @@ class ReflectAgent:
         return ReflectResult(
             insights=actions.insights,
             contradictions=actions.contradictions,
+            arbitration=actions.arbitration,  # [新增]
             consolidation=actions.consolidation,
             forgetting=actions.forgetting,
         )
@@ -246,6 +369,7 @@ class ReflectAgent:
 | Mental Model 更新 | 更新高层摘要 | 标记 is_stale，触发刷新 |
 | 程序性建议 | 基于经验提出的操作建议 | 创建 MemoryUnit(type=procedure) |
 | 低价值记忆 | strength 过低的记忆 | 触发遗忘衰减 |
+| 否定信号记忆 | 被裁决为 superseded/rejected | 触发策略性遗忘 |
 | 未巩固碎片 | 大量未归纳的碎片 | 触发巩固 |
 
 ---
@@ -530,17 +654,17 @@ def detect_rule_conflicts(rules):
 
 ## 10. 更正传播（CorrectionPropagation）[新增]
 
-> **[关键设计点]**：更正自动传播到下游依赖，基于 SUPERSEDES 边和 COGNITIVE_RELATES_TO 边。
+> **[关键设计点]**：更正自动传播到下游依赖，基于 SUMMARIZED_AS、CONSOLIDATED_INTO、COGNITIVE_RELATES_TO 边。
 
 ### 10.1 传播流程
 
 ```
 更正写入（新 CognitiveNode supersede 旧 CognitiveNode）
   ↓
-1. 查找旧节点的所有下游依赖
-   ├── SUMMARIZED_AS → mental_model
-   ├── COGNITIVE_RELATES_TO → 关联实体
-   └── CONSOLIDATED_INTO → 上层 observation
+1. 查找旧节点的所有下游依赖（双向查询认知边）
+   ├── SUMMARIZED_AS → mental_model（observation 被更正 → mental_model 需刷新）
+   ├── CONSOLIDATED_INTO → 上层 observation（fragment 被更正 → observation 需重新归纳）
+   └── COGNITIVE_RELATES_TO → 关联实体（关联实体被更正 → 需检查是否影响本实体）
   ↓
 2. 对每个下游依赖：
    ├── mental_model → 标记 is_stale, compiled_at < updated_at
@@ -554,7 +678,34 @@ def detect_rule_conflicts(rules):
    └── 批量更正分批执行
 ```
 
-### 10.2 级联更新防风暴
+### 10.2 传播边查询实现
+
+```python
+async def _get_propagation_neighbors(node_id: str) -> list[str]:
+    """Query cognitive edges with direction semantics.
+
+    Direction rules:
+    - CONSOLIDATED_INTO (fragment → observation): forward only (out edges).
+      Fragment corrected → observation needs review. NOT vice versa.
+    - SUMMARIZED_AS (observation → mental_model): forward only (out edges).
+      Observation corrected → mental_model needs refresh. NOT vice versa.
+    - COGNITIVE_RELATES_TO: bidirectional. Related entities notified both ways.
+    """
+    forward_only_types = {"CONSOLIDATED_INTO", "SUMMARIZED_AS"}
+    bidirectional_types = {"COGNITIVE_RELATES_TO"}
+
+    for edge_type in PROPAGATION_EDGE_TYPES:
+        out_edges = await repo.query_cognitive_edges(from_id=node_id, edge_type=edge_type)
+        # Always collect forward (out) neighbors
+        ...
+
+        if edge_type in bidirectional_types:
+            in_edges = await repo.query_cognitive_edges(to_id=node_id, edge_type=edge_type)
+            # Also collect backward (in) neighbors for bidirectional types
+            ...
+```
+
+### 10.3 级联更新防风暴
 
 ```python
 class CascadeController:
@@ -585,7 +736,7 @@ class CascadeController:
 | Phase | 任务 | 采样策略 | 资源估算 |
 |-------|------|---------|---------|
 | 1 矛盾检测 | 扫描 Compiled Page 检测矛盾 | 最近7天变更的 Page | ~10% 全量 |
-| 2 过期检查 | 检查 valid_to 已过的记忆 | valid_to < now 的记忆 | 精确集合 |
+| 2 过期检查 | 检查 valid_to/TTL 已过的记忆 → transition 到 pending_review | valid_to < now 或 TTL 过期的 accepted 节点 | 精确集合 |
 | 3 孤立清理 | 清理无入边的 CognitiveNode | access_count < 5 的节点 | ~20% 全量 |
 | 4 自链接增强 | 为相关记忆创建 COGNITIVE_RELATES_TO | 新创建的 Page | 增量 |
 | 5 图谱补全 | LLM 建议新链接关系 | 新创建的 Page | 增量 |
@@ -642,6 +793,7 @@ async def run_dream_cycle(space_id, config):
 | 查询引擎设计 | `docs/02-design/query-engine/README.md` |
 | 知识库流程主文档 | `docs/01-overview/10-kb-process.md` |
 | 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |
+| 外部批判框架对照 | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` |
 
 > **[关键设计点]** 巩固的详细实现（三动作模型、证据链更新、自适应分批、并发安全）见 [consolidation-engine.md](./consolidation-engine.md)。本文档定义巩固的概念和触发机制，consolidation-engine.md 定义工程实现细节。
 

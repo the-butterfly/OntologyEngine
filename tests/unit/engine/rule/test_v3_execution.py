@@ -3,7 +3,7 @@
 
 import pytest
 
-from ontology_engine.core.schema.models import ActionType, OperatorType
+from ontology_engine.core.schema.models import ActionType
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
     StructuredActionClause,
@@ -11,7 +11,6 @@ from ontology_engine.engine.rule.models import (
     RuleDefinitionDecl,
     RuleLogicDecl,
     ConditionClause,
-    AppliesToConfig,
 )
 from ontology_engine.engine.rule.executor import RuleExecutor
 from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata

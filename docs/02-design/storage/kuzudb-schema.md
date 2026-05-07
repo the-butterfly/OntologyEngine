@@ -35,6 +35,7 @@
 | P-KZ-4 | MERGE 幂等写入 | 基于 id 主键 MERGE，保证同一业务实体幂等 |
 | P-KZ-5 | 核心字段强类型 | 高频查询字段（entity_name, entity_type, schema_ref）保留为强类型列，其余存 JSON |
 | P-KZ-6 | 双时序分离 | valid_from/valid_to 表达事实有效时间，recorded_at 表达系统记录时间 |
+| P-KZ-7 | 索引幂等创建 | KuzuDB 不支持 `CREATE INDEX IF NOT EXISTS`，索引创建需捕获 `RuntimeError` 并检查 "already exists" 消息，允许重复初始化 |
 
 ---
 
@@ -97,6 +98,11 @@ CREATE NODE TABLE CognitiveNode (
 
     source_pipeline   STRING,
     source_content_hash STRING,
+    model_domain      STRING,
+    source_trust_tier STRING,
+    scope             STRING,
+    last_confirmed_at DATETIME,
+    consolidation_reasoning STRING,
     created_at        DATETIME,
     updated_at        DATETIME,
     consolidated_at   DATETIME
@@ -108,7 +114,7 @@ CREATE NODE TABLE CognitiveNode (
 | `id` | STRING PK | UUID5 确定性生成 |
 | `space_id` | STRING | 所属语义空间 |
 | `cognitive_layer` | STRING | 认知分层：perception / semantic / opinion / procedure |
-| `memory_type` | STRING | 语义类型：entity / observation / opinion / mental_model / episode / procedure / rule / fragment |
+| `memory_type` | STRING | 语义类型：entity / observation / opinion / mental_model / episode / procedure / rule / fragment / commitment / constraint / self_experience / task_state |
 | `entity_name` | STRING | **强类型列**——实体显示名称，高频查询字段 |
 | `entity_type` | STRING | **强类型列**——实体类型标识（对应 _fact_object） |
 | `schema_ref` | STRING | **强类型列**——引用 Schema L1 EntityDeclaration.name |
@@ -136,15 +142,20 @@ CREATE NODE TABLE CognitiveNode (
 | `created_at` | DATETIME | 创建时间 |
 | `updated_at` | DATETIME | 更新时间 |
 | `consolidated_at` | DATETIME | 巩固时间 |
+| `model_domain` | STRING | 四建模对象：user / task / world / self |
+| `source_trust_tier` | STRING | 来源可信层级：user_declared / behavior_inferred / environment_observed / agent_generated |
+| `scope` | STRING | 作用域 JSON：{"type": "task\|user\|global", "ref_id": "...", "window": "..."} |
+| `last_confirmed_at` | DATETIME | 上次被后续证据确认的时间 |
+| `consolidation_reasoning` | STRING | LLM 归纳时的推理摘要 |
 
 **cognitive_layer 与 memory_type 的映射**：
 
 | cognitive_layer | 包含的 memory_type | 说明 |
 |----------------|-------------------|------|
-| perception | fragment | 原始感知碎片 |
-| semantic | entity, rule | 结构化语义知识 |
-| opinion | observation, opinion, mental_model | 归纳观点与高层摘要 |
-| procedure | episode, procedure | 经验与操作模式 |
+| perception | fragment, self_experience | 原始感知碎片 + Agent 自我经验 |
+| semantic | entity, rule, task_state | 结构化语义知识 + 任务状态 |
+| opinion | observation, opinion, mental_model, commitment | 归纳观点 + 承诺 |
+| procedure | episode, procedure, constraint | 经验与操作模式 + 环境约束 |
 
 **belief_status 状态机**：
 
@@ -565,6 +576,39 @@ CREATE REL TABLE LEARNED_INTO (
 )
 ```
 
+#### FULFILLED_BY [新增]
+
+承诺履行记录。
+
+```cypher
+CREATE REL TABLE FULFILLED_BY (
+    FROM CognitiveNode TO CognitiveNode,
+    fulfilled_at DATETIME
+)
+```
+
+#### LIMITS [新增]
+
+约束限制观察范围。
+
+```cypher
+CREATE REL TABLE LIMITS (
+    FROM CognitiveNode TO CognitiveNode,
+    limited_at DATETIME
+)
+```
+
+#### INFORMS [新增]
+
+自我经验指导操作模式。
+
+```cypher
+CREATE REL TABLE INFORMS (
+    FROM CognitiveNode TO CognitiveNode,
+    informed_at DATETIME
+)
+```
+
 #### ALIGNED_WITH [新增]
 
 > Phase 1 过渡边：CognitiveNode 与 EntityNode 的关联。Phase 2 废弃。
@@ -753,6 +797,9 @@ CREATE REL TABLE CONTRADICTS (...);
 CREATE REL TABLE CONSOLIDATED_INTO (...);
 CREATE REL TABLE SUMMARIZED_AS (...);
 CREATE REL TABLE LEARNED_INTO (...);
+CREATE REL TABLE FULFILLED_BY (...);
+CREATE REL TABLE LIMITS (...);
+CREATE REL TABLE INFORMS (...);
 CREATE REL TABLE ALIGNED_WITH (...);
 CREATE REL TABLE RELATES_TO (...);
 CREATE REL TABLE EXTRACTED_FROM (...);
@@ -947,6 +994,11 @@ SET n.space_id = row.space_id,
     n.superseded_by = row.superseded_by,
     n.source_pipeline = row.source_pipeline,
     n.source_content_hash = row.source_content_hash,
+    n.model_domain = row.model_domain,
+    n.source_trust_tier = row.source_trust_tier,
+    n.scope = row.scope,
+    n.last_confirmed_at = row.last_confirmed_at,
+    n.consolidation_reasoning = row.consolidation_reasoning,
     n.updated_at = row.updated_at,
     n.consolidated_at = row.consolidated_at
 ```
@@ -983,3 +1035,8 @@ async def update_cognitive_node(node_id, updates, expected_version):
 | 认知分层 | 无 | 无 | cognitive_layer + memory_type |
 | 信念状态 | 无 | 无 | belief_status + SUPERSEDES/CONTRADICTS |
 | 并发控制 | 无 | 无 | version (OCC) |
+| 建模对象 | 无 | 无 | model_domain |
+| 来源可信层级 | 无 | 无 | source_trust_tier |
+| 作用域 | 无 | 无 | scope |
+| 确认时间 | 无 | 无 | last_confirmed_at |
+| 推理轨迹 | 无 | 无 | consolidation_reasoning |

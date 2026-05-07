@@ -1,7 +1,6 @@
 # tests/unit/engine/rule/test_models.py
 """Tests for RuleStep model."""
 
-import pytest
 
 from ontology_engine.engine.rule.models import (
     ActionClause,

@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_010006",
+  "case": "case7",
+  "total": 8,
+  "passed": 5,
+  "pass_rate": 0.625,
+  "results": [
+    {
+      "name": "T1: Fragment→observation consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total=6",
+      "latency_ms": 735.173225402832
+    },
+    {
+      "name": "T2: Observation→entity upgrade",
+      "passed": true,
+      "score": 1.0,
+      "details": "types={}",
+      "latency_ms": 58.52484703063965
+    },
+    {
+      "name": "T3: Evidence tracking",
+      "passed": false,
+      "score": 0.5,
+      "details": "audit_entries=0",
+      "latency_ms": 144.69289779663086
+    },
+    {
+      "name": "T4: LLM-powered consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total=16",
+      "latency_ms": 195.41501998901367
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "compile_entity_page() got an unexpected keyword argument 'llm_call_fn'",
+      "latency_ms": 32.9899787902832
+    },
+    {
+      "name": "T6",
+      "passed": false,
+      "score": 0.0,
+      "details": "compile_topic_page() got an unexpected keyword argument 'llm_call_fn'",
+      "latency_ms": 7.064104080200195
+    },
+    {
+      "name": "T7: Reasoning trail",
+      "passed": true,
+      "score": 0.5,
+      "details": "audit_entries=0, has_consolidation=False",
+      "latency_ms": 133.7728500366211
+    },
+    {
+      "name": "T8: Stats verification",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=21, types={}",
+      "latency_ms": 12.049198150634766
+    }
+  ]
+}

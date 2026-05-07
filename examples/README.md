@@ -1,14 +1,17 @@
 # OntologyEngine 示例案例
 
-> **status**: draft | **last_verified**: 2026-04-26
-> 本目录同时包含两类案例：
-> - **canonical schema case**：以 `schema.yaml / instances.yaml / testcases.yaml` 为核心的结构化验收案例
-> - **narrative journey case**：以 `scenario / journey / visualization` 为核心的用户旅程案例
-> - **hybrid case**：同时具备结构化验收和叙事旅程的混合案例
+> **status**: draft | **last_verified**: 2026-05-06
+
+本目录包含三类案例：
+- **canonical schema case**：以 `schema.yaml / instances.yaml / testcases.yaml` 为核心的结构化验收案例
+- **narrative journey case**：以 `scenario / journey / visualization` 为核心的用户旅程案例
+- **agent memory case**：以 `run_eval.py` 为核心的 Agent 记忆系统验证案例（位于 [`agent_memory/`](./agent_memory/)）
 
 ---
 
 ## 一、案例总览
+
+### 1.1 Ontology Schema 案例
 
 | 案例 | 类型 | 场景 | 本轮重点 |
 |------|------|------|----------|
@@ -16,10 +19,24 @@
 | [`consumer_credit/`](./consumer_credit/) | canonical | 个人消费信贷风险评估 | Indicator、一票否决、产品分流、关系网络风险 |
 | [`case1_regulatory_compliance/`](./case1_regulatory_compliance/) | narrative | 供应链金融准入规则热更新与追溯 | 规则版本、影响分析、版本对比 API、视图消费、回滚验证 |
 | [`case3_tax_simulation/`](./case3_tax_simulation/) | narrative | 亚太区总部策略沙盘 | 场景参数包、仿真报告模板、推荐解释、报告消费 |
-| [`case4_bi_query_agent/`](./case4_bi_query_agent/) | hybrid | BI 智能问数与经营看板联动 | Layer-R / Layer-S、指标卡编辑、问答与视图互证、schema+instances+testcases 已就绪 |
-| [`case5_expert_knowledge_crystallization/`](./case5_expert_knowledge_crystallization/) | hybrid | 风控专家经验规则化 | 候选规则评审、规则组模型映射、发布、下游结果验证、schema+instances+testcases 已就绪 |
-| [`case6_contradiction_detection/`](./case6_contradiction_detection/) | planned | 多源矛盾检测 | 矛盾识别、裁决记录、统一视图（预留大纲） |
-| [`case7_knowledge_compilation/`](./case7_knowledge_compilation/) | planned | 文档→知识编译 | 三通道提取、编译草稿审核、资产溯源（预留大纲） |
+| [`case4_bi_query_agent/`](./case4_bi_query_agent/) | hybrid | BI 智能问数与经营看板联动 | Layer-R / Layer-S、指标卡编辑、问答与视图互证 |
+
+### 1.2 Agent Memory 案例
+
+所有 Agent 记忆系统验证案例已整合到 [`agent_memory/`](./agent_memory/) 目录：
+
+| 目录 | 验证维度 | 轨迹数 | 原案例编号 |
+|------|---------|:------:|-----------|
+| [`01_ingestion_pipeline/`](./agent_memory/01_ingestion_pipeline/) | 摄取管线 | 8 | case5 |
+| [`02_contradiction_belief/`](./agent_memory/02_contradiction_belief/) | 矛盾+信念修订 | 7 | case6 |
+| [`03_consolidation_compilation/`](./agent_memory/03_consolidation_compilation/) | 巩固+编译 | 8 | case7 |
+| [`04_locomo_eval/`](./agent_memory/04_locomo_eval/) | LOCOMO综合评估 | 10+6+6 | case8+9+10 |
+| [`05_lifecycle_governance/`](./agent_memory/05_lifecycle_governance/) | 生命周期+治理 | 8+8 | case11+12 |
+| [`06_full_agent_eval/`](./agent_memory/06_full_agent_eval/) | 全量评估+LLM | 8+8 | case13+14 |
+| [`07_modeling_objects/`](./agent_memory/07_modeling_objects/) | 建模对象+权限 | 8 | case15 |
+| [`08_qul_lifecycle/`](./agent_memory/08_qul_lifecycle/) | QUL+生命周期 | 8 | case16 |
+
+详见 [`agent_memory/README.md`](./agent_memory/README.md)。
 
 ---
 

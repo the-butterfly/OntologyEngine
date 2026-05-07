@@ -6,6 +6,7 @@ import { Layout, Menu, Typography } from 'antd';
 import {
   DatabaseOutlined,
   RocketOutlined,
+  BulbOutlined,
 } from '@ant-design/icons';
 
 // Management Pages
@@ -14,6 +15,15 @@ import SpaceDetailPage from './pages/spaces/SpaceDetailPage';
 import SchemaDeclarationPage from './pages/spaces/SchemaDeclarationPage';
 import InstanceDataPage from './pages/spaces/InstanceDataPage';
 import VersionHistoryPage from './pages/spaces/VersionHistoryPage';
+
+// Agent Memory Pages
+import {
+  MemoryOverviewPage,
+  MemoryBuildPage,
+  MemoryManagePage,
+  MemoryConsumePage,
+  ReflectCenterPage,
+} from './pages/spaces/memory';
 
 // Rule Embed Pages（内嵌于 SpaceDetailPage 右侧内容区）
 import RulesEmbedPage from './pages/spaces/RulesEmbedPage';
@@ -54,15 +64,16 @@ function App() {
             mode="horizontal"
             selectedKeys={[]}
             items={[
-              { key: 'spaces', icon: <DatabaseOutlined />, label: <Link to="/spaces">管理面</Link> },
-              { key: 'consumption', icon: <RocketOutlined />, label: <Link to="/consumption">消费面</Link> },
+              { key: 'spaces', icon: <DatabaseOutlined />, label: <Link to="/spaces">知识管理</Link> },
+              { key: 'memory', icon: <BulbOutlined />, label: <Link to="/memory">记忆空间</Link> },
+              { key: 'consumption', icon: <RocketOutlined />, label: <Link to="/consumption">知识消费</Link> },
             ]}
             style={{ flex: 1, border: 'none' }}
           />
         </Header>
         <Content style={{ padding: 0, overflow: 'auto' }}>
           <Routes>
-            {/* ── 管理面路由 ── */}
+            {/* ── 知识管理路由 ── */}
             <Route path="/spaces" element={<SpaceListPage />} />
             <Route path="/spaces/:spaceId" element={<SpaceDetailPage />}>
               <Route index element={<Navigate to="schema" replace />} />
@@ -92,9 +103,19 @@ function App() {
               {/* 规则逻辑 DAG 画布 */}
               <Route path="rules/:groupId/logic/:logicId" element={<RuleLogicCanvasPage />} />
               <Route path="rules/:groupId/logic/new" element={<RuleLogicCanvasPage />} />
+
+              {/* Agent Memory Routes (保留在 space 下用于空间内访问) */}
+              <Route path="memory" element={<MemoryOverviewPage />} />
+              <Route path="memory/build" element={<MemoryBuildPage />} />
+              <Route path="memory/manage" element={<MemoryManagePage />} />
+              <Route path="memory/consume" element={<MemoryConsumePage />} />
+              <Route path="memory/reflect" element={<ReflectCenterPage />} />
             </Route>
 
-            {/* ── 消费面路由 ── */}
+            {/* ── 记忆空间独立路由 ── */}
+            <Route path="/memory" element={<MemoryOverviewPage />} />
+
+            {/* ── 知识消费路由 ── */}
             <Route path="/consumption" element={<ConsumptionViewListPage />} />
             <Route path="/consumption/:viewId" element={<ConsumptionViewPage />} />
             <Route path="/simulation/embed" element={<SimulationEmbedPage />} />

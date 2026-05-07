@@ -6,7 +6,7 @@ initialized in the server startup lifecycle.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestServicesInitialization:

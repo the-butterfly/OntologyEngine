@@ -1,6 +1,5 @@
 """Unit tests for API error response — status codes, suggestion, structured errors."""
 
-import pytest
 
 from ontology_engine.api.dto.responses import (
     error_response,

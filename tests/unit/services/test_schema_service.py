@@ -2,13 +2,11 @@
 """Tests for SchemaService."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 import tempfile
 import os
 
 from ontology_engine.services.schema_service import SchemaService
-from ontology_engine.services.dto import SchemaValidationError
-from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata, MetricDefinition, ConceptDefinition
 
 
 class TestSchemaService:

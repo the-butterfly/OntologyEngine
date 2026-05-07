@@ -1,32 +1,22 @@
 # tests/unit/engine/rule/test_v3_adapters.py
 """Tests for V3 model adapters (RFC-018 Phase B / RFC-019 Phase B)."""
 
-import pytest
 
 from ontology_engine.core.schema.models import (
     ActionType,
     OperatorType,
-    StepAction,
-    StepCondition,
-    AppliesToDecl,
-    PreconditionDecl,
-    IOElementDecl,
-    ApplicabilityDecl,
-    StepDeclaration,
     RuleDefinitionDeclaration,
     RuleLogicDeclaration,
     BusinessLogicV3,
     RuleDefinitionV2,
     RuleLogic,
     RuleWhen,
-    RuleAction,
     RuleStep as SchemaRuleStep,
     BusinessLogic,
     _infer_action_type,
 )
 from ontology_engine.engine.rule.models import (
     StructuredActionClause,
-    StepDecl,
     RuleDefinitionDecl,
     RuleLogicDecl,
     RuleGroupDefinition,

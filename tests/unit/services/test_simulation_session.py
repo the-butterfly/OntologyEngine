@@ -1,4 +1,3 @@
-import pytest
 from ontology_engine.services.simulation_session import SimulationSession, SessionManager
 
 

@@ -1,7 +1,7 @@
 """Unit tests for MCP execution tools — oe_execute_rule, oe_simulate."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from ontology_engine.mcp import init_mcp_dependencies
 

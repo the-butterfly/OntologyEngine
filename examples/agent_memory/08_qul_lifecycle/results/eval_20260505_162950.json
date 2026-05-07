@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260505_162950",
+  "llm_model": "sensenova/deepseek-v4-flash",
+  "total": 10,
+  "passed": 6,
+  "pass_rate": 0.6,
+  "results": [
+    {
+      "name": "T1: LLM Knowledge Extraction",
+      "passed": true,
+      "score": 1.0,
+      "details": "extracted=12 nodes from 3 dialogues",
+      "latency_ms": 32226.938247680664
+    },
+    {
+      "name": "T2: LLM Consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total_nodes=12",
+      "latency_ms": 1413.3799076080322
+    },
+    {
+      "name": "T3",
+      "passed": false,
+      "score": 0.0,
+      "details": "'RetrievalResult' object has no attribute 'text'",
+      "latency_ms": 28.096914291381836
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "'RetrievalResult' object has no attribute 'text'",
+      "latency_ms": 9.832143783569336
+    },
+    {
+      "name": "T5: LLM Compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_summary=102chars, topic_synthesis=526chars",
+      "latency_ms": 10790.075302124023
+    },
+    {
+      "name": "T6",
+      "passed": false,
+      "score": 0.0,
+      "details": "'EntityResolver' object has no attribute '_store'",
+      "latency_ms": 28.135299682617188
+    },
+    {
+      "name": "T7: Full Agent Session",
+      "passed": true,
+      "score": 1.0,
+      "details": "risk_appetite=conservative, recall_ok=True",
+      "latency_ms": 127.68387794494629
+    },
+    {
+      "name": "T8: Contradiction Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "superseded=True, new_id=True",
+      "latency_ms": 70.93214988708496
+    },
+    {
+      "name": "T9",
+      "passed": false,
+      "score": 0.0,
+      "details": "'RetrievalResult' object has no attribute 'text'",
+      "latency_ms": 24.545907974243164
+    },
+    {
+      "name": "T10: Quality Assessment",
+      "passed": true,
+      "score": 0.6,
+      "details": "avg_relevance=0.60, queries_evaluated=2\n  - 华信科技风险等级: 0.30\n  - 中芯科技财务状况: 0.90",
+      "latency_ms": 13397.387981414795
+    }
+  ]
+}

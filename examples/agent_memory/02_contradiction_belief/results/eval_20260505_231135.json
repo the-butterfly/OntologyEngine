@@ -1,0 +1,58 @@
+{
+  "timestamp": "20260505_231135",
+  "case": "case6",
+  "total": 7,
+  "passed": 5,
+  "pass_rate": 0.7142857142857143,
+  "results": [
+    {
+      "name": "T1: Rule-based contradiction",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=1, insights=3",
+      "latency_ms": 22840.3480052948
+    },
+    {
+      "name": "T2: LLM semantic contradiction",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=1, insights=2",
+      "latency_ms": 36122.01809883118
+    },
+    {
+      "name": "T3: Belief supersede",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:contradiction_eval:f604ed2a3b3a, new_id=mem:observation:contradiction_eval:98068bc1f326",
+      "latency_ms": 4862.6708984375
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.correct_memory() got an unexpected keyword argument 'space_id'",
+      "latency_ms": 69.05603408813477
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "Invalid belief_status: pending. Must be one of {'pending_review', 'superseded', 'rejected', 'contradicted', 'accepted'}",
+      "latency_ms": 0.12493133544921875
+    },
+    {
+      "name": "T6: Reflect search sequence",
+      "passed": true,
+      "score": 1.0,
+      "details": "insights=2, contradictions=1",
+      "latency_ms": 41488.579988479614
+    },
+    {
+      "name": "T7: Hallucination protection",
+      "passed": true,
+      "score": 1.0,
+      "details": "insights=2, valid_evidence=True",
+      "latency_ms": 31975.29911994934
+    }
+  ]
+}

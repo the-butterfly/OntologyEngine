@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260505_233849",
+  "case": "case7",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: Fragment→observation",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T2: Observation→entity upgrade",
+      "passed": true,
+      "score": 1.0,
+      "details": "types={}",
+      "latency_ms": 9885.762214660645
+    },
+    {
+      "name": "T3: Evidence tracking",
+      "passed": true,
+      "score": 1.0,
+      "details": "audit_entries=2",
+      "latency_ms": 5873.055219650269
+    },
+    {
+      "name": "T4: LLM-powered consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total=27",
+      "latency_ms": 7270.1239585876465
+    },
+    {
+      "name": "T5: EntityPage compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_id=mem:entity:ba721b74346fd371, summary_len=86",
+      "latency_ms": 49367.785930633545
+    },
+    {
+      "name": "T6: TopicPage compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entities=3, synthesis_len=96",
+      "latency_ms": 9.63592529296875
+    },
+    {
+      "name": "T7: Reasoning trail",
+      "passed": true,
+      "score": 0.5,
+      "details": "audit_entries=3, has_consolidation=False",
+      "latency_ms": 14203.449010848999
+    },
+    {
+      "name": "T8: Stats verification",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=35, types={}",
+      "latency_ms": 12.135982513427734
+    }
+  ]
+}
