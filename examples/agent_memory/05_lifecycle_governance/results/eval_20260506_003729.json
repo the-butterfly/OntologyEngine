@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_003729",
+  "case": "case5",
+  "total": 8,
+  "passed": 0,
+  "pass_rate": 0.0,
+  "results": [
+    {
+      "name": "T1",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.0059604644775390625
+    },
+    {
+      "name": "T2",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.08130073547363281
+    },
+    {
+      "name": "T3",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.033855438232421875
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.028848648071289062
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.041961669921875
+    },
+    {
+      "name": "T6",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.013113021850585938
+    },
+    {
+      "name": "T7",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.028848648071289062
+    },
+    {
+      "name": "T8",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() got an unexpected keyword argument 'model_domain'",
+      "latency_ms": 0.024080276489257812
+    }
+  ]
+}

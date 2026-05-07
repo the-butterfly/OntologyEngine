@@ -1,7 +1,6 @@
 # tests/unit/engine/rule/test_v3_models.py
 """Tests for V3 rule models (RFC-018 / RFC-019)."""
 
-import pytest
 
 from ontology_engine.core.schema.models import (
     ActionType,

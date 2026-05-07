@@ -7,9 +7,8 @@ is not available: pip install kuzu
 from __future__ import annotations
 
 import pytest
-
-# Skip all tests if kuzu is not installed
-kuzu = pytest.importorskip("kuzu", reason="kuzu not installed - install with: pip install ontology-engine[kuzu]")
+pytest.importorskip("kuzu", reason="kuzu not installed - install with: pip install ontology-engine[kuzu]")
+import pytest_asyncio
 
 from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
 
@@ -307,3 +306,268 @@ class TestKuzuGraphStore:
         assert result["metric"] == "degree"
 
         await store.close()
+
+
+class TestCognitiveNode:
+    """Test CognitiveNode CRUD operations."""
+
+    @pytest_asyncio.fixture
+    async def store(self, tmp_path):
+        """Create an initialized KuzuGraphStore for testing."""
+        db_path = str(tmp_path / "test_cognitive.kuzu")
+        store = KuzuGraphStore()
+        await store.initialize(db_path)
+        yield store
+        await store.close()
+
+    @pytest.mark.asyncio
+    async def test_upsert_and_get_cognitive_node(self, store):
+        """Test CognitiveNode upsert and retrieval."""
+        await store.upsert_cognitive_node(
+            node_id="mem_001",
+            memory_type="entity",
+            cognitive_layer="semantic",
+            content="Supply chain is a network of suppliers and manufacturers",
+            source_fragment_ids=["frag_1", "frag_2"],
+            belief_status="accepted",
+            domain_id="supply_chain",
+        )
+
+        node = await store.get_cognitive_node("mem_001")
+        assert node is not None
+        assert node["id"] == "mem_001"
+        assert node["memory_type"] == "entity"
+        assert node["cognitive_layer"] == "semantic"
+        assert node["content"] == "Supply chain is a network of suppliers and manufacturers"
+        assert node["source_fragment_ids"] == ["frag_1", "frag_2"]
+        assert node["belief_status"] == "accepted"
+        assert node["domain_id"] == "supply_chain"
+
+    @pytest.mark.asyncio
+    async def test_get_cognitive_node_not_found(self, store):
+        """Test get_cognitive_node returns None for non-existent node."""
+        node = await store.get_cognitive_node("nonexistent")
+        assert node is None
+
+    @pytest.mark.asyncio
+    async def test_delete_cognitive_node(self, store):
+        """Test CognitiveNode deletion."""
+        await store.upsert_cognitive_node(
+            node_id="mem_delete",
+            memory_type="observation",
+            cognitive_layer="opinion",
+            content="Test observation",
+        )
+
+        node = await store.get_cognitive_node("mem_delete")
+        assert node is not None
+
+        await store.delete_cognitive_node("mem_delete")
+        node = await store.get_cognitive_node("mem_delete")
+        assert node is None
+
+    @pytest.mark.asyncio
+    async def test_query_cognitive_nodes_by_type(self, store):
+        """Test querying CognitiveNodes by memory_type."""
+        await store.upsert_cognitive_node("mem_1", "entity", "semantic", "Entity 1")
+        await store.upsert_cognitive_node("mem_2", "observation", "opinion", "Observation 1")
+        await store.upsert_cognitive_node("mem_3", "entity", "semantic", "Entity 2")
+
+        results = await store.query_cognitive_nodes(memory_type="entity")
+        assert len(results) == 2
+        assert all(r["memory_type"] == "entity" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_query_cognitive_nodes_by_layer(self, store):
+        """Test querying CognitiveNodes by cognitive_layer."""
+        await store.upsert_cognitive_node("mem_1", "entity", "semantic", "Entity 1")
+        await store.upsert_cognitive_node("mem_2", "observation", "opinion", "Observation 1")
+        await store.upsert_cognitive_node("mem_3", "procedure", "procedure", "Procedure 1")
+
+        results = await store.query_cognitive_nodes(cognitive_layer="opinion")
+        assert len(results) == 1
+        assert results[0]["memory_type"] == "observation"
+
+    @pytest.mark.asyncio
+    async def test_query_cognitive_nodes_by_belief_status(self, store):
+        """Test querying CognitiveNodes by belief_status."""
+        await store.upsert_cognitive_node("mem_1", "entity", "semantic", "Entity 1", belief_status="accepted")
+        await store.upsert_cognitive_node("mem_2", "entity", "semantic", "Entity 2", belief_status="contradicted")
+
+        results = await store.query_cognitive_nodes(belief_status="contradicted")
+        assert len(results) == 1
+        assert results[0]["belief_status"] == "contradicted"
+
+    @pytest.mark.asyncio
+    async def test_update_cognitive_node_history(self, store):
+        """Test appending history entries to CognitiveNode."""
+        await store.upsert_cognitive_node(
+            node_id="mem_history",
+            memory_type="entity",
+            cognitive_layer="semantic",
+            content="Test content",
+        )
+
+        await store.update_cognitive_node_history("mem_history", {
+            "action": "access",
+            "timestamp": "2026-05-01T00:00:00Z",
+        })
+
+        node = await store.get_cognitive_node("mem_history")
+        assert len(node["history"]) == 1
+        assert node["history"][0]["action"] == "access"
+
+        await store.update_cognitive_node_history("mem_history", {
+            "action": "update",
+            "timestamp": "2026-05-01T01:00:00Z",
+        })
+
+        node = await store.get_cognitive_node("mem_history")
+        assert len(node["history"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_cognitive_node_belief(self, store):
+        """Test updating belief status of CognitiveNode."""
+        await store.upsert_cognitive_node(
+            node_id="mem_belief",
+            memory_type="entity",
+            cognitive_layer="semantic",
+            content="Test content",
+            belief_status="accepted",
+        )
+
+        await store.update_cognitive_node_belief("mem_belief", "contradicted", reason="New evidence found")
+
+        node = await store.get_cognitive_node("mem_belief")
+        assert node["belief_status"] == "contradicted"
+        assert len(node["history"]) >= 1
+
+        history_entry = node["history"][-1]
+        assert history_entry["action"] == "belief_change"
+        assert history_entry["old_belief"] == "accepted"
+        assert history_entry["new_belief"] == "contradicted"
+        assert history_entry["reason"] == "New evidence found"
+
+
+class TestDispositionProfile:
+    """Test DispositionProfileNode CRUD operations."""
+
+    @pytest_asyncio.fixture
+    async def store(self, tmp_path):
+        """Create an initialized KuzuGraphStore for testing."""
+        db_path = str(tmp_path / "test_disposition.kuzu")
+        store = KuzuGraphStore()
+        await store.initialize(db_path)
+        yield store
+        await store.close()
+
+    @pytest.mark.asyncio
+    async def test_upsert_and_get_disposition_profile(self, store):
+        """Test DispositionProfileNode upsert and retrieval."""
+        await store.upsert_disposition_profile(
+            profile_id="profile_001",
+            scene="financial_analysis",
+            skepticism=0.8,
+            evidence_demand=0.3,
+            empathy=0.6,
+            abstraction_preference=0.4,
+            risk_tolerance=0.2,
+            thoroughness=0.9,
+            recency_bias=0.7,
+            domain_id="finance",
+        )
+
+        profile = await store.get_disposition_profile(profile_id="profile_001")
+        assert profile is not None
+        assert profile["id"] == "profile_001"
+        assert profile["scene"] == "financial_analysis"
+        assert profile["skepticism"] == 0.8
+        assert profile["evidence_demand"] == 0.3
+        assert profile["empathy"] == 0.6
+        assert profile["abstraction_preference"] == 0.4
+        assert profile["risk_tolerance"] == 0.2
+        assert profile["thoroughness"] == 0.9
+        assert profile["recency_bias"] == 0.7
+        assert profile["domain_id"] == "finance"
+
+    @pytest.mark.asyncio
+    async def test_get_disposition_profile_by_scene(self, store):
+        """Test retrieving DispositionProfileNode by scene."""
+        await store.upsert_disposition_profile(
+            profile_id="profile_002",
+            scene="legal_review",
+            skepticism=0.9,
+        )
+
+        profile = await store.get_disposition_profile(scene="legal_review")
+        assert profile is not None
+        assert profile["scene"] == "legal_review"
+        assert profile["skepticism"] == 0.9
+
+    @pytest.mark.asyncio
+    async def test_get_disposition_profile_not_found(self, store):
+        """Test get_disposition_profile returns None for non-existent profile."""
+        profile = await store.get_disposition_profile(profile_id="nonexistent")
+        assert profile is None
+
+    @pytest.mark.asyncio
+    async def test_compute_dynamic_weights_default(self, store):
+        """Test compute_dynamic_weights with default profile values."""
+        profile = {
+            "skepticism": 0.5,
+            "empathy": 0.5,
+            "risk_tolerance": 0.5,
+        }
+
+        weights = await store.compute_dynamic_weights(profile)
+
+        assert weights["mental_model"] > 3.0
+        assert weights["opinion"] < 2.5
+        assert weights["entity"] > 2.0
+        assert weights["observation"] > 1.5
+        assert weights["procedure"] > 1.8
+
+    @pytest.mark.asyncio
+    async def test_compute_dynamic_weights_high_skepticism(self, store):
+        """Test compute_dynamic_weights with high skepticism."""
+        profile = {
+            "skepticism": 0.9,
+            "empathy": 0.5,
+            "risk_tolerance": 0.5,
+        }
+
+        weights = await store.compute_dynamic_weights(profile)
+
+        mental_model_weight = weights["mental_model"]
+        opinion_weight = weights["opinion"]
+
+        assert mental_model_weight > 3.0
+        assert opinion_weight < 2.5
+
+    @pytest.mark.asyncio
+    async def test_compute_dynamic_weights_high_empathy(self, store):
+        """Test compute_dynamic_weights with high empathy."""
+        profile = {
+            "skepticism": 0.5,
+            "empathy": 0.9,
+            "risk_tolerance": 0.5,
+        }
+
+        weights = await store.compute_dynamic_weights(profile)
+
+        observation_weight = weights["observation"]
+        assert observation_weight > 1.5
+
+    @pytest.mark.asyncio
+    async def test_compute_dynamic_weights_high_risk_tolerance(self, store):
+        """Test compute_dynamic_weights with high risk tolerance."""
+        profile = {
+            "skepticism": 0.5,
+            "empathy": 0.5,
+            "risk_tolerance": 0.9,
+        }
+
+        weights = await store.compute_dynamic_weights(profile)
+
+        procedure_weight = weights["procedure"]
+        assert procedure_weight > 1.8

@@ -58,10 +58,10 @@
 
 | cognitive_layer | 包含的 memory_type | 语义 | 检索优先级 |
 |----------------|-------------------|------|-----------|
-| perception | fragment | 原始感知碎片 | 最低（兜底） |
-| semantic | entity, rule | 结构化语义知识 | 中 |
-| opinion | observation, opinion, mental_model | 归纳观点与高层摘要 | 最高（短路优先） |
-| procedure | episode, procedure | 经验与操作模式 | 中 |
+| perception | fragment, self_experience | 原始感知碎片 + Agent 自我经验 | 最低（兜底） |
+| semantic | entity, rule, task_state | 结构化语义知识 + 任务状态 | 中 |
+| opinion | observation, opinion, mental_model, commitment | 归纳观点 + 承诺 | 最高（短路优先） |
+| procedure | episode, procedure, constraint | 经验与操作模式 + 环境约束 | 中 |
 
 认知分层的核心价值：
 - **分层漏斗检索**：opinion 层优先返回，perception 层兜底
@@ -119,6 +119,21 @@ CognitiveNode:
   # 置信度
   confidence: float = 1.0         # 置信度 [0, 1]
 
+  # 四建模对象 [新增]
+  model_domain: string?           # user | task | world | self
+
+  # 来源可信层级 [新增]
+  source_trust_tier: string?      # user_declared | behavior_inferred | environment_observed | agent_generated
+
+  # 作用域 [新增]
+  scope: string?                  # JSON: {"type": "task|user|global", "ref_id": "...", "window": "..."}
+
+  # 确认时间 [新增]
+  last_confirmed_at: datetime?    # 上次被后续证据确认的时间
+
+  # 推理轨迹 [新增]
+  consolidation_reasoning: string? # LLM 归纳时的推理摘要
+
   # 类型特有字段
   attributes: MAP(STRING, STRING)    # 类型特有字段，见下文
 
@@ -144,6 +159,11 @@ CognitiveNode:
 | 可见性 | 无 | visibility |
 | 并发控制 | 无 | version (OCC) |
 | 编译标记 | 无 | compiled_at |
+| 建模对象 | 无 | model_domain |
+| 来源可信层级 | 无 | source_trust_tier |
+| 作用域 | 无 | scope |
+| 确认时间 | 无 | last_confirmed_at |
+| 推理轨迹 | 无 | consolidation_reasoning |
 
 ### 2.3 类型特有字段（attributes MAP）
 
@@ -239,6 +259,60 @@ CognitiveNode:
 }
 ```
 
+#### commitment 特有字段 [新增]
+
+```json
+{
+  "deadline": "2026-05-15T10:00:00Z",
+  "status": "pending | fulfilled | overdue | cancelled",
+  "task_id": "task_001",
+  "fulfilled_by": "ep_001",
+  "reminder_sent": false
+}
+```
+
+#### constraint 特有字段 [新增]
+
+```json
+{
+  "constraint_type": "api_limit | business_rule | technical_boundary",
+  "enforceable": true,
+  "violation_action": "warn | block | log",
+  "affected_memory_types": ["observation", "opinion"]
+}
+```
+
+#### self_experience 特有字段 [新增]
+
+```json
+{
+  "tool_name": "oe_execute_rule",
+  "call_result": "success | timeout | error | rate_limited",
+  "error_type": "network | validation | internal",
+  "latency_ms": 1250,
+  "retry_count": 2,
+  "context_summary": "Rule R-101 evaluation on Company A",
+  "lesson": "Pre-validate entity attributes before rule execution"
+}
+```
+
+#### task_state 特有字段 [新增]
+
+```json
+{
+  "task_id": "task_001",
+  "task_name": "Risk Assessment for Company A",
+  "current_phase": "data_collection | analysis | reporting | review",
+  "decision_log": [
+    {"decision": "reject_microservices", "reason": "user_preference", "timestamp": "2026-04-20T10:00:00Z"}
+  ],
+  "artifact_versions": [
+    {"artifact_id": "report_001", "version": "v1.2", "created_at": "2026-04-25T10:00:00Z"}
+  ],
+  "pending_commitments": ["commit_001", "commit_002"]
+}
+```
+
 ---
 
 ## 3. KuzuDB 存储
@@ -277,6 +351,11 @@ CREATE NODE TABLE CognitiveNode (
     superseded_by     STRING,
     source_pipeline   STRING,
     source_content_hash STRING,
+    model_domain      STRING,
+    source_trust_tier STRING,
+    scope             STRING,
+    last_confirmed_at DATETIME,
+    consolidation_reasoning STRING,
     created_at        DATETIME,
     updated_at        DATETIME,
     consolidated_at   DATETIME
@@ -293,6 +372,9 @@ CREATE NODE TABLE CognitiveNode (
 | CONSOLIDATED_INTO | KnowledgeFragmentNode → CognitiveNode | 碎片归纳 |
 | SUMMARIZED_AS | CognitiveNode → CognitiveNode | 实体摘要为高层洞察 |
 | LEARNED_INTO | CognitiveNode → CognitiveNode | 经验归纳为操作模式 |
+| FULFILLED_BY | CognitiveNode → CognitiveNode | 承诺履行记录 |
+| LIMITS | CognitiveNode → CognitiveNode | 约束限制观察范围 |
+| INFORMS | CognitiveNode → CognitiveNode | 自我经验指导操作模式 |
 | ALIGNED_WITH | CognitiveNode → EntityNode | Phase 1 过渡关联 |
 
 ### 3.3 Phase 1 过渡方案
@@ -329,10 +411,12 @@ Collection: "cognitive_node_text"
     space_id: string,
     cognitive_layer: string,
     memory_type: string,
+    model_domain: string,
     belief_status: string,
     proof_count: int,
     strength: float,
     confidence: float,
+    source_trust_tier: string,
     tags: list[str]
   }
 ```
@@ -347,9 +431,13 @@ BASE_TYPE_WEIGHTS = {
     "opinion": 2.5,
     "entity": 2.0,
     "rule": 2.0,
+    "commitment": 1.9,
+    "constraint": 1.8,
     "procedure": 1.8,
+    "task_state": 1.6,
     "observation": 1.5,
     "episode": 1.2,
+    "self_experience": 1.1,
     "fragment": 1.0
 }
 
@@ -598,3 +686,5 @@ EXTRACTED_FROM / SUPPORTED_BY / DEFINED_IN / TRACE_TO 四种边继续用于 Enti
 | Schema v2 规范 | `docs/02-design/schema/01-schema-spec.md` |
 | 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |
 | 交叉对比分析 | `discuss/2026-04-30-02design-cross-comparison-analysis.md` |
+| SOTA 审视报告 | `discuss/2026-04-27-agent-memory-design-analysis.md` |
+| 外部批判框架对照 | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` |

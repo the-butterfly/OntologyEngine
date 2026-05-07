@@ -1,7 +1,6 @@
 """Unit tests for MCP space tools — oe_create_space, oe_list_spaces, oe_load_schema."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.mcp import init_mcp_dependencies
 

@@ -1,6 +1,8 @@
 # Consolidation 引擎
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档 | **last_verified**: 2026-04-30
+> **status**: under-review | **phase**: Phase 2 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-03
+>
+> **实施状态**: 核心引擎已实现 (consolidation_engine.py)。Schema 对齐评分使用浓缩版结构检查（完整 EntityDeclaration-based 评分标记为 Phase 3）。tags 已通过 CognitiveNode.tags + Kuzu JSON 列完整接入隔离链路 (D-CON-4)。execute_create/update/delete 均写入 proof_count/confidence/tags/superseded_by。
 
 ## 目的
 
@@ -100,7 +102,16 @@ async def execute_create(action: CreateAction, space_id: str):
     )
 
     for frag_id in source_ids:
-        await create_edge("CONSOLIDATED_INTO", frag_id, node_id)
+        # Edge type varies by target memory_type:
+        #   observation → CONSOLIDATED_INTO
+        #   mental_model → SUMMARIZED_AS
+        #   procedure → LEARNED_INTO
+        edge_type = "CONSOLIDATED_INTO"
+        if action.memory_type == "mental_model":
+            edge_type = "SUMMARIZED_AS"
+        elif action.memory_type == "procedure":
+            edge_type = "LEARNED_INTO"
+        await create_edge(edge_type, frag_id, node_id)
 ```
 
 ### Update：更新已有 Observation

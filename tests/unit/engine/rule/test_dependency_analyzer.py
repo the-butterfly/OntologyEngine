@@ -1,6 +1,5 @@
 """Tests for dependency_analyzer module."""
-import pytest
-from ontology_engine.engine.rule.dependency_analyzer import DependencyAnalyzer, DependencyGraph
+from ontology_engine.engine.rule.dependency_analyzer import DependencyAnalyzer
 
 
 def test_build_dependency_graph():

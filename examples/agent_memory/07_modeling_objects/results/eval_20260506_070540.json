@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_070540",
+  "case": "case11",
+  "total": 8,
+  "passed": 8,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "T1: Full lifecycle",
+      "passed": true,
+      "score": 0.6666666666666666,
+      "details": "remember=True, recall=False, reflect=True",
+      "latency_ms": 534.1360569000244
+    },
+    {
+      "name": "T2: model_domain inference",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=3",
+      "latency_ms": 35.8121395111084
+    },
+    {
+      "name": "T3: Cognitive layer dynamic",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=5",
+      "latency_ms": 35.02225875854492
+    },
+    {
+      "name": "T4: Space isolation",
+      "passed": true,
+      "score": 1.0,
+      "details": "recall_ok=True",
+      "latency_ms": 52.36411094665527
+    },
+    {
+      "name": "T5: DeduplicationGate",
+      "passed": true,
+      "score": 1.0,
+      "details": "id1=mem:fragment:lifecycle_mcp_eval:04fc0c3e0276, id2=mem:fragment:lifecycle_mcp_eval:04fc0c3e0276",
+      "latency_ms": 27.33612060546875
+    },
+    {
+      "name": "T6: DreamCycle 5-phase",
+      "passed": true,
+      "score": 1.0,
+      "details": "phases=5",
+      "latency_ms": 375.45323371887207
+    },
+    {
+      "name": "T7: Consolidation upgrade",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=16",
+      "latency_ms": 195.892333984375
+    },
+    {
+      "name": "T8: MCP interface simulation",
+      "passed": true,
+      "score": 1.0,
+      "details": "methods_passed=6/6",
+      "latency_ms": 95.3516960144043
+    }
+  ]
+}

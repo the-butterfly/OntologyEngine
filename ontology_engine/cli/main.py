@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from ontology_engine.cli import space, schema, entities, analyze, query, version
+from ontology_engine.cli import space, schema, entities, analyze, query, version, memory
 
 app = typer.Typer(
     name="ontology-cli",
@@ -18,6 +18,7 @@ app.add_typer(entities.app, name="entities", help="Entity management (list, add,
 app.add_typer(analyze.app, name="analyze", help="Analysis and simulation (run, simulate)")
 app.add_typer(query.app, name="query", help="Knowledge retrieval (search)")
 app.add_typer(version.app, name="version", help="Version management (list, create, rollback)")
+app.add_typer(memory.app, name="memory", help="Agent memory operations (remember, recall, reflect, approve, consolidate, forget, stats)")
 
 
 @app.command()

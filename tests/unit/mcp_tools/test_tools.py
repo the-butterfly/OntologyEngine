@@ -105,12 +105,12 @@ class TestServer:
         assert callable(server_module.call_tool)
 
     @pytest.mark.asyncio
-    async def test_list_tools_returns_13_tools(self):
+    async def test_list_tools_returns_23_tools(self):
         import importlib
         server_module = importlib.import_module("ontology_engine.mcp.server")
         list_tools = server_module.list_tools
         tools = await list_tools()
-        assert len(tools) == 13
+        assert len(tools) == 23
         tool_names = [t.name for t in tools]
         assert "oe_create_space" in tool_names
         assert "oe_list_spaces" in tool_names

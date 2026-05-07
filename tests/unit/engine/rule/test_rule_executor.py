@@ -4,11 +4,8 @@
 import pytest
 
 from ontology_engine.engine.rule.executor import RuleExecutor
-from ontology_engine.engine.rule.dag_builder import DAGBuilder
 from ontology_engine.engine.rule.models import (
     ExecutionContext,
-    RuleResult,
-    Alert,
     AnalysisResult,
     RuleGroupDefinition,
     RuleStep,
@@ -16,7 +13,6 @@ from ontology_engine.engine.rule.models import (
     ActionClause,
     AppliesToConfig,
 )
-from ontology_engine.engine.rule.operators import OperatorRegistry
 
 
 def make_rule_group(

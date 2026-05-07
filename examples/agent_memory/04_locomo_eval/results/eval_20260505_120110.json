@@ -1,0 +1,78 @@
+{
+  "timestamp": "20260505_120110",
+  "total": 10,
+  "passed": 1,
+  "pass_rate": 0.1,
+  "results": [
+    {
+      "name": "T1: Source Trust Tier",
+      "passed": false,
+      "score": 0.5,
+      "details": "tiers: None, None, None, None",
+      "latency_ms": 52.002906799316406
+    },
+    {
+      "name": "T2: Scope Field",
+      "passed": false,
+      "score": 0.0,
+      "details": "scope={}",
+      "latency_ms": 9.585857391357422
+    },
+    {
+      "name": "T3",
+      "passed": false,
+      "score": 0.0,
+      "details": "CognitiveNode 'None' not found",
+      "latency_ms": 498.20494651794434
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.008344650268554688
+    },
+    {
+      "name": "T5: Constraint Governance",
+      "passed": false,
+      "score": 0.0,
+      "details": "limits=False, informs=False",
+      "latency_ms": 52.98304557800293
+    },
+    {
+      "name": "T6: Entity Merge",
+      "passed": false,
+      "score": 0.0,
+      "details": "id1=None, id2=None",
+      "latency_ms": 16.448974609375
+    },
+    {
+      "name": "T7",
+      "passed": false,
+      "score": 0.0,
+      "details": "CognitiveNode 'None' not found",
+      "latency_ms": 14.292001724243164
+    },
+    {
+      "name": "T8",
+      "passed": false,
+      "score": 0.0,
+      "details": "MemoryAPI.remember() missing 1 required positional argument: 'space_id'",
+      "latency_ms": 0.008344650268554688
+    },
+    {
+      "name": "T9: Permission Isolation",
+      "passed": true,
+      "score": 0.9333333333333333,
+      "details": "A=15, B=14",
+      "latency_ms": 42.66214370727539
+    },
+    {
+      "name": "T10: Full Lifecycle",
+      "passed": false,
+      "score": 0.5,
+      "details": "fields=False, recall=True",
+      "latency_ms": 30.101537704467773
+    }
+  ]
+}

@@ -3,6 +3,49 @@
 # 敏感值（api_key 等）也可通过环境变量覆盖（优先级：环境变量 > 此文件）。
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Embedding 配置
+# 用于 CognitiveVectorIndex 的向量检索（recall 路径 Layer-R / BM25）。
+# 四级降级策略：openai_compatible → sentence_transformers → bm25 → 子串匹配
+# ──────────────────────────────────────────────────────────────────────────────
+embedding:
+  # 向量提供者：
+  #   openai_compatible — OpenAI 兼容 API（LMStudio / vLLM / Ollama / OpenAI）
+  #   sentence_transformers — 本地 sentence-transformers 模型
+  #   bm25 — 仅 BM25 TF-IDF（无需模型，零依赖）
+  # 环境变量：OE_EMBEDDING_PROVIDER
+  provider: openai_compatible
+
+  # OpenAI 兼容 API 基础 URL
+  # LMStudio 示例：http://127.0.0.1:7852/v1
+  # vLLM 示例：http://127.0.0.1:8000/v1
+  # Ollama 示例：http://127.0.0.1:11434/v1
+  # 环境变量：OE_EMBEDDING_BASE_URL
+  base_url: http://127.0.0.1:7852/v1
+
+  # API Key（本地部署通常不需要，留空即可）
+  # 环境变量：OE_EMBEDDING_API_KEY
+  api_key: ~
+
+  # 模型名称
+  # LMStudio 示例：text-embedding-qwen3-embedding-4b
+  # OpenAI 示例：text-embedding-3-small
+  # sentence-transformers 示例：all-MiniLM-L6-v2
+  # 环境变量：OE_EMBEDDING_MODEL
+  model: text-embedding-qwen3-embedding-4b
+
+  # 向量维度（必须与模型输出维度一致）
+  # text-embedding-qwen3-embedding-4b: 2560
+  # text-embedding-3-small: 1536
+  # all-MiniLM-L6-v2: 384
+  # 环境变量：OE_EMBEDDING_DIMENSION
+  dimension: 2560
+
+  # 向量持久化目录（ChromaDB PersistentClient）
+  # 不设置则使用内存存储（重启后丢失）
+  # 环境变量：OE_EMBEDDING_PERSIST_DIR
+  persist_dir: ~/.ontology_engine/data/cognitive_vectors
+
+# ──────────────────────────────────────────────────────────────────────────────────────
 # LLM Provider 配置
 # 用于 ExtractionPipeline Pass 2（LLM 语义提取）以及 LLMJudge 规则算子。
 # ──────────────────────────────────────────────────────────────────────────────

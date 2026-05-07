@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260505_230837",
+  "case": "case5",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: Basic remember→recall",
+      "passed": false,
+      "score": 0.0,
+      "details": "node_id=mem:entity:ingestion_eval:2d5c351b30d1, total=1, recall_hits=0",
+      "latency_ms": 391.2818431854248
+    },
+    {
+      "name": "T2: DeduplicationGate",
+      "passed": true,
+      "score": 1.0,
+      "details": "id1=mem:entity:ingestion_eval:2d880fd28eb7, id2=mem:entity:ingestion_eval:2d880fd28eb7, id3=mem:entity:ingestion_eval:11fae7ea5e88, dedup=True",
+      "latency_ms": 101.73797607421875
+    },
+    {
+      "name": "T3: Entity Resolution L1",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_id=mem:entity:ingestion_eval:3b4edb603365, observation_id=mem:observation:ingestion_eval:da2822c520e3",
+      "latency_ms": 75.89006423950195
+    },
+    {
+      "name": "T4: Entity Resolution L2 (trigram)",
+      "passed": true,
+      "score": 1.0,
+      "details": "id1=mem:entity:ingestion_eval:a1c00f7ed4f3, id2=mem:entity:ingestion_eval:8009c0039d9e",
+      "latency_ms": 79.21695709228516
+    },
+    {
+      "name": "T5: model_domain auto-inference",
+      "passed": true,
+      "score": 1.0,
+      "details": "correct=4/4",
+      "latency_ms": 120.17107009887695
+    },
+    {
+      "name": "T6: cognitive_layer inference",
+      "passed": true,
+      "score": 1.0,
+      "details": "factual_id=mem:observation:ingestion_eval:a4a202d9d7fc, subjective_id=mem:observation:ingestion_eval:e7ab30237407",
+      "latency_ms": 5831.207752227783
+    },
+    {
+      "name": "T7: source_trust_tier propagation",
+      "passed": true,
+      "score": 1.0,
+      "details": "created=4/4",
+      "latency_ms": 17631.184816360474
+    },
+    {
+      "name": "T8: Multi-source ingestion",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=33, recall_hits=10",
+      "latency_ms": 158.80608558654785
+    }
+  ]
+}

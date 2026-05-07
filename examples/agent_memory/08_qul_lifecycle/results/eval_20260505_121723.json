@@ -1,0 +1,78 @@
+{
+  "timestamp": "20260505_121723",
+  "total": 10,
+  "passed": 10,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "T1: Source Trust Tier",
+      "passed": true,
+      "score": 1.0,
+      "details": "tiers: user_declared, behavior_inferred, environment_observed, agent_generated",
+      "latency_ms": 44.737815856933594
+    },
+    {
+      "name": "T2: Scope Field",
+      "passed": true,
+      "score": 1.0,
+      "details": "scope={'type': 'task', 'ref_id': 'deploy-001', 'window': '2026-Q2'}",
+      "latency_ms": 8.144855499267578
+    },
+    {
+      "name": "T3: Confirmation Forgetting",
+      "passed": true,
+      "score": 1.0,
+      "details": "with=1, without=0",
+      "latency_ms": 525.892972946167
+    },
+    {
+      "name": "T4: Commitment Lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "pending=True, fulfilled=True",
+      "latency_ms": 42.28568077087402
+    },
+    {
+      "name": "T5: Constraint Governance",
+      "passed": true,
+      "score": 1.0,
+      "details": "limits=True, informs=True",
+      "latency_ms": 60.59598922729492
+    },
+    {
+      "name": "T6: Entity Merge",
+      "passed": true,
+      "score": 1.0,
+      "details": "id1=mem:entity:default:da153dc6e7de, id2=mem:entity:default:2970e4e4a4a9",
+      "latency_ms": 18.03874969482422
+    },
+    {
+      "name": "T7: Correction & Deletion",
+      "passed": true,
+      "score": 1.0,
+      "details": "superseded=True, deleted=True, new_id=mem:fragment:default:05768e11e3cc",
+      "latency_ms": 64.95213508605957
+    },
+    {
+      "name": "T8: Services Layer",
+      "passed": true,
+      "score": 1.0,
+      "details": "node_id=mem:fragment:default:c112acff4121",
+      "latency_ms": 17.328977584838867
+    },
+    {
+      "name": "T9: Permission Isolation",
+      "passed": true,
+      "score": 0.9444444444444444,
+      "details": "A=18, B=17",
+      "latency_ms": 32.57608413696289
+    },
+    {
+      "name": "T10: Full Lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "fields=True, recall=True",
+      "latency_ms": 36.40389442443848
+    }
+  ]
+}

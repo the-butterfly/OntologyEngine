@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_235638",
+  "case": "case13",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: User Model",
+      "passed": false,
+      "score": 0.0,
+      "details": "hits=0",
+      "latency_ms": 362.9491329193115
+    },
+    {
+      "name": "T2: Task Model commitment",
+      "passed": true,
+      "score": 1.0,
+      "details": "commitment_id=mem:commitment:full_agent_eval:44b2433b90e6",
+      "latency_ms": 15.506267547607422
+    },
+    {
+      "name": "T3: Self Model experience",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=4",
+      "latency_ms": 142.2438621520996
+    },
+    {
+      "name": "T4: Compilation layer",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_id=mem:entity:full_agent_eval:acb653254c85, summary_len=53",
+      "latency_ms": 25.56610107421875
+    },
+    {
+      "name": "T5: Task context recall",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=5",
+      "latency_ms": 117.91586875915527
+    },
+    {
+      "name": "T6: Permission governance",
+      "passed": true,
+      "score": 1.0,
+      "details": "list_my_ok=True",
+      "latency_ms": 23.32615852355957
+    },
+    {
+      "name": "T7: Cross-model reference",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=8",
+      "latency_ms": 158.48517417907715
+    },
+    {
+      "name": "T8: Full lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "remember=True, correct=True, dream=True, forget=True",
+      "latency_ms": 272.8581428527832
+    }
+  ]
+}

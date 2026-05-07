@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_070650",
+  "case": "case14",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: LLM knowledge extraction",
+      "passed": true,
+      "score": 0.5,
+      "details": "node_id=mem:fragment:real_llm_eval:b13718ef07e9, extracted=0",
+      "latency_ms": 17.599105834960938
+    },
+    {
+      "name": "T2: LLM consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total=6",
+      "latency_ms": 547.7752685546875
+    },
+    {
+      "name": "T3: LLM contradiction",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=1, insights=1",
+      "latency_ms": 110.37921905517578
+    },
+    {
+      "name": "T4: LLM reflection",
+      "passed": true,
+      "score": 1.0,
+      "details": "insights=1",
+      "latency_ms": 106.07600212097168
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "'EntityPage' object has no attribute 'related_observations'",
+      "latency_ms": 43.81895065307617
+    },
+    {
+      "name": "T6: Full agent session",
+      "passed": true,
+      "score": 1.0,
+      "details": "recall=True, reflect=True",
+      "latency_ms": 103.42931747436523
+    },
+    {
+      "name": "T7: Contradiction resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "old=mem:observation:real_llm_eval:d8bfa5541df7, new=mem:observation:real_llm_eval:b49698eb52d0",
+      "latency_ms": 65.50216674804688
+    },
+    {
+      "name": "T8: Quality assessment",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=15, types=2",
+      "latency_ms": 36.66496276855469
+    }
+  ]
+}

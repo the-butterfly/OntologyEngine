@@ -2,13 +2,11 @@
 """Tests for SimulationService DAG simulation capabilities."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.services.simulation_service import (
     SimulationService,
     SimulationStep,
     DAGSimulationResult,
-    StepSimulationResult,
 )
 from ontology_engine.engine.rule.models import (
     RuleGroupDefinition,

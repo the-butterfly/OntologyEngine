@@ -1,6 +1,6 @@
 # 认知操作 API 设计
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
+> **status**: draft | **phase**: phase2 | **source_of_truth**: `docs/01-overview/09-agent-memory.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-05-04 | **verified_against**: case8(12/12) + case9(8/8)
 
 ---
 
@@ -64,8 +64,8 @@ async def remember(
     ),
     memory_type: str = Field(
         default="fragment",
-        description="Memory type hint. 'fragment' for raw info, 'observation' for consolidated knowledge, 'episode' for experience events.",
-        examples=["fragment", "observation", "episode"]
+        description="Memory type hint. 'fragment' for raw info, 'observation' for consolidated knowledge, 'episode' for experience events, 'commitment' for promises, 'self_experience' for agent tool logs.",
+        examples=["fragment", "observation", "episode", "commitment", "self_experience"]
     ),
     metadata: dict | None = Field(
         default=None,
@@ -79,11 +79,12 @@ async def remember(
 ) -> dict:
     """
     Internal orchestration:
-    1. IngestionService.ingest() → KnowledgeFragment created (Layer-R)
-    2. ExtractionPipeline.extract() → entities/relations extracted
-    3. EntityResolver.resolve() → entity disambiguation
-    4. If memory_type != "fragment": create MemoryUnitNode directly (Layer-S)
-    5. If auto_consolidate: ConsolidationEngine.consolidate()
+    1. DeduplicationGate.check() → marginal_value assessment + duplicate detection
+    2. IngestionService.ingest() → KnowledgeFragment created (Layer-R)
+    3. ExtractionPipeline.extract() → entities/relations extracted
+    4. EntityResolver.resolve() → entity disambiguation
+    5. If memory_type != "fragment": create CognitiveNode directly (Layer-S)
+    6. If auto_consolidate: ConsolidationEngine.consolidate()
     """
 ```
 
@@ -130,7 +131,7 @@ async def recall(
     ),
     memory_type: str | None = Field(
         default=None,
-        description="Optional type filter: mental_model, opinion, entity, observation, rule, episode, procedure, fragment. Auto-searches all types if not specified.",
+        description="Optional type filter: mental_model, opinion, entity, observation, rule, episode, procedure, fragment, commitment, constraint, self_experience, task_state. Auto-searches all types if not specified.",
         examples=["entity", "observation"]
     ),
     max_results: int = Field(
@@ -161,12 +162,17 @@ async def recall(
 ) -> dict:
     """
     Internal orchestration:
-    1. If memory_type specified: search only that type
-    2. If memory_type not specified: search all types, apply type weights
-    3. QueryEngine.query() → TEMPR retrieval + RRF fusion + type weights
-    4. Optional: Cross-Encoder reranking
-    5. If include_evidence: expand via mutual index edges
-    6. If token_budget: trim results to fit
+    1. QueryUnderstandingLayer.extract_constraints(query, task_context)
+       → TaskConstraints: user_preference, task_history, temporal_scope, decision_type
+    2. If memory_type specified: search only that type
+    3. If memory_type not specified: search all types, apply type weights
+    4. QueryEngine.query() → TEMPR retrieval + RRF fusion + type weights
+    5. DispositionProfile loading: scene override → default fallback → dynamic weights
+    6. Task-constraint reranking: boost memories matching current task constraints
+    7. Temporal proximity scoring: exp(-0.05 * days) boost
+    8. Optional: Cross-Encoder reranking
+    9. If include_evidence: expand via cognitive edges
+    10. If token_budget: trim results to fit
     """
 ```
 
@@ -243,14 +249,23 @@ async def reflect(
 ) -> dict:
     """
     Internal orchestration:
-    1. ReflectAgent.reflect() → forced retrieval by type priority
+    1. Rule-based contradiction detection (no LLM required):
+       - Group by tags → detect negation conflict patterns
+       - e.g. "不使用X" vs "使用X", "不是X" vs "X"
+    2. ReflectAgent.reflect() → forced retrieval by type priority
        - mental_model → entity → observation → fragment
-    2. LLM generates insights, detects contradictions
-    3. New insights → upgrade to observation or mental_model
-    4. Contradictions → generate contradiction_report
-    5. Low-value memories → trigger forgetting (strength decay)
-    6. Unconsolidated fragments → trigger consolidation
-    7. Stale mental models → mark for refresh
+    3. LLM generates insights, detects contradictions
+    4. Merge rule-based + search-based contradictions (dedup)
+    5. ArbitrationEngine.arbitrate() → evidence-weighted auto-resolution
+       - proof_count × source_trust_tier × recency → belief_status update
+    6. New insights → upgrade to observation or mental_model
+    7. Contradictions → generate contradiction_report
+    8. Belief revision rules applied by priority
+    9. Low-value memories → trigger forgetting (strength decay)
+    10. Negation-signal forgetting: superseded/rejected → accelerated decay
+    11. Unconsolidated fragments → trigger consolidation
+    12. Stale mental models → mark for refresh
+    13. Correction propagation along cognitive edges
     """
 ```
 
@@ -358,6 +373,20 @@ async def reflect(
 | `oe_remember` | 存储 | space_id 存在 |
 | `oe_recall` | 检索 | space_id 存在且已激活 |
 | `oe_reflect` | 反思+巩固+遗忘 | space_id 存在且有记忆 |
+| `oe_approve_memory` | 审批 | 待审区有节点 |
+| `oe_consolidate` | 手动巩固 | space_id 存在且有碎片 |
+| `oe_forget` | 手动遗忘 | space_id 存在且有记忆 |
+| `oe_memory_stats` | 统计 | space_id 存在 |
+| `oe_memory_types` | 分布 | space_id 存在 |
+| `oe_audit_trail` | 审计 | space_id 存在 |
+| `oe_get_reflection_status` | 反思进度 | reflection_id 有效 |
+| `oe_list_my_memories` | 列出自己的记忆 | space_id 存在，用户已认证 |
+| `oe_correct_memory` | 更正记忆 | node_id 存在，用户有权限 |
+| `oe_delete_memory` | 删除记忆 | node_id 存在，用户有权限 |
+| `oe_record_commitment` | 记录承诺 | space_id 存在 |
+| `oe_check_commitments` | 检查承诺 | space_id 存在 |
+
+**实现状态**: ✅ 全部 15 个工具已实现并注册到 [mcp/server.py](file:///Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/mcp/server.py)。
 
 ### 6.2 与现有 MCP 工具的关系
 
@@ -398,6 +427,7 @@ async def reflect(
 | POST | `/v1/spaces/{space_id}/memory/forget` | 单独触发遗忘 |
 | GET | `/v1/spaces/{space_id}/memory/stats` | 记忆统计 |
 | GET | `/v1/spaces/{space_id}/memory/types` | 各类型数量和强度分布 |
+| GET | `/v1/spaces/{space_id}/memory/audit` | 审计日志查询（被更正/废弃的节点） |
 
 ### 7.3 统一响应格式
 
@@ -415,6 +445,27 @@ async def reflect(
 }
 ```
 
+### 7.4 新增权限治理端点 [新增]
+
+```python
+# 列出当前用户可见的记忆（权限过滤）
+GET /v1/spaces/{space_id}/memory/my?scope_type=user&memory_type=observation
+
+# 更正记忆（用户纠错）
+PATCH /v1/spaces/{space_id}/memory/{node_id}/correct
+Body: {"corrected_text": "...", "reason": "..."}
+
+# 删除记忆（用户有权删除关于自己的记忆）
+DELETE /v1/spaces/{space_id}/memory/{node_id}?cascade=false
+
+# 记录承诺
+POST /v1/spaces/{space_id}/memory/commitments
+Body: {"text": "明天给你报告", "deadline": "2026-05-01T10:00:00Z", "task_id": "task_001"}
+
+# 检查承诺状态
+GET /v1/spaces/{space_id}/memory/commitments?status=pending&overdue=true
+```
+
 ---
 
 ## 8. CLI 命令
@@ -427,6 +478,12 @@ ontology-cli memory reflect   --space space.finance --query "..."
 ontology-cli memory consolidate --space space.finance --dry-run
 ontology-cli memory forget    --space space.finance --criteria stale --mode archive
 ontology-cli memory stats     --space space.finance
+
+ontology-cli memory list-my    --space space.finance --scope user
+ontology-cli memory correct   --node mu_001 --text "更正后的内容"
+ontology-cli memory delete    --node mu_001 --cascade false
+ontology-cli memory record-commitment --space space.finance --text "明天给你报告" --deadline 2026-05-01
+ontology-cli memory check-commitments --space space.finance --status pending
 ```
 
 ---
@@ -440,7 +497,7 @@ ontology-cli memory stats     --space space.finance
 | PROTECTED_MEMORY | 403 | 受保护记忆不可遗忘 | 使用 force=true（谨慎） |
 | REFLECT_TIMEOUT | 504 | 反思超时 | 减少 max_iterations |
 | MEMORY_STALE | 200 | 记忆已过期但仍返回 | 触发 reflect 刷新 |
-| INVALID_MEMORY_TYPE | 422 | 无效的 memory_type | 使用有效类型：entity/observation/mental_model/episode/procedure/fragment |
+| INVALID_MEMORY_TYPE | 422 | 无效的 memory_type | 使用有效类型：entity/observation/mental_model/episode/procedure/fragment/commitment/constraint/self_experience/task_state |
 
 ---
 
@@ -504,6 +561,50 @@ reflect(query, space_id, max_iterations=10, focus_types=None,
         skip_consolidation=False, skip_forgetting=False,
         skip_correction_propagation=False) → dict
 ```
+
+### 10.5 三层接口参数覆盖对比
+
+> **[待核对代码]**：以下对比基于当前实现代码，MCP Schema 和 CLI 参数可能随版本变化。
+
+| 参数 | REST API | MCP Schema | CLI |
+|------|----------|------------|-----|
+| **remember** | | | |
+| content | ✅ | ✅ (必填) | ✅ (必填) |
+| space_id | ✅ (路径) | ✅ (必填) | ✅ (--space) |
+| tags | ✅ | ✅ | ✅ (逗号分隔) |
+| memory_type | ✅ | ✅ | ✅ |
+| auto_consolidate | ✅ | ✅ | ✅ |
+| visibility | ✅ | ❌ | ❌ |
+| metadata | ✅ | ❌ | ❌ |
+| created_by | ✅ | ❌ | ❌ |
+| confidence | ✅ | ❌ | ❌ |
+| schema_ref | ✅ | ❌ | ❌ |
+| supersede_target | ✅ | ❌ | ❌ |
+| supersede_reason | ✅ | ❌ | ❌ |
+| **recall** | | | |
+| query | ✅ | ✅ (必填) | ✅ (必填) |
+| memory_type | ✅ | ✅ | ✅ |
+| max_results | ✅ | ✅ | ✅ |
+| include_evidence | ✅ | ✅ | ❌ |
+| evidence_depth | ✅ | ❌ | ❌ |
+| as_of | ✅ | ❌ | ❌ |
+| token_budget | ✅ | ❌ | ❌ |
+| belief_status_filter | ✅ | ❌ | ❌ |
+| disposition_override | ✅ | ❌ | ❌ |
+| audit_trail | ✅ | ❌ | ❌ |
+| **reflect** | | | |
+| query | ✅ | ✅ (必填) | ✅ (必填) |
+| max_iterations | ✅ | ✅ | ✅ |
+| focus_types | ✅ | ✅ | ❌ |
+| async_mode | ✅ | ❌ | ❌ |
+| skip_consolidation | ✅ | ❌ | ❌ |
+| skip_forgetting | ✅ | ❌ | ❌ |
+| cascade_depth | ✅ | ❌ | ❌ |
+| skip_correction_propagation | ✅ | ❌ | ❌ |
+
+**MCP 独有端点**: `oe_get_reflection_status`（REST API 和 CLI 均无对应端点）
+
+**设计意图**：MCP 和 CLI 暴露 L1/L2 参数，REST API 暴露完整 L3 参数。高级参数通过 REST API 或直接调用 MemoryAPI 使用。
 
 ---
 
@@ -646,9 +747,223 @@ remember(content="诉讼已撤诉", space_id=space_id,
 ### 13.4 审计日志查询
 
 ```python
+# 通过 API
+GET /v1/spaces/{space_id}/memory/audit?limit=50
+
+# 通过 recall 快捷方式
 recall(query="audit_trail", space_id=space_id,
        entity_name="华为", include_superseded=True) → dict
 ```
+
+**实现状态**: ✅ 已实现 — AuditAPI 返回 superseded/rejected 节点列表，MCP 工具 `oe_audit_trail` 已注册，CLI `memory audit` 已可用。
+
+---
+
+## 14. Recall 检索逻辑时序图 [新增]
+
+> **[关键设计点]**：recall 的完整检索管线，从查询输入到结果返回。
+
+### 14.1 完整检索管线
+
+```
+recall(query, space_id, ...)
+  │
+  ├─ 1. 类型过滤路由
+  │    ├── memory_type 指定 → search_by_type(query, memory_type)
+  │    └── memory_type 未指定 → 分层漏斗检索
+  │         ├── L1: opinion(mental_model, opinion) → 命中且confidence≥阈值 → 场景允许短路 → 返回
+  │         ├── L2: semantic(entity, rule)
+  │         ├── L3: procedure(episode, procedure)
+  │         └── L4: perception(fragment) —— 兜底
+  │
+  ├─ 2. 置信度过滤
+  │    └── min_confidence 过滤低置信度结果
+  │
+  ├─ 3. 信念状态过滤
+  │    └── belief_status_filter (默认 "accepted")
+  │
+  ├─ 4. 可见性过滤
+  │    └── visibility: private/shared/public + user_id 匹配
+  │
+  ├─ 5. DispositionProfile 动态权重 [关键]
+  │    ├── 加载策略:
+  │    │    ├── disposition_override 为字符串 → 作为 scene 查询 profile
+  │    │    ├── 失败 → fallback 查询 "default" scene profile
+  │    │    └── 仍失败 → 使用基础 TYPE_WEIGHTS
+  │    ├── 权重调整:
+  │    │    ├── skepticism↑ → mental_model/entity↑, opinion/episode↓
+  │    │    ├── abstraction_preference↑ → mental_model↑, fragment↓
+  │    │    ├── empathy↑ → observation↑
+  │    │    └── risk_tolerance↑ → procedure↑
+  │    └── 最终: type_weight = apply_dynamic_weight(raw_score, memory_type, profile)
+  │
+  ├─ 6. 时序邻近性评分
+  │    ├── temporal_score = exp(-0.05 * days_since_occurred)
+  │    └── rank_score = score * type_weight * (0.7 + 0.3 * temporal_score)
+  │
+  ├─ 7. [可选] Cross-Encoder 重排序
+  │    └── 配置 enabled=true 时，top_k_for_rerank → rerank → top_k_after_rerank
+  │
+  ├─ 8. 证据链展开
+  │    ├── include_evidence=true → 沿 COG_SUPPORTED_BY/CONSOLIDATED_INTO 边展开
+  │    └── evidence_depth 控制展开深度 (1=直接来源, 2=来源的来源)
+  │
+  ├─ 9. Token 预算裁剪
+  │    └── token_budget 设定时，按 rank_score 降序截断
+  │
+  └─ 10. 返回结果
+       └── results + query_type + total_tokens
+```
+
+### 14.2 RRF 四路融合与向量索引 [关键更新]
+
+> **[关键设计点]**：向量检索已接入 recall 路径，通过 `CognitiveVectorIndex` 提供四级降级策略。
+
+```
+RRFFusionEngine.fuse(query, query_type, space_id, top_k)
+  │
+  ├─ Layer-R (向量检索) — 权重: factual=0.5, multi_hop=0.2
+  │    └── CognitiveVectorIndex.vector_search()
+  │         ├── Tier 1: OpenAI-compatible API (LMStudio/vLLM/OpenAI)
+  │         │    └── httpx.AsyncClient → POST /embeddings → cosine similarity
+  │         ├── Tier 2: sentence-transformers 本地模型
+  │         │    └── SentenceTransformer.encode() → LocalVectorStore.search()
+  │         ├── Tier 3: BM25 TF-IDF 评分 (零依赖降级)
+  │         │    └── 分词(ASCII词+CJK单字+CJK bigram) → IDF × TF_norm → 排序
+  │         └── Tier 4: 子串匹配 (RRF fallback)
+  │
+  ├─ Layer-S (图检索) — 权重: factual=0.2, multi_hop=0.5
+  │    └── query_nodes(memory_type="entity")
+  │
+  ├─ BM25 (关键词检索) — 权重: factual=0.2, multi_hop=0.1
+  │    └── CognitiveVectorIndex.bm25_search()
+  │
+  └─ Temporal (时间检索) — 权重: factual=0.1, temporal=0.6
+       └── extract_temporal_constraint() → 时间范围过滤
+```
+
+### 14.3 Embedding 配置体系 [新增]
+
+> **[单一事实源]**：Embedding 配置的完整定义。
+
+**配置来源优先级**: 构造器参数 > 环境变量 > config.yaml > 默认值
+
+```yaml
+# config.yaml
+embedding:
+  provider: openai_compatible    # openai_compatible | sentence_transformers | bm25
+  base_url: http://127.0.0.1:7852/v1
+  api_key: ~                     # 本地部署通常不需要
+  model: text-embedding-qwen3-embedding-4b
+  dimension: 2560                # 必须与模型输出维度一致
+```
+
+**环境变量覆盖**: `OE_EMBEDDING_PROVIDER`, `OE_EMBEDDING_BASE_URL`, `OE_EMBEDDING_API_KEY`, `OE_EMBEDDING_MODEL`, `OE_EMBEDDING_DIMENSION`, `OE_EMBEDDING_PERSIST_DIR`
+
+**内容增强策略**: 写入时将 content 丰富为 `[memory_type] tags | content`，帮助 embedding 模型捕获类型语义和标签上下文。
+
+**BM25 中文分词策略**: 无外部分词库依赖时，采用 ASCII 词 + CJK 单字 + CJK bigram 三级 token 策略。ASCII 部分用 `[a-zA-Z0-9_]+` 提取；CJK 部分提取 Unicode 范围 `[\u4e00-\u9fff]` 的单字和相邻二字组合(bigram)。此策略在中文场景下相比纯 `\w+` 模式（会将整句中文当作单个 token）有显著提升，同时保持零依赖。
+
+**向量持久化**: 当 `persist_dir` 配置时，向量存储在 ChromaDB PersistentClient 的 `cognitive_node` collection 中；未配置时使用内存存储（重启后丢失）。
+
+**模型签名版本化**: 每个向量附带 `model_signature` 元数据（格式：`provider:model:dimension`）。初始化时检查已有向量的签名是否与当前配置匹配，不匹配则发出警告建议重建索引。维度和模型作为一组信息一起管理，不可独立变更。
+
+### 14.4 DispositionProfile 加载策略详解
+
+```
+recall(query, space_id, disposition_override="audit")
+  │
+  ├─ Step 1: 尝试 scene = "audit"
+  │    └── repo.get_profile_by_scene("audit", domain_id=space_id)
+  │         ├── 成功 → profile = audit_profile (evidence_demand=1.0, skepticism=0.9)
+  │         └── 失败 ↓
+  │
+  ├─ Step 2: Fallback scene = "default"
+  │    └── repo.get_profile_by_scene("default", domain_id=space_id)
+  │         ├── 成功 → profile = default_profile
+  │         └── 失败 ↓
+  │
+  └─ Step 3: 使用基础 TYPE_WEIGHTS (无动态调整)
+       └── mental_model(3.0) > opinion(2.5) > entity(2.0) > rule(2.0)
+           > commitment(1.9) > constraint(1.8) > procedure(1.8) > task_state(1.6)
+       > observation(1.5) > episode(1.2) > self_experience(1.1) > fragment(1.0)
+```
+
+---
+
+## 15. Reflect 混合矛盾检测时序图 [新增]
+
+> **[关键设计点]**：反思采用混合矛盾检测，规则层无需 LLM，搜索层需要 LLM。
+
+### 15.1 混合检测架构
+
+```
+reflect(query, space_id, ...)
+  │
+  ├─ Phase A: 规则矛盾检测 (无需 LLM)
+  │    ├── 1. 查询 space 下所有 CognitiveNode (limit=500)
+  │    ├── 2. 按 tags 分组
+  │    ├── 3. 同 tag 组内两两检查:
+  │    │    ├── 跳过 belief_status ∈ {superseded, rejected} 的节点
+  │    │    └── 否定冲突模式匹配:
+  │    │         ├── "不是X" vs "X"
+  │    │         ├── "不使用X" vs "使用X"
+  │    │         ├── "不再X" vs "X"
+  │    │         ├── "没有X" vs "有X"
+  │    │         └── "并非X" vs "X"
+  │    └── 4. 输出: rule_contradictions: list[ContradictionReport]
+  │
+  ├─ Phase B: 搜索循环矛盾检测 (需 LLM)
+  │    ├── 1. 前 N 轮强制检索 (FORCED_SEARCH_SEQUENCE):
+  │    │    ├── 轮次1: search_by_type(query, "mental_model")
+  │    │    ├── 轮次2: search_by_type(query, "entity")
+  │    │    └── 轮次3: search_by_type(query, "observation")
+  │    ├── 2. 后续轮次: Agent 自主 recall
+  │    ├── 3. 每轮轻量矛盾检测:
+  │    │    └── 按 cognitive_layer 分组 → 找 accepted vs contradicted 配对
+  │    └── 4. 输出: search_contradictions: list[ContradictionReport]
+  │
+  ├─ Phase C: 合并去重
+  │    └── all_contradictions = dedup(rule_contradictions + search_contradictions)
+  │
+  └─ Phase D: 后续动作
+       ├── 信念修正规则引擎 (按优先级 100→40 匹配规则)
+       ├── 巩固 (未归纳碎片)
+       ├── 遗忘 (低强度记忆)
+       ├── 更正传播 (沿 SUMMARIZED_AS/CONSOLIDATED_INTO/COGNITIVE_RELATES_TO 边)
+       └── Schema 建议 (模式检测)
+```
+
+---
+
+## 16. 认知边类型完整清单 [新增]
+
+> **[单一事实源]**：所有认知边类型的定义和用途。
+
+### 16.1 边类型与 KuzuDB 边表映射
+
+| 边类型 | KuzuDB 表名 | 时间字段 | 语义 | 创建场景 |
+|--------|-------------|---------|------|---------|
+| CONSOLIDATED_INTO | CONSOLIDATED_INTO | consolidated_at | fragment → observation 归纳 | 巩固引擎创建 observation |
+| SUMMARIZED_AS | SUMMARIZED_AS | created_at | observation → mental_model 摘要 | 巩固引擎创建 mental_model |
+| LEARNED_INTO | LEARNED_INTO | created_at | episode → procedure 学习 | 巩固引擎创建 procedure |
+| SUPERSEDES | SUPERSEDES | superseded_at | 新节点取代旧节点 | 更正写入、信念修订 |
+| CONTRADICTS | CONTRADICTS | created_at | 矛盾关系 | 反思检测到矛盾 |
+| COGNITIVE_RELATES_TO | COGNITIVE_RELATES_TO | created_at | 认知关联 | DreamCycle Phase 4 自链接增强 |
+| RELATES_TO | RELATES_TO | created_at | 一般关联 | 编译层、手动关联 |
+| CO_OCCURS_WITH | CO_OCCURS_WITH | - | 共现关系 | 实体共现追踪 |
+| PART_OF | PART_OF | created_at | 部分-整体 | 层次结构 |
+| SUPPORTS | SUPPORTS | created_at | 支持关系 | 证据支持 |
+| COG_SUPPORTED_BY | COG_SUPPORTED_BY | - | 证据支持（带贡献度） | 证据链 |
+
+> **[关键设计点]**：`query_cognitive_edges` 根据边类型使用不同的时间字段（CONSOLIDATED_INTO 使用 `consolidated_at`，SUPERSEDES 使用 `superseded_at`，其余使用 `created_at`），避免查询失败。
+
+### 16.2 更正传播边类型
+
+更正传播沿以下边类型 BFS 遍历：
+- **SUMMARIZED_AS**: mental_model 依赖的 observation 被更正 → mental_model 需刷新
+- **CONSOLIDATED_INTO**: observation 依赖的 fragment 被更正 → observation 需重新归纳
+- **COGNITIVE_RELATES_TO**: 关联实体被更正 → 需检查是否影响本实体
 
 ---
 
@@ -663,3 +978,4 @@ recall(query="audit_trail", space_id=space_id,
 | Agent 友好接口设计 | `docs/02-design/agent-friendly-design.md` |
 | 知识库流程主文档 | `docs/01-overview/10-kb-process.md` |
 | 审查辩论文档 | `discuss/2026-04-30-kb-memory-design-adversarial-review.md` |
+| 外部批判框架对照 | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` |

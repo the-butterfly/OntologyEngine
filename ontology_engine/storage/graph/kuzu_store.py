@@ -221,6 +221,60 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
+        # ── Agent Memory: CognitiveNode ──────────────────────────────────
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS CognitiveNode(
+                id STRING PRIMARY KEY,
+                memory_type STRING,
+                cognitive_layer STRING,
+                content STRING,
+                content_vector JSON,
+                source_fragment_ids JSON,
+                belief_status STRING DEFAULT 'accepted',
+                ttl_seconds INT64 DEFAULT 0,
+                occurred_at STRING,
+                created_at STRING,
+                updated_at STRING,
+                history JSON,
+                access_count INT64 DEFAULT 0,
+                last_access_at STRING,
+                consolidated_at STRING,
+                domain_id STRING,
+                space_id STRING DEFAULT 'default',
+                extraction_hint STRING,
+                visibility STRING DEFAULT 'shared',
+                created_by STRING,
+                feedback_weight DOUBLE DEFAULT 0.5,
+                confidence DOUBLE DEFAULT 1.0,
+                schema_ref STRING,
+                superseded_by STRING,
+                proof_count INT64 DEFAULT 1,
+                valid_from STRING,
+                valid_to STRING,
+                recorded_at STRING,
+                tags JSON,
+                attributes JSON,
+                confirmation_count INT64 DEFAULT 0
+            )
+        """)
+
+        # ── Agent Memory: DispositionProfileNode ─────────────────────────
+        self._conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS DispositionProfileNode(
+                id STRING PRIMARY KEY,
+                skepticism DOUBLE DEFAULT 0.5,
+                evidence_demand DOUBLE DEFAULT 0.5,
+                abstraction_preference DOUBLE DEFAULT 0.5,
+                thoroughness DOUBLE DEFAULT 0.5,
+                recency_bias DOUBLE DEFAULT 0.5,
+                empathy DOUBLE DEFAULT 0.5,
+                risk_tolerance DOUBLE DEFAULT 0.5,
+                scene STRING,
+                domain_id STRING,
+                space_id STRING DEFAULT 'default'
+            )
+        """)
+
         self._conn.execute("""
             CREATE REL TABLE IF NOT EXISTS Relation(
                 FROM Entity TO Entity,
@@ -392,6 +446,117 @@ class KuzuGraphStore(GraphStoreBackend):
                 source_pipeline STRING
             )
         """)
+
+        # ── Agent Memory: Cognitive Edges ────────────────────────────────
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS PART_OF(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS SUPPORTS(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING,
+                evidence_strength DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS CONTRADICTS(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING,
+                contradiction_type STRING,
+                severity DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS CONSOLIDATED_INTO(
+                FROM CognitiveNode TO CognitiveNode,
+                consolidated_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS RELATES_TO(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING,
+                relation_strength DOUBLE
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS CO_OCCURS_WITH(
+                FROM CognitiveNode TO CognitiveNode,
+                co_occurrence_count INT64 DEFAULT 1,
+                last_seen_at STRING,
+                first_seen_at STRING,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS COG_SUPPORTED_BY(
+                FROM CognitiveNode TO CognitiveNode,
+                evidence_order INT64 DEFAULT 0,
+                contribution DOUBLE DEFAULT 0.5,
+                edge_confidence DOUBLE DEFAULT 1.0,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS SUPERSEDES(
+                FROM CognitiveNode TO CognitiveNode,
+                supersede_reason STRING,
+                superseded_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS SUMMARIZED_AS(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS LEARNED_INTO(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING
+            )
+        """)
+
+        self._conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS COGNITIVE_RELATES_TO(
+                FROM CognitiveNode TO CognitiveNode,
+                created_at STRING,
+                relation_strength DOUBLE
+            )
+        """)
+
+        # ── Agent Memory: Indexes ────────────────────────────────────────
+        # KuzuDB auto-creates indexes for PRIMARY KEY columns.
+        # KuzuDB does not support CREATE INDEX IF NOT EXISTS syntax.
+        # As of KuzuDB v0.x, CREATE INDEX is not supported at all.
+        # When KuzuDB adds index support, uncomment the following:
+        # for idx_stmt in [
+        #     "CREATE INDEX idx_cognitive_type_layer ON CognitiveNode(memory_type)",
+        #     "CREATE INDEX idx_cognitive_belief_status ON CognitiveNode(belief_status)",
+        #     "CREATE INDEX idx_cognitive_domain ON CognitiveNode(domain_id)",
+        #     "CREATE INDEX idx_cognitive_occurred_at ON CognitiveNode(occurred_at)",
+        #     "CREATE INDEX idx_disposition_scene ON DispositionProfileNode(scene)",
+        #     "CREATE INDEX idx_disposition_domain ON DispositionProfileNode(domain_id)",
+        # ]:
+        #     try:
+        #         self._conn.execute(idx_stmt)
+        #     except RuntimeError as e:
+        #         msg = str(e).lower()
+        #         if "already exists" not in msg:
+        #             logger.warning("Failed to create index: %s — %s", idx_stmt, e)
+        pass
 
     def _ensure_initialized(self) -> None:
         if not self._initialized or self._conn is None:
@@ -1346,6 +1511,149 @@ class KuzuGraphStore(GraphStoreBackend):
             "properties": properties,
         }
 
+    async def create_cognitive_edge(
+        self,
+        edge_type: str,
+        from_id: str,
+        to_id: str,
+        properties: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create an edge between two CognitiveNodes.
+
+        Args:
+            edge_type: One of PART_OF, SUPPORTS, CONTRADICTS,
+                CONSOLIDATED_INTO, RELATES_TO, CO_OCCURS_WITH, COG_SUPPORTED_BY.
+            from_id: Source CognitiveNode ID.
+            to_id: Target CognitiveNode ID.
+            properties: Optional edge properties. Only properties defined
+                in the edge table schema will be set.
+
+        Returns:
+            Created edge record.
+        """
+        self._ensure_initialized()
+
+        valid_types = {"PART_OF", "SUPPORTS", "CONTRADICTS", "CONSOLIDATED_INTO", "RELATES_TO", "CO_OCCURS_WITH", "COG_SUPPORTED_BY", "SUPERSEDES", "SUMMARIZED_AS", "LEARNED_INTO", "COGNITIVE_RELATES_TO"}
+        if edge_type not in valid_types:
+            raise GraphQueryError(f"Invalid cognitive edge type: {edge_type}. Must be one of {valid_types}")
+
+        edge_schemas = {
+            "PART_OF": {"created_at"},
+            "SUPPORTS": {"created_at", "evidence_strength"},
+            "CONTRADICTS": {"created_at", "contradiction_type", "severity"},
+            "CONSOLIDATED_INTO": {"consolidated_at"},
+            "RELATES_TO": {"created_at", "relation_strength"},
+            "CO_OCCURS_WITH": {"co_occurrence_count", "last_seen_at", "first_seen_at", "created_at"},
+            "COG_SUPPORTED_BY": {"evidence_order", "contribution", "edge_confidence", "created_at"},
+            "SUPERSEDES": {"supersede_reason", "superseded_at"},
+            "SUMMARIZED_AS": {"created_at"},
+            "LEARNED_INTO": {"created_at"},
+            "COGNITIVE_RELATES_TO": {"created_at", "relation_strength"},
+        }
+
+        allowed_props = edge_schemas.get(edge_type, set())
+        props = properties or {}
+        filtered_props = {k: v for k, v in props.items() if k in allowed_props}
+
+        params: dict[str, Any] = {"from_id": from_id, "to_id": to_id}
+
+        props_parts = []
+        for k, v in filtered_props.items():
+            props_parts.append(f"r.{k} = ${k}")
+            params[k] = v
+
+        set_clause = ", ".join(props_parts) if props_parts else ""
+
+        cypher = f"""
+            MATCH (a:CognitiveNode {{id: $from_id}}), (b:CognitiveNode {{id: $to_id}})
+            MERGE (a)-[r:{edge_type}]->(b)
+            {f"SET {set_clause}" if set_clause else ""}
+            RETURN a.id AS from_id, b.id AS to_id
+        """
+        self._conn.execute(cypher, params)
+        return {
+            "edge_type": edge_type,
+            "from_id": from_id,
+            "to_id": to_id,
+            "properties": filtered_props,
+        }
+
+    async def query_cognitive_edges(
+        self,
+        from_id: str | None = None,
+        to_id: str | None = None,
+        edge_type: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Query cognitive edges with optional filters."""
+        self._ensure_initialized()
+
+        edge_table_map = {
+            "CONSOLIDATED_INTO": "CONSOLIDATED_INTO",
+            "SUMMARIZED_AS": "SUMMARIZED_AS",
+            "LEARNED_INTO": "LEARNED_INTO",
+            "SUPERSEDES": "SUPERSEDES",
+            "CONTRADICTS": "CONTRADICTS",
+            "COGNITIVE_RELATES_TO": "COGNITIVE_RELATES_TO",
+            "RELATES_TO": "RELATES_TO",
+            "CO_OCCURS_WITH": "CO_OCCURS_WITH",
+            "PART_OF": "PART_OF",
+            "SUPPORTS": "SUPPORTS",
+            "COG_SUPPORTED_BY": "COG_SUPPORTED_BY",
+        }
+
+        edge_time_fields = {
+            "CONSOLIDATED_INTO": "consolidated_at",
+            "SUPERSEDES": "superseded_at",
+        }
+
+        results: list[dict[str, Any]] = []
+
+        if edge_type and edge_type in edge_table_map:
+            tables = [(edge_type, edge_table_map[edge_type])]
+        else:
+            tables = list(edge_table_map.items())
+
+        for etype, table in tables:
+            where_clauses = []
+            params: dict[str, Any] = {}
+
+            if from_id:
+                where_clauses.append("a.id = $from_id")
+                params["from_id"] = from_id
+            if to_id:
+                where_clauses.append("b.id = $to_id")
+                params["to_id"] = to_id
+
+            where = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+            time_field = edge_time_fields.get(etype, "created_at")
+
+            cypher = f"""
+                MATCH (a:CognitiveNode)-[r:{table}]->(b:CognitiveNode)
+                {where}
+                RETURN a.id AS from_id, b.id AS to_id, r.{time_field} AS time_val
+                LIMIT {limit}
+            """
+
+            try:
+                result_set = self._conn.execute(cypher, params)
+                while result_set.has_next():
+                    row = result_set.get_next()
+                    results.append({
+                        "edge_type": etype,
+                        "from_id": row[0],
+                        "to_id": row[1],
+                        "created_at": row[2] if len(row) > 2 else None,
+                    })
+            except Exception:
+                continue
+
+            if len(results) >= limit:
+                break
+
+        return results[:limit]
+
     async def get_mutual_index_edges(
         self,
         node_id: str,
@@ -1471,3 +1779,610 @@ class KuzuGraphStore(GraphStoreBackend):
             "MATCH (n:Entity {entity_id: $id}) SET n.properties = $props",
             {"id": entity_id, "props": json.dumps(props)},
         )
+
+    # --- Agent Memory: CognitiveNode Management ---
+
+    async def upsert_cognitive_node(
+        self,
+        node_id: str,
+        memory_type: str,
+        cognitive_layer: str,
+        content: str,
+        content_vector: list[float] | None = None,
+        source_fragment_ids: list[str] | None = None,
+        belief_status: str = "accepted",
+        ttl_seconds: int = 0,
+        occurred_at: str | None = None,
+        extraction_hint: str | None = None,
+        domain_id: str | None = None,
+        space_id: str = "default",
+        history: list[dict[str, Any]] | None = None,
+        visibility: str = "shared",
+        created_by: str | None = None,
+        feedback_weight: float = 0.5,
+        confidence: float = 1.0,
+        access_count: int = 0,
+        last_access_at: str | None = None,
+        consolidated_at: str | None = None,
+        schema_ref: str | None = None,
+        superseded_by: str | None = None,
+        proof_count: int = 1,
+        valid_from: str | None = None,
+        valid_to: str | None = None,
+        recorded_at: str | None = None,
+        tags: list[str] | None = None,
+        attributes: dict[str, str] | None = None,
+        confirmation_count: int = 0,
+    ) -> None:
+        self._ensure_initialized()
+        import json
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        params: dict[str, Any] = {
+            "id": str(node_id),
+            "memory_type": str(memory_type),
+            "cognitive_layer": str(cognitive_layer),
+            "content": str(content),
+            "content_vector": json.dumps(content_vector) if content_vector else None,
+            "source_fragment_ids": json.dumps(source_fragment_ids) if source_fragment_ids else None,
+            "belief_status": str(belief_status),
+            "ttl_seconds": int(ttl_seconds),
+            "occurred_at": occurred_at,
+            "extraction_hint": extraction_hint,
+            "domain_id": domain_id,
+            "space_id": str(space_id),
+            "created_at": now,
+            "updated_at": now,
+            "history": json.dumps(history) if history else json.dumps([]),
+            "visibility": str(visibility),
+            "created_by": created_by,
+            "feedback_weight": float(feedback_weight),
+            "confidence": float(confidence),
+            "access_count": int(access_count),
+            "last_access_at": last_access_at,
+            "consolidated_at": consolidated_at,
+            "schema_ref": schema_ref,
+            "superseded_by": superseded_by,
+            "proof_count": int(proof_count),
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+            "recorded_at": recorded_at,
+            "tags": json.dumps(tags) if tags else json.dumps([]),
+            "attributes": json.dumps(attributes) if attributes else json.dumps({}),
+            "confirmation_count": int(confirmation_count),
+        }
+
+        self._conn.execute("""
+            MERGE (n:CognitiveNode {id: $id})
+            ON CREATE SET n.created_at = $created_at,
+                          n.history = $history
+            ON MATCH SET n.updated_at = $updated_at,
+                         n.history = $history
+            SET n.memory_type = $memory_type,
+                n.cognitive_layer = $cognitive_layer,
+                n.content = $content,
+                n.content_vector = $content_vector,
+                n.source_fragment_ids = $source_fragment_ids,
+                n.belief_status = $belief_status,
+                n.ttl_seconds = $ttl_seconds,
+                n.occurred_at = $occurred_at,
+                n.extraction_hint = $extraction_hint,
+                n.domain_id = $domain_id,
+                n.space_id = $space_id,
+                n.visibility = $visibility,
+                n.created_by = $created_by,
+                n.feedback_weight = $feedback_weight,
+                n.confidence = $confidence,
+                n.access_count = $access_count,
+                n.last_access_at = $last_access_at,
+                n.consolidated_at = $consolidated_at,
+                n.schema_ref = $schema_ref,
+                n.superseded_by = $superseded_by,
+                n.proof_count = $proof_count,
+                n.valid_from = $valid_from,
+                n.valid_to = $valid_to,
+                n.recorded_at = $recorded_at,
+                n.tags = $tags,
+                n.attributes = $attributes,
+                n.confirmation_count = $confirmation_count
+        """, params)
+
+    async def get_cognitive_node(self, node_id: str) -> dict[str, Any] | None:
+        """Get a CognitiveNode by ID.
+
+        Args:
+            node_id: Unique identifier for the cognitive node.
+
+        Returns:
+            Dictionary with node properties, or None if not found.
+        """
+        self._ensure_initialized()
+        import json
+
+        result = self._conn.execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            RETURN n.id AS id, n.memory_type AS memory_type,
+                   n.cognitive_layer AS cognitive_layer, n.content AS content,
+                   n.content_vector AS content_vector,
+                   n.source_fragment_ids AS source_fragment_ids,
+                   n.belief_status AS belief_status, n.ttl_seconds AS ttl_seconds,
+                   n.occurred_at AS occurred_at, n.created_at AS created_at,
+                   n.updated_at AS updated_at, n.history AS history,
+                   n.access_count AS access_count, n.last_access_at AS last_access_at,
+                   n.consolidated_at AS consolidated_at, n.domain_id AS domain_id,
+                   n.space_id AS space_id, n.extraction_hint AS extraction_hint,
+                   n.visibility AS visibility, n.created_by AS created_by,
+                   n.feedback_weight AS feedback_weight, n.confidence AS confidence,
+                   n.schema_ref AS schema_ref, n.superseded_by AS superseded_by,
+                   n.proof_count AS proof_count,
+                   n.valid_from AS valid_from, n.valid_to AS valid_to,
+                   n.recorded_at AS recorded_at, n.tags AS tags,
+                   n.attributes AS attributes,
+                   n.confirmation_count AS confirmation_count
+        """, {"id": node_id})
+
+        df = result.get_as_df()
+        if df.empty:
+            return None
+
+        row = df.iloc[0]
+
+        def parse_json_field(value):
+            if value is None:
+                return None
+            if isinstance(value, float) and __import__("math").isnan(value):
+                return None
+            if isinstance(value, (list, dict)):
+                return value
+            if isinstance(value, (int, float)):
+                return value
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return value
+
+        def safe_val(value, default=None):
+            if value is None:
+                return default
+            if isinstance(value, float) and __import__("math").isnan(value):
+                return default
+            return value
+
+        return {
+            "id": row["id"],
+            "memory_type": row["memory_type"],
+            "cognitive_layer": row["cognitive_layer"],
+            "content": row["content"],
+            "content_vector": parse_json_field(row["content_vector"]),
+            "source_fragment_ids": parse_json_field(row["source_fragment_ids"]) or [],
+            "belief_status": safe_val(row["belief_status"], "accepted"),
+            "ttl_seconds": safe_val(row["ttl_seconds"], 0),
+            "occurred_at": safe_val(row["occurred_at"]),
+            "created_at": safe_val(row["created_at"]),
+            "updated_at": safe_val(row["updated_at"]),
+            "history": parse_json_field(row["history"]) or [],
+            "access_count": safe_val(row["access_count"], 0),
+            "last_access_at": safe_val(row["last_access_at"]),
+            "consolidated_at": safe_val(row["consolidated_at"]),
+            "domain_id": safe_val(row["domain_id"]),
+            "space_id": safe_val(row["space_id"], "default"),
+            "extraction_hint": safe_val(row["extraction_hint"]),
+            "visibility": safe_val(row["visibility"], "shared"),
+            "created_by": safe_val(row["created_by"]),
+            "feedback_weight": safe_val(row["feedback_weight"], 0.5),
+            "confidence": safe_val(row["confidence"], 1.0),
+            "schema_ref": safe_val(row["schema_ref"]),
+            "superseded_by": safe_val(row["superseded_by"]),
+            "proof_count": safe_val(row["proof_count"], 1),
+            "valid_from": safe_val(row["valid_from"]),
+            "valid_to": safe_val(row["valid_to"]),
+            "recorded_at": safe_val(row["recorded_at"]),
+            "tags": json.loads(safe_val(row["tags"], "[]")),
+            "attributes": parse_json_field(row["attributes"]) or {},
+            "confirmation_count": safe_val(row["confirmation_count"], 0),
+        }
+
+    async def delete_cognitive_node(self, node_id: str) -> None:
+        """Delete a CognitiveNode and all its edges.
+
+        Args:
+            node_id: Unique identifier for the cognitive node.
+        """
+        self._ensure_initialized()
+        self._conn.execute("""
+            MATCH (n:CognitiveNode {id: $id}) DELETE n
+        """, {"id": node_id})
+
+    async def query_cognitive_nodes(
+        self,
+        memory_type: str | None = None,
+        cognitive_layer: str | None = None,
+        belief_status: str | None = None,
+        domain_id: str | None = None,
+        space_id: str | None = None,
+        limit: int = 100,
+        as_of: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query CognitiveNodes with filters.
+
+        Args:
+            memory_type: Filter by memory type.
+            cognitive_layer: Filter by cognitive layer.
+            belief_status: Filter by belief status.
+            domain_id: Filter by domain ID.
+            space_id: Filter by space ID.
+            limit: Maximum number of results.
+            as_of: Temporal query — only return nodes valid at this timestamp.
+
+        Returns:
+            List of matching CognitiveNode records.
+        """
+        self._ensure_initialized()
+
+        where_parts = []
+        params: dict[str, Any] = {}
+
+        if memory_type:
+            where_parts.append("n.memory_type = $memory_type")
+            params["memory_type"] = memory_type
+        if cognitive_layer:
+            where_parts.append("n.cognitive_layer = $cognitive_layer")
+            params["cognitive_layer"] = cognitive_layer
+        if belief_status:
+            where_parts.append("n.belief_status = $belief_status")
+            params["belief_status"] = belief_status
+        if domain_id:
+            where_parts.append("n.domain_id = $domain_id")
+            params["domain_id"] = domain_id
+        if space_id:
+            where_parts.append("n.space_id = $space_id")
+            params["space_id"] = space_id
+        if as_of:
+            where_parts.append(
+                "(n.valid_from IS NULL OR n.valid_from <= $as_of) AND "
+                "(n.valid_to IS NULL OR n.valid_to > $as_of)"
+            )
+            params["as_of"] = as_of
+
+        where = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+
+        cypher = f"""
+            MATCH (n:CognitiveNode)
+            {where}
+            RETURN n.id AS id, n.memory_type AS memory_type,
+                   n.cognitive_layer AS cognitive_layer, n.content AS content,
+                   n.content_vector AS content_vector,
+                   n.source_fragment_ids AS source_fragment_ids,
+                   n.belief_status AS belief_status, n.ttl_seconds AS ttl_seconds,
+                   n.occurred_at AS occurred_at, n.created_at AS created_at,
+                   n.updated_at AS updated_at, n.history AS history,
+                   n.access_count AS access_count, n.last_access_at AS last_access_at,
+                   n.consolidated_at AS consolidated_at, n.domain_id AS domain_id,
+                   n.space_id AS space_id, n.extraction_hint AS extraction_hint,
+                   n.visibility AS visibility, n.created_by AS created_by,
+                   n.feedback_weight AS feedback_weight, n.confidence AS confidence,
+                   n.schema_ref AS schema_ref, n.superseded_by AS superseded_by,
+                   n.proof_count AS proof_count,
+                   n.valid_from AS valid_from, n.valid_to AS valid_to,
+                   n.recorded_at AS recorded_at, n.tags AS tags
+            ORDER BY n.created_at DESC
+            LIMIT {limit}
+        """
+        result = self._conn.execute(cypher, params)
+        df = result.get_as_df()
+        if df.empty:
+            return []
+
+        import json as _json
+        import math as _math
+
+        def _parse(val):
+            if val is None:
+                return None
+            if isinstance(val, float) and _math.isnan(val):
+                return None
+            if isinstance(val, (list, dict)):
+                return val
+            if isinstance(val, (int, float)):
+                return val
+            try:
+                return _json.loads(val)
+            except (_json.JSONDecodeError, TypeError):
+                return val
+
+        def _safe(val, default=None):
+            if val is None:
+                return default
+            if isinstance(val, float) and _math.isnan(val):
+                return default
+            return val
+
+        return [
+            {
+                "id": row["id"],
+                "memory_type": row["memory_type"],
+                "cognitive_layer": row["cognitive_layer"],
+                "content": row["content"],
+                "content_vector": _parse(row["content_vector"]),
+                "source_fragment_ids": _parse(row["source_fragment_ids"]) or [],
+                "belief_status": _safe(row["belief_status"], "accepted"),
+                "ttl_seconds": _safe(row["ttl_seconds"], 0),
+                "occurred_at": _safe(row["occurred_at"]),
+                "created_at": _safe(row["created_at"]),
+                "updated_at": _safe(row["updated_at"]),
+                "history": _parse(row["history"]) or [],
+                "access_count": _safe(row["access_count"], 0),
+                "last_access_at": _safe(row["last_access_at"]),
+                "consolidated_at": _safe(row["consolidated_at"]),
+                "domain_id": _safe(row["domain_id"]),
+                "space_id": _safe(row["space_id"], "default"),
+                "extraction_hint": _safe(row["extraction_hint"]),
+                "visibility": _safe(row["visibility"], "shared"),
+                "created_by": _safe(row["created_by"]),
+                "feedback_weight": _safe(row["feedback_weight"], 0.5),
+                "confidence": _safe(row["confidence"], 1.0),
+                "schema_ref": _safe(row["schema_ref"]),
+                "superseded_by": _safe(row["superseded_by"]),
+                "proof_count": _safe(row["proof_count"], 1),
+                "valid_from": _safe(row["valid_from"]),
+                "valid_to": _safe(row["valid_to"]),
+                "recorded_at": _safe(row["recorded_at"]),
+                "tags": _json.loads(_safe(row["tags"], "[]")),
+                "confirmation_count": _safe(row.get("confirmation_count"), 0),
+            }
+            for _, row in df.iterrows()
+        ]
+
+    async def update_cognitive_node_history(
+        self,
+        node_id: str,
+        history_entry: dict[str, Any],
+    ) -> None:
+        """Append a history entry to a CognitiveNode.
+
+        Args:
+            node_id: Unique identifier for the cognitive node.
+            history_entry: History entry to append.
+        """
+        self._ensure_initialized()
+        import json
+
+        current = self._conn.execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            RETURN n.history AS history
+        """, {"id": node_id})
+
+        df = current.get_as_df()
+        if df.empty:
+            return
+
+        history_str = df.iloc[0]["history"]
+        history = json.loads(history_str) if history_str else []
+        history.append(history_entry)
+
+        self._conn.execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            SET n.history = $history
+        """, {"id": node_id, "history": json.dumps(history)})
+
+    async def update_cognitive_node_belief(
+        self,
+        node_id: str,
+        new_belief: str,
+        reason: str | None = None,
+    ) -> None:
+        """Update the belief status of a CognitiveNode.
+
+        Args:
+            node_id: Unique identifier for the cognitive node.
+            new_belief: New belief status.
+            reason: Optional reason for the belief change.
+        """
+        self._ensure_initialized()
+        import json
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        history_entry = {
+            "action": "belief_change",
+            "old_belief": None,
+            "new_belief": new_belief,
+            "reason": reason,
+            "timestamp": now,
+        }
+
+        current = self._conn.execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            RETURN n.belief_status AS belief_status, n.history AS history
+        """, {"id": node_id})
+
+        df = current.get_as_df()
+        if not df.empty:
+            history_entry["old_belief"] = df.iloc[0]["belief_status"]
+            history_str = df.iloc[0]["history"]
+            history = json.loads(history_str) if history_str else []
+            history.append(history_entry)
+        else:
+            history = [history_entry]
+
+        self._conn.execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            SET n.belief_status = $new_belief,
+                n.history = $history,
+                n.updated_at = $updated_at
+        """, {
+            "id": node_id,
+            "new_belief": new_belief,
+            "history": json.dumps(history),
+            "updated_at": now,
+        })
+
+    # --- Agent Memory: DispositionProfile Management ---
+
+    async def upsert_disposition_profile(
+        self,
+        profile_id: str,
+        scene: str,
+        skepticism: float = 0.5,
+        evidence_demand: float = 0.5,
+        abstraction_preference: float = 0.5,
+        thoroughness: float = 0.5,
+        recency_bias: float = 0.5,
+        empathy: float = 0.5,
+        risk_tolerance: float = 0.5,
+        domain_id: str | None = None,
+        space_id: str = "default",
+    ) -> None:
+        """Create or update a DispositionProfileNode.
+
+        Args:
+            profile_id: Unique identifier for the disposition profile.
+            scene: Scene/context this profile applies to.
+            skepticism: Skepticism dimension (0.3-0.9).
+            evidence_demand: Evidence requirement level (0.3-0.9).
+            abstraction_preference: Abstraction preference (0.2-0.8).
+            thoroughness: Retrieval thoroughness (0.2-0.8).
+            recency_bias: Recency bias (0.2-0.8).
+            empathy: Empathy level (0.2-0.8).
+            risk_tolerance: Risk tolerance (0.2-0.8).
+            domain_id: Domain identifier.
+            space_id: Space identifier.
+        """
+        self._ensure_initialized()
+
+        params: dict[str, Any] = {
+            "id": profile_id,
+            "scene": scene,
+            "skepticism": skepticism,
+            "evidence_demand": evidence_demand,
+            "abstraction_preference": abstraction_preference,
+            "thoroughness": thoroughness,
+            "recency_bias": recency_bias,
+            "empathy": empathy,
+            "risk_tolerance": risk_tolerance,
+            "domain_id": domain_id,
+            "space_id": space_id,
+        }
+
+        self._conn.execute("""
+            MERGE (n:DispositionProfileNode {id: $id})
+            SET n.scene = $scene,
+                n.skepticism = $skepticism,
+                n.evidence_demand = $evidence_demand,
+                n.abstraction_preference = $abstraction_preference,
+                n.thoroughness = $thoroughness,
+                n.recency_bias = $recency_bias,
+                n.empathy = $empathy,
+                n.risk_tolerance = $risk_tolerance,
+                n.domain_id = $domain_id,
+                n.space_id = $space_id
+        """, params)
+
+    async def get_disposition_profile(
+        self,
+        profile_id: str | None = None,
+        scene: str | None = None,
+        domain_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Get a DispositionProfileNode by ID or scene.
+
+        Args:
+            profile_id: Unique identifier for the disposition profile.
+            scene: Scene/context to filter by.
+            domain_id: Domain identifier to filter by.
+
+        Returns:
+            Dictionary with profile properties, or None if not found.
+        """
+        self._ensure_initialized()
+
+        where_parts = []
+        params: dict[str, Any] = {}
+
+        if profile_id:
+            where_parts.append("n.id = $id")
+            params["id"] = profile_id
+        if scene:
+            where_parts.append("n.scene = $scene")
+            params["scene"] = scene
+        if domain_id:
+            where_parts.append("n.domain_id = $domain_id")
+            params["domain_id"] = domain_id
+
+        where = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+
+        cypher = f"""
+            MATCH (n:DispositionProfileNode)
+            {where}
+            RETURN n.id AS id, n.skepticism AS skepticism,
+                   n.evidence_demand AS evidence_demand,
+                   n.abstraction_preference AS abstraction_preference,
+                   n.thoroughness AS thoroughness,
+                   n.recency_bias AS recency_bias,
+                   n.empathy AS empathy,
+                   n.risk_tolerance AS risk_tolerance,
+                   n.scene AS scene,
+                   n.domain_id AS domain_id, n.space_id AS space_id
+            LIMIT 1
+        """
+        result = self._conn.execute(cypher, params)
+        df = result.get_as_df()
+        if df.empty:
+            return None
+
+        row = df.iloc[0]
+        return {
+            "id": row["id"],
+            "skepticism": row["skepticism"],
+            "evidence_demand": row["evidence_demand"],
+            "abstraction_preference": row["abstraction_preference"],
+            "thoroughness": row["thoroughness"],
+            "recency_bias": row["recency_bias"],
+            "empathy": row["empathy"],
+            "risk_tolerance": row["risk_tolerance"],
+            "scene": row["scene"],
+            "domain_id": row["domain_id"],
+            "space_id": row["space_id"],
+        }
+
+    async def compute_dynamic_weights(self, profile: dict[str, Any]) -> dict[str, float]:
+        """Compute dynamic type weights based on a DispositionProfile.
+
+        Args:
+            profile: DispositionProfile dictionary.
+
+        Returns:
+            Dictionary of memory_type -> weight.
+        """
+        skepticism = profile.get("skepticism", 0.5)
+        empathy = profile.get("empathy", 0.5)
+        risk_tolerance = profile.get("risk_tolerance", 0.5)
+
+        base_weights = {
+            "mental_model": 3.0,
+            "opinion": 2.5,
+            "entity": 2.0,
+            "rule": 2.0,
+            "observation": 1.5,
+            "procedure": 1.8,
+            "episode": 1.2,
+            "fragment": 1.0,
+        }
+
+        adjusted = {}
+        for memory_type, base_weight in base_weights.items():
+            if memory_type in ("mental_model", "entity"):
+                adjusted[memory_type] = base_weight * (1.0 + skepticism * 0.2)
+            elif memory_type in ("opinion", "episode"):
+                adjusted[memory_type] = base_weight * (1.0 - skepticism * 0.3)
+            elif memory_type == "observation":
+                adjusted[memory_type] = base_weight * (1.0 + empathy * 0.15)
+            elif memory_type == "procedure":
+                adjusted[memory_type] = base_weight * (1.0 + risk_tolerance * 0.1)
+            else:
+                adjusted[memory_type] = base_weight
+
+        return adjusted

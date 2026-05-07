@@ -5,9 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
-from uuid import uuid5, NAMESPACE_DNS
 
 
 class StorageError(Exception):

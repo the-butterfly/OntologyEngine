@@ -7,8 +7,6 @@ from ontology_engine.engine.rule.pipeline_state import (
     PipelineStateManager,
     PipelineStatus,
     StepStatus,
-    PipelineRun,
-    ExecutionStepSnapshot,
 )
 
 

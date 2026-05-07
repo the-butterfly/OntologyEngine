@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_010456",
+  "case": "case16",
+  "total": 8,
+  "passed": 6,
+  "pass_rate": 0.75,
+  "results": [
+    {
+      "name": "T1",
+      "passed": false,
+      "score": 0.0,
+      "details": "cannot import name 'extract_task_constraints' from 'ontology_engine.engine.cognitive.query_router_types' (/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/query_router_types.py)",
+      "latency_ms": 0.010013580322265625
+    },
+    {
+      "name": "T2: Constraint-driven re-ranking",
+      "passed": true,
+      "score": 1.0,
+      "details": "recall_hits=3",
+      "latency_ms": 338.4697437286377
+    },
+    {
+      "name": "T3: Auto context loading",
+      "passed": true,
+      "score": 0.5,
+      "details": "recall_hits=0",
+      "latency_ms": 76.5681266784668
+    },
+    {
+      "name": "T4: Full lifecycle",
+      "passed": false,
+      "score": 0.8,
+      "details": "remember=True, recall=False, reflect=True, correct=True, forget=True",
+      "latency_ms": 175.11606216430664
+    },
+    {
+      "name": "T5: DreamCycle maintenance",
+      "passed": true,
+      "score": 1.0,
+      "details": "dream_run=True",
+      "latency_ms": 265.61999320983887
+    },
+    {
+      "name": "T6: Ebbinghaus value-aware decay",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=9",
+      "latency_ms": 31.789064407348633
+    },
+    {
+      "name": "T7: Strategic forgetting",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:rule:qul_lifecycle_eval:5050ec5bfd9f, new_id=mem:rule:qul_lifecycle_eval:cd42d141c4b7",
+      "latency_ms": 53.30014228820801
+    },
+    {
+      "name": "T8: E2E cross-verification",
+      "passed": true,
+      "score": 0.5,
+      "details": "recall=True, reflect=False, insights=0, contradictions=0",
+      "latency_ms": 137.13622093200684
+    }
+  ]
+}

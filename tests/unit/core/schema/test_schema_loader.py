@@ -1,6 +1,5 @@
 """Tests for SchemaLoader v2 enhancements."""
 
-import pytest
 from ontology_engine.core.schema.loader import SchemaLoader
 
 

@@ -1,0 +1,64 @@
+{
+  "timestamp": "20260505_010656",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: Full Lifecycle Closed Loop",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 858.9599132537842,
+      "details": "remember: frag_id=mem:fragment:lifecycle_eval:167d83422c16\nconsolidate: created=1 updated=1\nrecall: found=5 results\nsupersede: superseded=mem:fragment:lifecycle_eval:167d83422c16\npropagate: reviewed=1 propagated=1\nforget: executed=True"
+    },
+    {
+      "name": "T2: model_domain Auto-Inference",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 60.85705757141113,
+      "details": "  commitment: expected=task actual=task match=True\n  constraint: expected=world actual=world match=True\n  self_experience: expected=self actual=self match=True\n  observation: expected=user actual=user match=True\n  observation: expected=None actual=None match=True\n  explicit model_domain=user: actual=user"
+    },
+    {
+      "name": "T3: observation Cognitive Layer Dynamic",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 32.096147537231445,
+      "details": "  factual obs: layer=semantic (expected=semantic)\n  subjective obs: layer=opinion (expected=opinion)\n  neutral obs: layer=semantic (expected=semantic)"
+    },
+    {
+      "name": "T4: QUL Constraint-Driven Retrieval",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 27.185916900634766,
+      "details": "  domains=['task', 'world'] (expected task)\n  type_hints=['rule', 'commitment', 'constraint'] (expected rule)\n  self-query domains=['self'] (expected self)\n  confidence_demand=0.8 (expected >0.7)"
+    },
+    {
+      "name": "T5: Multi-Agent Space Isolation",
+      "passed": false,
+      "score": 0.3333333333333333,
+      "latency_ms": 130.9218406677246,
+      "details": "  alice sees own key: False\n  bob does NOT see alice key: True\n  bob cross-space shared: False (spaces are isolated)"
+    },
+    {
+      "name": "T6: DedupGate + Arbitration",
+      "passed": true,
+      "score": 0.5,
+      "latency_ms": 85.8759880065918,
+      "details": "  duplicate detection: decision=\n  arbitration: action=auto_supersede winner=None"
+    },
+    {
+      "name": "T7: DreamCycle 5-Phase",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 342.2820568084717,
+      "details": "  phases: contradictions=True expired=True orphans=True links=True graph=True\n  counts: contradictions=0 expired=0 orphans=6 links=4 suggestions=0"
+    },
+    {
+      "name": "T8: MCP Tool Interface Simulation",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 181.99968338012695,
+      "details": "  oe_remember: ok=True\n  oe_recall: found=3\n  oe_reflect: ok=True\n  oe_consolidate: ok=True\n  oe_forget: ok=True\n  oe_memory_stats: has_types=True\n  oe_memory_types: ok=True\n  oe_audit_trail: ok=True"
+    }
+  ]
+}

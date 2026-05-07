@@ -2,7 +2,7 @@
 """Tests for SimulationOrchestrator service."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from ontology_engine.services.simulation_orchestrator import SimulationOrchestrator
 from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage

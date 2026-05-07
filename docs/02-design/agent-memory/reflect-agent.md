@@ -1,6 +1,6 @@
 # Reflect Agent
 
-> **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档 | **last_verified**: 2026-04-30
+> **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档 | **last_verified**: 2026-05-04
 
 ## 目的
 
@@ -347,6 +347,47 @@ def build_system_messages(
 5. 矛盾报告必须包含 suggested_resolution
 6. 不得引用检索范围外的记忆 ID
 ```
+
+---
+
+## 混合矛盾检测 [新增]
+
+> **[关键设计点]**：反思采用双层矛盾检测，规则层无需 LLM 即可发现常见矛盾模式。
+
+### 检测架构
+
+```
+reflect(query, space_id, ...)
+  │
+  ├─ Layer 1: 规则矛盾检测 (_detect_rule_based_contradictions)
+  │    ├── 无需 LLM，纯规则匹配
+  │    ├── 按 tags 分组（同 tag 组内检查，避免跨租户误报）
+  │    ├── 跳过 belief_status ∈ {superseded, rejected} 的节点
+  │    ├── 否定冲突模式（中文）:
+  │    │    ├── "不是X" vs "X"
+  │    │    ├── "不使用X" vs "使用X"
+  │    │    ├── "不再X" vs "X"
+  │    │    ├── "没有X" vs "有X"
+  │    │    └── "并非X" vs "X"
+  │    └── 输出: ContradictionReport(contradiction_type="negation_conflict")
+  │
+  ├─ Layer 2: 搜索循环矛盾检测 (_detect_contradictions)
+  │    ├── 在每轮检索结果中检查
+  │    ├── 按 cognitive_layer 分组
+  │    └── 找 accepted vs contradicted 的配对
+  │
+  └─ 合并: rule_contradictions + search_contradictions (去重)
+```
+
+### 规则检测优势
+
+| 特性 | 规则检测 | LLM 检测 |
+|------|---------|---------|
+| 延迟 | <100ms | 1-5s |
+| 成本 | 零 token | 数千 token |
+| 覆盖 | 否定模式等确定性矛盾 | 语义矛盾、隐含矛盾 |
+| 误报率 | 低（精确模式匹配） | 中（依赖 LLM 判断） |
+| 可扩展 | 新增正则模式 | 修改 prompt |
 
 ---
 

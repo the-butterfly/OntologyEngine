@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_234159",
+  "case": "case7",
+  "total": 8,
+  "passed": 8,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "T1: Fragment→observation consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total=6",
+      "latency_ms": 717.4627780914307
+    },
+    {
+      "name": "T2: Observation→entity upgrade",
+      "passed": true,
+      "score": 1.0,
+      "details": "types={}",
+      "latency_ms": 44.07382011413574
+    },
+    {
+      "name": "T3: Evidence tracking",
+      "passed": true,
+      "score": 0.7,
+      "details": "audit_entries=0, total=12",
+      "latency_ms": 155.16996383666992
+    },
+    {
+      "name": "T4: LLM-powered consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total=16",
+      "latency_ms": 156.4018726348877
+    },
+    {
+      "name": "T5: EntityPage compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_id=mem:entity:consolidation_eval:03fbff0dc0df, summary_len=187",
+      "latency_ms": 41.465044021606445
+    },
+    {
+      "name": "T6: TopicPage compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entities=2, synthesis_len=61",
+      "latency_ms": 33.85806083679199
+    },
+    {
+      "name": "T7: Reasoning trail",
+      "passed": true,
+      "score": 0.5,
+      "details": "audit_entries=0, has_consolidation=False",
+      "latency_ms": 140.46692848205566
+    },
+    {
+      "name": "T8: Stats verification",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=23, types={}",
+      "latency_ms": 13.813972473144531
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260505_181034",
+  "llm_model": "sensenova/sensenova-6.7-flash-lite",
+  "total": 10,
+  "passed": 8,
+  "pass_rate": 0.8,
+  "results": [
+    {
+      "name": "T1: LLM Knowledge Extraction",
+      "passed": true,
+      "score": 1.0,
+      "details": "extracted=12 nodes from 3 dialogues",
+      "latency_ms": 60177.10900306702
+    },
+    {
+      "name": "T2: LLM Consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total_nodes=22",
+      "latency_ms": 18.030881881713867
+    },
+    {
+      "name": "T3: LLM Contradiction Detection",
+      "passed": true,
+      "score": 0.2,
+      "details": "contradictions=1, insights=0, rule_fallback=not_needed",
+      "latency_ms": 8999.39489364624
+    },
+    {
+      "name": "T4: LLM Reflection",
+      "passed": false,
+      "score": 0.0,
+      "details": "insights=0, model_updates=0\n",
+      "latency_ms": 17950.838088989258
+    },
+    {
+      "name": "T5: LLM Compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_summary=200chars, topic_synthesis=332chars",
+      "latency_ms": 31172.174215316772
+    },
+    {
+      "name": "T6: LLM Entity Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "resolution_result=list",
+      "latency_ms": 94.08116340637207
+    },
+    {
+      "name": "T7: Full Agent Session",
+      "passed": true,
+      "score": 1.0,
+      "details": "risk_appetite=conservative, recall_ok=True",
+      "latency_ms": 219.8479175567627
+    },
+    {
+      "name": "T8: Contradiction Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "superseded=True, new_id=True",
+      "latency_ms": 4914.546966552734
+    },
+    {
+      "name": "T9: Full Lifecycle with LLM",
+      "passed": true,
+      "score": 1.0,
+      "details": "node=True, insights=0, recall=True",
+      "latency_ms": 19437.86311149597
+    },
+    {
+      "name": "T10: Quality Assessment",
+      "passed": false,
+      "score": 0.0,
+      "details": "avg_relevance=0.00, queries_evaluated=1\n  - 华信科技风险等级: 0.00",
+      "latency_ms": 12056.847095489502
+    }
+  ]
+}

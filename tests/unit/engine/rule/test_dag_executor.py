@@ -3,7 +3,7 @@
 
 import pytest
 
-from ontology_engine.engine.rule.dag_builder import DAGBuilder, ExecutionDAG, DAGLayer, DAGNode
+from ontology_engine.engine.rule.dag_builder import DAGBuilder
 from ontology_engine.engine.rule.dag_executor import (
     DAGExecutor,
     ErrorStrategy,
@@ -18,9 +18,7 @@ from ontology_engine.engine.rule.models import (
     RuleStep,
     ConditionClause,
     ActionClause,
-    Alert,
 )
-from ontology_engine.engine.rule.transaction import RuleTransaction, ContextSnapshot
 from ontology_engine.engine.rule.operators.base import Operator, OperatorRegistry
 
 

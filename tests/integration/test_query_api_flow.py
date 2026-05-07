@@ -21,7 +21,6 @@ from ontology_engine.api import dependencies
 from ontology_engine.storage.sqlite.store import SQLiteStorage
 from ontology_engine.storage.base import EntityInstance, RelationInstance
 from ontology_engine.services import QueryService, EntityService, SchemaService
-from ontology_engine.core.schema import SchemaLoader
 from ontology_engine.core.schema.models import KGMLSchema, SchemaMetadata, ConceptDefinition
 
 

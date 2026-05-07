@@ -284,7 +284,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
         if self.graph is None:
             return {}
 
-        segments = [f"(start:Entity {{entity_id: $seed_id}})"]
+        segments = ["(start:Entity {entity_id: $seed_id})"]
         params: dict[str, Any] = {"seed_id": seed_id}
         for i, (rel_type, target_concept) in enumerate(path_pattern):
             params[f"rel_type_{i}"] = rel_type
@@ -570,7 +570,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
     ) -> list[dict[str, Any]]:
         if self.graph is None:
             return []
-        segments = [f"(start:Entity {{concept: $start_concept}})"]
+        segments = ["(start:Entity {concept: $start_concept})"]
         params: dict[str, Any] = {"start_concept": start_concept}
         for i, (rel_type, target_concept) in enumerate(path_pattern):
             params[f"rel_type_{i}"] = rel_type

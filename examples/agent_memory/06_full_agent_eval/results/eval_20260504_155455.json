@@ -1,0 +1,92 @@
+{
+  "timestamp": "20260504_155455",
+  "total": 12,
+  "passed": 12,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "T1: Single-hop Recall",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 8321.076393127441,
+      "details": "Q='张伟的职位是什么' expected='首席技术官' found=True\nQ='公司总部在哪里' expected='北京中关村' found=True\nQ='产品 v3.0 什么时候发布' expected='2026年6月' found=True\nQ='数据库用什么' expected='PostgreSQL' found=True\nQ='安全审计频率' expected='每季度' found=True"
+    },
+    {
+      "name": "T2: Multi-hop Reasoning",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1769.54984664917,
+      "details": "project_found=True dept_found=True cto_found=True\ntop_results: ['张伟批准了微服务架构迁移项目', '微服务架构迁移项目由研发部负责执行', '李明是研发部经理，直接汇报给CTO张伟']"
+    },
+    {
+      "name": "T3: Temporal Reasoning",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1469.3467617034912,
+      "details": "2025 query found_100=True\n2026 query found_200=True"
+    },
+    {
+      "name": "T4: Contradiction Detection",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1158.468246459961,
+      "details": "contradictions_found=True count=1"
+    },
+    {
+      "name": "T5: Consolidation & Upgrade",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 6535.948753356934,
+      "details": "consolidation: created=2 updated=0 upgraded=0\nobservations=10 entities=2"
+    },
+    {
+      "name": "T6: Supersede & Correction",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1413.3222103118896,
+      "details": "old_node_superseded=True\nold_belief_status=superseded"
+    },
+    {
+      "name": "T7: Forgetting Protection",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1377.5718212127686,
+      "details": "high_fw_protected=True (fw=0.95)\nlow_fw_unprotected=True (fw=0.2)"
+    },
+    {
+      "name": "T8: Attributes & Metadata",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 555.1450252532959,
+      "details": "fact_type=True observed_at=True filtered_out=True\nattributes={'fact_type': 'survey_result', 'observed_at': '2026-04-15', 'certainty': 'high'}"
+    },
+    {
+      "name": "T9: DispositionProfile Dynamic Weight",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1280.3120613098145,
+      "details": "type_weight_present=True\nmental_model_weighted_higher=True\nweights: [('mental_model', 3.0), ('mental_model', 3.0), ('observation', 1.5), ('observation', 1.5), ('fragment', 1.0)]"
+    },
+    {
+      "name": "T10: DreamCycle 5-Phase",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1887.944221496582,
+      "details": "all_5_phases_present=True\ncontradictions=0 expired=1 orphans=3 links=2 suggestions=0"
+    },
+    {
+      "name": "T11: Correction Propagation",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1188.0249977111816,
+      "details": "edge_found=True\npropagation_works=True"
+    },
+    {
+      "name": "T12: Cognitive Edge Query",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1410.5279445648193,
+      "details": "outgoing_found=True\nincoming_found=True\nedge_types_seen={'COGNITIVE_RELATES_TO'}"
+    }
+  ]
+}

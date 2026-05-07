@@ -17,6 +17,7 @@
 6. [关键决策点讨论](#六关键决策点讨论)
 7. [当前设计与愿景的GAP分析](#七当前设计与愿景的gap分析)
 8. [推荐演进路径](#八推荐演进路径)
+9. [外部批判视角：lencx 框架对照](#九外部批判视角lencx-框架对照)
 
 ---
 
@@ -56,6 +57,20 @@ OntologyEngine的愿景是"把企业里分散、异构、持续变化的知识�
 | 管理 | L2知识表示层 + 质量检测 | reflect + forgetting | 部分GAP |
 | 消费 | L3推理执行层 | recall | 部分GAP |
 | 反馈闭环 | L4Agent协同层 | reflect结果驱动 | 待实现 |
+
+### 1.4 四建模对象与认知层的正交矩阵 [新增]
+
+> 受外部批判框架（lencx, 2026）启发，记忆系统需同时维护四个建模对象。它们与四层认知（Perception/Semantic/Opinion/Procedure）形成正交维度：
+
+```
+              感知层(L0)   语义层(L1)   观点层(L2)   程序层(L3)
+User Model    [偏好碎片]   [用户画像]   [风险容忍]   [沟通习惯]
+Task Model    [交互记录]   [任务实体]   [方案评价]   [承诺状态]
+World Model   [环境观测]   [Schema实例] [组织规则]   [API约束]
+Self Model    [工具日志]   [失败路径]   [能力评估]   [调用模式]
+```
+
+**关键洞察**：当前 OntologyEngine 设计覆盖了 World Model（Schema L1-L4）和部分的 User Model（DispositionProfile），但 **Task Model**（承诺、artifact 版本、方案否决历史）和 **Self Model**（Agent 自身经验、工具可靠性记录）完全缺失。这导致 Agent 在多轮任务交互和工具调用中无法维护上下文，也无法从失败中学习。
 
 ---
 
@@ -107,6 +122,25 @@ Raw Source到达
     - Layer-R: ChromaDB向量存储（原文保留）
     - Layer-S: KuzuDB图节点（统一CognitiveNode）
     - 互索引边：CONSOLIDATED_INTO / EXTRACTED_FROM / TRACE_TO
+    - 边际价值判断：去重门（DeduplicationGate）过滤高冗余碎片
+```
+
+**边际价值判断（DeduplicationGate）** [新增]：
+
+写入不是"这个信息有没有价值"，而是"相对于已有记忆，这个信息的**边际价值**是多少"。在 Stage 0 之后、Stage 1 之前插入去重门：
+
+```
+快速向量相似度检查
+    |
+    +---> 相似度 > 0.92 -> 标记 DUPLICATE，仅更新 last_accessed_at，跳过后续阶段
+    |
+    +---> 与已有 observation 语义冲突 -> 标记 CONTRADICTION_CANDIDATE，高优先级入队
+    |
+    +---> 边际价值评分 = novelty_score × relevance_score / redundancy_penalty
+          |
+          +---> 低于阈值 -> 延迟写入或入低优先级队列
+          |
+          +---> 高于阈值 -> 正常进入 Stage 1
 ```
 
 **关键设计点**：摄入管线的核心目标是**编译一次，持续复用**。与RAG的"每次查询重新检索"不同，OntologyEngine在数据进入系统时就完成结构化和交叉引用建立。
@@ -147,6 +181,59 @@ Contradiction Log（矛盾日志）
 **知识库的作用**：编译层将知识库从"被动存储"变为"主动知识工厂"。原始数据在摄入时就完成了LLM能做的最大工作量，后续查询只需读取编译产物而非重新推理。
 
 ### 2.3 Schema作为编译的提取模板
+
+> **[关键设计点]** Schema 不是"数据校验规则"，而是**认知提取的导航图**。
+
+Schema在构建流程中发挥**事前引导**作用，而非事后约束：
+
+```yaml
+# L1 EntityDeclaration自动转化为提取模板
+L1_EntityDeclaration:
+  name: "Counterparty"
+  attributes:
+    - name: "debt_ratio"
+      type: "decimal"
+      required: true
+      extraction_hint: "资产负债率|debt ratio|负债率"
+    - name: "registered_capital"
+      type: "Money"
+      required: true
+      extraction_hint: "注册资本|registered capital"
+    - name: "risk_grade"
+      type: "enum"
+      enum_type: "RiskGrade"
+      required: false   # 可由L4规则推导
+  
+  # 自动生成的提取模板（由SchemaLoader构建）
+  extraction_template:
+    entity_name: "交易对手|企业|公司"
+    required_fields: ["debt_ratio", "registered_capital"]
+    confidence_threshold: 0.7
+```
+
+**Schema感知提取的工作流程**：
+
+```
+LLM提取时注入Schema模板
+    |
+    v
+输出结构化字段（debt_ratio=0.45, revenue=7000亿）
+    |
+    v
+计算schema_alignment_score
+    - 所有required字段存在 -> +0.3
+    - 字段类型匹配 -> +0.2
+    - 数值在合理范围 -> +0.2
+    - 有source_fragment支撑 -> +0.2
+    - 与其他entity关系一致 -> +0.1
+    |
+    v
+alignment_score > 0.8 -> 绑定到L1 Schema，升级为entity
+alignment_score 0.5-0.8 -> 存储为observation，待进一步验证
+alignment_score < 0.5 -> 降级为fragment，不进入结构化层
+```
+
+**Schema的意义**：Schema不是"数据校验规则"，而是**认知提取的导航图**。它告诉LLM"应该提取什么"、"提取的质量标准是什么"、"提取结果应该如何分类"。没有Schema，LLM提取是盲目的；有了Schema，提取是结构化的、可量化的、可自动分级的。
 
 Schema在构建流程中发挥**事前引导**作用，而非事后约束：
 
@@ -295,6 +382,17 @@ L4 核心资产（Core Asset）
   -> 降级条件：版本替换（旧版本标记deprecated，不删除）
 ```
 
+**六记忆维度覆盖检查** [新增]：
+
+| 维度 | 字段/机制 | 覆盖状态 | 说明 |
+|------|----------|---------|------|
+| content | `text`, `attributes` JSON | ✓ 完整 | — |
+| type | `memory_type` (7种) + `cognitive_layer` (4层) | △ 部分 | 新增 `model_domain` 字段覆盖四建模对象 |
+| confidence | `confidence` (float) | ✓ 完整 | — |
+| source | `source_fragment_ids`, `source_pipeline` | △ 部分 | **待新增** `source_trust_tier`（用户声明>行为推断>环境观测>Agent生成） |
+| scope | 无统一字段 | ✗ 缺失 | **待新增** `scope`（task/user/global + ref_id + window） |
+| time-decay | `valid_from/to`, `strength`, `last_accessed_at` | △ 部分 | **待新增** `last_confirmed_at`（被后续证据确认的时间） |
+
 **遗忘策略（与版本限制协同）**：
 
 | 策略 | 触发条件 | 动作 |
@@ -313,6 +411,8 @@ L4 核心资产（Core Asset）
 ### 3.3 自动化维护（梦境循环）
 
 知识库需要**主动自愈**能力，而非被动等待问题暴露。参考GBrain的梦境循环设计，引入周期性后台维护任务：
+
+> **[关键设计点]** 治理（governance）优先于容量。记忆系统最大的风险不是"存不下"，而是"管不好"——矛盾没人管、来源不可信、权限不透明、Agent 在幻觉和真实意图间无法区分。
 
 ```
 梦境循环（每小时/每日触发）：
@@ -401,6 +501,8 @@ SUPERSEDES边属性：
 
 消费流程的起点是**检索**。当前设计的并行池模型（Layer-R + Layer-S → RRF融合）需要进化为**自适应分层漏斗**：
 
+> **[关键设计点]** 读取应从语义相似召回升级为**"任务约束驱动的检索-推断耦合"**。一个用户讨论项目架构时的 query，与"他上周否决过微服务方案"高度相关，但表面语义完全不匹配。系统需要先由**任务理解层**判断当前决策受什么约束，再找对应记忆。
+
 ```
 默认检索模式：自适应分层漏斗
 
@@ -428,6 +530,29 @@ SUPERSEDES边属性：
   - 第2层找到的entity IDs -> 注入第3层作为过滤条件
   - 第1层mental_model的source_entity_ids -> 第2层优先遍历
   - 第3层observation的source_fragment_ids -> 第4层精确检索
+```
+
+**QueryUnderstandingLayer** [新增]：
+
+在分层漏斗之前引入任务理解层：
+
+```
+输入：用户 query + 当前 task_context（task_id, 历史交互, 当前轮次）
+    |
+    v
+QueryUnderstandingLayer
+    - 提取 TaskConstraints：
+      - user_preference: bool   # 是否涉及用户偏好
+      - task_history: bool      # 是否涉及任务历史
+      - temporal_scope: str     # 时间范围（如"过去一个月"）
+      - decision_type: str      # 决策类型（factual/analytical/causal）
+    |
+    v
+约束驱动的检索策略调整：
+    - user_preference=true -> 优先检索 model_domain=user 的 opinion/mental_model
+    - task_history=true -> 优先检索 scope.task_id=current_task 的 episode/commitment
+    - temporal_scope 存在 -> 注入时序过滤条件
+    - decision_type=causal -> 展开 CAUSAL 边遍历
 ```
 
 **Disposition驱动的动态权重**：
@@ -625,6 +750,8 @@ Day 30: 用户问："过去一个月华为风险判断为什么波动？" -> 需
 
 ## 七、当前设计与愿景的GAP分析
 
+> **[关键设计点]** 本节 GAP 基于内部设计文档审视 + SOTA 对比 + 外部批判框架（lencx, 2026）三重输入综合判定。
+
 ### 7.1 已对齐的部分
 
 | 愿景要求 | 当前设计 | 对齐度 |
@@ -673,6 +800,14 @@ Day 30: 用户问："过去一个月华为风险判断为什么波动？" -> 需
 
 remember/recall/reflect三个操作对Agent足够简单，但面对复杂查询（如"过去一个月华为风险判断为什么波动"）时，recall返回的是碎片列表，Agent需要自行组装因果解释。系统不提供预编译的摘要页和叙事结构。
 
+**根因5：记忆≠蒸馏的认知盲区 [新增]**
+
+Consolidation 被过度定位为记忆的"终极目标"——把碎片归纳为 observation/entity 就是"好的记忆"。但 lencx 的批判指出：蒸馏只是管理环节的一个操作，不是记忆本身。记忆的终极目标是**支持 Agent 在特定任务约束下做出正确决策**。当前设计缺少独立的 Distillation 机制（信息压缩归档），也缺少归纳推理轨迹的显式保留，导致 Agent 只能复述结论，无法解释"为什么现在信这个"。
+
+**根因6：治理成熟度不足 [新增]**
+
+权限治理几乎空白，自动裁决缺失，策略性遗忘未实现。系统把重心放在"如何存储更多"而非"如何管理更好"。这与 lencx 强调的"治理优先于容量"原则相悖。
+
 ---
 
 ## 八、推荐演进路径
@@ -686,6 +821,8 @@ remember/recall/reflect三个操作对Agent足够简单，但面对复杂查询�
 | 引入SUPERSEDES/CONTRADICTS边 | 版本链和矛盾标记 | GAP-5, GAP-6 |
 | 双时序属性 | 增加recorded_at（T'） | GAP-6 |
 | DispositionProfile | space级别存储默认Disposition | GAP-4 |
+| **新增记忆维度字段** | `model_domain`, `source_trust_tier`, `scope`, `last_confirmed_at` | GAP-12 |
+| **新增记忆类型** | `commitment`, `task_state`, `self_experience`, `constraint` | GAP-11, GAP-18 |
 
 ### Phase 2：编译层与检索重构（2-3月）
 
@@ -696,6 +833,9 @@ remember/recall/reflect三个操作对Agent足够简单，但面对复杂查询�
 | 分层漏斗检索 | mental_model->entity->observation->fragment | GAP-4 |
 | EvidenceExpander | 多层证据展开 | GAP-9 |
 | 动态权重调整器 | 基于Disposition调整类型权重 | GAP-4 |
+| **QueryUnderstandingLayer** | 任务约束提取 → 驱动检索策略 | GAP-14 |
+| **DeduplicationGate** | 写入前去重 + 边际价值判断 + 矛盾前置检测 | GAP-13 |
+| **推理轨迹保留** | Consolidation 时记录 LLM 推理摘要 | GAP-17 |
 
 ### Phase 3：治理与维护（3-4月）
 
@@ -706,6 +846,9 @@ remember/recall/reflect三个操作对Agent足够简单，但面对复杂查询�
 | CorrectionPropagation | 更正自动传播到下游 | GAP-5 |
 | 梦境循环 | 周期性全局维护任务 | GAP-7 |
 | 沙箱空间 | 弱Schema约束的实验空间 | GAP-8 |
+| **ArbitrationEngine** | 证据权重自动裁决矛盾 | GAP-15 |
+| **权限治理** | 用户查看/编辑/删除记忆权限 + AccessControl | GAP-16 |
+| **策略性遗忘** | 否定信号驱动加速遗忘 | GAP-12 |
 
 ### Phase 4：一致性与高级特性（4-6月）
 
@@ -715,6 +858,61 @@ remember/recall/reflect三个操作对Agent足够简单，但面对复杂查询�
 | Schema-Memory双向反馈 | 记忆驱动Schema演化建议 | GAP-3 |
 | 跨域实体对齐 | same_entity_as边 | - |
 | 多Agent共享记忆 | MCP协议上下文共享 | - |
+
+---
+
+## 九、外部批判视角：lencx 框架对照
+
+> 本节汇总外部批判框架（lencx, 2026）与 OntologyEngine 设计的系统性对照结果。完整分析见 `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md`。
+
+### 9.1 记忆≠蒸馏：Consolidation 定位审视
+
+| 批判点 | OntologyEngine 现状 | 结论 |
+|--------|-------------------|------|
+| 蒸馏只是归档，不是记忆 | Consolidation 被当作记忆"升级形态" | **偏差**：缺少独立的 Distillation 机制和推理轨迹保留 |
+| 记忆必须保留形成判断的上下文 | `history` 记录结论变更，不记录推理过程 | **GAP-17**：需新增 `consolidation_reasoning` 字段 |
+
+### 9.2 四建模对象覆盖度
+
+| 建模对象 | 覆盖状态 | 缺失影响 |
+|---------|---------|---------|
+| User Model | △ 部分（DispositionProfile） | 缺"沟通习惯"维度 |
+| Task Model | ✗ 缺失 | Agent 无法维护承诺、artifact 版本、方案否决历史 |
+| World Model | △ 部分（Schema L1-L4） | 缺动态环境上下文（代码库、API 状态） |
+| Self Model | ✗ 缺失 | Agent 无法记录工具失败经验，无法从失败中学习 |
+
+### 9.3 六记忆维度覆盖度
+
+| 维度 | 覆盖度 | 缺失 |
+|------|--------|------|
+| content | ✓ | — |
+| type | △ | 缺语义类型标签（event/assertion/belief/constraint/commitment） |
+| confidence | ✓ | — |
+| source | △ | 缺可信层级（user_declared/behavior_inferred/environment_observed/agent_generated） |
+| scope | ✗ | 无统一字段 |
+| time-decay | △ | 缺 `last_confirmed_at` |
+
+### 9.4 三条闭环链路审视
+
+| 链路 | 现状 | 差距 |
+|------|------|------|
+| 写入 | 来了就存，无去重，无矛盾前置 | **GAP-13**：需 DeduplicationGate |
+| 管理 | 有检测但无自动裁决，权限空白 | **GAP-15, GAP-16**：需 ArbitrationEngine + PermissionGovernance |
+| 读取 | RAG 式语义召回 | **GAP-14**：需 QueryUnderstandingLayer |
+
+### 9.5 核心挑战：治理优先于容量
+
+OntologyEngine 治理成熟度自评：
+
+| 治理维度 | 成熟度 | 关键缺失 |
+|---------|--------|---------|
+| 矛盾检测 | ★★★☆☆ | 有检测，无自动裁决 |
+| 来源追踪 | ★★★☆☆ | 有来源，无可信层级 |
+| 权限治理 | ★☆☆☆☆ | 几乎空白 |
+| 策略性遗忘 | ★★☆☆☆ | 纯 Ebbinghaus，无否定信号驱动 |
+| 轨迹保留 | ★★☆☆☆ | history 记录变更，不记录推理 |
+| 写入控制 | ★★☆☆☆ | 无去重门，无边际价值判断 |
+| 读取质量 | ★★★☆☆ | RRF 四路融合，无任务约束驱动 |
 
 ---
 
@@ -728,9 +926,13 @@ remember/recall/reflect三个操作对Agent足够简单，但面对复杂查询�
 | 记忆层次 | `docs/02-design/agent-memory/memory-hierarchy.md` | MemoryUnit数据模型 |
 | 记忆生命周期 | `docs/02-design/agent-memory/memory-lifecycle.md` | 三大认知操作设计 |
 | 认知操作API | `docs/02-design/agent-memory/memory-api.md` | Agent API设计 |
+| Consolidation引擎 | `docs/02-design/agent-memory/consolidation-engine.md` | 巩固引擎实现 |
+| Reflect Agent | `docs/02-design/agent-memory/reflect-agent.md` | 反思Agent设计 |
 | SOTA审视报告 | `discuss/2026-04-27-agent-memory-design-analysis.md` | 7个不足+3个范式 |
 | 认知交互分析 | `discuss/2026-04-27-four-layer-cognitive-interaction-analysis.md` | 层间影响+检索设计 |
 | Schema融合治理 | `discuss/2026-04-27-cognitive-schema-integration-deep-dive.md` | Schema映射+矛盾治理 |
 | GBrain/LLM-Wiki审视 | `discuss/2026-04-27-key-decision-review-gbrain-llmwiki.md` | 编译型记忆+记忆OS |
 | 推荐方案展开 | `discuss/2026-04-27-recommendation-schemes-detailed-design.md` | 7个方案架构设计 |
+| 五报告对照 | `discuss/2026-04-28-five-reports-vs-source-docs-gap-analysis.md` | 4共识+3分歧+10GAP |
+| **lencx框架对照** | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` | 外部批判框架审视 |
 | 本流程文档 | `docs/01-overview/10-kb-process.md` | 知识库全生命周期流程 |

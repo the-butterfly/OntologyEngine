@@ -1,0 +1,64 @@
+{
+  "timestamp": "20260505_010005",
+  "total": 8,
+  "passed": 0,
+  "pass_rate": 0.0,
+  "results": [
+    {
+      "name": "eval_full_lifecycle",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 159, in eval_full_lifecycle\n    r = await api.remember(\n        ^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_model_domain",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 252, in eval_model_domain\n    r = await api.remember(\n        ^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_observation_layer",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 304, in eval_observation_layer\n    r1 = await api.remember(\n         ^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_qul_constraints",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 368, in eval_qul_constraints\n    await api.remember(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_space_isolation",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 433, in eval_space_isolation\n    await api.remember(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_dedup_arbitration",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 500, in eval_dedup_arbitration\n    r1 = await api.remember(\n         ^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_dreamcycle",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 570, in eval_dreamcycle\n    await api.remember(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    },
+    {
+      "name": "eval_mcp_tools",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 0.0,
+      "details": "EXCEPTION: name 'node_data' is not defined\nTraceback (most recent call last):\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 763, in run_evaluation\n    result = await fn(api)\n             ^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 673, in eval_mcp_tools\n    r = await mcp.oe_remember(\n        ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/examples/case11_lifecycle_mcp_eval/run_eval.py\", line 635, in oe_remember\n    return await self._api.remember(content=content, space_id=space_id, **kw)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 262, in remember\n    return await self._remember(req)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/memory_api.py\", line 343, in _remember\n    await self._repo.create_node(node)\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/engine/cognitive/repository.py\", line 73, in create_node\n    await self._store.upsert_cognitive_node(\n  File \"/Volumes/Extension/Projects/CodeDev/OntologyEngine/ontology_engine/storage/graph/kuzu_store.py\", line 1853, in upsert_cognitive_node\n    \"model_domain\": node_data.get(\"model_domain\"),\n                    ^^^^^^^^^\nNameError: name 'node_data' is not defined\n"
+    }
+  ]
+}

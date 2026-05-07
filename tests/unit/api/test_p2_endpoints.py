@@ -3,7 +3,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from ontology_engine.api.dto.responses import error_response
 
 
 class FakeMetadata:

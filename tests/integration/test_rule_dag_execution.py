@@ -8,7 +8,6 @@ Tests the complete DAG execution flow including:
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from ontology_engine.engine.rule.models import (
     ActionClause,
@@ -16,26 +15,19 @@ from ontology_engine.engine.rule.models import (
     ConditionClause,
     ExecutionContext,
     IOElement,
-    Precondition,
     RuleGroupDefinition,
     RuleStep,
 )
-from ontology_engine.engine.rule.dag_builder import DAGBuilder, CycleError
+from ontology_engine.engine.rule.dag_builder import DAGBuilder
 from ontology_engine.engine.rule.dag_executor import (
     DAGExecutor,
     ErrorStrategy,
-    StepResult,
-    ExecutionResult,
     LayerExecutionError,
     ExecutionAbortedError,
-    StepExecutionError,
 )
 from ontology_engine.engine.rule.operators.base import Operator, OperatorRegistry
-from ontology_engine.engine.rule.transaction import RuleTransaction
 from ontology_engine.services.simulation_service import (
     SimulationService,
-    SimulationResult,
-    DAGSimulationResult,
 )
 
 

@@ -5,7 +5,6 @@ from ontology_engine.engine.expression.engine import ExpressionEngine, Expressio
 from ontology_engine.engine.expression.errors import (
     FormulaError,
     FormulaSecurityError,
-    FormulaSyntaxError,
 )
 
 

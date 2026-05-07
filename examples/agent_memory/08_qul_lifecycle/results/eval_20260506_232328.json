@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260506_232328",
+  "case": "case16",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: QUL constraint extraction",
+      "passed": true,
+      "score": 0.25,
+      "details": "extracted=1/4",
+      "latency_ms": 1.046895980834961
+    },
+    {
+      "name": "T2: Constraint-driven re-ranking",
+      "passed": true,
+      "score": 1.0,
+      "details": "recall_hits=3",
+      "latency_ms": 502.24804878234863
+    },
+    {
+      "name": "T3: Auto context loading",
+      "passed": true,
+      "score": 0.5,
+      "details": "recall_hits=0",
+      "latency_ms": 38.403987884521484
+    },
+    {
+      "name": "T4",
+      "passed": false,
+      "score": 0.0,
+      "details": "'confirmation_count'",
+      "latency_ms": 96.5108871459961
+    },
+    {
+      "name": "T5: DreamCycle maintenance",
+      "passed": true,
+      "score": 1.0,
+      "details": "phases=5, skipped=False",
+      "latency_ms": 89.05982971191406
+    },
+    {
+      "name": "T6: Ebbinghaus value-aware decay",
+      "passed": true,
+      "score": 1.0,
+      "details": "total=10",
+      "latency_ms": 35.14218330383301
+    },
+    {
+      "name": "T7: Strategic forgetting",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:rule:qul_lifecycle_eval:5050ec5bfd9f, new_id=mem:rule:qul_lifecycle_eval:cd42d141c4b7",
+      "latency_ms": 26.820898056030273
+    },
+    {
+      "name": "T8: E2E cross-verification",
+      "passed": true,
+      "score": 0.5,
+      "details": "recall=True, reflect=False, insights=0, contradictions=0",
+      "latency_ms": 149.00565147399902
+    }
+  ]
+}

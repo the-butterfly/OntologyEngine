@@ -15,6 +15,23 @@ from ontology_engine.mcp.tools.execution import oe_execute_rule, oe_simulate
 from ontology_engine.mcp.tools.query import oe_query
 from ontology_engine.mcp.tools.management import oe_create_entity, oe_define_rule, oe_activate_space
 from ontology_engine.mcp.tools.versioning import oe_snapshot, oe_rollback
+from ontology_engine.mcp.tools.memory import (
+    oe_remember,
+    oe_recall,
+    oe_reflect,
+    oe_approve_memory,
+    oe_consolidate,
+    oe_forget,
+    oe_memory_stats,
+    oe_get_reflection_status,
+    oe_memory_types,
+    oe_audit_trail,
+    oe_correct_memory,
+    oe_delete_memory,
+    oe_list_my_memories,
+    oe_record_commitment,
+    oe_check_commitments,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +321,371 @@ async def list_tools() -> list[Tool]:
                 "required": ["space_id", "target_version"],
             },
         ),
+        Tool(
+            name="oe_remember",
+            description=(
+                "Store information into the agent's memory. Automatically extracts "
+                "entities, relations, and facts. Optionally triggers consolidation "
+                "to form higher-level observations. Use this whenever you encounter "
+                "important information worth retaining."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The content to remember. Text, facts, observations, or any information worth retaining.",
+                    },
+                    "space_id": {
+                        "type": "string",
+                        "description": "The space ID to store the memory in.",
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional tags for categorization.",
+                    },
+                    "memory_type": {
+                        "type": "string",
+                        "description": "Memory type hint: fragment, observation, episode.",
+                        "default": "fragment",
+                    },
+                    "auto_consolidate": {
+                        "type": "boolean",
+                        "description": "If true, trigger consolidation after storing.",
+                        "default": False,
+                    },
+                    "visibility": {
+                        "type": "string",
+                        "description": "Visibility: private (only creator), shared (space members), public (all).",
+                        "enum": ["private", "shared", "public"],
+                        "default": "shared",
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score (0.0-1.0). Lower values indicate uncertain information.",
+                        "default": 1.0,
+                    },
+                    "supersede_target": {
+                        "type": "string",
+                        "description": "Node ID to supersede. Creates a SUPERSEDES edge and transitions the target to superseded belief status.",
+                    },
+                    "supersede_reason": {
+                        "type": "string",
+                        "description": "Reason for superseding the target node.",
+                    },
+                },
+                "required": ["content", "space_id"],
+            },
+        ),
+        Tool(
+            name="oe_recall",
+            description=(
+                "Recall information from the agent's memory. Automatically routes "
+                "to the best retrieval strategy and prioritizes results by memory "
+                "type. Returns relevant memories with evidence chains and confidence scores."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The query to search for.",
+                    },
+                    "space_id": {
+                        "type": "string",
+                        "description": "The space ID to search in.",
+                    },
+                    "memory_type": {
+                        "type": "string",
+                        "description": "Optional type filter: mental_model, opinion, entity, observation, rule, episode, procedure, fragment.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results.",
+                        "default": 10,
+                    },
+                    "include_evidence": {
+                        "type": "boolean",
+                        "description": "Whether to include evidence chains.",
+                        "default": True,
+                    },
+                    "evidence_depth": {
+                        "type": "integer",
+                        "description": "Evidence chain expansion depth. 1=direct sources, 2=sources of sources.",
+                        "default": 1,
+                    },
+                    "as_of": {
+                        "type": "string",
+                        "description": "Temporal query: return memories as they were at this ISO timestamp.",
+                    },
+                    "token_budget": {
+                        "type": "integer",
+                        "description": "Maximum tokens in response. Truncates results to fit budget.",
+                    },
+                    "disposition_override": {
+                        "type": "string",
+                        "description": "Disposition profile scene name (e.g., 'audit' for high evidence demand, 'quick' for fast answers). Overrides default weighting.",
+                    },
+                },
+                "required": ["query", "space_id"],
+            },
+        ),
+        Tool(
+            name="oe_reflect",
+            description=(
+                "Reflect on existing memories to discover contradictions, "
+                "generate new insights, or update mental models. Reflection "
+                "automatically triggers consolidation and forgetting as needed."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The question or topic to reflect on.",
+                    },
+                    "space_id": {
+                        "type": "string",
+                        "description": "The space ID to reflect on.",
+                    },
+                    "max_iterations": {
+                        "type": "integer",
+                        "description": "Maximum number of reflection iterations.",
+                        "default": 10,
+                    },
+                    "focus_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional focus on specific memory types.",
+                    },
+                    "cascade_depth": {
+                        "type": "integer",
+                        "description": "Correction propagation cascade depth. Controls how far belief changes propagate through cognitive edges.",
+                        "default": 3,
+                    },
+                },
+                "required": ["query", "space_id"],
+            },
+        ),
+        Tool(
+            name="oe_approve_memory",
+            description=(
+                "Approve, reject, or modify a pending memory review. "
+                "Part of the three-zone model for agent-human collaboration."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "node_id": {
+                        "type": "string",
+                        "description": "Node ID to approve, reject, or modify.",
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "Action: approve, reject, or modify.",
+                        "enum": ["approve", "reject", "modify"],
+                        "default": "approve",
+                    },
+                    "modifier_id": {
+                        "type": "string",
+                        "description": "ID of the modifier (user/agent).",
+                        "default": "user",
+                    },
+                    "comment": {
+                        "type": "string",
+                        "description": "Optional comment for the action.",
+                    },
+                },
+                "required": ["node_id"],
+            },
+        ),
+        Tool(
+            name="oe_consolidate",
+            description=(
+                "Manually trigger memory consolidation. Converts fragment "
+                "memories into persistent knowledge (observations/entities). "
+                "Normally triggered automatically by oe_reflect."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID to consolidate."},
+                },
+                "required": ["space_id"],
+            },
+        ),
+        Tool(
+            name="oe_forget",
+            description=(
+                "Manually trigger memory forgetting. Applies Ebbinghaus decay "
+                "and demotion/archival based on memory strength. "
+                "Normally triggered automatically by oe_reflect."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID to apply forgetting."},
+                    "days_elapsed": {
+                        "type": "integer",
+                        "description": "Days since last evaluation.",
+                        "default": 1,
+                    },
+                },
+                "required": ["space_id"],
+            },
+        ),
+        Tool(
+            name="oe_memory_stats",
+            description=(
+                "Get memory statistics for a space: total nodes, distribution "
+                "by type and belief status, average feedback weight."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID."},
+                },
+                "required": ["space_id"],
+            },
+        ),
+        Tool(
+            name="oe_get_reflection_status",
+            description=(
+                "Check the status of an asynchronous reflection job. "
+                "Returns progress, partial results, and final outputs "
+                "when completed."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "reflection_id": {"type": "string", "description": "Reflection job ID."},
+                },
+                "required": ["reflection_id"],
+            },
+        ),
+        Tool(
+            name="oe_memory_types",
+            description=(
+                "Get memory type distribution for a space. "
+                "Shows counts and average feedback weight per memory type "
+                "(entity, observation, fragment, mental_model, etc.)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID."},
+                },
+                "required": ["space_id"],
+            },
+        ),
+        Tool(
+            name="oe_audit_trail",
+            description=(
+                "Query the audit trail for a space. Returns superseded, "
+                "rejected, and corrected nodes. Useful for understanding "
+                "the history of memory corrections."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID."},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum audit entries.",
+                        "default": 50,
+                    },
+                },
+                "required": ["space_id"],
+            },
+        ),
+        Tool(
+            name="oe_correct_memory",
+            description=(
+                "Correct a memory's content. Creates a new superseding version "
+                "with a SUPERSEDES edge. The original node transitions to "
+                "'superseded' belief status. Correction propagation is triggered."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "node_id": {"type": "string", "description": "Node ID to correct."},
+                    "corrected_text": {"type": "string", "description": "The corrected content text."},
+                    "reason": {"type": "string", "description": "Reason for the correction.", "default": ""},
+                    "user_id": {"type": "string", "description": "User performing the correction.", "default": "mcp_user"},
+                },
+                "required": ["node_id", "corrected_text"],
+            },
+        ),
+        Tool(
+            name="oe_delete_memory",
+            description=(
+                "Delete a memory node. Protected memories (feedback_weight > 0.8) "
+                "cannot be deleted. Optionally cascade to connected edges."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "node_id": {"type": "string", "description": "Node ID to delete."},
+                    "space_id": {"type": "string", "description": "Space ID."},
+                    "cascade": {"type": "boolean", "description": "Also delete connected edges.", "default": False},
+                    "user_id": {"type": "string", "description": "User performing the deletion.", "default": "mcp_user"},
+                },
+                "required": ["node_id", "space_id"],
+            },
+        ),
+        Tool(
+            name="oe_list_my_memories",
+            description=(
+                "List memories belonging to a specific user. "
+                "Optionally filter by scope type and memory type."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID."},
+                    "user_id": {"type": "string", "description": "User ID to list memories for."},
+                    "scope_type": {"type": "string", "description": "Optional scope type filter."},
+                    "memory_type": {"type": "string", "description": "Optional memory type filter."},
+                    "limit": {"type": "integer", "description": "Maximum results.", "default": 50},
+                },
+                "required": ["space_id", "user_id"],
+            },
+        ),
+        Tool(
+            name="oe_record_commitment",
+            description=(
+                "Record a commitment as a commitment-type memory node. "
+                "Commitments track promises, deadlines, and task obligations."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "description": "Commitment content/description."},
+                    "space_id": {"type": "string", "description": "Space ID."},
+                    "deadline": {"type": "string", "description": "Deadline in ISO datetime format."},
+                    "task_id": {"type": "string", "description": "Associated task ID."},
+                    "created_by": {"type": "string", "description": "Creator user ID."},
+                },
+                "required": ["content", "space_id"],
+            },
+        ),
+        Tool(
+            name="oe_check_commitments",
+            description=(
+                "Check commitments in a space. Optionally filter by status "
+                "or show only overdue commitments."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID."},
+                    "status": {"type": "string", "description": "Filter by status: pending, fulfilled, overdue."},
+                    "overdue": {"type": "boolean", "description": "Show only overdue commitments.", "default": False},
+                },
+                "required": ["space_id"],
+            },
+        ),
     ]
 
 
@@ -324,6 +706,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         "oe_activate_space": oe_activate_space,
         "oe_snapshot": oe_snapshot,
         "oe_rollback": oe_rollback,
+        "oe_remember": oe_remember,
+        "oe_recall": oe_recall,
+        "oe_reflect": oe_reflect,
+        "oe_approve_memory": oe_approve_memory,
+        "oe_consolidate": oe_consolidate,
+        "oe_forget": oe_forget,
+        "oe_memory_stats": oe_memory_stats,
+        "oe_get_reflection_status": oe_get_reflection_status,
+        "oe_memory_types": oe_memory_types,
+        "oe_audit_trail": oe_audit_trail,
+        "oe_correct_memory": oe_correct_memory,
+        "oe_delete_memory": oe_delete_memory,
+        "oe_list_my_memories": oe_list_my_memories,
+        "oe_record_commitment": oe_record_commitment,
+        "oe_check_commitments": oe_check_commitments,
     }
 
     handler = _TOOL_HANDLERS.get(name)

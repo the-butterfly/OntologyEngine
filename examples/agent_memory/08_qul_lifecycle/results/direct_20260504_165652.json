@@ -1,0 +1,99 @@
+{
+  "timestamp": "20260504_165652",
+  "total": 8,
+  "passed": 8,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "T1: Multi-Session Knowledge Accumulation",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "Q='TechNova的CEO是谁' expected='李明' found=True",
+        "Q='TechNova总部在哪' expected='深圳' found=True",
+        "Q='TechNova的主要产品' expected='智能客服平台' found=True",
+        "Q='TechNova的CTO' expected='张伟' found=True"
+      ],
+      "latency_ms": 599.4350910186768
+    },
+    {
+      "name": "T2: Temporal Knowledge Evolution",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "as_of=2025-01: old policy found=True",
+        "as_of=2025-09: new policy found=True",
+        "static knowledge found=True"
+      ],
+      "latency_ms": 48.49720001220703
+    },
+    {
+      "name": "T3: Contradiction Detection & Correction",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "Contradiction detected: True (count=2)",
+        "Superseded: mem:observation:e2e_direct:6ca8037be198",
+        "Superseded in audit: True"
+      ],
+      "latency_ms": 190.65213203430176
+    },
+    {
+      "name": "T4: Knowledge Governance Pipeline",
+      "passed": true,
+      "score": 0.75,
+      "details": [
+        "Consolidation: created=1, updated=0",
+        "Forgetting executed: True",
+        "Security rule protected: False",
+        "Stats by_type: {'entity': 1, 'fragment': 5, 'observation': 3, 'rule': 2}"
+      ],
+      "latency_ms": 450.4547119140625
+    },
+    {
+      "name": "T5: Multi-hop Reasoning",
+      "passed": true,
+      "score": 0.75,
+      "details": [
+        "Hop1 (李明): found=True",
+        "Hop2 (CloudGroup): found=True",
+        "Hop3 (王芳): found=True",
+        "Hop4 (清华): found=False"
+      ],
+      "latency_ms": 73.48275184631348
+    },
+    {
+      "name": "T6: Entity Resolution & Deduplication",
+      "passed": true,
+      "score": 0.6666666666666666,
+      "details": [
+        "Both entities created: entity1=mem:entity:e2e_direct:5f9fd8ead121, entity2=mem:entity:e2e_direct:7d7b0b3332e4",
+        "Redis entity found in recall: True",
+        "Entity extraction triggered: 0 entities"
+      ],
+      "latency_ms": 33.64896774291992
+    },
+    {
+      "name": "T7: Belief Revision & Approval Workflow",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "Pending review node: mem:observation:e2e_direct:60e47489ab48",
+        "After approve: belief_status=accepted",
+        "After reject: belief_status=rejected",
+        "Rejected entry in audit: True"
+      ],
+      "latency_ms": 69.50116157531738
+    },
+    {
+      "name": "T8: Compilation & Correction Propagation",
+      "passed": true,
+      "score": 1.0,
+      "details": [
+        "Entity page compiled: name=PostgreSQL是TechNova的主要关系型数据库",
+        "Correction propagation: reviewed=0, propagated=0"
+      ],
+      "latency_ms": 65.51623344421387
+    }
+  ]
+}

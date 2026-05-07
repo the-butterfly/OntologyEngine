@@ -167,6 +167,9 @@ def create_app() -> FastAPI:
     app.include_router(actions_router, tags=["Actions"])
     app.include_router(ontology_router, tags=["Ontology"])
 
+    from ontology_engine.api.routes.memory import router as memory_router
+    app.include_router(memory_router, tags=["Memory"])
+
     @app.get("/health")
     async def health_check():
         """Health check endpoint."""

@@ -2,7 +2,7 @@
 """Tests for MetricEngine."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from datetime import date, timedelta
 
 from ontology_engine.core.schema.models import (

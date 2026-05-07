@@ -2,7 +2,7 @@
 """Tests for RuleService."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from ontology_engine.services.rule_service import RuleService, RuleServiceError
 

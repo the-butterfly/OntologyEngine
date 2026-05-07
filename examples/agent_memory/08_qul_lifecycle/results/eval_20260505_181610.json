@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260505_181610",
+  "llm_model": "sensenova/sensenova-6.7-flash-lite",
+  "total": 10,
+  "passed": 9,
+  "pass_rate": 0.9,
+  "results": [
+    {
+      "name": "T1: LLM Knowledge Extraction",
+      "passed": true,
+      "score": 1.0,
+      "details": "extracted=12 nodes from 3 dialogues",
+      "latency_ms": 90119.66800689697
+    },
+    {
+      "name": "T2: LLM Consolidation",
+      "passed": true,
+      "score": 0.5,
+      "details": "consolidated=0, total_nodes=20",
+      "latency_ms": 16.630172729492188
+    },
+    {
+      "name": "T3: LLM Contradiction Detection",
+      "passed": true,
+      "score": 0.6,
+      "details": "contradictions=1, insights=2, rule_fallback=not_needed",
+      "latency_ms": 48173.21991920471
+    },
+    {
+      "name": "T4: LLM Reflection",
+      "passed": true,
+      "score": 0.4,
+      "details": "insights=2, model_updates=0\n  - 华信科技风险等级存在矛盾评估，重组前可能为D级（高债务违约风险），重组后改善至B级，显示风险趋势向好。\n  - 重组计划显著改善华信科技财务状况，推动风险等级从D级降至B级。",
+      "latency_ms": 28430.114030838013
+    },
+    {
+      "name": "T5: LLM Compilation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_summary=195chars, topic_synthesis=304chars",
+      "latency_ms": 35002.77590751648
+    },
+    {
+      "name": "T6: LLM Entity Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "resolution_result=list",
+      "latency_ms": 79.64110374450684
+    },
+    {
+      "name": "T7: Full Agent Session",
+      "passed": true,
+      "score": 1.0,
+      "details": "risk_appetite=conservative, recall_ok=True",
+      "latency_ms": 8833.827018737793
+    },
+    {
+      "name": "T8: Contradiction Resolution",
+      "passed": true,
+      "score": 1.0,
+      "details": "superseded=True, new_id=True",
+      "latency_ms": 9076.66301727295
+    },
+    {
+      "name": "T9: Full Lifecycle with LLM",
+      "passed": true,
+      "score": 1.0,
+      "details": "node=True, insights=3, recall=True",
+      "latency_ms": 26158.53524208069
+    },
+    {
+      "name": "T10: Quality Assessment",
+      "passed": false,
+      "score": 0.1,
+      "details": "avg_relevance=0.10, queries_evaluated=1\n  - 华信科技风险等级: 0.10",
+      "latency_ms": 6396.988391876221
+    }
+  ]
+}

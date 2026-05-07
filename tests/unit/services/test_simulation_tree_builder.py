@@ -2,7 +2,7 @@
 """Tests for SimulationTreeBuilder - cross-rule-group execution tree builder."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
 

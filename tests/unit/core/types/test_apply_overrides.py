@@ -1,7 +1,6 @@
 # tests/unit/core/types/test_apply_overrides.py
 """Tests for core.types.apply_overrides utility."""
 
-import copy
 
 import pytest
 

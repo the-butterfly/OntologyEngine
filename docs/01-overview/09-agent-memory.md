@@ -25,6 +25,14 @@ OntologyEngine 当前是一个优秀的**知识管理系统**——Schema 驱动
 | 检索目标 | 找到匹配的数据 | 找到最相关的上下文 |
 | Agent 角色 | 被动消费者 | 主动参与者 |
 
+### 核心洞察：记忆 ≠ 蒸馏 [新增]
+
+> 记忆不是把信息压缩成摘要。**蒸馏（distillation）只是管理链路中的一个操作，不是记忆本身。**
+>
+> Consolidation 将碎片归纳为 observation/entity，这个过程产生的是**静态结论**。但记忆必须同时保留**形成结论的轨迹**——否则 Agent 只能复述结论，无法解释"为什么现在信这个"。
+
+OntologyEngine 的设计原则是：**Consolidation 是记忆管理的一个环节，不是记忆的终极目标**。记忆的终极目标是**支持 Agent 在特定任务约束下做出正确决策**。
+
 ---
 
 ## 记忆架构：双层存储 + 类型标签
@@ -105,6 +113,10 @@ OntologyEngine 当前是一个优秀的**知识管理系统**——Schema 驱动
 | `mental_model` | 高层摘要 | 用户策划 / Reflect 生成 | 2.0 | opinion | Mental Model |
 | `episode` | 经验事件 | 交互自动记录 | 1.0 | perception | Experience Fact |
 | `procedure` | 操作模式 | 从 Episode 归纳 | 1.2 | procedure | — |
+| `commitment` | 承诺/待办 | Agent 对用户的承诺 | 1.4 | opinion | — | [新增]
+| `constraint` | 环境约束 | 不可违反的边界条件 | 1.6 | procedure | — | [新增]
+| `self_experience` | 自我经验 | Agent 工具调用失败/成功记录 | 1.1 | perception | — | [新增]
+| `task_state` | 任务状态 | 任务快照、方案历史、artifact 版本 | 1.3 | semantic | — | [新增]
 
 ### 类型间关系（同层内，用边而非层间跳转）
 
@@ -113,6 +125,9 @@ fragment ──[CONSOLIDATED_INTO]──▶ observation    巩固归纳
 observation ──[MAPPED_TO]──▶ entity              归纳映射到结构化实例
 entity ──[SUMMARIZED_AS]──▶ mental_model         实体摘要为高层洞察
 episode ──[LEARNED_INTO]──▶ procedure            经验归纳为操作模式
+commitment ──[FULFILLED_BY]──▶ episode            承诺履行记录
+constraint ──[LIMITS]──▶ observation              约束限制观察范围
+self_experience ──[INFORMS]──▶ procedure         自我经验指导操作模式
 ```
 
 这些边都在 Layer-S 内部，不需要跨层跳转。
@@ -144,6 +159,9 @@ Retrieval（检索）    → 访问策略
 Utilization（利用）  → 记忆如何影响行为
 ```
 
+> **[关键设计点]** 记忆系统不是"存得越多越好"，而是"管得越好越有用"。治理（governance）优先于容量。
+> 管理链路包含：整合、冲突处理、衰减与遗忘、来源追踪、权限治理。其中**冲突处理和权限治理**是当前设计中最薄弱的环节。
+
 ### 三大认知操作
 
 #### 巩固（Consolidation）
@@ -163,9 +181,11 @@ entity → [Reflect] → mental_model (摘要生成)
 基于记忆强度和价值的选择性衰减，不分类型统一执行。
 
 ```
-记忆强度 = f(访问频率, 证据强度, 反馈权重, 时间距离)
+记忆强度 = f(访问频率, 证据强度, 反馈权重, 时间距离, 确认次数)
 衰减速率 = λ(记忆价值)  ← 高价值 λ 低（慢遗忘），低价值 λ 高（快遗忘）
 ```
+
+**策略性遗忘** [新增]：当记忆被后续证据否定（裁决为 `superseded` 或 `rejected`）时，触发加速遗忘——strength 骤降，valid_to 提前。这与纯 Ebbinghaus 衰减不同，是**否定信号驱动**的主动遗忘。
 
 #### 反思（Reflection）
 
@@ -187,11 +207,25 @@ Reflect Agent:
 
 | 操作 | 含义 | 内部编排 |
 |------|------|---------|
-| **`remember`** | 存储记忆 | Ingestion + Extraction + 自动实体提取 + 可选自动巩固 |
-| **`recall`** | 检索记忆 | 自动路由 + 类型权重 + RRF 融合 + 可选重排序 |
-| **`reflect`** | 反思记忆 | 分层检索 + 洞察生成 + 巩固 + 遗忘 |
+| **`remember`** | 存储记忆 | Ingestion + 去重门 + Extraction + 自动实体提取 + 可选自动巩固 |
+| **`recall`** | 检索记忆 | 任务理解 + 自动路由 + 类型权重 + RRF 融合 + 可选重排序 |
+| **`reflect`** | 反思记忆 | 分层检索 + 洞察生成 + 巩固 + 遗忘 + 矛盾裁决 |
 
 `consolidate` 和 `forget` 合并到 `reflect` 的内部流程——反思的结果自然触发巩固和遗忘。高级用户仍可通过管理 API 单独调用。
+
+### 三条闭环链路 [新增]
+
+外部批判框架（lencx, 2026）强调记忆系统必须维护三条闭环链路：
+
+| 链路 | OntologyEngine 设计 | 状态 |
+|------|-------------------|------|
+| **写入（Write）** | `oe_remember` → DeduplicationGate → Ingestion | △ 去重门待实现 |
+| **管理（Manage）** | Consolidation + Forgetting + Reflect + 矛盾检测 | △ 自动裁决、权限治理待实现 |
+| **读取（Read）** | `oe_recall` → QueryUnderstandingLayer → 分层漏斗 | △ 任务理解层待实现 |
+
+**写入的本质是预算分配**：不是"这个信息有没有价值"，而是"相对于已有记忆，这个信息的**边际价值**是多少"。去重门（DeduplicationGate）在写入前执行快速相似度检查和矛盾前置检测。
+
+**读取的本质是任务约束驱动**：不是"query 和记忆的表面语义有多像"，而是"当前任务受什么约束，哪些记忆能帮助满足这些约束"。QueryUnderstandingLayer 在检索前提取任务约束并调整检索策略。
 
 ### 与管理 API 的关系
 
@@ -248,10 +282,10 @@ memory_type 从存储角度区分类型，cognitive_layer 从认知角度区分�
 
 | cognitive_layer | 含义 | 包含的 memory_type | 检索优先级 |
 |-----------------|------|-------------------|-----------|
-| opinion | 主观判断层 | mental_model, observation, opinion | 最高 |
-| semantic | 语义知识层 | entity, rule | 高 |
-| procedure | 过程知识层 | procedure, episode | 中 |
-| perception | 感知层 | fragment | 最低 |
+| opinion | 主观判断层 | mental_model, observation, opinion, commitment | 最高 |
+| semantic | 语义知识层 | entity, rule, task_state | 高 |
+| procedure | 过程知识层 | procedure, episode, constraint | 中 |
+| perception | 感知层 | fragment, self_experience | 最低 |
 
 ### 分层漏斗检索
 
@@ -262,6 +296,25 @@ opinion 层 → semantic 层 → procedure 层 → perception 层
 ```
 
 高认知层命中时可短路低层检索，减少延迟。
+
+### 四建模对象 × 四认知层的正交矩阵 [新增]
+
+记忆系统需同时维护四个建模对象，它们与四层认知形成正交维度：
+
+```
+              感知层(L0)   语义层(L1)   观点层(L2)   程序层(L3)
+User Model    [偏好碎片]   [用户画像]   [风险容忍]   [沟通习惯]
+Task Model    [交互记录]   [任务实体]   [方案评价]   [承诺状态]
+World Model   [环境观测]   [Schema实例] [组织规则]   [API约束]
+Self Model    [工具日志]   [失败路径]   [能力评估]   [调用模式]
+```
+
+- **User Model**：`DispositionProfile` 覆盖偏好和风险，需扩展"沟通习惯"维度
+- **Task Model**：`commitment` + `task_state` 类型覆盖承诺和任务快照
+- **World Model**：Schema L1-L4 覆盖组织规则，`constraint` 类型覆盖动态环境边界
+- **Self Model**：`self_experience` 类型覆盖工具调用经验，使 Agent 能从失败中学习
+
+`model_domain` 字段（`user` | `task` | `world` | `self`）与 `cognitive_layer` 正交，共同构成记忆的二维分类。
 
 ---
 
@@ -278,6 +331,8 @@ Agent 的个性化检索偏好配置，7 个维度影响检索和反思行为：
 | recency_bias | 检索 | 偏好近期记忆（recorded_at 权重提高） | 时间中性 |
 | empathy | 反思 | 关注用户体验相关洞察 | 技术导向 |
 | risk_tolerance | 检索 + 反思 | 降低 min_confidence 阈值 | 提高阈值，保守判断 |
+
+> **[关键设计点]** DispositionProfile 本质上是 **User Model** 的简化表达。完整的 User Model 还应包含：沟通习惯（正式/口语）、领域知识水平（专家/新手）、决策风格（数据驱动/直觉驱动）。这些维度未来可扩展为 `UserModel` 节点，与 `DispositionProfile` 关联。
 
 ---
 
@@ -296,5 +351,12 @@ Agent 的个性化检索偏好配置，7 个维度影响检索和反思行为：
 | 时序建模设计 | `docs/02-design/schema/temporal-modeling.md` |
 | 核心概念 | `docs/01-overview/05-concepts.md` |
 | 知识检索机制 | `docs/01-overview/08-knowledge-retrieval.md` |
+| 知识库构建-管理-消费流程 | `docs/01-overview/10-kb-process.md` |
 | Hindsight 深度调研 | `docs-dev/research/hindsight-deep-analysis.md` |
 | Hindsight 对比验证 | `discuss/2026-04-30-hindsight-comparison-verification-report.md` |
+| SOTA 审视报告 | `discuss/2026-04-27-agent-memory-design-analysis.md` |
+| 认知交互分析 | `discuss/2026-04-27-four-layer-cognitive-interaction-analysis.md` |
+| Schema 融合治理 | `discuss/2026-04-27-cognitive-schema-integration-deep-dive.md` |
+| GBrain/LLM-Wiki 审视 | `discuss/2026-04-27-key-decision-review-gbrain-llmwiki.md` |
+| 推荐方案展开 | `discuss/2026-04-27-recommendation-schemes-detailed-design.md` |
+| **lencx 框架对照** | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` |

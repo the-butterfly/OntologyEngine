@@ -1,0 +1,332 @@
+{
+  "timestamp": "20260505_014045",
+  "total_steps": 46,
+  "total_passed": 44,
+  "pass_rate": 0.9565217391304348,
+  "sessions": [
+    {
+      "name": "Session 1: New Employee Onboarding",
+      "passed": 12,
+      "total": 12,
+      "pass_rate": 1.0,
+      "steps": [
+        {
+          "command": "remember -c 'TechNova成立于2018年，总部在深圳南山区科技园...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:520edc3933a1",
+          "latency_ms": 19.968032836914062
+        },
+        {
+          "command": "remember -c 'TechNova的CEO是李明，他之前在华为工作了10年...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:95c8bcd5e4fb",
+          "latency_ms": 9.683847427368164
+        },
+        {
+          "command": "remember -c 'TechNova主要产品是智能客服平台NovaChat...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:fec376bfe0a9",
+          "latency_ms": 9.922981262207031
+        },
+        {
+          "command": "remember -c 'TechNova有200名员工，其中研发团队占60%...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:a75b24176425",
+          "latency_ms": 9.04393196105957
+        },
+        {
+          "command": "remember -c 'TechNova的CTO是张伟，负责技术架构和AI研发...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:c3bfce48bc4b",
+          "latency_ms": 10.128021240234375
+        },
+        {
+          "command": "remember -c 'NovaChat使用微服务架构，基于Kubernetes部署...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:c59f78c66c15",
+          "latency_ms": 9.70911979675293
+        },
+        {
+          "command": "remember -c '公司使用GitLab做代码管理，Jira做项目管理...' --type rule",
+          "success": true,
+          "details": "memory_id=mem:rule:cli_agent_sim:fd26d0a179ce",
+          "latency_ms": 9.124279022216797
+        },
+        {
+          "command": "remember -c '代码审查至少需要2人批准才能合并...' --type rule",
+          "success": true,
+          "details": "memory_id=mem:rule:cli_agent_sim:560b47a42d2f",
+          "latency_ms": 9.028911590576172
+        },
+        {
+          "command": "remember -c 'TechNova是CloudGroup的子公司...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:76179093d3c3",
+          "latency_ms": 8.868694305419922
+        },
+        {
+          "command": "recall -q 'TechNova的CEO是谁...'",
+          "success": true,
+          "details": "found=6 results",
+          "latency_ms": 517.8289413452148
+        },
+        {
+          "command": "recall -q 'TechNova的主要产品...'",
+          "success": true,
+          "details": "found=7 results",
+          "latency_ms": 26.115894317626953
+        },
+        {
+          "command": "stats",
+          "success": true,
+          "details": "total=9, types={'observation': 7, 'rule': 2}",
+          "latency_ms": 2.4840831756591797
+        }
+      ]
+    },
+    {
+      "name": "Session 2: Policy Update",
+      "passed": 6,
+      "total": 6,
+      "pass_rate": 1.0,
+      "steps": [
+        {
+          "command": "remember -c 'API限流策略：每用户每分钟100次请求...' --type rule",
+          "success": true,
+          "details": "memory_id=mem:rule:cli_agent_sim:3ff354a7b835",
+          "latency_ms": 9.537935256958008
+        },
+        {
+          "command": "remember -c 'API限流策略：每用户每分钟200次请求...' --type rule",
+          "success": true,
+          "details": "memory_id=mem:rule:cli_agent_sim:21ae485745de",
+          "latency_ms": 8.240938186645508
+        },
+        {
+          "command": "remember -c 'REST API设计原则：使用HTTP状态码表示结果...' --type rule",
+          "success": true,
+          "details": "memory_id=mem:rule:cli_agent_sim:0bc24fa596ea",
+          "latency_ms": 8.887052536010742
+        },
+        {
+          "command": "recall(as_of=2025-01) → expect old policy",
+          "success": true,
+          "details": "old_policy_found=True",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "recall(as_of=2025-09) → expect new policy",
+          "success": true,
+          "details": "new_policy_found=True",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "recall(static knowledge) → always available",
+          "success": true,
+          "details": "static_found=True",
+          "latency_ms": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Session 3: Contradiction Discovery",
+      "passed": 5,
+      "total": 5,
+      "pass_rate": 1.0,
+      "steps": [
+        {
+          "command": "remember -c '微服务通信协议使用REST API...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:6ca8037be198",
+          "latency_ms": 9.140968322753906
+        },
+        {
+          "command": "remember -c '微服务通信协议使用gRPC...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:fc1065dd68fb",
+          "latency_ms": 8.988142013549805
+        },
+        {
+          "command": "reflect → detect contradiction",
+          "success": true,
+          "details": "contradictions=2",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "remember -c '微服务通信协议已从REST API迁移到gRPC...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:b5400b1635f0",
+          "latency_ms": 29.29997444152832
+        },
+        {
+          "command": "audit → check superseded",
+          "success": true,
+          "details": "superseded_found=True",
+          "latency_ms": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Session 4: Knowledge Governance",
+      "passed": 9,
+      "total": 10,
+      "pass_rate": 0.9,
+      "steps": [
+        {
+          "command": "remember -c 'Redis用作缓存层，减少数据库查询压力...' --type fragment",
+          "success": true,
+          "details": "memory_id=mem:fragment:cli_agent_sim:68b2ad329b83",
+          "latency_ms": 8.829116821289062
+        },
+        {
+          "command": "remember -c 'Redis集群采用3主3从架构...' --type fragment",
+          "success": true,
+          "details": "memory_id=mem:fragment:cli_agent_sim:fe46eaf765d9",
+          "latency_ms": 8.949041366577148
+        },
+        {
+          "command": "remember -c 'Redis缓存过期策略使用LRU算法...' --type fragment",
+          "success": true,
+          "details": "memory_id=mem:fragment:cli_agent_sim:454a48f5a7a1",
+          "latency_ms": 9.061098098754883
+        },
+        {
+          "command": "remember -c 'Redis持久化使用RDB+AOF混合模式...' --type fragment",
+          "success": true,
+          "details": "memory_id=mem:fragment:cli_agent_sim:0dfbc9f11334",
+          "latency_ms": 8.952140808105469
+        },
+        {
+          "command": "remember -c 'Redis内存上限设置为8GB...' --type fragment",
+          "success": true,
+          "details": "memory_id=mem:fragment:cli_agent_sim:c035a1930f4b",
+          "latency_ms": 8.977890014648438
+        },
+        {
+          "command": "remember -c '生产环境Redis必须启用密码认证...' --type rule",
+          "success": true,
+          "details": "memory_id=mem:rule:cli_agent_sim:130ee63bb049",
+          "latency_ms": 9.036064147949219
+        },
+        {
+          "command": "consolidate",
+          "success": true,
+          "details": "created=1, updated=0",
+          "latency_ms": 201.85208320617676
+        },
+        {
+          "command": "forget -d 30",
+          "success": true,
+          "details": "result=True",
+          "latency_ms": 224.13301467895508
+        },
+        {
+          "command": "recall(Redis密码) → rule protected",
+          "success": false,
+          "details": "protected=False",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "stats",
+          "success": true,
+          "details": "total=11, types={'entity': 1, 'fragment': 5, 'observation': 3, 'rule': 2}",
+          "latency_ms": 2.7511119842529297
+        }
+      ]
+    },
+    {
+      "name": "Session 5: Multi-hop Reasoning",
+      "passed": 7,
+      "total": 8,
+      "pass_rate": 0.875,
+      "steps": [
+        {
+          "command": "remember -c '李明是TechNova的CEO...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:72de5eebebdf",
+          "latency_ms": 8.99195671081543
+        },
+        {
+          "command": "remember -c 'TechNova是CloudGroup的子公司...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:76179093d3c3",
+          "latency_ms": 9.025096893310547
+        },
+        {
+          "command": "remember -c 'CloudGroup的董事会主席是王芳...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:a12d5f0dcc3b",
+          "latency_ms": 7.991790771484375
+        },
+        {
+          "command": "remember -c '王芳毕业于清华大学计算机系...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:c63420675e45",
+          "latency_ms": 9.064912796020508
+        },
+        {
+          "command": "recall multi-hop → Hop1(李明)",
+          "success": true,
+          "details": "found=True",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "recall multi-hop → Hop2(CloudGroup)",
+          "success": true,
+          "details": "found=True",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "recall multi-hop → Hop3(王芳)",
+          "success": true,
+          "details": "found=True",
+          "latency_ms": 0.0
+        },
+        {
+          "command": "recall multi-hop → Hop4(清华)",
+          "success": false,
+          "details": "found=False",
+          "latency_ms": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Session 6: Belief Revision & Approval",
+      "passed": 5,
+      "total": 5,
+      "pass_rate": 1.0,
+      "steps": [
+        {
+          "command": "remember -c 'Kubernetes 1.30将默认使用containerd...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:60e47489ab48",
+          "latency_ms": 8.363008499145508
+        },
+        {
+          "command": "approve -n mem:observation:cli_agent_sim:60e47489ab48 -a approve",
+          "success": true,
+          "details": "new_belief=accepted",
+          "latency_ms": 22.897005081176758
+        },
+        {
+          "command": "remember -c 'Docker已停止维护...' --type observation",
+          "success": true,
+          "details": "memory_id=mem:observation:cli_agent_sim:5a03c22919f1",
+          "latency_ms": 9.014129638671875
+        },
+        {
+          "command": "approve -n mem:observation:cli_agent_sim:5a03c22919f1 -a reject",
+          "success": true,
+          "details": "new_belief=rejected",
+          "latency_ms": 22.00174331665039
+        },
+        {
+          "command": "audit → check rejected",
+          "success": true,
+          "details": "rejected_found=True",
+          "latency_ms": 0.0
+        }
+      ]
+    }
+  ]
+}

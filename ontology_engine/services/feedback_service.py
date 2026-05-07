@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from ontology_engine.storage.base import FeedbackRecord, StorageBackend

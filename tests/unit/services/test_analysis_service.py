@@ -2,7 +2,7 @@
 """Tests for AnalysisService."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.dto import EntityNotFoundError

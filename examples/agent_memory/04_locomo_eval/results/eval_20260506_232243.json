@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260506_232243",
+  "case": "case8",
+  "total": 10,
+  "passed": 8,
+  "pass_rate": 0.8,
+  "results": [
+    {
+      "name": "T1: Single-hop recall",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=4, found_shenzhen=False",
+      "latency_ms": 437.64495849609375
+    },
+    {
+      "name": "T2: Multi-hop reasoning",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=8, cloud=False, k8s=False",
+      "latency_ms": 199.15008544921875
+    },
+    {
+      "name": "T3: Temporal reasoning",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=5, has_latest=False",
+      "latency_ms": 144.55080032348633
+    },
+    {
+      "name": "T4: Contradiction detection",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=3, insights=1",
+      "latency_ms": 113.81077766418457
+    },
+    {
+      "name": "T5: Consolidation & upgrade",
+      "passed": true,
+      "score": 0.5,
+      "details": "before=16, after=16, consolidated=0",
+      "latency_ms": 67.47698783874512
+    },
+    {
+      "name": "T6: Supersede & belief revision",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:locomo_eval:2aeb7efd4d7d, new_id=mem:observation:locomo_eval:83a69ef7e931",
+      "latency_ms": 28.10215950012207
+    },
+    {
+      "name": "T7: Forgetting & protection",
+      "passed": true,
+      "score": 1.0,
+      "details": "forget_result=True",
+      "latency_ms": 75.76823234558105
+    },
+    {
+      "name": "T8",
+      "passed": false,
+      "score": 0.0,
+      "details": "'confirmation_count'",
+      "latency_ms": 19.379854202270508
+    },
+    {
+      "name": "T9: DreamCycle maintenance",
+      "passed": true,
+      "score": 1.0,
+      "details": "phases=5, contradictions=0, skipped=False",
+      "latency_ms": 106.37378692626953
+    },
+    {
+      "name": "T10",
+      "passed": false,
+      "score": 0.0,
+      "details": "'confirmation_count'",
+      "latency_ms": 211.14301681518555
+    }
+  ]
+}
