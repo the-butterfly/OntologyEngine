@@ -112,8 +112,8 @@ function App() {
               <Route path="memory/reflect" element={<ReflectCenterPage />} />
             </Route>
 
-            {/* ── 记忆空间独立路由 ── */}
-            <Route path="/memory" element={<MemoryOverviewPage />} />
+            {/* 记忆空间入口 — 重定向到语义空间选择页 */}
+            <Route path="/memory" element={<Navigate to="/spaces" replace />} />
 
             {/* ── 知识消费路由 ── */}
             <Route path="/consumption" element={<ConsumptionViewListPage />} />
