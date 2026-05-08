@@ -25,6 +25,9 @@ import {
   ReflectCenterPage,
 } from './pages/spaces/memory';
 
+// Memory Landing Page (top-level "记忆空间" entry)
+import MemorySpacePage from './pages/memory/MemorySpacePage';
+
 // Rule Embed Pages（内嵌于 SpaceDetailPage 右侧内容区）
 import RulesEmbedPage from './pages/spaces/RulesEmbedPage';
 import RuleGroupDetailEmbedPage from './pages/spaces/RuleGroupDetailEmbedPage';
@@ -112,8 +115,8 @@ function App() {
               <Route path="memory/reflect" element={<ReflectCenterPage />} />
             </Route>
 
-            {/* 记忆空间入口 — 重定向到语义空间选择页 */}
-            <Route path="/memory" element={<Navigate to="/spaces" replace />} />
+            {/* 记忆空间入口 — Agent Memory 空间选择页 */}
+            <Route path="/memory" element={<MemorySpacePage />} />
 
             {/* ── 知识消费路由 ── */}
             <Route path="/consumption" element={<ConsumptionViewListPage />} />
