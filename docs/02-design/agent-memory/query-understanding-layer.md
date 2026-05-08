@@ -3,6 +3,8 @@
 > **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-28
 > **[关键设计点]**: 本文档定义任务约束驱动的检索架构，解决"RAG 式语义召回"与"任务约束驱动检索"之间的架构缺口。
 
+[设计决策 2026-05-07] 完整实现 QUL：8种约束类型 + 规则层/LLM层双层提取 + 约束→策略映射 + 约束驱动重排序。当前约束提取逻辑散落在 rrf_fusion.py 中，需整合为统一的 QueryUnderstandingLayer 入口。
+
 ---
 
 ## 目的

@@ -433,7 +433,7 @@ class RRFFusionEngine:
     ) -> list[RetrievalResult]:
         """Search BM25 (keyword retrieval).
 
-        Falls back to content substring matching if no FTS5 index.
+        Uses Chinese tokenizer for CJK queries, falls back to substring matching.
         """
         if self._bm25_search is not None:
             try:
@@ -443,23 +443,51 @@ class RRFFusionEngine:
 
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
-            limit=100,
+            limit=200,
         )
+
+        from ontology_engine.engine.cognitive.bm25_tokenizer import (
+            ChineseTokenizer,
+        )
+        tokenizer = ChineseTokenizer()
+        query_tokens = tokenizer.tokenize_query(query)
         query_lower = query.lower()
-        matches = [
-            RetrievalResult(
-                doc_id=n.id,
-                content=n.content,
-                source="bm25",
-                memory_type=n.memory_type,
-                cognitive_layer=n.cognitive_layer,
-                occurred_at=n.occurred_at,
-                created_at=n.created_at,
-            )
-            for n in nodes
-            if query_lower in n.content.lower()
-        ]
-        return matches[:top_k]
+
+        scored: list[tuple[RetrievalResult, int]] = []
+        for n in nodes:
+            content_lower = n.content.lower()
+            if query_lower in content_lower:
+                matches = len(query_tokens) if query_tokens else 1
+                scored.append((
+                    RetrievalResult(
+                        doc_id=n.id,
+                        content=n.content,
+                        source="bm25",
+                        memory_type=n.memory_type,
+                        cognitive_layer=n.cognitive_layer,
+                        occurred_at=n.occurred_at,
+                        created_at=n.created_at,
+                    ),
+                    matches,
+                ))
+            elif query_tokens:
+                token_hits = sum(1 for t in query_tokens if t.lower() in content_lower)
+                if token_hits >= max(1, len(query_tokens) // 2):
+                    scored.append((
+                        RetrievalResult(
+                            doc_id=n.id,
+                            content=n.content,
+                            source="bm25",
+                            memory_type=n.memory_type,
+                            cognitive_layer=n.cognitive_layer,
+                            occurred_at=n.occurred_at,
+                            created_at=n.created_at,
+                        ),
+                        token_hits,
+                    ))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [r for r, _ in scored[:top_k]]
 
     async def _search_analytical(
         self,

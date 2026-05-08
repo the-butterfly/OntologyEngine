@@ -93,18 +93,18 @@ async function navigateToMemory(page: Page, subPath: string = "") {
   await page.waitForTimeout(2000);
 }
 
-test.describe("J1: /memory 路由 — 自动重定向到 Agent Memory", () => {
-  test("J1.1: /memory should redirect to first space's memory page", async ({ page }) => {
+test.describe("J1: /memory 路由 — Agent Memory 空间选择页", () => {
+  test("J1.1: /memory should display Agent Memory landing page with spaces", async ({ page }) => {
     await mockApiResponses(page);
     await page.goto(`${BASE_URL}/memory`);
     await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1500);
 
-    // Should redirect to /spaces/{firstSpaceId}/memory and show memory content
-    expect(page.url()).toContain("/memory");
+    // Should show Agent Memory heading
+    await expect(page.getByRole("heading", { name: "Agent Memory" })).toBeVisible();
 
-    // Should render Agent Memory overview content
-    await expect(page.getByText("记忆图谱")).toBeVisible();
+    // Should show the mock space name
+    await expect(page.getByText("Mock Memory Space")).toBeVisible();
   });
 });
 

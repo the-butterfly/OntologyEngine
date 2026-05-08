@@ -2,6 +2,8 @@
 
 > **status**: draft | **phase**: rewrite | **source_of_truth**: `docs/01-overview/08-knowledge-retrieval.md` + `docs/01-overview/10-kb-process.md` | **last_verified**: 2026-04-30
 
+[设计决策 2026-05-07] 漏斗架构采用"后置排序 + 短路优化"：保持当前后置排序架构（一次 RRF 融合），但在融合后增加短路判定——如果 opinion 层有高置信结果且场景允许短路，直接返回不再展开低层结果。不重构为逐层穿透。
+
 ## 目的
 
 定义 QueryRouter 的分层漏斗检索 + 查询类型策略机制，使查询引擎能够按认知层次优先返回高层摘要，同时根据查询语义选择最优检索路径和参数配置。

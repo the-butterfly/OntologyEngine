@@ -260,6 +260,6 @@ test.describe("Phase 2 Features - Integration", () => {
 
     // Reflect
     await navigateTo(page, "/memory/reflect");
-    await expect(page.locator("text=反思中心")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "反思中心" })).toBeVisible();
   });
 });

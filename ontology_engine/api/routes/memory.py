@@ -466,14 +466,38 @@ async def evidence(
             limit=10,
         )
 
+        supersedes_edges = await api._repo.query_cognitive_edges(
+            to_id=node_id,
+            edge_type="SUPERSEDES",
+            limit=10,
+        )
+
+        contradicts_edges = await api._repo.query_cognitive_edges(
+            from_id=node_id,
+            edge_type="CONTRADICTS",
+            limit=10,
+        )
+
         return success_response(
             data={
                 "node_id": node_id,
+                "source_fragment_ids": node.source_fragment_ids,
+                "proof_count": getattr(node, "proof_count", len(node.source_fragment_ids)),
+                "confirmation_count": getattr(node, "confirmation_count", 0),
+                "belief_status": node.belief_status,
                 "source_fragments": fragments,
                 "supporting_nodes": supporting_nodes,
                 "consolidated_into": [
                     {"target_id": e.to_id, "edge_type": e.edge_type}
                     for e in consolidated_edges
+                ],
+                "superseded_by": [
+                    {"from_id": e.from_id, "edge_type": e.edge_type}
+                    for e in supersedes_edges
+                ],
+                "contradictions": [
+                    {"to_id": e.to_id, "edge_type": e.edge_type}
+                    for e in contradicts_edges
                 ],
             },
             meta={"space_id": space_id}

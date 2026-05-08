@@ -2,6 +2,8 @@
 
 > **status**: draft | **phase**: rewrite | **source_of_truth**: 本文档 | **last_verified**: 2026-05-04
 
+[设计决策 2026-05-07] 混合模式实现 LLM 反思：实现 LLM 调用循环但设置降级策略，LLM 不可用时自动回退到纯规则检测，保证功能可用性。同时补齐策略性遗忘（superseded*0.5, rejected*0.2, 级联标记stale）。
+
 ## 目的
 
 定义 OntologyEngine 的 Reflect Agent，通过多轮 Tool-Calling 推理对记忆进行深度分析，发现矛盾、生成洞察、触发巩固与遗忘。
