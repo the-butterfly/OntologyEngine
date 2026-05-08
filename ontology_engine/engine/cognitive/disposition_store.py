@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 import os
 import threading
-from dataclasses import asdict
-
 from ontology_engine.engine.cognitive.models import DispositionProfile
 
 
@@ -70,14 +68,14 @@ class DispositionStore:
                         pdict["id"] = f"disp:{sid}"
                     if "scene" not in pdict:
                         pdict["scene"] = "default"
-                    self._profiles[sid] = DispositionProfile(**pdict)
+                    self._profiles[sid] = DispositionProfile.from_dict(pdict)
         except Exception:
             pass
 
     def _dump(self):
         try:
             os.makedirs(os.path.dirname(self._file_path), exist_ok=True)
-            data = {sid: asdict(p) for sid, p in self._profiles.items()}
+            data = {sid: p.to_dict() for sid, p in self._profiles.items()}
             with open(self._file_path, "w") as f:
                 json.dump(data, f, default=str, indent=2)
         except Exception:

@@ -93,7 +93,7 @@ class ReflectAgent:
         type_priority = focus_types or FORCED_SEARCH_SEQUENCE
         last_error: str | None = None
 
-        rule_contradictions = await self._detect_rule_based_contradictions(query, space_id)
+        rule_contradictions = await self._detect_rule_based_contradictions(query, space_id, disposition=disposition)
 
         for retry in range(MAX_HALLUCINATION_RETRIES + 1):
             try:
@@ -372,6 +372,7 @@ class ReflectAgent:
         self,
         query: str,
         space_id: str,
+        disposition: "DispositionProfile | None" = None,
     ) -> list["ContradictionReport"]:
         """Detect contradictions using rule-based heuristics (no LLM required).
 
@@ -380,11 +381,19 @@ class ReflectAgent:
         2. Numeric conflicts: same entity with conflicting numeric values
         3. Negation conflicts: "X is A" vs "X is not A"
         4. Mutually exclusive values: same subject+field with different values
+
+        DispositionProfile.skepticism:
+        - skepticism >= 0.7: detect all contradictions (aggressive mode)
+        - skepticism <= 0.3: skip detection entirely (conservative mode)
+        - 0.3 < skepticism < 0.7: normal detection (default)
         """
         import re
         from ontology_engine.engine.cognitive.reflect_types import ContradictionReport
 
         contradictions: list[ContradictionReport] = []
+
+        if disposition is not None and disposition.skepticism <= 0.3:
+            return contradictions
 
         try:
             nodes = await self._repo.query_nodes(domain_id=space_id, limit=500)
@@ -459,12 +468,13 @@ class ReflectAgent:
         import re
 
         negation_patterns = [
-            (r"不是\s*(.{1,8}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"不使用\s*(.{1,8}?)(?:，|,|。|；|;|$)", r"使用\s*\1"),
-            (r"不再\s*(.{1,8}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"没有\s*(.{1,8}?)(?:，|,|。|；|;|$)", r"有\s*\1"),
-            (r"并非\s*(.{1,8}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"不\s*是\s*(.{1,8}?)(?:，|,|。|；|;|$)", r"\1"),
+            (r"不是\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
+            (r"不使用\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"使用\s*\1"),
+            (r"不再\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
+            (r"没有\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"有\s*\1"),
+            (r"并非\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
+            (r"不\s*是\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
+            (r"不\s*([\u4e00-\u9fff]{1,4})\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1\s*\2"),
         ]
 
         for neg_pat, affirm_pat in negation_patterns:
@@ -540,7 +550,7 @@ class ReflectAgent:
         if ratings_a and ratings_b and ratings_a[0] != ratings_b[0]:
             return "风险等级"
 
-        numeric_pattern = re.compile(r"(\d+(?:\.\d+)?)\s*[%％]")
+        numeric_pattern = re.compile(r"(\d+(?:\.\d+)?)\s*[%％万元人个只台辆次件]")
         nums_a = numeric_pattern.findall(text_a)
         nums_b = numeric_pattern.findall(text_b)
         if nums_a and nums_b:
@@ -552,6 +562,22 @@ class ReflectAgent:
                             return "数值冲突"
                     except ValueError:
                         pass
+
+        entity_numeric = re.compile(
+            r"([\u4e00-\u9fff]{2,8}(?:科技|集团|公司|股份|有限)?)"
+            r"\s*(.{2,6}?)\s*(\d+(?:\.\d+)?)\s*(.{0,4})"
+        )
+        match_a = entity_numeric.search(text_a)
+        match_b = entity_numeric.search(text_b)
+        if match_a and match_b:
+            entity_a, field_a, num_a, _ = match_a.groups()
+            entity_b, field_b, num_b, _ = match_b.groups()
+            if entity_a == entity_b and field_a == field_b:
+                try:
+                    if abs(float(num_a) - float(num_b)) > 0:
+                        return f"{field_a}数值冲突"
+                except ValueError:
+                    pass
 
         return None
 

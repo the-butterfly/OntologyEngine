@@ -85,6 +85,11 @@ async def remember(
     4. EntityResolver.resolve() → entity disambiguation
     5. If memory_type != "fragment": create CognitiveNode directly (Layer-S)
     6. If auto_consolidate: ConsolidationEngine.consolidate()
+
+    [设计决策 2026-05-07] 完整实现双层写入：IngestionService 先创建 Layer-R
+    KnowledgeFragment，ExtractionPipeline 从碎片中提取实体/关系，再写入 Layer-S
+    CognitiveNode。当前实现合并了 Ingestion+Extraction 为直接创建 CognitiveNode，
+    需补齐完整的 6 步编排链。
     """
 ```
 

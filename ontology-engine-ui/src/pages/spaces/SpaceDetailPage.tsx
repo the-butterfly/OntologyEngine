@@ -23,7 +23,8 @@ import { useSpaceStore } from '../../store/spaceStore';
 
 const { Title } = Typography;
 
-const menuItems = [
+// Knowledge management menu items
+const kmMenuItems = [
   { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明' },
   { key: 'rules', icon: <BranchesOutlined />, label: '规则管理' },
   { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例' },
@@ -31,18 +32,15 @@ const menuItems = [
   { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化' },
   { key: 'execute', icon: <BranchesOutlined />, label: '规则执行' },
   { key: 'simulate', icon: <ExperimentOutlined />, label: 'What-If 模拟' },
-  {
-    key: 'memory-group',
-    icon: <BulbOutlined />,
-    label: 'Agent Memory',
-    children: [
-      { key: 'memory', icon: <BulbOutlined />, label: '记忆总览' },
-      { key: 'memory/build', icon: <BuildOutlined />, label: '记忆构建' },
-      { key: 'memory/manage', icon: <ToolOutlined />, label: '记忆管理' },
-      { key: 'memory/consume', icon: <SearchOutlined />, label: '记忆消费' },
-      { key: 'memory/reflect', icon: <SyncOutlined />, label: '反思中心' },
-    ],
-  },
+];
+
+// Agent Memory menu items
+const memoryMenuItems = [
+  { key: 'memory', icon: <BulbOutlined />, label: '记忆总览' },
+  { key: 'memory/build', icon: <BuildOutlined />, label: '记忆构建' },
+  { key: 'memory/manage', icon: <ToolOutlined />, label: '记忆管理' },
+  { key: 'memory/consume', icon: <SearchOutlined />, label: '记忆消费' },
+  { key: 'memory/reflect', icon: <SyncOutlined />, label: '反思中心' },
 ];
 
 export default function SpaceDetailPage() {
@@ -110,6 +108,20 @@ export default function SpaceDetailPage() {
     return path.includes('/visualize') || path.includes('/execute') || path.includes('/simulate');
   };
 
+  // Check if current route is an Agent Memory route
+  const isMemoryRoute = () => {
+    const path = location.pathname;
+    return path.includes('/memory');
+  };
+
+  // Select menu items based on route type
+  const getMenuItems = () => {
+    if (isMemoryRoute()) {
+      return memoryMenuItems;
+    }
+    return kmMenuItems;
+  };
+
   // Show loading only while fetching, but still render layout if space not found
   // This allows memory pages to work even when the space API fails
   if (loading) {
@@ -122,7 +134,7 @@ export default function SpaceDetailPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {activeSpace && (
+      {activeSpace && !isMemoryRoute() && (
         <>
           <Breadcrumb
             items={[
@@ -223,6 +235,24 @@ export default function SpaceDetailPage() {
         </>
       )}
 
+      {activeSpace && isMemoryRoute() && (
+        <>
+          <Breadcrumb
+            items={[
+              { title: <a onClick={() => navigate('/memory')}>Agent Memory</a> },
+              { title: activeSpace.name },
+            ]}
+            style={{ marginBottom: 16 }}
+          />
+          <Space style={{ marginBottom: 16 }}>
+            <Tag color="blue">v{activeSpace.version}</Tag>
+            <Tag color={activeSpace.status === 'active' ? 'green' : 'orange'}>
+              {activeSpace.status.toUpperCase()}
+            </Tag>
+          </Space>
+        </>
+      )}
+
       <Card>
         <div style={{ display: 'flex', gap: 24 }}>
           <Menu
@@ -230,7 +260,7 @@ export default function SpaceDetailPage() {
             selectedKeys={[getSelectedKey()]}
             onClick={handleMenuClick}
             style={{ width: 200, borderRight: '1px solid #f0f0f0' }}
-            items={menuItems}
+            items={getMenuItems()}
           />
           <div style={{ flex: 1, overflow: 'auto' }}>
             <Outlet />

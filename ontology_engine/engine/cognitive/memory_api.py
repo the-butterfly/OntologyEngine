@@ -94,6 +94,7 @@ class RememberRequest:
     occurred_at: str | None = None
     source_pipeline: str | None = None
     schema_ref: str | None = None
+    source_fragment_ids: list[str] | None = None
 
 
 @dataclass
@@ -266,6 +267,7 @@ class MemoryAPI:
         belief_status: str = "accepted",
         valid_from: str | None = None,
         valid_to: str | None = None,
+        source_fragment_ids: list[str] | None = None,
         recorded_at: str | None = None,
         occurred_at: str | None = None,
         source_pipeline: str | None = None,
@@ -290,6 +292,7 @@ class MemoryAPI:
             occurred_at=occurred_at,
             source_pipeline=source_pipeline,
             schema_ref=schema_ref,
+            source_fragment_ids=source_fragment_ids,
         )
         return await self._remember(req)
 
@@ -349,6 +352,7 @@ class MemoryAPI:
 
         cognitive_layer = self._infer_cognitive_layer(req.memory_type)
 
+        source_ids = req.source_fragment_ids or []
         node = CognitiveNode(
             id=node_id,
             memory_type=req.memory_type,
@@ -367,6 +371,8 @@ class MemoryAPI:
             recorded_at=req.recorded_at,
             tags=req.tags or [],
             attributes=self._extract_attributes(req.memory_type, req.metadata),
+            source_fragment_ids=source_ids,
+            proof_count=len(source_ids),
         )
         await self._repo.create_node(node)
 
@@ -568,14 +574,21 @@ class MemoryAPI:
             belief_filter = req.belief_status_filter or "accepted"
             nodes = await self._repo.query_nodes(
                 memory_type=req.memory_type,
-                domain_id=req.space_id,
-                limit=req.max_results,
+                space_id=req.space_id,
+                limit=req.max_results * 3,
                 as_of=req.as_of,
                 belief_status=belief_filter,
                 cognitive_layer=req.cognitive_layer,
             )
             results = []
             for n in nodes:
+                if req.query:
+                    query_lower = req.query.lower()
+                    content_lower = n.content.lower()
+                    if query_lower not in content_lower:
+                        query_words = query_lower.split()
+                        if not any(w in content_lower for w in query_words):
+                            continue
                 strength_info = self._compute_strength(n)
                 results.append({
                     "id": n.id,
@@ -590,6 +603,8 @@ class MemoryAPI:
                     "strength": strength_info["value"],
                     "strength_breakdown": strength_info["breakdown"],
                 })
+                if len(results) >= req.max_results:
+                    break
         else:
             retrieval_results = await self._router.route(
                 query=req.query,
@@ -1203,6 +1218,8 @@ class MemoryAPI:
 
         new_node_id = self._generate_memory_id(corrected_text, old_node.space_id, old_node.memory_type)
 
+        old_source_ids = list(old_node.source_fragment_ids) if old_node.source_fragment_ids else []
+        merged_sources = old_source_ids + [node_id]
         new_node = CognitiveNode(
             id=new_node_id,
             memory_type=old_node.memory_type,
@@ -1216,7 +1233,8 @@ class MemoryAPI:
             belief_status="accepted",
             tags=old_node.tags,
             attributes=old_node.attributes,
-            source_fragment_ids=[node_id],
+            source_fragment_ids=merged_sources,
+            proof_count=len(merged_sources),
             extraction_hint="user_correction",
         )
         await self._repo.create_node(new_node)
