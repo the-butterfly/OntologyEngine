@@ -183,7 +183,7 @@ test.describe("Phase 2 Features - Heatmap", () => {
     const hasData = await page.locator("text=类型 × 认知层分布").isVisible().catch(() => false);
     if (hasData) {
       // Type distribution blocks
-      await expect(page.locator("text=认知层分布")).toBeVisible();
+      await expect(page.getByText("认知层分布", { exact: true })).toBeVisible();
     } else {
       await expect(page.locator("text=暂无热力图数据")).toBeVisible();
     }
