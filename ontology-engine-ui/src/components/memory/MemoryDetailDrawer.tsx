@@ -48,20 +48,8 @@ export const MemoryDetailDrawer: React.FC<MemoryDetailDrawerProps> = ({
     if (!nodeId || !spaceId) return;
     setLoading(true);
     try {
-      // Use recall to get node details since we don't have a direct GET endpoint yet
-      // [外部依赖 T1.2] 后端补充 GET /spaces/{space_id}/memory/{node_id} 后可替换为直接调用
-      const result = await memoryApi.recall(spaceId, {
-        query: nodeId,
-        maxResults: 1,
-        includeEvidence: true,
-      });
-      const found = result.results.find((n) => n.id === nodeId);
-      if (found) {
-        setNode(found);
-      } else {
-        message.error('记忆节点未找到');
-        onClose();
-      }
+      const node = await memoryApi.getNode(spaceId, nodeId);
+      setNode(node);
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败');
       onClose();

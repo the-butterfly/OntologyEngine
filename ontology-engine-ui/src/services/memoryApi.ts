@@ -28,6 +28,52 @@ function spacePath(spaceId: string, path: string = ''): string {
   return `/spaces/${spaceId}/memory${path}`;
 }
 
+/**
+ * Convert snake_case backend fields to camelCase frontend fields.
+ * Handles nested objects and arrays recursively.
+ */
+function snakeToCamel(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(snakeToCamel);
+  if (typeof obj !== 'object') return obj;
+
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // Convert snake_case to camelCase
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    result[camelKey] = snakeToCamel(value);
+  }
+  return result;
+}
+
+/**
+ * Transform a backend recall result node to frontend CognitiveNode format.
+ * Special handling: backend uses 'text' instead of 'content'.
+ */
+function transformNode(node: any): CognitiveNode {
+  const camel = snakeToCamel(node);
+  // Backend uses 'text' for content, map it to 'content'
+  if (camel.text !== undefined && camel.content === undefined) {
+    camel.content = camel.text;
+    delete camel.text;
+  }
+  return camel as CognitiveNode;
+}
+
+/**
+ * Transform backend recall response to frontend format.
+ */
+function transformRecallResponse(response: any): RecallResponse {
+  const camel = snakeToCamel(response);
+  if (camel.results && Array.isArray(camel.results)) {
+    camel.results = camel.results.map(transformNode);
+  }
+  if (camel.edges && Array.isArray(camel.edges)) {
+    camel.edges = camel.edges.map((e: any) => snakeToCamel(e));
+  }
+  return camel as RecallResponse;
+}
+
 export const memoryApi = {
   // ===== Core Operations =====
 
@@ -63,7 +109,7 @@ export const memoryApi = {
 
   /** POST /spaces/{space_id}/memory/recall */
   async recall(spaceId: string, request: RecallRequest): Promise<RecallResponse> {
-    return memoryService.post(spacePath(spaceId, '/recall'), {
+    const response = await memoryService.post(spacePath(spaceId, '/recall'), {
       query: request.query,
       memory_type: request.memoryType,
       max_results: request.maxResults,
@@ -79,6 +125,7 @@ export const memoryApi = {
       cognitive_layer: request.cognitiveLayer,
       include_superseded: request.includeSuperseded,
     });
+    return transformRecallResponse(response);
   },
 
   /** POST /spaces/{space_id}/memory/reflect */
@@ -154,8 +201,11 @@ export const memoryApi = {
 
   /** GET /spaces/{space_id}/memory/audit */
   async getAuditTrail(spaceId: string, limit: number = 50): Promise<AuditEntry[]> {
-    const response = await memoryService.get<AuditResponse>(spacePath(spaceId, '/audit'), { limit });
-    return response.entries;
+    const response = await memoryService.get<any>(spacePath(spaceId, '/audit'), { limit });
+    // Use activity_entries if available (real activity logs), otherwise fall back to entries
+    // Note: response is already unwrapped by createApiService, so fields are still snake_case
+    const entries = response.activity_entries || response.entries || [];
+    return entries.map((entry: any) => snakeToCamel(entry));
   },
 
   /** GET /spaces/{space_id}/memory/reflect_status */
@@ -166,40 +216,47 @@ export const memoryApi = {
     );
   },
 
+  /** GET /spaces/{space_id}/memory/nodes */
+  async listNodes(
+    spaceId: string,
+    options: { memoryType?: string; beliefStatus?: string; limit?: number } = {}
+  ): Promise<{ nodes: CognitiveNode[]; total: number }> {
+    const response = await memoryService.get<any>(spacePath(spaceId, '/nodes'), {
+      memory_type: options.memoryType,
+      belief_status: options.beliefStatus,
+      limit: options.limit || 1000,
+    });
+    const data = response.data || response;
+    const nodes = (data.nodes || []).map(transformNode);
+    return { nodes, total: data.total || nodes.length };
+  },
+
   // ===== Frontend-specific helpers (map to available endpoints) =====
 
-  /** Get memory graph — uses recall with wildcard query to get all nodes + edges */
+  /** Get memory graph — uses listNodes to get all nodes */
   async getMemoryGraph(spaceId: string): Promise<GraphData> {
-    const result = await memoryService.post<RecallResponse>(spacePath(spaceId, '/recall'), {
-      query: '*',
-      max_results: 1000,
-      include_evidence: true,
-    });
-    const edges = (result as any).edges || [];
+    const result = await this.listNodes(spaceId, { limit: 1000 });
     return {
-      nodes: result.results.map((node: CognitiveNode) => ({ id: node.id, data: node })),
-      edges: edges.map((e: any) => ({
-        source: e.source,
-        target: e.target,
-        edgeType: e.edge_type,
-      })),
+      nodes: result.nodes.map((node: CognitiveNode) => ({ id: node.id, data: node })),
+      edges: [],
     };
   },
 
   /** Get agent activities — maps to audit trail */
   async getActivities(spaceId: string): Promise<AuditEntry[]> {
-    const response = await memoryService.get<AuditResponse>(spacePath(spaceId, '/audit'), { limit: 50 });
-    return response.entries;
+    const response = await memoryService.get<any>(spacePath(spaceId, '/audit'), { limit: 50 });
+    // Use activity_entries if available (real activity logs), otherwise fall back to entries
+    const entries = response.activity_entries || response.entries || [];
+    return entries.map((entry: any) => snakeToCamel(entry));
   },
 
-  /** Get pending reviews — filters recall results */
+  /** Get pending reviews — filters listNodes results */
   async getPendingReviews(spaceId: string): Promise<CognitiveNode[]> {
-    const result = await memoryService.post<RecallResponse>(spacePath(spaceId, '/recall'), {
-      query: '*',
-      belief_status_filter: 'pending_review',
-      max_results: 100,
+    const result = await this.listNodes(spaceId, {
+      beliefStatus: 'pending_review',
+      limit: 100,
     });
-    return result.results;
+    return result.nodes;
   },
 
   /** Get contradictions — uses /contradictions endpoint */
@@ -222,24 +279,28 @@ export const memoryApi = {
     }
   },
 
+  /** GET /spaces/{space_id}/memory/{node_id} */
+  async getNode(spaceId: string, nodeId: string): Promise<CognitiveNode> {
+    const response = await memoryService.get<any>(spacePath(spaceId, `/${nodeId}`));
+    // Response is wrapped in { success, data, error, meta }
+    const nodeData = response.data || response;
+    return transformNode(nodeData);
+  },
+
   /** Get evidence chain for a node */
   async getEvidence(spaceId: string, nodeId: string): Promise<any> {
     const response = await memoryService.get<any>(spacePath(spaceId, `/${nodeId}/evidence`));
-    return response.data || response;
+    const data = response.data || response;
+    return snakeToCamel(data);
   },
 
-  /** Get dashboard data — aggregates from stats + audit + recall */
+  /** Get dashboard data — aggregates from stats + audit + listNodes */
   async getDashboard(spaceId: string): Promise<DashboardData> {
     const [stats, activities, pendingReviews] = await Promise.all([
       memoryService.get<MemoryStats>(spacePath(spaceId, '/stats')).catch(() => null),
       memoryService.get<AuditResponse>(spacePath(spaceId, '/audit'), { limit: 5 }).then(r => r.entries).catch(() => [] as AuditEntry[]),
-      memoryService
-        .post<RecallResponse>(spacePath(spaceId, '/recall'), {
-          query: '*',
-          belief_status_filter: 'pending_review',
-          max_results: 100,
-        })
-        .then((r: RecallResponse) => r.results)
+      this.listNodes(spaceId, { beliefStatus: 'pending_review', limit: 100 })
+        .then((r: any) => r.nodes)
         .catch(() => []),
     ]);
 
