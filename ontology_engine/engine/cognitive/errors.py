@@ -96,6 +96,24 @@ class CognitiveNodeConflictError(CognitiveError):
         super().__init__(message, CognitiveErrorCode.NODE_CONFLICT)
 
 
+class OCCVersionConflict(CognitiveError):
+
+    def __init__(
+        self,
+        node_id: str,
+        expected_version: int,
+        actual_version: int,
+    ):
+        self.node_id = node_id
+        self.expected_version = expected_version
+        self.actual_version = actual_version
+        message = (
+            f"OCC version conflict for node {node_id}: "
+            f"expected {expected_version}, actual {actual_version}"
+        )
+        super().__init__(message, CognitiveErrorCode.NODE_CONFLICT)
+
+
 class DispositionProfileNotFoundError(CognitiveError):
 
     def __init__(self, message: str = "Disposition profile not found"):

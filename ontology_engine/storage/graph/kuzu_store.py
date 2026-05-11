@@ -6,6 +6,7 @@ Requires ``kuzu`` Python binding (``pip install kuzu``).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -32,6 +33,12 @@ class KuzuGraphStore(GraphStoreBackend):
     ``get_mutual_index_edges`` when edge_type="SUPPORTED_BY".
 
     Default database path: ``~/.ontology_engine/data/{space_id}/graph.kuzu``
+
+    Thread safety: All ``_conn.execute()`` calls are serialized via an
+    ``asyncio.Lock`` (``_execute_lock``).  This prevents concurrent Cypher
+    execution which the Kuzu Python binding does not support.  For multi-worker
+    deployments (gunicorn -w N), each worker process opens its own Database +
+    Connection; the lock only coordinates coroutines *within* a single process.
     """
 
     def __init__(self) -> None:
@@ -39,6 +46,7 @@ class KuzuGraphStore(GraphStoreBackend):
         self._conn: Any | None = None  # kuzu.Connection
         self._initialized = False
         self._fragment_cache: dict[str, bool] = {}
+        self._execute_lock: asyncio.Lock = asyncio.Lock()
 
     # Pre-defined query specs for mutual index relations (class-level constant).
     # Each entry lists ALL rel-tables that carry that logical edge type, so that
@@ -63,9 +71,20 @@ class KuzuGraphStore(GraphStoreBackend):
     }
 
     def _default_path(self) -> str:
-        """Return default kuzu database path."""
         base = os.path.expanduser("~/.ontology_engine/data")
         return os.path.join(base, "default", "graph.kuzu")
+
+    async def _execute(self, query: str, parameters: dict[str, Any] | None = None) -> Any:
+        """Execute a Cypher query with lock protection.
+
+        All KuzuDB connection calls must go through this method to ensure
+        serialization.  The Kuzu Python binding is not thread-safe and
+        concurrent execute() calls on the same Connection cause data
+        corruption or segfaults.
+        """
+        self._ensure_initialized()
+        async with self._execute_lock:
+            return self._conn.execute(query, parameters or {})
 
     async def initialize(self, db_path: str | None = None) -> None:
         """Initialize kuzu database connection.
@@ -117,7 +136,7 @@ class KuzuGraphStore(GraphStoreBackend):
         """
         self._ensure_initialized()
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS Entity(
                 entity_id STRING PRIMARY KEY,
                 concept STRING,
@@ -126,7 +145,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS KnowledgeFragment(
                 fragment_id STRING PRIMARY KEY,
                 dataset_id STRING,
@@ -145,7 +164,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS ExecutionStepSnapshot(
                 id STRING PRIMARY KEY,
                 pipeline_run_id STRING,
@@ -159,7 +178,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS MetricDeclaration(
                 id STRING PRIMARY KEY,
                 name STRING,
@@ -171,7 +190,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS RuleDefinitionNode(
                 id STRING PRIMARY KEY,
                 name STRING,
@@ -195,7 +214,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS CategoryTag(
                 id STRING PRIMARY KEY,
                 entity_id STRING,
@@ -207,7 +226,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS MetricValue(
                 id STRING PRIMARY KEY,
                 entity_id STRING,
@@ -222,7 +241,7 @@ class KuzuGraphStore(GraphStoreBackend):
         """)
 
         # ── Agent Memory: CognitiveNode ──────────────────────────────────
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS CognitiveNode(
                 id STRING PRIMARY KEY,
                 memory_type STRING,
@@ -254,12 +273,24 @@ class KuzuGraphStore(GraphStoreBackend):
                 recorded_at STRING,
                 tags JSON,
                 attributes JSON,
-                confirmation_count INT64 DEFAULT 0
+                confirmation_count INT64 DEFAULT 0,
+                strength DOUBLE DEFAULT 1.0,
+                entity_name STRING,
+                entity_type STRING,
+                version INT64 DEFAULT 1,
+                last_confirmed_at STRING,
+                consolidation_reasoning STRING,
+                compiled_at STRING,
+                model_domain STRING,
+                source_trust_tier STRING,
+                scope STRING,
+                source_pipeline STRING,
+                source_content_hash STRING
             )
         """)
 
         # ── Agent Memory: DispositionProfileNode ─────────────────────────
-        self._conn.execute("""
+        await self._execute("""
             CREATE NODE TABLE IF NOT EXISTS DispositionProfileNode(
                 id STRING PRIMARY KEY,
                 skepticism DOUBLE DEFAULT 0.5,
@@ -275,7 +306,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS Relation(
                 FROM Entity TO Entity,
                 relation_type STRING,
@@ -284,7 +315,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS EXTRACTED_FROM(
                 FROM Entity TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'EXTRACTED_FROM',
@@ -297,7 +328,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS SUPPORTED_BY(
                 FROM Entity TO Entity,
                 edge_type STRING DEFAULT 'SUPPORTED_BY',
@@ -310,7 +341,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS SUPPORTED_BY_FRAGMENT(
                 FROM KnowledgeFragment TO Entity,
                 edge_type STRING DEFAULT 'SUPPORTED_BY',
@@ -323,7 +354,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS DEFINED_IN(
                 FROM Entity TO Entity,
                 edge_type STRING DEFAULT 'DEFINED_IN',
@@ -336,7 +367,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS DEFINED_IN_FROM_METRIC(
                 FROM MetricDeclaration TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'DEFINED_IN',
@@ -349,7 +380,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS DEFINED_IN_FROM_RULE(
                 FROM RuleDefinitionNode TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'DEFINED_IN',
@@ -362,7 +393,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS TRACE_TO(
                 FROM ExecutionStepSnapshot TO KnowledgeFragment,
                 edge_type STRING DEFAULT 'TRACE_TO',
@@ -375,7 +406,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS CATEGORIZED_AS(
                 FROM Entity TO CategoryTag,
                 assigned_at STRING,
@@ -383,7 +414,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS HAS_METRIC(
                 FROM Entity TO MetricValue,
                 computed_at STRING,
@@ -391,7 +422,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS PRECEDES(
                 FROM Entity TO Entity,
                 time_delta DOUBLE,
@@ -399,7 +430,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS SUCCEEDS(
                 FROM Entity TO Entity,
                 time_delta DOUBLE,
@@ -407,7 +438,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS LEADS_TO(
                 FROM Entity TO Entity,
                 confidence DOUBLE,
@@ -415,7 +446,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS BECAUSE_OF(
                 FROM Entity TO Entity,
                 confidence DOUBLE,
@@ -423,7 +454,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS ENABLES(
                 FROM Entity TO Entity,
                 confidence DOUBLE,
@@ -431,7 +462,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS PREVENTS(
                 FROM Entity TO Entity,
                 confidence DOUBLE,
@@ -439,7 +470,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS same_entity_as(
                 FROM Entity TO Entity,
                 confidence DOUBLE,
@@ -448,14 +479,14 @@ class KuzuGraphStore(GraphStoreBackend):
         """)
 
         # ── Agent Memory: Cognitive Edges ────────────────────────────────
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS PART_OF(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS SUPPORTS(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING,
@@ -463,7 +494,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS CONTRADICTS(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING,
@@ -472,14 +503,14 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS CONSOLIDATED_INTO(
                 FROM CognitiveNode TO CognitiveNode,
                 consolidated_at STRING
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS RELATES_TO(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING,
@@ -487,7 +518,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS CO_OCCURS_WITH(
                 FROM CognitiveNode TO CognitiveNode,
                 co_occurrence_count INT64 DEFAULT 1,
@@ -497,7 +528,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS COG_SUPPORTED_BY(
                 FROM CognitiveNode TO CognitiveNode,
                 evidence_order INT64 DEFAULT 0,
@@ -507,7 +538,7 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS SUPERSEDES(
                 FROM CognitiveNode TO CognitiveNode,
                 supersede_reason STRING,
@@ -515,21 +546,21 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS SUMMARIZED_AS(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS LEARNED_INTO(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING
             )
         """)
 
-        self._conn.execute("""
+        await self._execute("""
             CREATE REL TABLE IF NOT EXISTS COGNITIVE_RELATES_TO(
                 FROM CognitiveNode TO CognitiveNode,
                 created_at STRING,
@@ -551,7 +582,7 @@ class KuzuGraphStore(GraphStoreBackend):
         #     "CREATE INDEX idx_disposition_domain ON DispositionProfileNode(domain_id)",
         # ]:
         #     try:
-        #         self._conn.execute(idx_stmt)
+        #         await self._execute(idx_stmt)
         #     except RuntimeError as e:
         #         msg = str(e).lower()
         #         if "already exists" not in msg:
@@ -590,7 +621,7 @@ class KuzuGraphStore(GraphStoreBackend):
         is_fragment = "KnowledgeFragment" in labels or node_id.startswith("frag:")
 
         if is_fragment:
-            self._conn.execute(
+            await self._execute(
                 "MERGE (n:KnowledgeFragment {fragment_id: $id}) "
                 "SET n.dataset_id = $dataset_id, n.document_id = $document_id, "
                 "n.space_id = $space_id, n.chunk_index = $chunk_index, "
@@ -621,7 +652,7 @@ class KuzuGraphStore(GraphStoreBackend):
             space_id = properties.get("space_id", "default")
             props_json = json.dumps(properties)
 
-            self._conn.execute(
+            await self._execute(
                 "MERGE (n:Entity {entity_id: $id}) SET n.concept = $concept, "
                 "n.space_id = $space_id, n.properties = $props",
                 {"id": node_id, "concept": concept, "space_id": space_id, "props": props_json},
@@ -635,7 +666,7 @@ class KuzuGraphStore(GraphStoreBackend):
         self._ensure_initialized()
         import json
 
-        result = self._conn.execute(
+        result = await self._execute(
             "MATCH (n:Entity {entity_id: $id}) RETURN n.entity_id AS id, "
             "n.concept AS concept, n.space_id AS space_id, n.properties AS properties",
             {"id": node_id},
@@ -650,7 +681,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 "properties": json.loads(row["properties"]) if row["properties"] else {},
             }
 
-        result = self._conn.execute(
+        result = await self._execute(
             "MATCH (n:KnowledgeFragment {fragment_id: $id}) RETURN n.fragment_id AS id, "
             "n.dataset_id AS dataset_id, n.document_id AS document_id, "
             "n.space_id AS space_id, n.chunk_index AS chunk_index, "
@@ -679,11 +710,11 @@ class KuzuGraphStore(GraphStoreBackend):
         Tries Entity first, then KnowledgeFragment.
         """
         self._ensure_initialized()
-        self._conn.execute(
+        await self._execute(
             "MATCH (n:Entity {entity_id: $id}) DELETE n",
             {"id": node_id},
         )
-        self._conn.execute(
+        await self._execute(
             "MATCH (n:KnowledgeFragment {fragment_id: $id}) DELETE n",
             {"id": node_id},
         )
@@ -708,14 +739,14 @@ class KuzuGraphStore(GraphStoreBackend):
 
         props_json = json.dumps(properties or {})
 
-        existing = self._conn.execute(
+        existing = await self._execute(
             "MATCH (a:Entity {entity_id: $from})-[r:Relation {relation_id: $eid}]->(b:Entity {entity_id: $to}) "
             "RETURN r.relation_type",
             {"from": from_node_id, "to": to_node_id, "eid": edge_id},
         )
         df = existing.get_as_df()
         if not df.empty:
-            self._conn.execute(
+            await self._execute(
                 "MATCH (a:Entity {entity_id: $from})-[r:Relation {relation_id: $eid}]->(b:Entity {entity_id: $to}) "
                 "SET r.relation_type = $rtype, r.properties = $props",
                 {
@@ -727,7 +758,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 },
             )
         else:
-            self._conn.execute(
+            await self._execute(
                 "MATCH (a:Entity {entity_id: $from}), (b:Entity {entity_id: $to}) "
                 "CREATE (a)-[r:Relation {relation_type: $rtype, relation_id: $eid, "
                 "properties: $props}]->(b)",
@@ -771,7 +802,7 @@ class KuzuGraphStore(GraphStoreBackend):
                    r.relation_type AS edge_type, r.relation_id AS edge_id,
                    r.properties AS properties
         """
-        result = self._conn.execute(query, params)
+        result = await self._execute(query, params)
         df = result.get_as_df()
         if df.empty:
             return []
@@ -789,7 +820,7 @@ class KuzuGraphStore(GraphStoreBackend):
     async def delete_edge(self, edge_id: str) -> None:
         """Delete an edge."""
         self._ensure_initialized()
-        self._conn.execute(
+        await self._execute(
             "MATCH (a:Entity)-[r:Relation {relation_id: $eid}]->(b:Entity) DELETE r",
             {"eid": edge_id},
         )
@@ -878,7 +909,7 @@ class KuzuGraphStore(GraphStoreBackend):
                    r.properties AS edge_props, n.properties AS properties
             LIMIT {limit}
         """
-        kuzu_result = self._conn.execute(cypher, {"src_id": node_id})
+        kuzu_result = await self._execute(cypher, {"src_id": node_id})
         df = kuzu_result.get_as_df()
         if not df.empty:
             for _, row in df.iterrows():
@@ -912,7 +943,7 @@ class KuzuGraphStore(GraphStoreBackend):
             return self._fragment_cache[node_id]
         self._ensure_initialized()
         try:
-            result = self._conn.execute(
+            result = await self._execute(
                 "MATCH (f:KnowledgeFragment {fragment_id: $fid}) RETURN count(*) AS cnt",
                 {"fid": node_id},
             )
@@ -953,7 +984,7 @@ class KuzuGraphStore(GraphStoreBackend):
                        r.offset_end AS offset_end
                 LIMIT {limit}
             """
-            result = self._conn.execute(cypher, {"fid": fragment_id})
+            result = await self._execute(cypher, {"fid": fragment_id})
             df = result.get_as_df()
             if df.empty:
                 return rows
@@ -989,14 +1020,14 @@ class KuzuGraphStore(GraphStoreBackend):
                 RETURN src.entity_id AS source, tgt.entity_id AS target
                 LIMIT 50
             """
-            result = self._conn.execute(cypher, {"src": source_id, "tgt": target_id})
+            result = await self._execute(cypher, {"src": source_id, "tgt": target_id})
         else:
             cypher = f"""
                 MATCH (src:Entity {{entity_id: $src}})-[r*1..{max_depth}]-(n:Entity)
                 RETURN src.entity_id AS source, n.entity_id AS target
                 LIMIT 50
             """
-            result = self._conn.execute(cypher, {"src": source_id})
+            result = await self._execute(cypher, {"src": source_id})
 
         df = result.get_as_df()
         if df.empty:
@@ -1031,7 +1062,7 @@ class KuzuGraphStore(GraphStoreBackend):
             RETURN [node IN nodes(cycle) | node.entity_id] AS cycle
             LIMIT 50
         """
-        result = self._conn.execute(cypher, {"cid": center_id})
+        result = await self._execute(cypher, {"cid": center_id})
         df = result.get_as_df()
         if df.empty:
             return []
@@ -1057,7 +1088,7 @@ class KuzuGraphStore(GraphStoreBackend):
         self._ensure_initialized()
         import json
 
-        result = self._conn.execute(query, parameters or {})
+        result = await self._execute(query, parameters or {})
         df = result.get_as_df()
         if df.empty:
             return []
@@ -1104,7 +1135,7 @@ class KuzuGraphStore(GraphStoreBackend):
                     ORDER BY degree DESC
                     LIMIT 100
                 """
-                result = self._conn.execute(cypher)
+                result = await self._execute(cypher)
                 df = result.get_as_df()
                 if node_id:
                     row = df[df["node"] == node_id]
@@ -1123,7 +1154,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 WITH a, collect(DISTINCT b) AS reachable
                 RETURN a AS node, size(reachable) AS component_size
             """
-            result = self._conn.execute(cypher)
+            result = await self._execute(cypher)
             df = result.get_as_df()
             return {"algorithm": "component", "component_count": int(df["component_size"].max()) if not df.empty else 0}
 
@@ -1137,7 +1168,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 ORDER BY degree DESC
                 LIMIT 100
             """
-            result = self._conn.execute(cypher)
+            result = await self._execute(cypher)
             df = result.get_as_df()
             return {"algorithm": "community", "community_count": len(df)}
 
@@ -1219,7 +1250,7 @@ class KuzuGraphStore(GraphStoreBackend):
                    }}] AS edges
             LIMIT {limit}
         """
-        result = self._conn.execute(cypher, {"id": node_id})
+        result = await self._execute(cypher, {"id": node_id})
         df = result.get_as_df()
         if df.empty:
             return {"nodes": [], "edges": []}
@@ -1229,7 +1260,7 @@ class KuzuGraphStore(GraphStoreBackend):
         seen_nodes: set[str] = {node_id}
         seen_edges: set[str] = set()
 
-        center_result = self._conn.execute(
+        center_result = await self._execute(
             "MATCH (c:Entity {entity_id: $id}) RETURN c.entity_id AS id, "
             "c.concept AS concept, c.space_id AS space_id, c.properties AS properties",
             {"id": node_id},
@@ -1308,7 +1339,7 @@ class KuzuGraphStore(GraphStoreBackend):
             RETURN n.entity_id AS id, n.concept AS concept,
                    n.space_id AS space_id, n.properties AS properties
         """
-        result = self._conn.execute(cypher, params)
+        result = await self._execute(cypher, params)
         df = result.get_as_df()
         if df.empty:
             return []
@@ -1355,7 +1386,7 @@ class KuzuGraphStore(GraphStoreBackend):
                    r.relation_type AS edge_type, r.relation_id AS edge_id,
                    r.properties AS properties
         """
-        result = self._conn.execute(cypher, {"rtype": relation_name})
+        result = await self._execute(cypher, {"rtype": relation_name})
         df = result.get_as_df()
         if df.empty:
             return []
@@ -1412,7 +1443,7 @@ class KuzuGraphStore(GraphStoreBackend):
             RETURN n.entity_id AS id, n.concept AS concept,
                    n.space_id AS space_id, n.properties AS properties
         """
-        result = self._conn.execute(cypher, params)
+        result = await self._execute(cypher, params)
         df = result.get_as_df()
         if df.empty:
             return []
@@ -1503,7 +1534,7 @@ class KuzuGraphStore(GraphStoreBackend):
             {"SET " + props_str if props_str else ""}
             RETURN label(r) AS edge_type, a.{from_id_field} AS from_id, b.{to_id_field} AS to_id
         """
-        self._conn.execute(cypher, params)
+        await self._execute(cypher, params)
         return {
             "edge_type": edge_type,
             "from_id": from_id,
@@ -1570,7 +1601,7 @@ class KuzuGraphStore(GraphStoreBackend):
             {f"SET {set_clause}" if set_clause else ""}
             RETURN a.id AS from_id, b.id AS to_id
         """
-        self._conn.execute(cypher, params)
+        await self._execute(cypher, params)
         return {
             "edge_type": edge_type,
             "from_id": from_id,
@@ -1637,7 +1668,7 @@ class KuzuGraphStore(GraphStoreBackend):
             """
 
             try:
-                result_set = self._conn.execute(cypher, params)
+                result_set = await self._execute(cypher, params)
                 while result_set.has_next():
                     row = result_set.get_next()
                     results.append({
@@ -1694,7 +1725,7 @@ class KuzuGraphStore(GraphStoreBackend):
                                label(r) AS edge_type, r AS props
                     """
                     try:
-                        result = self._conn.execute(cypher, {"id": node_id})
+                        result = await self._execute(cypher, {"id": node_id})
                         df = result.get_as_df()
                         for _, row in df.iterrows():
                             props = row.get("props", {})
@@ -1720,7 +1751,7 @@ class KuzuGraphStore(GraphStoreBackend):
                                label(r) AS edge_type, r AS props
                     """
                     try:
-                        result = self._conn.execute(cypher, {"id": node_id})
+                        result = await self._execute(cypher, {"id": node_id})
                         df = result.get_as_df()
                         for _, row in df.iterrows():
                             props = row.get("props", {})
@@ -1764,7 +1795,7 @@ class KuzuGraphStore(GraphStoreBackend):
             MATCH (n:Entity {entity_id: $id})
             RETURN n.properties AS props
         """
-        result = self._conn.execute(cypher, {"id": entity_id})
+        result = await self._execute(cypher, {"id": entity_id})
         df = result.get_as_df()
         if df.empty:
             return
@@ -1775,7 +1806,7 @@ class KuzuGraphStore(GraphStoreBackend):
         new_weight = (1 - learning_rate) * old_weight + learning_rate * feedback
         props["feedback_weight"] = new_weight
 
-        self._conn.execute(
+        await self._execute(
             "MATCH (n:Entity {entity_id: $id}) SET n.properties = $props",
             {"id": entity_id, "props": json.dumps(props)},
         )
@@ -1813,6 +1844,18 @@ class KuzuGraphStore(GraphStoreBackend):
         tags: list[str] | None = None,
         attributes: dict[str, str] | None = None,
         confirmation_count: int = 0,
+        strength: float = 1.0,
+        entity_name: str | None = None,
+        entity_type: str | None = None,
+        version: int = 1,
+        last_confirmed_at: str | None = None,
+        consolidation_reasoning: str | None = None,
+        compiled_at: str | None = None,
+        model_domain: str | None = None,
+        source_trust_tier: str | None = None,
+        scope: str | None = None,
+        source_pipeline: str | None = None,
+        source_content_hash: str | None = None,
     ) -> None:
         self._ensure_initialized()
         import json
@@ -1852,9 +1895,21 @@ class KuzuGraphStore(GraphStoreBackend):
             "tags": json.dumps(tags) if tags else json.dumps([]),
             "attributes": json.dumps(attributes) if attributes else json.dumps({}),
             "confirmation_count": int(confirmation_count),
+            "strength": float(strength),
+            "entity_name": entity_name,
+            "entity_type": entity_type,
+            "version": int(version),
+            "last_confirmed_at": last_confirmed_at,
+            "consolidation_reasoning": consolidation_reasoning,
+            "compiled_at": compiled_at,
+            "model_domain": model_domain,
+            "source_trust_tier": source_trust_tier,
+            "scope": scope,
+            "source_pipeline": source_pipeline,
+            "source_content_hash": source_content_hash,
         }
 
-        self._conn.execute("""
+        await self._execute("""
             MERGE (n:CognitiveNode {id: $id})
             ON CREATE SET n.created_at = $created_at,
                           n.history = $history
@@ -1886,7 +1941,19 @@ class KuzuGraphStore(GraphStoreBackend):
                 n.recorded_at = $recorded_at,
                 n.tags = $tags,
                 n.attributes = $attributes,
-                n.confirmation_count = $confirmation_count
+                n.confirmation_count = $confirmation_count,
+                n.strength = $strength,
+                n.entity_name = $entity_name,
+                n.entity_type = $entity_type,
+                n.version = $version,
+                n.last_confirmed_at = $last_confirmed_at,
+                n.consolidation_reasoning = $consolidation_reasoning,
+                n.compiled_at = $compiled_at,
+                n.model_domain = $model_domain,
+                n.source_trust_tier = $source_trust_tier,
+                n.scope = $scope,
+                n.source_pipeline = $source_pipeline,
+                n.source_content_hash = $source_content_hash
         """, params)
 
     async def get_cognitive_node(self, node_id: str) -> dict[str, Any] | None:
@@ -1901,7 +1968,7 @@ class KuzuGraphStore(GraphStoreBackend):
         self._ensure_initialized()
         import json
 
-        result = self._conn.execute("""
+        result = await self._execute("""
             MATCH (n:CognitiveNode {id: $id})
             RETURN n.id AS id, n.memory_type AS memory_type,
                    n.cognitive_layer AS cognitive_layer, n.content AS content,
@@ -1919,8 +1986,16 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.proof_count AS proof_count,
                    n.valid_from AS valid_from, n.valid_to AS valid_to,
                    n.recorded_at AS recorded_at, n.tags AS tags,
-                   n.attributes AS attributes,
-                   n.confirmation_count AS confirmation_count
+                   n.confirmation_count AS confirmation_count,
+                   n.strength AS strength,
+                   n.entity_name AS entity_name, n.entity_type AS entity_type,
+                   n.version AS version, n.last_confirmed_at AS last_confirmed_at,
+                   n.consolidation_reasoning AS consolidation_reasoning,
+                   n.compiled_at AS compiled_at, n.model_domain AS model_domain,
+                   n.source_trust_tier AS source_trust_tier, n.scope AS scope,
+                   n.source_pipeline AS source_pipeline,
+                   n.source_content_hash AS source_content_hash,
+                   n.attributes AS attributes
         """, {"id": node_id})
 
         df = result.get_as_df()
@@ -1980,8 +2055,20 @@ class KuzuGraphStore(GraphStoreBackend):
             "valid_to": safe_val(row["valid_to"]),
             "recorded_at": safe_val(row["recorded_at"]),
             "tags": json.loads(safe_val(row["tags"], "[]")),
-            "attributes": parse_json_field(row["attributes"]) or {},
             "confirmation_count": safe_val(row["confirmation_count"], 0),
+            "strength": safe_val(row["strength"], 1.0),
+            "entity_name": safe_val(row["entity_name"]),
+            "entity_type": safe_val(row["entity_type"]),
+            "version": safe_val(row["version"], 1),
+            "last_confirmed_at": safe_val(row["last_confirmed_at"]),
+            "consolidation_reasoning": safe_val(row["consolidation_reasoning"]),
+            "compiled_at": safe_val(row["compiled_at"]),
+            "model_domain": safe_val(row["model_domain"]),
+            "source_trust_tier": safe_val(row["source_trust_tier"]),
+            "scope": safe_val(row["scope"]),
+            "source_pipeline": safe_val(row["source_pipeline"]),
+            "source_content_hash": safe_val(row["source_content_hash"]),
+            "attributes": parse_json_field(row["attributes"]) or {},
         }
 
     async def delete_cognitive_node(self, node_id: str) -> None:
@@ -1991,7 +2078,7 @@ class KuzuGraphStore(GraphStoreBackend):
             node_id: Unique identifier for the cognitive node.
         """
         self._ensure_initialized()
-        self._conn.execute("""
+        await self._execute("""
             MATCH (n:CognitiveNode {id: $id}) DELETE n
         """, {"id": node_id})
 
@@ -2066,11 +2153,21 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.schema_ref AS schema_ref, n.superseded_by AS superseded_by,
                    n.proof_count AS proof_count,
                    n.valid_from AS valid_from, n.valid_to AS valid_to,
-                   n.recorded_at AS recorded_at, n.tags AS tags
+                   n.recorded_at AS recorded_at, n.tags AS tags,
+                   n.confirmation_count AS confirmation_count,
+                   n.strength AS strength,
+                   n.entity_name AS entity_name, n.entity_type AS entity_type,
+                   n.version AS version, n.last_confirmed_at AS last_confirmed_at,
+                   n.consolidation_reasoning AS consolidation_reasoning,
+                   n.compiled_at AS compiled_at, n.model_domain AS model_domain,
+                   n.source_trust_tier AS source_trust_tier, n.scope AS scope,
+                   n.source_pipeline AS source_pipeline,
+                   n.source_content_hash AS source_content_hash,
+                   n.attributes AS attributes
             ORDER BY n.created_at DESC
             LIMIT {limit}
         """
-        result = self._conn.execute(cypher, params)
+        result = await self._execute(cypher, params)
         df = result.get_as_df()
         if df.empty:
             return []
@@ -2130,10 +2227,86 @@ class KuzuGraphStore(GraphStoreBackend):
                 "valid_to": _safe(row["valid_to"]),
                 "recorded_at": _safe(row["recorded_at"]),
                 "tags": _json.loads(_safe(row["tags"], "[]")),
-                "confirmation_count": _safe(row.get("confirmation_count"), 0),
+                "confirmation_count": _safe(row["confirmation_count"], 0),
+                "strength": _safe(row["strength"], 1.0),
+                "entity_name": _safe(row["entity_name"]),
+                "entity_type": _safe(row["entity_type"]),
+                "version": _safe(row["version"], 1),
+                "last_confirmed_at": _safe(row["last_confirmed_at"]),
+                "consolidation_reasoning": _safe(row["consolidation_reasoning"]),
+                "compiled_at": _safe(row["compiled_at"]),
+                "model_domain": _safe(row["model_domain"]),
+                "source_trust_tier": _safe(row["source_trust_tier"]),
+                "scope": _safe(row["scope"]),
+                "source_pipeline": _safe(row["source_pipeline"]),
+                "source_content_hash": _safe(row["source_content_hash"]),
+                "attributes": _parse(row["attributes"]) or {},
             }
             for _, row in df.iterrows()
         ]
+
+    async def update_cognitive_node_with_occ(
+        self,
+        node_id: str,
+        expected_version: int,
+        updates: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        self._ensure_initialized()
+        import json
+
+        set_clauses = ["n.version = n.version + 1"]
+        params: dict[str, Any] = {"id": node_id, "expected_version": expected_version}
+
+        field_mappings = {
+            "content": "n.content = $content",
+            "strength": "n.strength = $strength",
+            "feedback_weight": "n.feedback_weight = $feedback_weight",
+            "belief_status": "n.belief_status = $belief_status",
+            "attributes": "n.attributes = $attributes",
+            "memory_type": "n.memory_type = $memory_type",
+            "entity_name": "n.entity_name = $entity_name",
+            "entity_type": "n.entity_type = $entity_type",
+            "model_domain": "n.model_domain = $model_domain",
+            "scope": "n.scope = $scope",
+            "source_trust_tier": "n.source_trust_tier = $source_trust_tier",
+            "last_confirmed_at": "n.last_confirmed_at = $last_confirmed_at",
+            "consolidation_reasoning": "n.consolidation_reasoning = $consolidation_reasoning",
+            "valid_to": "n.valid_to = $valid_to",
+            "superseded_by": "n.superseded_by = $superseded_by",
+            "confidence": "n.confidence = $confidence",
+            "schema_ref": "n.schema_ref = $schema_ref",
+            "extraction_hint": "n.extraction_hint = $extraction_hint",
+            "source_fragment_ids": "n.source_fragment_ids = $source_fragment_ids",
+            "tags": "n.tags = $tags",
+            "proof_count": "n.proof_count = $proof_count",
+            "confirmation_count": "n.confirmation_count = $confirmation_count",
+        }
+
+        for field_name, cypher_set in field_mappings.items():
+            if field_name in updates:
+                val = updates[field_name]
+                if field_name in ("source_fragment_ids", "tags", "attributes"):
+                    val = json.dumps(val) if not isinstance(val, str) else val
+                params[field_name] = val
+                set_clauses.append(cypher_set)
+
+        set_str = ", ".join(set_clauses)
+
+        cypher = f"""
+            MATCH (n:CognitiveNode {{id: $id}})
+            WHERE n.version = $expected_version
+            SET {set_str}
+            RETURN n.version AS new_version
+        """
+
+        try:
+            result = await self._execute(cypher, params)
+            df = result.get_as_df()
+            if df.empty:
+                return None
+            return await self.get_cognitive_node(node_id)
+        except Exception:
+            return None
 
     async def update_cognitive_node_history(
         self,
@@ -2142,30 +2315,30 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> None:
         """Append a history entry to a CognitiveNode.
 
-        Args:
-            node_id: Unique identifier for the cognitive node.
-            history_entry: History entry to append.
+        Uses _execute_lock to protect the read-modify-write sequence,
+        preventing lost updates when concurrent coroutines append history.
         """
         self._ensure_initialized()
         import json
 
-        current = self._conn.execute("""
-            MATCH (n:CognitiveNode {id: $id})
-            RETURN n.history AS history
-        """, {"id": node_id})
+        async with self._execute_lock:
+            current = self._conn.execute("""
+                MATCH (n:CognitiveNode {id: $id})
+                RETURN n.history AS history
+            """, {"id": node_id})
 
-        df = current.get_as_df()
-        if df.empty:
-            return
+            df = current.get_as_df()
+            if df.empty:
+                return
 
-        history_str = df.iloc[0]["history"]
-        history = json.loads(history_str) if history_str else []
-        history.append(history_entry)
+            history_str = df.iloc[0]["history"]
+            history = json.loads(history_str) if history_str else []
+            history.append(history_entry)
 
-        self._conn.execute("""
-            MATCH (n:CognitiveNode {id: $id})
-            SET n.history = $history
-        """, {"id": node_id, "history": json.dumps(history)})
+            self._conn.execute("""
+                MATCH (n:CognitiveNode {id: $id})
+                SET n.history = $history
+            """, {"id": node_id, "history": json.dumps(history)})
 
     async def update_cognitive_node_belief(
         self,
@@ -2175,10 +2348,8 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> None:
         """Update the belief status of a CognitiveNode.
 
-        Args:
-            node_id: Unique identifier for the cognitive node.
-            new_belief: New belief status.
-            reason: Optional reason for the belief change.
+        Uses _execute_lock to protect the read-modify-write sequence,
+        preventing lost updates when concurrent coroutines change belief.
         """
         self._ensure_initialized()
         import json
@@ -2194,31 +2365,32 @@ class KuzuGraphStore(GraphStoreBackend):
             "timestamp": now,
         }
 
-        current = self._conn.execute("""
-            MATCH (n:CognitiveNode {id: $id})
-            RETURN n.belief_status AS belief_status, n.history AS history
-        """, {"id": node_id})
+        async with self._execute_lock:
+            current = self._conn.execute("""
+                MATCH (n:CognitiveNode {id: $id})
+                RETURN n.belief_status AS belief_status, n.history AS history
+            """, {"id": node_id})
 
-        df = current.get_as_df()
-        if not df.empty:
-            history_entry["old_belief"] = df.iloc[0]["belief_status"]
-            history_str = df.iloc[0]["history"]
-            history = json.loads(history_str) if history_str else []
-            history.append(history_entry)
-        else:
-            history = [history_entry]
+            df = current.get_as_df()
+            if not df.empty:
+                history_entry["old_belief"] = df.iloc[0]["belief_status"]
+                history_str = df.iloc[0]["history"]
+                history = json.loads(history_str) if history_str else []
+                history.append(history_entry)
+            else:
+                history = [history_entry]
 
-        self._conn.execute("""
-            MATCH (n:CognitiveNode {id: $id})
-            SET n.belief_status = $new_belief,
-                n.history = $history,
-                n.updated_at = $updated_at
-        """, {
-            "id": node_id,
-            "new_belief": new_belief,
-            "history": json.dumps(history),
-            "updated_at": now,
-        })
+            self._conn.execute("""
+                MATCH (n:CognitiveNode {id: $id})
+                SET n.belief_status = $new_belief,
+                    n.history = $history,
+                    n.updated_at = $updated_at
+            """, {
+                "id": node_id,
+                "new_belief": new_belief,
+                "history": json.dumps(history),
+                "updated_at": now,
+            })
 
     # --- Agent Memory: DispositionProfile Management ---
 
@@ -2267,7 +2439,7 @@ class KuzuGraphStore(GraphStoreBackend):
             "space_id": space_id,
         }
 
-        self._conn.execute("""
+        await self._execute("""
             MERGE (n:DispositionProfileNode {id: $id})
             SET n.scene = $scene,
                 n.skepticism = $skepticism,
@@ -2328,7 +2500,7 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.domain_id AS domain_id, n.space_id AS space_id
             LIMIT 1
         """
-        result = self._conn.execute(cypher, params)
+        result = await self._execute(cypher, params)
         df = result.get_as_df()
         if df.empty:
             return None
@@ -2349,40 +2521,20 @@ class KuzuGraphStore(GraphStoreBackend):
         }
 
     async def compute_dynamic_weights(self, profile: dict[str, Any]) -> dict[str, float]:
-        """Compute dynamic type weights based on a DispositionProfile.
-
-        Args:
-            profile: DispositionProfile dictionary.
-
-        Returns:
-            Dictionary of memory_type -> weight.
-        """
-        skepticism = profile.get("skepticism", 0.5)
-        empathy = profile.get("empathy", 0.5)
-        risk_tolerance = profile.get("risk_tolerance", 0.5)
-
-        base_weights = {
-            "mental_model": 3.0,
-            "opinion": 2.5,
-            "entity": 2.0,
-            "rule": 2.0,
-            "observation": 1.5,
-            "procedure": 1.8,
-            "episode": 1.2,
-            "fragment": 1.0,
-        }
-
+        from ontology_engine.engine.cognitive.models import DispositionProfile, apply_dynamic_weight
+        from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
+        disposition = DispositionProfile(
+            id=profile.get("id", "computed"),
+            scene=profile.get("scene", "default"),
+            skepticism=profile.get("skepticism", 0.5),
+            evidence_demand=profile.get("evidence_demand", 0.5),
+            abstraction_preference=profile.get("abstraction_preference", 0.5),
+            thoroughness=profile.get("thoroughness", 0.5),
+            recency_bias=profile.get("recency_bias", 0.5),
+            empathy=profile.get("empathy", 0.5),
+            risk_tolerance=profile.get("risk_tolerance", 0.5),
+        )
         adjusted = {}
-        for memory_type, base_weight in base_weights.items():
-            if memory_type in ("mental_model", "entity"):
-                adjusted[memory_type] = base_weight * (1.0 + skepticism * 0.2)
-            elif memory_type in ("opinion", "episode"):
-                adjusted[memory_type] = base_weight * (1.0 - skepticism * 0.3)
-            elif memory_type == "observation":
-                adjusted[memory_type] = base_weight * (1.0 + empathy * 0.15)
-            elif memory_type == "procedure":
-                adjusted[memory_type] = base_weight * (1.0 + risk_tolerance * 0.1)
-            else:
-                adjusted[memory_type] = base_weight
-
+        for memory_type, base_weight in BASE_TYPE_WEIGHTS.items():
+            adjusted[memory_type] = apply_dynamic_weight(base_weight, memory_type, disposition)
         return adjusted

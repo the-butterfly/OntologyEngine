@@ -15,7 +15,7 @@ HISTORY_MAX_ENTRIES = 20
 BELIEF_TRANSITIONS = {
     "accepted": {"contradicted", "superseded", "pending_review", "rejected"},
     "contradicted": {"accepted", "pending_review", "rejected"},
-    "superseded": {"accepted", "rejected"},
+    "superseded": {"accepted", "rejected", "pending_review"},
     "pending_review": {"accepted", "contradicted", "superseded", "rejected"},
     "rejected": {"accepted", "pending_review"},
 }
@@ -80,6 +80,18 @@ class CognitiveNode:
     tags: list[str] = field(default_factory=list)
     attributes: dict[str, str] = field(default_factory=dict)
     confirmation_count: int = 0
+    strength: float = 1.0
+    entity_name: str | None = None
+    entity_type: str | None = None
+    version: int = 1
+    last_confirmed_at: str | None = None
+    consolidation_reasoning: str | None = None
+    compiled_at: str | None = None
+    model_domain: str | None = None
+    source_trust_tier: str | None = None
+    scope: str | None = None
+    source_pipeline: str | None = None
+    source_content_hash: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CognitiveNode":
@@ -120,12 +132,39 @@ class CognitiveNode:
             "tags": self.tags,
             "attributes": self.attributes,
             "confirmation_count": self.confirmation_count,
+            "strength": self.strength,
+            "entity_name": self.entity_name,
+            "entity_type": self.entity_type,
+            "version": self.version,
+            "last_confirmed_at": self.last_confirmed_at,
+            "consolidation_reasoning": self.consolidation_reasoning,
+            "compiled_at": self.compiled_at,
+            "model_domain": self.model_domain,
+            "source_trust_tier": self.source_trust_tier,
+            "scope": self.scope,
+            "source_pipeline": self.source_pipeline,
+            "source_content_hash": self.source_content_hash,
         }
 
     def can_transition_to(self, new_status: str) -> bool:
         """Check if a belief status transition is valid."""
         allowed = BELIEF_TRANSITIONS.get(self.belief_status, set())
         return new_status in allowed
+
+
+VALID_MODEL_DOMAINS = {"world", "task", "self"}
+VALID_TRUST_TIERS = {"high", "normal", "low"}
+
+
+def validate_node_fields(node: CognitiveNode) -> None:
+    if node.model_domain is not None and node.model_domain not in VALID_MODEL_DOMAINS:
+        raise ValueError(f"Invalid model_domain: {node.model_domain}, must be one of {VALID_MODEL_DOMAINS}")
+    if node.source_trust_tier is not None and node.source_trust_tier not in VALID_TRUST_TIERS:
+        raise ValueError(f"Invalid source_trust_tier: {node.source_trust_tier}, must be one of {VALID_TRUST_TIERS}")
+    if node.strength < 0 or node.strength > 1.0:
+        raise ValueError(f"strength must be in [0, 1.0], got {node.strength}")
+    if node.version < 1:
+        raise ValueError(f"version must be >= 1, got {node.version}")
 
 
 @dataclass
@@ -229,32 +268,57 @@ class DispositionProfile:
         return self
 
 
-def apply_dynamic_weight(rrf_score: float, memory_type: str, disposition: DispositionProfile) -> float:
-    """Apply dynamic weights driven by DispositionProfile (memory-hierarchy.md §4.2).
+def apply_dynamic_weight(rrf_score: float, memory_type: str, disposition: DispositionProfile, node_strength: float = 1.0) -> float:
+    weight = 1.0
 
-    Args:
-        rrf_score: Raw RRF fusion score.
-        memory_type: Memory type of the result.
-        disposition: DispositionProfile instance.
+    val = disposition.abstraction_preference
+    if val > 0.7:
+        if memory_type in ("mental_model", "opinion"):
+            weight *= 1.0 + (val - 0.5)
+        elif memory_type == "fragment":
+            weight *= 0.5 + (1.0 - val)
 
-    Returns:
-        Adjusted score.
-    """
-    from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
-    base = BASE_TYPE_WEIGHTS.get(memory_type, 1.0)
+    val = disposition.thoroughness
+    if val > 0.7 and memory_type in ("fragment", "observation"):
+        weight *= 1.0 + (val - 0.5) * 0.5
 
-    layer_boost = {}
-    if disposition.abstraction_preference > 0.7:
-        layer_boost = {"mental_model": 1.5, "opinion": 1.3, "observation": 0.8, "fragment": 0.5}
-    elif disposition.abstraction_preference < 0.3:
-        layer_boost = {"mental_model": 0.7, "opinion": 0.8, "observation": 1.2, "fragment": 1.5}
+    val = disposition.evidence_demand
+    if val > 0.7:
+        if memory_type in ("entity", "rule"):
+            weight *= 1.0 + (val - 0.5) * 0.3
+        elif memory_type == "fragment":
+            weight *= 0.7
 
-    thoroughness_boost = {}
-    if disposition.thoroughness > 0.7:
-        thoroughness_boost = {"fragment": 1.2, "observation": 1.1}
+    if disposition.skepticism > 0.7:
+        if memory_type == "mental_model":
+            weight *= 0.7
+        elif memory_type == "entity":
+            weight *= 1.2
 
-    dynamic = base * layer_boost.get(memory_type, 1.0) * thoroughness_boost.get(memory_type, 1.0)
-    return rrf_score * dynamic
+    val = disposition.empathy
+    if val > 0.7:
+        if memory_type == "observation":
+            weight *= 1.0 + (val - 0.5) * 0.3
+        elif memory_type == "self_experience":
+            weight *= 1.0 + (val - 0.5) * 0.2
+
+    if disposition.risk_tolerance < 0.3:
+        if memory_type in ("mental_model", "opinion"):
+            weight *= 0.8
+
+    if node_strength < 0.5:
+        weight *= node_strength
+
+    return rrf_score * weight
+
+
+def compute_temporal_weight(recency_bias: float) -> float:
+    if recency_bias > 0.7:
+        return 0.3 + (recency_bias - 0.7) * 1.0
+    elif recency_bias < 0.3:
+        return 0.1
+    else:
+        return 0.3
 
 
 class MemoryHeat:

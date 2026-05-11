@@ -15,6 +15,7 @@ LLM Configuration:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -172,6 +173,17 @@ async def create_memory_api(
     dream = DreamCycle(repository=repo, forgetting_engine=forgetting)
     correction = CorrectionPropagation(repository=repo)
 
+    from ontology_engine.engine.cognitive.ingestion_service import CognitiveIngestionService, CognitiveExtractionPipeline
+    pipeline = CognitiveExtractionPipeline(repository=repo, llm_call=llm_call_fn)
+    ingestion = CognitiveIngestionService(
+        repository=repo,
+        extraction_pipeline=pipeline,
+        vector_index=vector_index,
+    )
+
+    from ontology_engine.engine.cognitive.query_understanding_layer import QueryUnderstandingLayer
+    qul = QueryUnderstandingLayer(repository=repo, llm_call=llm_call_fn)
+
     return MemoryAPI(
         repository=repo,
         consolidation_engine=consolidation,
@@ -182,6 +194,8 @@ async def create_memory_api(
         dream_cycle=dream,
         correction_propagation=correction,
         vector_index=vector_index,
+        ingestion_service=ingestion,
+        qul=qul,
     )
 
 
@@ -189,26 +203,32 @@ class MemoryAPISingleton:
     """Application-level singleton for MemoryAPI.
 
     Creates the MemoryAPI once on first access and reuses it.
-    Not thread-safe — suitable for single-worker ASGI apps.
+    Thread-safe via asyncio.Lock — suitable for multi-coroutine ASGI apps.
+    For multi-worker deployments (gunicorn -w N), each worker gets its own
+    process and thus its own singleton instance; KuzuDB file locking is
+    handled by the KuzuGraphStore-level lock (R2).
     """
 
     _instance: MemoryAPI | None = None
     _db_path: str | None = None
     _store: KuzuGraphStore | None = None
+    _lock: asyncio.Lock = asyncio.Lock()
 
     @classmethod
     async def get_or_create(cls, db_path: str | None = None) -> MemoryAPI:
-        if cls._instance is None or cls._db_path != db_path:
-            if cls._store is not None:
-                await cls._store.close()
-            cls._instance = await create_memory_api(db_path)
-            cls._db_path = db_path
-        return cls._instance
+        async with cls._lock:
+            if cls._instance is None or cls._db_path != db_path:
+                if cls._store is not None:
+                    await cls._store.close()
+                cls._instance = await create_memory_api(db_path)
+                cls._db_path = db_path
+            return cls._instance
 
     @classmethod
     async def close(cls) -> None:
-        if cls._store is not None:
-            await cls._store.close()
-            cls._store = None
-        cls._instance = None
-        cls._db_path = None
+        async with cls._lock:
+            if cls._store is not None:
+                await cls._store.close()
+                cls._store = None
+            cls._instance = None
+            cls._db_path = None

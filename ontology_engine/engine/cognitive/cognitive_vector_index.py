@@ -356,31 +356,27 @@ class CognitiveVectorIndex:
         enriched = _enrich_content(content, memory_type, tags)
         vector = await self._compute_embedding(enriched)
 
-        if vector is not None:
-            meta = {
-                "space_id": space_id,
-                "memory_type": memory_type,
-                "model_signature": self._config.model_signature,
-            }
-            if self._use_chroma and self._chroma_collection is not None:
-                try:
-                    await asyncio.to_thread(
-                        self._chroma_collection.upsert,
-                        ids=[node_id],
-                        embeddings=[vector],
-                        metadatas=[meta],
-                    )
-                except Exception as e:
-                    logger.warning("Failed to store embedding in ChromaDB for %s: %s", node_id, e)
-            elif self._vector_store is not None:
-                try:
-                    await self._vector_store.add_vectors(
-                        ids=[node_id],
-                        vectors=[vector],
-                        metadata=[meta],
-                    )
-                except Exception as e:
-                    logger.warning("Failed to store embedding for %s: %s", node_id, e)
+        if vector is None:
+            raise RuntimeError(f"Embedding computation failed for node {node_id}")
+
+        meta = {
+            "space_id": space_id,
+            "memory_type": memory_type,
+            "model_signature": self._config.model_signature,
+        }
+        if self._use_chroma and self._chroma_collection is not None:
+            await asyncio.to_thread(
+                self._chroma_collection.upsert,
+                ids=[node_id],
+                embeddings=[vector],
+                metadatas=[meta],
+            )
+        elif self._vector_store is not None:
+            await self._vector_store.add_vectors(
+                ids=[node_id],
+                vectors=[vector],
+                metadata=[meta],
+            )
 
         tokens = _simple_tokenize(enriched)
         for token in set(tokens):

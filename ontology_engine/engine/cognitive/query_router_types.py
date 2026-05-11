@@ -161,11 +161,20 @@ PARAM_PRESETS = {
 DEGRADATION_CHAINS = {
     "factual": ["layer_r", "bm25", "layer_s"],
     "multi_hop": ["layer_s", "bundle", "layer_r"],
-    "temporal": ["layer_s_temporal", "widen_window", "layer_r"],
-    "analytical": ["rule_engine", "layer_s", "layer_r"],
-    "mixed": ["collaborative", "best_single"],
+    "temporal": ["temporal", "layer_s", "layer_r"],
+    "analytical": ["layer_s_broad", "bm25", "layer_r"],
+    "mixed": ["layer_r", "layer_s", "bm25"],
     "user_preference": ["layer_s", "layer_r", "bm25"],
     "decision": ["layer_s", "bundle", "layer_r"],
+}
+
+DEGRADATION_PATHS = {
+    "layer_r": "_search_layer_r",
+    "layer_s": "_search_layer_s",
+    "layer_s_broad": "_search_layer_s_broad",
+    "bm25": "_search_bm25_fts5",
+    "bundle": "_search_bundle",
+    "temporal": "_search_temporal",
 }
 
 MIN_RESULTS_THRESHOLD = 3

@@ -93,7 +93,7 @@ class ReflectAgent:
         type_priority = focus_types or FORCED_SEARCH_SEQUENCE
         last_error: str | None = None
 
-        rule_contradictions = await self._detect_rule_based_contradictions(query, space_id, disposition=disposition)
+        rule_contradictions = await self._detect_rule_based_contradictions(query, space_id)
 
         for retry in range(MAX_HALLUCINATION_RETRIES + 1):
             try:
@@ -179,6 +179,7 @@ class ReflectAgent:
         all_results: list[RetrievalResult] = []
         all_insights: list[Insight] = []
         all_contradictions: list[ContradictionReport] = []
+        total_tokens = 0
 
         for iteration in range(min(max_iterations, MAX_ITERATIONS)):
             if iteration < len(type_priority):
@@ -194,7 +195,7 @@ class ReflectAgent:
             contradictions = self._detect_contradictions(results)
             all_contradictions.extend(contradictions)
 
-            if len(all_results) > 0 and iteration >= len(type_priority) - 1:
+            if len(all_results) > 0 and iteration >= len(type_priority):
                 insights = self._generate_insights(query, all_results, disposition)
                 all_insights.extend(insights)
 
@@ -202,14 +203,137 @@ class ReflectAgent:
                 logger.info("Context overflow at iteration %d, forcing final answer", iteration)
                 break
 
+        if self._llm_call and all_results:
+            try:
+                llm_insights, llm_contradictions, llm_tokens = await self._run_llm_reflection(
+                    query, space_id, all_results, available_ids, disposition, last_error,
+                )
+                total_tokens += llm_tokens
+                all_insights.extend(llm_insights)
+                all_contradictions.extend(llm_contradictions)
+            except Exception as e:
+                logger.warning("LLM reflection failed, using rule-only results: %s", e)
+
+        method = "hybrid" if (self._llm_call and all_insights) else "rule_only"
+
         result = ReflectResult(
             insights=all_insights,
             contradictions=all_contradictions,
             consolidation_requests=[space_id] if self._needs_consolidation(all_results) else [],
             forgetting_requests=self._identify_forgetting_candidates(all_results),
             mental_model_updates=self._propose_mental_model_updates(all_results),
+            method=method,
+            tokens_used=total_tokens,
         )
         return result, available_ids
+
+    async def _run_llm_reflection(
+        self,
+        query: str,
+        space_id: str,
+        all_results: list[RetrievalResult],
+        available_ids: set[str],
+        disposition: "DispositionProfile | None",
+        last_error: str | None,
+    ) -> tuple[list[Insight], list[ContradictionReport], int]:
+        """Run LLM-based reflection on collected results.
+
+        Returns:
+            Tuple of (insights, contradictions, tokens_used).
+        """
+        import json
+
+        system_prompt = self.build_system_prompt(query, space_id, disposition)
+
+        context_lines = []
+        for r in all_results[:20]:
+            context_lines.append(
+                f"[{r.doc_id}] ({r.memory_type}/{r.cognitive_layer}) {r.content[:200]}"
+            )
+        context_text = "\n".join(context_lines)
+
+        user_prompt = f"""Analyze the following memories for insights and contradictions.
+
+Query: {query}
+Space: {space_id}
+
+Available memories:
+{context_text}
+
+Respond in JSON format:
+{{
+  "insights": [
+    {{"text": "...", "confidence": 0.0-1.0, "evidence_ids": ["id1", "id2"], "suggested_memory_type": "observation"}}
+  ],
+  "contradictions": [
+    {{"node_ids": ["id1", "id2"], "contradiction_type": "...", "contradiction_field": "...", "old_value": "...", "new_value": "...", "suggested_resolution": "..."}}
+  ]
+}}
+
+Rules:
+- Every insight MUST include evidence_ids from the listed memories
+- Every contradiction MUST include a suggested_resolution
+- Only reference IDs that appear in the Available memories section
+- Do NOT create new memories or modify existing ones"""
+
+        if last_error:
+            user_prompt += f"\n\nWARNING: {last_error}"
+
+        try:
+            response = await self._llm_call(user_prompt, system=system_prompt)
+            tokens_used = len(user_prompt) // 4 + len(response) // 4
+        except Exception as e:
+            logger.warning("LLM call failed: %s", e)
+            return [], [], 0
+
+        try:
+            json_str = response.strip()
+            if json_str.startswith("```"):
+                json_str = json_str.split("\n", 1)[-1]
+            if json_str.endswith("```"):
+                json_str = json_str.rsplit("```", 1)[0]
+            parsed = json.loads(json_str)
+        except json.JSONDecodeError:
+            logger.warning("LLM response is not valid JSON, attempting partial parse")
+            try:
+                start = response.find("{")
+                end = response.rfind("}") + 1
+                if start >= 0 and end > start:
+                    parsed = json.loads(response[start:end])
+                else:
+                    return [], [], tokens_used
+            except json.JSONDecodeError:
+                return [], [], tokens_used
+
+        insights: list[Insight] = []
+        for i_data in parsed.get("insights", []):
+            evidence_ids = i_data.get("evidence_ids", [])
+            valid_ids = [eid for eid in evidence_ids if eid in available_ids]
+            if not valid_ids:
+                continue
+            insights.append(Insight(
+                text=i_data.get("text", ""),
+                confidence=float(i_data.get("confidence", 0.5)),
+                evidence_ids=valid_ids,
+                suggested_memory_type=i_data.get("suggested_memory_type", "observation"),
+            ))
+
+        contradictions: list[ContradictionReport] = []
+        for c_data in parsed.get("contradictions", []):
+            node_ids = c_data.get("node_ids", [])
+            valid_node_ids = [nid for nid in node_ids if nid in available_ids]
+            if len(valid_node_ids) < 2:
+                continue
+            contradictions.append(ContradictionReport(
+                node_ids=valid_node_ids,
+                contradiction_type=c_data.get("contradiction_type", "value_conflict"),
+                contradiction_field=c_data.get("contradiction_field", ""),
+                old_value=c_data.get("old_value", ""),
+                new_value=c_data.get("new_value", ""),
+                suggested_resolution=c_data.get("suggested_resolution", ""),
+            ))
+
+        return insights, contradictions, tokens_used
 
     async def _search_by_type(
         self,
@@ -372,7 +496,7 @@ class ReflectAgent:
         self,
         query: str,
         space_id: str,
-        disposition: "DispositionProfile | None" = None,
+        disposition: Any | None = None,
     ) -> list["ContradictionReport"]:
         """Detect contradictions using rule-based heuristics (no LLM required).
 
@@ -381,84 +505,56 @@ class ReflectAgent:
         2. Numeric conflicts: same entity with conflicting numeric values
         3. Negation conflicts: "X is A" vs "X is not A"
         4. Mutually exclusive values: same subject+field with different values
-
-        DispositionProfile.skepticism:
-        - skepticism >= 0.7: detect all contradictions (aggressive mode)
-        - skepticism <= 0.3: skip detection entirely (conservative mode)
-        - 0.3 < skepticism < 0.7: normal detection (default)
         """
-        import re
         from ontology_engine.engine.cognitive.reflect_types import ContradictionReport
 
         contradictions: list[ContradictionReport] = []
 
-        if disposition is not None and disposition.skepticism <= 0.3:
-            return contradictions
+        skepticism_threshold = 0.3
+        if disposition and hasattr(disposition, "skepticism"):
+            skepticism_threshold = disposition.skepticism
 
         try:
             nodes = await self._repo.query_nodes(domain_id=space_id, limit=500)
         except Exception:
             return contradictions
 
-        active_nodes = [n for n in nodes if n.belief_status not in ("superseded", "rejected")]
-        if len(active_nodes) < 2:
-            return contradictions
-
-        checked_pairs: set[tuple[str, str]] = set()
-
-        def _check_pair(a, b):
-            pair_key = tuple(sorted([a.id, b.id]))
-            if pair_key in checked_pairs:
-                return
-            checked_pairs.add(pair_key)
-
-            if self._has_negation_conflict(a.content, b.content):
-                contradictions.append(ContradictionReport(
-                    contradiction_type="negation_conflict",
-                    node_ids=[a.id, b.id],
-                    old_value=a.content[:80],
-                    new_value=b.content[:80],
-                ))
-                return
-
-            if a.memory_type == b.memory_type and a.memory_type in ("observation", "rule", "entity", "opinion"):
-                conflict = self._has_mutually_exclusive_values(a.content, b.content)
-                if conflict:
-                    contradictions.append(ContradictionReport(
-                        contradiction_type="value_conflict",
-                        node_ids=[a.id, b.id],
-                        contradiction_field=conflict,
-                        old_value=a.content[:80],
-                        new_value=b.content[:80],
-                        suggested_resolution="Review both memories and determine which is current",
-                    ))
-
         tag_groups: dict[str, list] = {}
-        for n in active_nodes:
+        for n in nodes:
             for tag in n.tags:
                 tag_groups.setdefault(tag, []).append(n)
 
         for tag, group in tag_groups.items():
             if len(group) < 2:
                 continue
+
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
-                    _check_pair(group[i], group[j])
+                    a, b = group[i], group[j]
+                    if a.belief_status in ("superseded", "rejected") or b.belief_status in ("superseded", "rejected"):
+                        continue
 
-        entity_groups: dict[str, list] = {}
-        entity_pattern = re.compile(r"^[\u4e00-\u9fff]{2,6}(?:科技|集团|公司|股份|有限)")
-        for n in active_nodes:
-            match = entity_pattern.search(n.content)
-            if match:
-                entity_name = match.group()
-                entity_groups.setdefault(entity_name, []).append(n)
+                    if self._has_negation_conflict(a.content, b.content):
+                        if skepticism_threshold > 0.3:
+                            contradictions.append(ContradictionReport(
+                                contradiction_type="negation_conflict",
+                                node_ids=[a.id, b.id],
+                                old_value=a.content[:80],
+                                new_value=b.content[:80],
+                            ))
+                        continue
 
-        for entity_name, group in entity_groups.items():
-            if len(group) < 2:
-                continue
-            for i in range(len(group)):
-                for j in range(i + 1, len(group)):
-                    _check_pair(group[i], group[j])
+                    if a.memory_type == b.memory_type and a.memory_type in ("observation", "rule", "entity"):
+                        conflict = self._has_mutually_exclusive_values(a.content, b.content)
+                        if conflict:
+                            contradictions.append(ContradictionReport(
+                                contradiction_type="value_conflict",
+                                node_ids=[a.id, b.id],
+                                contradiction_field=conflict,
+                                old_value=a.content[:80],
+                                new_value=b.content[:80],
+                                suggested_resolution="Review both memories and determine which is current",
+                            ))
 
         return contradictions
 
@@ -468,25 +564,24 @@ class ReflectAgent:
         import re
 
         negation_patterns = [
-            (r"不是\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"不使用\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"使用\s*\1"),
-            (r"不再\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"没有\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"有\s*\1"),
-            (r"并非\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"不\s*是\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1"),
-            (r"不\s*([\u4e00-\u9fff]{1,4})\s*(.{1,50}?)(?:，|,|。|；|;|$)", r"\1\s*\2"),
+            (r"不是\s*(.+)", r"\1"),
+            (r"不使用\s*(.+)", r"使用\s*\1"),
+            (r"不采用\s*(.+)", r"采用\s*\1"),
+            (r"不再\s*(.+)", r"\1"),
+            (r"没有\s*(.+)", r"有\s*\1"),
+            (r"并非\s*(.+)", r"\1"),
         ]
 
         for neg_pat, affirm_pat in negation_patterns:
             neg_match = re.search(neg_pat, text_a)
             if neg_match:
-                core = neg_match.group(1).strip()
-                if core and (core in text_b or re.search(affirm_pat.replace(r"\1", re.escape(core)), text_b)):
+                core = neg_match.group(1)
+                if core in text_b or re.search(affirm_pat.replace(r"\1", re.escape(core)), text_b):
                     return True
             neg_match = re.search(neg_pat, text_b)
             if neg_match:
-                core = neg_match.group(1).strip()
-                if core and (core in text_a or re.search(affirm_pat.replace(r"\1", re.escape(core)), text_a)):
+                core = neg_match.group(1)
+                if core in text_a or re.search(affirm_pat.replace(r"\1", re.escape(core)), text_a):
                     return True
 
         return False
@@ -497,8 +592,6 @@ class ReflectAgent:
 
         Detects patterns like "X使用A" vs "X使用B" where A and B are
         mutually exclusive alternatives for the same field.
-        Also detects numeric conflicts like "35%" vs "65%" and
-        rating conflicts like "A级" vs "C级".
 
         Returns:
             The conflicting field name if found, None otherwise.
@@ -518,6 +611,7 @@ class ReflectAgent:
             (r"(.+?)版本[是为](.+)", "版本"),
             (r"(.+?)位于(.+)", "位置"),
             (r"(.+?)总部[在于](.+)", "位置"),
+            (r"(.+?员工数|人数|规模|数量|总额|收入|利润)(\d+.*?)[人万元亿]?", "数值"),
         ]
 
         for pat_a, field in value_patterns:
@@ -543,41 +637,6 @@ class ReflectAgent:
                 )
                 if subject_overlap and value_a != value_b:
                     return field
-
-        rating_pattern = re.compile(r"风险等级\s*([A-Da-d级])")
-        ratings_a = rating_pattern.findall(text_a)
-        ratings_b = rating_pattern.findall(text_b)
-        if ratings_a and ratings_b and ratings_a[0] != ratings_b[0]:
-            return "风险等级"
-
-        numeric_pattern = re.compile(r"(\d+(?:\.\d+)?)\s*[%％万元人个只台辆次件]")
-        nums_a = numeric_pattern.findall(text_a)
-        nums_b = numeric_pattern.findall(text_b)
-        if nums_a and nums_b:
-            for na in nums_a:
-                for nb in nums_b:
-                    try:
-                        diff = abs(float(na) - float(nb))
-                        if diff > 20:
-                            return "数值冲突"
-                    except ValueError:
-                        pass
-
-        entity_numeric = re.compile(
-            r"([\u4e00-\u9fff]{2,8}(?:科技|集团|公司|股份|有限)?)"
-            r"\s*(.{2,6}?)\s*(\d+(?:\.\d+)?)\s*(.{0,4})"
-        )
-        match_a = entity_numeric.search(text_a)
-        match_b = entity_numeric.search(text_b)
-        if match_a and match_b:
-            entity_a, field_a, num_a, _ = match_a.groups()
-            entity_b, field_b, num_b, _ = match_b.groups()
-            if entity_a == entity_b and field_a == field_b:
-                try:
-                    if abs(float(num_a) - float(num_b)) > 0:
-                        return f"{field_a}数值冲突"
-                except ValueError:
-                    pass
 
         return None
 

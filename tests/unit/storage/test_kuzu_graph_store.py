@@ -512,44 +512,49 @@ class TestDispositionProfile:
 
     @pytest.mark.asyncio
     async def test_compute_dynamic_weights_default(self, store):
-        """Test compute_dynamic_weights with default profile values."""
         profile = {
             "skepticism": 0.5,
+            "evidence_demand": 0.5,
+            "abstraction_preference": 0.5,
+            "thoroughness": 0.5,
+            "recency_bias": 0.5,
             "empathy": 0.5,
             "risk_tolerance": 0.5,
         }
 
         weights = await store.compute_dynamic_weights(profile)
 
-        assert weights["mental_model"] > 3.0
-        assert weights["opinion"] < 2.5
-        assert weights["entity"] > 2.0
-        assert weights["observation"] > 1.5
-        assert weights["procedure"] > 1.8
+        from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
+        for mt, base_w in BASE_TYPE_WEIGHTS.items():
+            if mt in weights:
+                assert abs(weights[mt] - base_w) < 0.01, f"{mt}: {weights[mt]} != {base_w}"
 
     @pytest.mark.asyncio
     async def test_compute_dynamic_weights_high_skepticism(self, store):
-        """Test compute_dynamic_weights with high skepticism."""
         profile = {
-            "skepticism": 0.9,
+            "skepticism": 0.8,
+            "evidence_demand": 0.5,
+            "abstraction_preference": 0.5,
+            "thoroughness": 0.5,
+            "recency_bias": 0.5,
             "empathy": 0.5,
             "risk_tolerance": 0.5,
         }
 
         weights = await store.compute_dynamic_weights(profile)
 
-        mental_model_weight = weights["mental_model"]
-        opinion_weight = weights["opinion"]
-
-        assert mental_model_weight > 3.0
-        assert opinion_weight < 2.5
+        assert weights["mental_model"] < 3.0
+        assert weights["entity"] > 2.0
 
     @pytest.mark.asyncio
     async def test_compute_dynamic_weights_high_empathy(self, store):
-        """Test compute_dynamic_weights with high empathy."""
         profile = {
             "skepticism": 0.5,
-            "empathy": 0.9,
+            "evidence_demand": 0.5,
+            "abstraction_preference": 0.5,
+            "thoroughness": 0.5,
+            "recency_bias": 0.5,
+            "empathy": 0.8,
             "risk_tolerance": 0.5,
         }
 
@@ -560,14 +565,17 @@ class TestDispositionProfile:
 
     @pytest.mark.asyncio
     async def test_compute_dynamic_weights_high_risk_tolerance(self, store):
-        """Test compute_dynamic_weights with high risk tolerance."""
         profile = {
             "skepticism": 0.5,
+            "evidence_demand": 0.5,
+            "abstraction_preference": 0.5,
+            "thoroughness": 0.5,
+            "recency_bias": 0.5,
             "empathy": 0.5,
-            "risk_tolerance": 0.9,
+            "risk_tolerance": 0.8,
         }
 
         weights = await store.compute_dynamic_weights(profile)
 
-        procedure_weight = weights["procedure"]
-        assert procedure_weight > 1.8
+        from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
+        assert weights["mental_model"] >= BASE_TYPE_WEIGHTS.get("mental_model", 3.0)

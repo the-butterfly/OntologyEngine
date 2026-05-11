@@ -99,6 +99,7 @@ class ReflectResult:
     short_circuited: bool = False
     iterations_used: int = 1
     tokens_used: int = 0
+    method: str = "rule_only"
 
 
 @dataclass

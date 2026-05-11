@@ -248,6 +248,7 @@ class ConsolidationEngine:
             tags=action.tags or [],
             proof_count=len(source_ids),
             confidence=action.confidence or 0.7,
+            consolidation_reasoning=f"Consolidated from {len(source_ids)} fragments via {action.memory_type} consolidation",
         )
 
         await self._repo.create_node(node)
@@ -270,6 +271,16 @@ class ConsolidationEngine:
                 await self._repo.update_node(frag_node, reason="consolidated")
             except Exception as e:
                 logger.debug("Failed to set consolidated_at on %s: %s", frag_id, e)
+
+            cog_edge = CognitiveEdge(
+                edge_type="COG_SUPPORTED_BY",
+                from_id=frag_id,
+                to_id=node_id,
+            )
+            try:
+                await self._repo.create_cognitive_edge(cog_edge)
+            except Exception as e:
+                logger.debug("COG_SUPPORTED_BY edge creation failed for %s→%s: %s", frag_id, node_id, e)
 
         logger.info("Created node %s from %d fragments", node_id, len(source_ids))
 
@@ -318,6 +329,7 @@ class ConsolidationEngine:
         existing.content = action.updated_text
         existing.source_fragment_ids = merged_source_ids
         existing.proof_count = getattr(existing, "proof_count", 0) + len(new_source_ids)
+        existing.consolidation_reasoning = f"Updated with {len(new_source_ids)} new fragments via consolidation"
         if action.confidence:
             existing.confidence = max(existing.confidence, action.confidence)
         if action.updated_tags:

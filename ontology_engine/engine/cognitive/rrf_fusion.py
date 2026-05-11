@@ -159,19 +159,13 @@ class RRFFusionEngine:
         bm25_search_fn: Any | None = None,
         vector_search_fn: Any | None = None,
         reranker_config: RerankerConfig | None = None,
+        fts5_manager: Any | None = None,
     ):
-        """Initialize RRFFusionEngine.
-
-        Args:
-            repository: CognitiveRepository for node operations.
-            bm25_search_fn: Optional async BM25 search function.
-            vector_search_fn: Optional async vector search function.
-            reranker_config: Optional reranker configuration.
-        """
         self._repo = repository
         self._bm25_search = bm25_search_fn
         self._vector_search = vector_search_fn
         self._reranker_config = reranker_config or RerankerConfig()
+        self._fts5_manager = fts5_manager
 
     async def fuse(
         self,
@@ -180,6 +174,7 @@ class RRFFusionEngine:
         space_id: str = "default",
         top_k: int = 10,
         disposition_weights: dict[str, float] | None = None,
+        strategy_adjustment: Any | None = None,
     ) -> list[RetrievalResult]:
         """Execute four-path retrieval and RRF fusion.
 
@@ -189,14 +184,27 @@ class RRFFusionEngine:
             space_id: Space to search within.
             top_k: Maximum number of results.
             disposition_weights: Optional disposition-adjusted type weights.
+            strategy_adjustment: Optional strategy adjustment from QUL.
 
         Returns:
             Fused and ranked retrieval results.
         """
         if query_type == "analytical":
-            return await self._search_analytical(query, space_id, top_k, disposition_weights)
+            results = await self._search_analytical(query, space_id, top_k, disposition_weights)
+            if strategy_adjustment and hasattr(strategy_adjustment, 'adjustments'):
+                analytical_weights = QUERY_TYPE_WEIGHTS.get("analytical", QUERY_TYPE_WEIGHTS["mixed"])
+                for adj in strategy_adjustment.adjustments:
+                    if adj.boost_weights:
+                        analytical_weights.update(adj.boost_weights)
+            results = self._filter_validity(results)
+            return results
 
         weights = QUERY_TYPE_WEIGHTS.get(query_type, QUERY_TYPE_WEIGHTS["mixed"])
+
+        if strategy_adjustment and hasattr(strategy_adjustment, 'adjustments'):
+            for adj in strategy_adjustment.adjustments:
+                if adj.boost_weights:
+                    weights.update(adj.boost_weights)
 
         layer_r_results = await self._search_layer_r(query, space_id, top_k)
         layer_s_results = await self._search_layer_s(query, space_id, top_k)
@@ -222,10 +230,34 @@ class RRFFusionEngine:
             _temporal_proximity_score(r),
         ), reverse=True)
 
+        fused = self._filter_validity(fused)
+
+        if strategy_adjustment and hasattr(strategy_adjustment, 'adjustments'):
+            for adj in strategy_adjustment.adjustments:
+                if adj.temporal_window_days is not None:
+                    from datetime import datetime, timezone, timedelta
+                    cutoff = (datetime.now(timezone.utc) - timedelta(days=adj.temporal_window_days)).isoformat()
+                    fused = [r for r in fused if not r.metadata.get("occurred_at") or r.metadata.get("occurred_at", "") >= cutoff]
+
         if self._reranker_config.enabled:
             fused = await self._rerank(query, fused)
 
         return fused[:top_k]
+
+    def _filter_validity(self, results: list[RetrievalResult]) -> list[RetrievalResult]:
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        filtered = []
+        for r in results:
+            meta = r.metadata or {}
+            valid_from = meta.get("valid_from")
+            valid_to = meta.get("valid_to")
+            if valid_from and valid_from > now_iso:
+                continue
+            if valid_to and valid_to <= now_iso:
+                continue
+            filtered.append(r)
+        return filtered
 
     def _compute_rrf(
         self,
@@ -393,6 +425,13 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
+                model_domain=n.model_domain,
+                confidence=n.confidence,
+                metadata={
+                    "valid_from": getattr(n, "valid_from", None),
+                    "valid_to": getattr(n, "valid_to", None),
+                    "belief_status": n.belief_status,
+                },
             )
             for n in nodes
         ]
@@ -420,6 +459,13 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
+                model_domain=n.model_domain,
+                confidence=n.confidence,
+                metadata={
+                    "valid_from": getattr(n, "valid_from", None),
+                    "valid_to": getattr(n, "valid_to", None),
+                    "belief_status": n.belief_status,
+                },
             )
             for n in nodes
             if n.memory_type in ("entity", "observation", "mental_model")
@@ -435,6 +481,12 @@ class RRFFusionEngine:
 
         Uses Chinese tokenizer for CJK queries, falls back to substring matching.
         """
+        if self._fts5_manager is not None:
+            try:
+                return await self._search_bm25_fts5(query, space_id, top_k)
+            except Exception as e:
+                logger.warning("FTS5 BM25 search failed, falling back: %s", e)
+
         if self._bm25_search is not None:
             try:
                 return await self._bm25_search(query, space_id, top_k)
@@ -467,6 +519,13 @@ class RRFFusionEngine:
                         cognitive_layer=n.cognitive_layer,
                         occurred_at=n.occurred_at,
                         created_at=n.created_at,
+                        model_domain=n.model_domain,
+                        confidence=n.confidence,
+                        metadata={
+                            "valid_from": getattr(n, "valid_from", None),
+                            "valid_to": getattr(n, "valid_to", None),
+                            "belief_status": n.belief_status,
+                        },
                     ),
                     matches,
                 ))
@@ -482,6 +541,13 @@ class RRFFusionEngine:
                             cognitive_layer=n.cognitive_layer,
                             occurred_at=n.occurred_at,
                             created_at=n.created_at,
+                            model_domain=n.model_domain,
+                            confidence=n.confidence,
+                            metadata={
+                                "valid_from": getattr(n, "valid_from", None),
+                                "valid_to": getattr(n, "valid_to", None),
+                                "belief_status": n.belief_status,
+                            },
                         ),
                         token_hits,
                     ))
@@ -546,6 +612,59 @@ class RRFFusionEngine:
 
         return fused[:top_k]
 
+    async def _search_bm25_fts5(
+        self,
+        query: str,
+        space_id: str,
+        top_k: int,
+    ) -> list[RetrievalResult]:
+        if self._fts5_manager is None:
+            return []
+        fts5_results = self._fts5_manager.search(query, space_id, top_k)
+        if not fts5_results:
+            return []
+
+        results: list[RetrievalResult] = []
+        for id_, source, _score in fts5_results:
+            if source == "node":
+                try:
+                    node = await self._repo.get_node(id_)
+                    if node is None:
+                        continue
+                    if node.belief_status != "accepted":
+                        continue
+                    results.append(RetrievalResult(
+                        doc_id=node.id,
+                        content=node.content,
+                        source="bm25",
+                        memory_type=node.memory_type,
+                        cognitive_layer=node.cognitive_layer,
+                        occurred_at=node.occurred_at,
+                        created_at=node.created_at,
+                        model_domain=node.model_domain,
+                        confidence=node.confidence,
+                    ))
+                except Exception:
+                    continue
+            elif source == "fragment":
+                results.append(RetrievalResult(
+                    doc_id=id_,
+                    content="",
+                    source="bm25",
+                    memory_type="fragment",
+                    cognitive_layer="perception",
+                    metadata={
+                        "valid_from": None,
+                        "valid_to": None,
+                        "belief_status": None,
+                    },
+                ))
+
+            if len(results) >= top_k:
+                break
+
+        return results
+
     async def _search_layer_s_broad(
         self,
         query: str,
@@ -569,9 +688,53 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
+                model_domain=n.model_domain,
+                confidence=n.confidence,
+                metadata={
+                    "valid_from": getattr(n, "valid_from", None),
+                    "valid_to": getattr(n, "valid_to", None),
+                    "belief_status": n.belief_status,
+                },
             )
             for n in nodes
             if n.memory_type in ("entity", "observation", "mental_model", "opinion", "constraint")
+        ]
+
+    async def _search_bundle(
+        self,
+        query: str,
+        space_id: str,
+        top_k: int,
+    ) -> list[RetrievalResult]:
+        """Entity-only Layer-S search for bundle degradation path.
+
+        Used by decision-type queries that need entity-centric results.
+        """
+        nodes = await self._repo.query_nodes(
+            domain_id=space_id,
+            memory_type="entity",
+            limit=top_k,
+        )
+        return [
+            RetrievalResult(
+                doc_id=n.id,
+                content=n.content,
+                score=0.3,
+                source="bundle",
+                memory_type=n.memory_type,
+                cognitive_layer=n.cognitive_layer,
+                occurred_at=n.occurred_at,
+                created_at=n.created_at,
+                model_domain=n.model_domain,
+                confidence=n.confidence,
+                metadata={
+                    "valid_from": getattr(n, "valid_from", None),
+                    "valid_to": getattr(n, "valid_to", None),
+                    "belief_status": n.belief_status,
+                },
+            )
+            for n in nodes
+            if n.content
         ]
 
     async def _search_temporal(
@@ -606,6 +769,13 @@ class RRFFusionEngine:
                         cognitive_layer=n.cognitive_layer,
                         occurred_at=n.occurred_at,
                         created_at=n.created_at,
+                        model_domain=n.model_domain,
+                        confidence=n.confidence,
+                        metadata={
+                            "valid_from": getattr(n, "valid_from", None),
+                            "valid_to": getattr(n, "valid_to", None),
+                            "belief_status": n.belief_status,
+                        },
                     ))
 
         return results[:top_k]
