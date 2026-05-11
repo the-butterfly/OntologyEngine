@@ -100,6 +100,18 @@ class CognitiveRepository:
             tags=node.tags,
             attributes=node.attributes,
             confirmation_count=node.confirmation_count,
+            strength=node.strength,
+            entity_name=node.entity_name,
+            entity_type=node.entity_type,
+            version=node.version,
+            last_confirmed_at=node.last_confirmed_at,
+            consolidation_reasoning=node.consolidation_reasoning,
+            compiled_at=node.compiled_at,
+            model_domain=node.model_domain,
+            source_trust_tier=node.source_trust_tier,
+            scope=node.scope,
+            source_pipeline=node.source_pipeline,
+            source_content_hash=node.source_content_hash,
         )
 
         logger.info("Created cognitive node %s (type=%s, layer=%s)", node.id, node.memory_type, node.cognitive_layer)
@@ -151,8 +163,10 @@ class CognitiveRepository:
             raise CognitiveNodeNotFoundError(f"CognitiveNode '{node.id}' not found")
 
         if expected_version is not None:
-            existing_history = existing.get("history", []) if isinstance(existing, dict) else []
-            current_version = int(len(existing_history))
+            if isinstance(existing, dict):
+                current_version = existing.get("version", len(existing.get("history", [])))
+            else:
+                current_version = getattr(existing, "version", None) or len(getattr(existing, "history", []) or [])
             if current_version != expected_version:
                 raise CognitiveNodeConflictError(
                     f"Version mismatch for '{node.id}': "
@@ -204,11 +218,66 @@ class CognitiveRepository:
             recorded_at=node.recorded_at,
             tags=node.tags,
             attributes=node.attributes,
+            confirmation_count=node.confirmation_count,
+            strength=node.strength,
+            entity_name=node.entity_name,
+            entity_type=node.entity_type,
+            version=node.version,
+            last_confirmed_at=node.last_confirmed_at,
+            consolidation_reasoning=node.consolidation_reasoning,
+            compiled_at=node.compiled_at,
+            model_domain=node.model_domain,
+            source_trust_tier=node.source_trust_tier,
+            scope=node.scope,
+            source_pipeline=node.source_pipeline,
+            source_content_hash=node.source_content_hash,
         )
 
         node.updated_at = now
         logger.info("Updated cognitive node %s", node.id)
         return node
+
+    async def update_node_with_occ(
+        self,
+        node: CognitiveNode,
+        expected_version: int,
+    ) -> CognitiveNode:
+        from ontology_engine.engine.cognitive.errors import OCCVersionConflict
+
+        updates = {
+            "content": node.content,
+            "strength": node.strength,
+            "feedback_weight": node.feedback_weight,
+            "belief_status": node.belief_status,
+            "attributes": node.attributes or {},
+            "memory_type": node.memory_type,
+            "entity_name": node.entity_name,
+            "entity_type": node.entity_type,
+            "model_domain": node.model_domain,
+            "scope": node.scope,
+            "source_trust_tier": node.source_trust_tier,
+            "last_confirmed_at": node.last_confirmed_at,
+            "consolidation_reasoning": node.consolidation_reasoning,
+            "valid_to": node.valid_to,
+            "superseded_by": node.superseded_by,
+            "confidence": node.confidence,
+            "schema_ref": node.schema_ref,
+            "extraction_hint": node.extraction_hint,
+            "source_fragment_ids": node.source_fragment_ids or [],
+            "tags": node.tags or [],
+            "proof_count": node.proof_count,
+            "confirmation_count": node.confirmation_count,
+        }
+
+        result = await self._store.update_cognitive_node_with_occ(
+            node.id, expected_version, updates
+        )
+        if result is None:
+            current = await self._store.get_cognitive_node(node.id)
+            actual_version = current.get("version", 1) if current else expected_version
+            raise OCCVersionConflict(node.id, expected_version, actual_version)
+
+        return await self.get_node(node.id)
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a CognitiveNode.
@@ -235,6 +304,7 @@ class CognitiveRepository:
         space_id: str | None = None,
         limit: int = 100,
         as_of: str | None = None,
+        attributes_filter: dict[str, str] | None = None,
     ) -> list[CognitiveNode]:
         """Query CognitiveNodes with filters.
 
@@ -246,6 +316,7 @@ class CognitiveRepository:
             space_id: Filter by space ID.
             limit: Maximum results.
             as_of: ISO 8601 timestamp for temporal query.
+            attributes_filter: Filter by attributes key-value pairs.
 
         Returns:
             List of matching CognitiveNode instances.
@@ -260,6 +331,13 @@ class CognitiveRepository:
             as_of=as_of,
         )
         nodes = [CognitiveNode.from_dict(d) for d in data_list]
+        if attributes_filter:
+            filtered = []
+            for n in nodes:
+                attrs = n.attributes or {}
+                if all(str(attrs.get(k)) == str(v) for k, v in attributes_filter.items()):
+                    filtered.append(n)
+            return filtered
         return nodes
 
     async def transition_belief(
@@ -424,14 +502,6 @@ class CognitiveRepository:
             limit=limit,
         )
         return [CognitiveEdge.from_dict(d) for d in data_list]
-
-    async def delete_cognitive_edge(self, edge_id: str) -> None:
-        """Delete a cognitive edge by its ID.
-
-        Args:
-            edge_id: The edge ID to delete.
-        """
-        await self._store.delete_edge(edge_id)
 
     # --- Validation ---
 

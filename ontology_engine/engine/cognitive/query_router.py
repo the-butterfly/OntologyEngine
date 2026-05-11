@@ -17,10 +17,11 @@ Design decisions (from query-routing.md):
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ontology_engine.engine.cognitive.query_router_types import (
     DEGRADATION_CHAINS,
+    DEGRADATION_PATHS,
     MIN_RESULTS_THRESHOLD,
     PARAM_PRESETS,
     QUERY_TYPE_PATTERNS,
@@ -127,6 +128,7 @@ class QueryRouter:
         top_k: int = 10,
         disposition: "DispositionProfile | None" = None,
         allow_short_circuit: bool | None = None,
+        strategy_adjustment: Any | None = None,
     ) -> list[RetrievalResult]:
         """Route a query through the funnel retrieval pipeline.
 
@@ -144,22 +146,38 @@ class QueryRouter:
         params = self._get_params(query_type, disposition, allow_short_circuit)
 
         if query_type == "analytical":
-            logger.info("Analytical query bypassed RRF: %s", query)
-            return []
+            logger.info("Analytical query routed to RRF: %s", query)
+            disposition_weights = None
+            if disposition:
+                disposition_weights = await self._repo.compute_weights(disposition)
+            results = await self._rrf.fuse(
+                query=query,
+                query_type="analytical",
+                space_id=space_id,
+                top_k=top_k,
+                disposition_weights=disposition_weights,
+                strategy_adjustment=strategy_adjustment,
+            )
+            return self._apply_funnel(results, params, disposition)
 
         disposition_weights = None
         if disposition:
             disposition_weights = await self._repo.compute_weights(disposition)
 
-        results = await self._rrf.fuse(
+        all_results = await self._rrf.fuse(
             query=query,
             query_type=query_type,
             space_id=space_id,
             top_k=top_k,
             disposition_weights=disposition_weights,
+            strategy_adjustment=strategy_adjustment,
         )
 
-        results = self._apply_funnel(results, params)
+        results = self._apply_funnel(all_results, params, disposition)
+
+        if params.allow_short_circuit and self._can_short_circuit(disposition) and results:
+            import asyncio
+            asyncio.create_task(self._verify_short_circuit(results, all_results))
 
         if len(results) < MIN_RESULTS_THRESHOLD:
             logger.info("Results below threshold (%d), triggering degradation", len(results))
@@ -280,19 +298,8 @@ class QueryRouter:
         self,
         results: list[RetrievalResult],
         params: RetrievalParams,
+        disposition: Any | None = None,
     ) -> list[RetrievalResult]:
-        """Apply cognitive layer funnel to results.
-
-        Orders results by cognitive layer priority (opinion > semantic >
-        procedure > perception) and applies short-circuit logic.
-
-        Args:
-            results: Raw retrieval results.
-            params: Retrieval parameters.
-
-        Returns:
-            Funnel-filtered results.
-        """
         if not results:
             return results
 
@@ -301,7 +308,7 @@ class QueryRouter:
 
         results.sort(key=lambda r: (r.metadata.get("funnel_priority", 0), r.score), reverse=True)
 
-        if params.allow_short_circuit and results:
+        if params.allow_short_circuit and self._can_short_circuit(disposition) and results:
             top_priority = results[0].metadata.get("funnel_priority", 0)
             if top_priority >= COGNITIVE_LAYER_PRIORITY.get("semantic", 0):
                 high_conf = [r for r in results if r.score >= params.confidence_threshold]
@@ -309,6 +316,47 @@ class QueryRouter:
                     return high_conf
 
         return results
+
+    def _can_short_circuit(self, disposition: Any | None) -> bool:
+        if disposition and disposition.thoroughness > 0.7:
+            return False
+        if disposition and disposition.evidence_demand > 0.8:
+            return False
+        return True
+
+    async def _verify_short_circuit(
+        self,
+        high_results: list[RetrievalResult],
+        all_results: list[RetrievalResult],
+    ) -> None:
+        """Async verification: check if low-layer results contradict high-layer short-circuit results.
+
+        Per RFC-023, after short-circuiting to high-layer results, we
+        asynchronously check whether low-layer (procedure/perception)
+        results have CONTRADICTS edges that would undermine the
+        short-circuited conclusion.
+        """
+        low_layer = [
+            r for r in all_results
+            if r.cognitive_layer in ("procedure", "perception")
+        ]
+        for low in low_layer:
+            try:
+                edges = await self._repo.query_cognitive_edges(
+                    from_id=low.doc_id, edge_type="CONTRADICTS", limit=5,
+                )
+                if edges:
+                    for edge in edges:
+                        contradicted_high = [
+                            h for h in high_results if h.doc_id == edge.to_id
+                        ]
+                        if contradicted_high:
+                            logger.warning(
+                                "Short-circuit result %s contradicted by low-layer %s",
+                                contradicted_high[0].doc_id, low.doc_id,
+                            )
+            except Exception:
+                pass
 
     async def _degrade(
         self,
@@ -332,19 +380,19 @@ class QueryRouter:
         """
         chain = DEGRADATION_CHAINS.get(query_type, DEGRADATION_CHAINS["factual"])
 
-        for step in chain:
+        for step_name in chain:
+            method_name = DEGRADATION_PATHS.get(step_name)
+            if not method_name:
+                continue
+            search_fn = getattr(self._rrf, method_name, None)
+            if not search_fn:
+                continue
             try:
-                results = await self._rrf.fuse(
-                    query=query,
-                    query_type="mixed",
-                    space_id=space_id,
-                    top_k=top_k,
-                    disposition_weights=disposition_weights,
-                )
-                if len(results) >= MIN_RESULTS_THRESHOLD:
+                results = await search_fn(query, space_id, top_k)
+                if results and len(results) >= MIN_RESULTS_THRESHOLD:
                     return results
             except Exception as e:
-                logger.warning("Degradation step %s failed: %s", step, e)
+                logger.warning("Degradation step %s failed: %s", step_name, e)
                 continue
 
         logger.info("Cold-start degradation: falling back to direct node query")

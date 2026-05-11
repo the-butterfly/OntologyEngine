@@ -16,7 +16,9 @@ Design decisions (from entity-resolver.md):
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import uuid as uuid_mod
 from difflib import SequenceMatcher
 from typing import TYPE_CHECKING, Any
 
@@ -105,6 +107,7 @@ class EntityResolver:
         space_id: str,
         entity_texts: list[str],
         context: ResolutionContext | None = None,
+        identity_fields_list: list[dict[str, Any] | None] | None = None,
     ) -> list[ResolutionResult]:
         """Resolve entity texts against existing entities.
 
@@ -112,6 +115,7 @@ class EntityResolver:
             space_id: Space to resolve within.
             entity_texts: List of entity texts to resolve.
             context: Optional resolution context.
+            identity_fields_list: Optional per-entity identity fields for L1 UUID5 lookup.
 
         Returns:
             List of ResolutionResult for each input text.
@@ -119,13 +123,100 @@ class EntityResolver:
         if context is None:
             context = ResolutionContext()
 
+        l1_results = await self._resolve_l1_exact(
+            space_id, entity_texts, identity_fields_list,
+        )
+        l1_matched = {r.entity_text for r in l1_results if r.candidate_id}
+        unresolved = [t for t in entity_texts if t not in l1_matched]
+        if not unresolved:
+            return l1_results
+
         if self.strategy == "full" or (
             self.strategy == "auto"
             and await self._entity_count(space_id) < ENTITY_COUNT_THRESHOLD
         ):
-            return await self._resolve_full(space_id, entity_texts, context)
+            l2_results = await self._resolve_full(space_id, unresolved, context)
         else:
-            return await self._resolve_trigram(space_id, entity_texts, context)
+            l2_results = await self._resolve_trigram(space_id, unresolved, context)
+
+        final = list(l1_results)
+        seen = {r.entity_text for r in final}
+        for r in l2_results:
+            if r.entity_text not in seen:
+                final.append(r)
+        return final
+
+    async def _resolve_l1_exact(
+        self,
+        space_id: str,
+        entity_texts: list[str],
+        identity_fields_list: list[dict[str, Any] | None] | None = None,
+    ) -> list[ResolutionResult]:
+        """L1 exact match: identity_fields UUID5 hash + entity_name exact match."""
+        UUID_NAMESPACE = uuid_mod.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+        results = []
+
+        for i, text in enumerate(entity_texts):
+            identity_fields = None
+            if identity_fields_list and i < len(identity_fields_list):
+                identity_fields = identity_fields_list[i]
+
+            matched = None
+
+            if identity_fields:
+                key = str(uuid_mod.uuid5(
+                    UUID_NAMESPACE,
+                    json.dumps(identity_fields, sort_keys=True),
+                ))
+                try:
+                    existing = await self._repo.get_node(key)
+                    if existing:
+                        matched = existing
+                except Exception:
+                    pass
+
+            if not matched:
+                try:
+                    candidates = await self._repo.query_nodes(
+                        memory_type="entity",
+                        domain_id=space_id,
+                        attributes_filter={"entity_name": text},
+                        limit=1,
+                    )
+                    if candidates:
+                        matched = candidates[0]
+                except Exception:
+                    pass
+
+            if not matched:
+                try:
+                    candidates = await self._repo.query_nodes(
+                        memory_type="entity",
+                        domain_id=space_id,
+                        limit=1000,
+                    )
+                    for c in candidates:
+                        if c.content and c.content.strip().lower() == text.strip().lower():
+                            matched = c
+                            break
+                except Exception:
+                    pass
+
+            if matched:
+                results.append(ResolutionResult(
+                    entity_text=text,
+                    action="reuse",
+                    candidate_id=matched.id,
+                    score=1.0,
+                ))
+            else:
+                results.append(ResolutionResult(
+                    entity_text=text,
+                    action="create",
+                    score=0.0,
+                ))
+
+        return results
 
     async def resolve_and_create_or_reuse(
         self,
@@ -371,9 +462,9 @@ class EntityResolver:
         Uses a dedicated count query when available, otherwise
         queries with a high limit and counts results.
         """
-        if hasattr(self._store, "count_cognitive_nodes"):
+        if hasattr(self._repo, "count_cognitive_nodes"):
             try:
-                return await self._store.count_cognitive_nodes(
+                return await self._repo.count_cognitive_nodes(
                     memory_type="entity", domain_id=space_id,
                 )
             except Exception:

@@ -34,6 +34,7 @@ class RetrievalResult:
     contribution: float = 0.5
     occurred_at: str | None = None
     created_at: str | None = None
+    model_domain: str | None = None
 
 
 @dataclass

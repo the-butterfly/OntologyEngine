@@ -64,26 +64,26 @@ def compute_memory_strength(
     proof_count: int,
     feedback_weight: float,
     confirmation_count: int = 0,
+    last_confirmed_at: str | None = None,
 ) -> float:
-    """Compute memory strength based on multiple factors.
-
-    strength = recency × 0.25 + confirmation × 0.15 + evidence × 0.25
-               + feedback × 0.2 + frequency × 0.15
-
-    Args:
-        access_count: Number of times accessed.
-        last_accessed_days: Days since last access.
-        proof_count: Number of supporting evidence.
-        feedback_weight: User/agent feedback weight (0-1).
-        confirmation_count: Number of times confirmed by subsequent evidence.
-
-    Returns:
-        Strength score (0-1).
-    """
     recency = math.exp(-0.1 * max(0, last_accessed_days))
     evidence = min(proof_count / 10.0, 1.0)
     frequency = min(access_count / 50.0, 1.0)
-    confirmation = min(confirmation_count / 5.0, 1.0)
+
+    if last_confirmed_at:
+        try:
+            from datetime import datetime, timezone
+            confirmed_dt = datetime.fromisoformat(last_confirmed_at)
+            if confirmed_dt.tzinfo is None:
+                confirmed_dt = confirmed_dt.replace(tzinfo=timezone.utc)
+            days_since = (datetime.now(timezone.utc) - confirmed_dt).days
+            confirmation = math.exp(-0.05 * days_since)
+        except (ValueError, TypeError):
+            confirmation = min(confirmation_count / 5.0, 1.0)
+    elif confirmation_count > 0:
+        confirmation = min(confirmation_count / 5.0, 1.0)
+    else:
+        confirmation = 1.0
 
     strength = (
         recency * 0.25
@@ -246,7 +246,7 @@ class ForgettingEngine:
         for node_id in evaluation.get("deleted", []):
             try:
                 node = await self._repo.get_node(node_id)
-                if len(node.source_fragment_ids) == 0:
+                if node.strength < 0.01 and node.proof_count == 0:
                     connected_edges = await self._repo.query_cognitive_edges(
                         from_id=node_id, limit=100,
                     )
@@ -326,9 +326,10 @@ class ForgettingEngine:
             proof_count=len(node.source_fragment_ids),
             feedback_weight=node.feedback_weight,
             confirmation_count=getattr(node, "confirmation_count", 0),
+            last_confirmed_at=getattr(node, "last_confirmed_at", None),
         )
 
-        return decay_strength(strength, days_elapsed, node.confidence)
+        return decay_strength(strength, days_elapsed, node.feedback_weight)
 
     def _is_protected(self, node: CognitiveNode) -> bool:
         if node.feedback_weight >= 0.9:
@@ -336,6 +337,85 @@ class ForgettingEngine:
         if node.memory_type == "mental_model" and node.belief_status == "accepted":
             return True
         return False
+
+    async def apply_strategic_forgetting(self, node_id: str, signal: str) -> None:
+        node = await self._repo.get_node(node_id)
+        if not node:
+            return
+
+        if self._is_protected(node):
+            logger.info("Strategic forgetting skipped for protected node %s (feedback_weight=%.2f, type=%s, belief=%s)",
+                        node_id, node.feedback_weight, node.memory_type, node.belief_status)
+            return
+
+        DECAY_FACTORS = {"superseded": 0.5, "rejected": 0.2}
+        decay_factor = DECAY_FACTORS.get(signal, 1.0)
+
+        node.strength = max(0, node.strength * decay_factor)
+        node.feedback_weight = max(0, node.feedback_weight * decay_factor)
+
+        if signal == "rejected" and node.valid_to is None:
+            from datetime import datetime, timezone
+            node.valid_to = datetime.now(timezone.utc).isoformat()
+
+        await self._repo.update_node(node)
+
+        if signal in ("superseded", "rejected"):
+            await self._mark_downstream_stale(node_id, signal)
+
+    async def _mark_downstream_stale(self, node_id: str, reason: str, depth: int = 0) -> None:
+        MAX_CASCADE_DEPTH = 3
+        MAX_CASCADE_NODES = 100
+        stale_edge_types = {"SUMMARIZED_AS", "CONSOLIDATED_INTO", "COGNITIVE_RELATES_TO"}
+
+        visited: set[str] = {node_id}
+        current_frontier = [node_id]
+
+        for _ in range(MAX_CASCADE_DEPTH):
+            next_frontier = []
+            for nid in current_frontier:
+                try:
+                    edges = await self._repo.query_cognitive_edges(from_id=nid, limit=50)
+                    for edge in edges:
+                        if edge.edge_type not in stale_edge_types:
+                            continue
+                        if edge.to_id in visited:
+                            continue
+                        if len(visited) >= MAX_CASCADE_NODES:
+                            return
+                        visited.add(edge.to_id)
+                        next_frontier.append(edge.to_id)
+                        try:
+                            target = await self._repo.get_node(edge.to_id)
+                            if target and target.belief_status == "accepted":
+                                target.attributes = dict(target.attributes or {})
+                                target.attributes["stale_reason"] = f"upstream_{reason}"
+                                target.attributes["stale_from"] = node_id
+                                await self._repo.update_node(target)
+                        except Exception as e:
+                            logger.warning("Failed to mark node %s stale: %s", edge.to_id, e)
+
+                    reverse_edges = await self._repo.query_cognitive_edges(to_id=nid, limit=50)
+                    for edge in reverse_edges:
+                        if edge.edge_type == "COGNITIVE_RELATES_TO" and edge.from_id not in visited:
+                            if len(visited) >= MAX_CASCADE_NODES:
+                                return
+                            visited.add(edge.from_id)
+                            next_frontier.append(edge.from_id)
+                            try:
+                                target = await self._repo.get_node(edge.from_id)
+                                if target and target.belief_status == "accepted":
+                                    target.attributes = dict(target.attributes or {})
+                                    target.attributes["stale_reason"] = f"upstream_{reason}"
+                                    target.attributes["stale_from"] = node_id
+                                    await self._repo.update_node(target)
+                            except Exception as e:
+                                logger.warning("Failed to mark reverse node %s stale: %s", edge.from_id, e)
+                except Exception as e:
+                    logger.warning("Failed to query edges from %s: %s", nid, e)
+            current_frontier = next_frontier
+            if not current_frontier:
+                break
 
 
 class DreamCycle:
@@ -539,23 +619,23 @@ class DreamCycle:
         return cleaned
 
     async def _enhance_self_links(self, space_id: str) -> int:
-        """Phase 4: Create COGNITIVE_RELATES_TO edges for recently created nodes.
+        """Phase 4: Create COGNITIVE_RELATES_TO edges for entity self-links.
 
-        For observation/entity nodes created within the last day, finds
-        semantically related nodes via word-overlap and creates edges.
+        For entity nodes created within the last day, finds semantically
+        related entities via word-overlap (30% threshold) and creates edges.
+        Includes deduplication check to avoid duplicate edges.
 
-        Resource estimation: incremental (new nodes only).
+        Resource estimation: incremental (new entities only).
         """
         now = datetime.now(timezone.utc)
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
+            memory_type="entity",
             limit=200,
         )
         edges_created = 0
 
         for node in nodes:
-            if node.memory_type not in ("observation", "entity"):
-                continue
             if not node.content:
                 continue
             try:
@@ -585,20 +665,28 @@ class DreamCycle:
                     continue
 
                 try:
-                    edge = CognitiveEdge(
+                    existing = await self._repo.query_cognitive_edges(
+                        from_id=node.id, to_id=other.id, edge_type="COGNITIVE_RELATES_TO", limit=1,
+                    )
+                    if existing:
+                        continue
+                except Exception:
+                    pass
+
+                try:
+                    await self._repo.create_cognitive_edge(CognitiveEdge(
                         edge_type="COGNITIVE_RELATES_TO",
                         from_id=node.id,
                         to_id=other.id,
-                    )
-                    await self._repo.create_cognitive_edge(edge)
+                    ))
                     edges_created += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Entity self-link edge creation skipped %s→%s: %s", node.id, other.id, e)
 
         return edges_created
 
     async def _complete_graph(self, space_id: str) -> int:
-        """Phase 5: Suggest COGNITIVE_RELATES_TO edges for recent observations.
+        """Phase 5: Create COGNITIVE_RELATES_TO edges for recent observations.
 
         Rule-based: finds observation nodes created within the last day
         and links them to existing nodes with similar content via
@@ -612,7 +700,7 @@ class DreamCycle:
             memory_type="observation",
             limit=200,
         )
-        suggested_edges = 0
+        created_edges = 0
 
         for node in nodes:
             if not node.created_at or not node.content:
@@ -643,9 +731,26 @@ class DreamCycle:
                 if overlap / union < 0.25:
                     continue
 
-                suggested_edges += 1
+                try:
+                    existing = await self._repo.query_cognitive_edges(
+                        from_id=node.id, to_id=other.id, edge_type="COGNITIVE_RELATES_TO", limit=1,
+                    )
+                    if existing:
+                        continue
+                except Exception:
+                    pass
 
-        return suggested_edges
+                try:
+                    await self._repo.create_cognitive_edge(CognitiveEdge(
+                        edge_type="COGNITIVE_RELATES_TO",
+                        from_id=node.id,
+                        to_id=other.id,
+                    ))
+                    created_edges += 1
+                except Exception as e:
+                    logger.warning("Failed to create COGNITIVE_RELATES_TO edge %s→%s: %s", node.id, other.id, e)
+
+        return created_edges
 
 
 async def enforce_version_limit(repository, space_id: str, entity_id: str) -> int:

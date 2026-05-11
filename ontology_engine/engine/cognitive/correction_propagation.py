@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PROPAGATION_EDGE_TYPES = {"SUMMARIZED_AS", "CONSOLIDATED_INTO", "COGNITIVE_RELATES_TO"}
-TRIGGER_BELIEFS = {"contradicted", "superseded"}
+TRIGGER_BELIEFS = {"contradicted", "superseded", "rejected"}
 MAX_CASCADE_NODES = 100
 
 
@@ -46,6 +46,7 @@ class PropagationResult:
     errors: list[str] = field(default_factory=list)
     needs_approval: bool = False
     pending_node_ids: list[str] = field(default_factory=list)
+    signal: str = ""
 
 
 class CorrectionPropagation:
@@ -64,6 +65,7 @@ class CorrectionPropagation:
         self,
         source_node_id: str,
         cascade_depth: int = 3,
+        signal: str = "",
     ) -> PropagationResult:
         """Propagate belief change from a source node.
 
@@ -77,10 +79,13 @@ class CorrectionPropagation:
         try:
             source = await self._repo.get_node(source_node_id)
         except Exception:
-            return PropagationResult()
+            return PropagationResult(signal=signal)
 
         if source.belief_status not in TRIGGER_BELIEFS:
-            return PropagationResult()
+            return PropagationResult(signal=signal)
+
+        if signal:
+            logger.info("Propagation signal: %s", signal)
 
         visited: set[str] = {source_node_id}
         reviewed_ids: list[str] = []
@@ -108,6 +113,23 @@ class CorrectionPropagation:
                         try:
                             target = await self._repo.get_node(neighbor_id)
                             if target.belief_status == "accepted":
+                                target.attributes = dict(target.attributes or {})
+                                memory_type = target.memory_type
+                                if memory_type == "mental_model":
+                                    target.attributes["is_stale"] = True
+                                elif memory_type == "entity":
+                                    target.attributes["needs_attribute_update"] = True
+                                elif memory_type == "observation":
+                                    target.attributes["needs_reinduction"] = True
+                                elif memory_type == "rule":
+                                    target.attributes["needs_revalidation"] = True
+                                elif memory_type == "commitment":
+                                    target.attributes["needs_reassessment"] = True
+                                elif memory_type == "procedure":
+                                    target.attributes["needs_reverification"] = True
+                                target.attributes["stale_reason"] = f"upstream_{source.belief_status}"
+                                target.attributes["stale_from"] = source_node_id
+                                await self._repo.update_node(target)
                                 await self._repo.transition_belief(
                                     neighbor_id,
                                     "pending_review",
@@ -132,6 +154,7 @@ class CorrectionPropagation:
             errors=errors,
             needs_approval=needs_approval,
             pending_node_ids=pending_ids,
+            signal=signal,
         )
 
     async def _get_propagation_neighbors(self, node_id: str) -> list[str]:
@@ -155,7 +178,6 @@ class CorrectionPropagation:
         neighbors: list[str] = []
         seen: set[str] = set()
 
-        forward_only_types = {"CONSOLIDATED_INTO", "SUMMARIZED_AS"}
         bidirectional_types = {"COGNITIVE_RELATES_TO"}
 
         for edge_type in PROPAGATION_EDGE_TYPES:

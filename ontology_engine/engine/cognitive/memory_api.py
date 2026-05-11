@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import math
 import uuid
 import re
 from dataclasses import dataclass
@@ -43,6 +44,7 @@ from ontology_engine.engine.cognitive.models import (
     CognitiveEdge,
     DEFAULT_BELIEF_REVISION_RULES,
     apply_dynamic_weight,
+    compute_temporal_weight,
 )
 from ontology_engine.engine.cognitive.reflect_types import (
     ReflectionJob,
@@ -51,20 +53,13 @@ from ontology_engine.engine.cognitive.reflect_types import (
     ReflectionStatus,
 )
 from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
-from ontology_engine.engine.cognitive.activity_log import (
-    get_activity_log_writer,
-    log_remember as _log_remember,
-    log_recall as _log_recall,
-    log_reflect as _log_reflect,
-    log_correct as _log_correct,
-    log_delete as _log_delete,
-)
 
 if TYPE_CHECKING:
     from ontology_engine.engine.cognitive.cognitive_vector_index import CognitiveVectorIndex
     from ontology_engine.engine.cognitive.consolidation_engine import ConsolidationEngine, compute_schema_alignment_score
     from ontology_engine.engine.cognitive.correction_propagation import CorrectionPropagation
     from ontology_engine.engine.cognitive.entity_resolver import EntityResolver
+    from ontology_engine.engine.cognitive.ingestion_service import CognitiveIngestionService
     from ontology_engine.engine.cognitive.lifecycle import DreamCycle, ForgettingEngine
     from ontology_engine.engine.cognitive.query_router import QueryRouter
     from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
@@ -133,8 +128,9 @@ class ReflectionJobStore:
 
     def __init__(self):
         self._jobs: dict[str, ReflectionJob] = {}
+        self._lock: asyncio.Lock = asyncio.Lock()
 
-    def create_job(
+    async def create_job(
         self,
         query: str,
         space_id: str,
@@ -164,59 +160,37 @@ class ReflectionJobStore:
             skip_correction_propagation=skip_correction_propagation,
             progress=progress,
         )
-        self._jobs[reflection_id] = job
+        async with self._lock:
+            self._jobs[reflection_id] = job
         return job
 
-    def get_job(self, reflection_id: str) -> ReflectionJob | None:
-        return self._jobs.get(reflection_id)
+    async def get_job(self, reflection_id: str) -> ReflectionJob | None:
+        async with self._lock:
+            return self._jobs.get(reflection_id)
 
-    def update_progress(self, reflection_id: str, phase: str, phase_status: str) -> None:
-        job = self._jobs.get(reflection_id)
-        if job and job.progress:
-            job.progress.progress[phase] = phase_status
-            if all(s == "completed" for s in job.progress.progress.values()):
-                job.progress.status = ReflectionStatus.COMPLETED
-                job.progress.completed_at = datetime.now(timezone.utc).isoformat()
-            elif any(s == "in_progress" for s in job.progress.progress.values()):
-                job.progress.status = ReflectionStatus.IN_PROGRESS
+    async def update_progress(self, reflection_id: str, phase: str, phase_status: str) -> None:
+        async with self._lock:
+            job = self._jobs.get(reflection_id)
+            if job and job.progress:
+                job.progress.progress[phase] = phase_status
+                if all(s == "completed" for s in job.progress.progress.values()):
+                    job.progress.status = ReflectionStatus.COMPLETED
+                    job.progress.completed_at = datetime.now(timezone.utc).isoformat()
+                elif any(s == "in_progress" for s in job.progress.progress.values()):
+                    job.progress.status = ReflectionStatus.IN_PROGRESS
 
-    def set_partial_results(self, reflection_id: str, key: str, results: Any) -> None:
-        job = self._jobs.get(reflection_id)
-        if job and job.progress:
-            job.progress.partial_results[key] = results
+    async def set_partial_results(self, reflection_id: str, key: str, results: Any) -> None:
+        async with self._lock:
+            job = self._jobs.get(reflection_id)
+            if job and job.progress:
+                job.progress.partial_results[key] = results
 
-    def set_error(self, reflection_id: str, error: str) -> None:
-        job = self._jobs.get(reflection_id)
-        if job and job.progress:
-            job.progress.status = ReflectionStatus.FAILED
-            job.progress.error = error
-
-
-def _infer_activity_type(node) -> str:
-    if not hasattr(node, 'history') or not node.history:
-        return "remember"
-    last = node.history[-1]
-    reason = getattr(last, 'change_reason', '') or getattr(last, 'action', '') or ''
-    if 'correct' in reason.lower() or 'correct' in str(last).lower():
-        return "correct"
-    if 'consolidat' in reason.lower():
-        return "consolidate"
-    if 'supersed' in reason.lower() or node.belief_status == "superseded":
-        return "superseded"
-    if node.belief_status == "rejected":
-        return "rejected"
-    return "remember"
-
-
-def _build_operation_desc(node) -> str:
-    mt = getattr(node, 'memory_type', 'unknown')
-    return f"{mt} node"
-
-
-def _build_result_summary(node) -> str:
-    bs = getattr(node, 'belief_status', 'unknown')
-    c = getattr(node, 'confidence', 0)
-    return f"belief={bs}, confidence={c:.2f}"
+    async def set_error(self, reflection_id: str, error: str) -> None:
+        async with self._lock:
+            job = self._jobs.get(reflection_id)
+            if job and job.progress:
+                job.progress.status = ReflectionStatus.FAILED
+                job.progress.error = error
 
 
 class MemoryAPI:
@@ -232,6 +206,8 @@ class MemoryAPI:
         dream_cycle: "DreamCycle",
         correction_propagation: "CorrectionPropagation | None" = None,
         vector_index: "CognitiveVectorIndex | None" = None,
+        qul: "Any | None" = None,
+        ingestion_service: "CognitiveIngestionService | None" = None,
     ):
         self._repo = repository
         self._consolidation = consolidation_engine
@@ -242,6 +218,8 @@ class MemoryAPI:
         self._dream = dream_cycle
         self._correction_propagation = correction_propagation
         self._vector_index = vector_index
+        self._qul = qul
+        self._ingestion = ingestion_service
         self._job_store = ReflectionJobStore()
         self._background_tasks: set[asyncio.Task[Any]] = set()
 
@@ -267,11 +245,11 @@ class MemoryAPI:
         belief_status: str = "accepted",
         valid_from: str | None = None,
         valid_to: str | None = None,
-        source_fragment_ids: list[str] | None = None,
         recorded_at: str | None = None,
         occurred_at: str | None = None,
         source_pipeline: str | None = None,
         schema_ref: str | None = None,
+        source_fragment_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         req = RememberRequest(
             content=content,
@@ -348,45 +326,122 @@ class MemoryAPI:
                 space_id=req.space_id,
             )
 
-        node_id = self._generate_memory_id(req.content, req.space_id, req.memory_type)
+        if gate_result.decision == WriteDecision.CONTRADICTION_CANDIDATE:
+            req.belief_status = "pending_review"
+            logger.info("CONTRADICTION_CANDIDATE detected for query in space %s, setting belief_status=pending_review", req.space_id)
 
-        cognitive_layer = self._infer_cognitive_layer(req.memory_type)
+        model_domain = self._infer_model_domain(req.memory_type)
 
-        source_ids = req.source_fragment_ids or []
-        node = CognitiveNode(
-            id=node_id,
-            memory_type=req.memory_type,
-            cognitive_layer=cognitive_layer,
-            content=req.content,
-            domain_id=req.space_id,
-            space_id=req.space_id,
-            visibility=req.visibility,
-            created_by=req.created_by,
-            confidence=req.confidence,
-            belief_status=req.belief_status,
-            occurred_at=req.occurred_at,
-            schema_ref=req.schema_ref,
-            valid_from=req.valid_from,
-            valid_to=req.valid_to,
-            recorded_at=req.recorded_at,
-            tags=req.tags or [],
-            attributes=self._extract_attributes(req.memory_type, req.metadata),
-            source_fragment_ids=source_ids,
-            proof_count=len(source_ids),
-        )
-        await self._repo.create_node(node)
+        if self._ingestion is not None:
+            ingest_result = await self._ingestion.ingest(
+                content=req.content,
+                space_id=req.space_id,
+                memory_type=req.memory_type,
+                tags=req.tags,
+                metadata=self._extract_attributes(req.memory_type, req.metadata),
+                source_pipeline=req.source_pipeline or "api",
+                user_id=req.created_by or "system",
+            )
 
-        if self._vector_index is not None:
-            try:
-                await self._vector_index.index_node(
-                    node_id=node.id,
-                    content=node.content,
-                    memory_type=node.memory_type,
-                    tags=node.tags,
-                    space_id=node.space_id,
-                )
-            except Exception as e:
-                logger.debug("Vector indexing skipped for %s: %s", node.id, e)
+            node_id = ingest_result.get("node_id") or ingest_result.get("fragment_id")
+
+            node = await self._repo.get_node(node_id)
+            if node:
+                needs_update = False
+                if req.belief_status != "accepted":
+                    node.belief_status = req.belief_status
+                    needs_update = True
+                if req.confidence != 1.0:
+                    node.confidence = req.confidence
+                    needs_update = True
+                if req.visibility is not None and node.visibility != req.visibility:
+                    node.visibility = req.visibility
+                    needs_update = True
+                if not node.domain_id:
+                    node.domain_id = req.space_id
+                    needs_update = True
+                cognitive_layer = self._infer_cognitive_layer(req.memory_type)
+                if node.cognitive_layer != cognitive_layer:
+                    node.cognitive_layer = cognitive_layer
+                    needs_update = True
+                if model_domain and node.model_domain != model_domain:
+                    node.model_domain = model_domain
+                    needs_update = True
+                if req.valid_from is not None:
+                    node.valid_from = req.valid_from
+                    needs_update = True
+                if req.valid_to is not None:
+                    node.valid_to = req.valid_to
+                    needs_update = True
+                if req.occurred_at is not None:
+                    node.occurred_at = req.occurred_at
+                    needs_update = True
+                if req.recorded_at is not None:
+                    node.recorded_at = req.recorded_at
+                    needs_update = True
+                if req.schema_ref is not None:
+                    node.schema_ref = req.schema_ref
+                    needs_update = True
+                extracted_attrs = self._extract_attributes(req.memory_type, req.metadata)
+                if extracted_attrs:
+                    attrs = dict(node.attributes or {})
+                    attrs.update(extracted_attrs)
+                    node.attributes = attrs
+                    needs_update = True
+                if needs_update:
+                    await self._repo.update_node(node)
+        else:
+            node_id = self._generate_memory_id(req.content, req.space_id, req.memory_type)
+
+            cognitive_layer = self._infer_cognitive_layer(req.memory_type)
+
+            sfrag_ids = req.source_fragment_ids or []
+            proof_count = max(1, len(sfrag_ids)) if sfrag_ids else 1
+
+            node = CognitiveNode(
+                id=node_id,
+                memory_type=req.memory_type,
+                cognitive_layer=cognitive_layer,
+                content=req.content,
+                domain_id=req.space_id,
+                space_id=req.space_id,
+                visibility=req.visibility,
+                created_by=req.created_by,
+                confidence=req.confidence,
+                belief_status=req.belief_status,
+                occurred_at=req.occurred_at,
+                schema_ref=req.schema_ref,
+                valid_from=req.valid_from,
+                valid_to=req.valid_to,
+                recorded_at=req.recorded_at,
+                tags=req.tags or [],
+                attributes=self._extract_attributes(req.memory_type, req.metadata),
+                source_fragment_ids=sfrag_ids,
+                proof_count=proof_count,
+                model_domain=model_domain,
+            )
+            await self._repo.create_node(node)
+
+            if self._vector_index is not None:
+                try:
+                    await self._vector_index.index_node(
+                        node_id=node.id,
+                        content=node.content,
+                        memory_type=node.memory_type,
+                        tags=node.tags,
+                        space_id=node.space_id,
+                    )
+                except Exception as e:
+                    logger.warning("Vector indexing failed for %s: %s", node.id, e)
+                    try:
+                        fresh = await self._repo.get_node(node.id)
+                        if fresh:
+                            attrs = dict(fresh.attributes or {})
+                            attrs["_index_status"] = "pending"
+                            fresh.attributes = attrs
+                            await self._repo.update_node(fresh)
+                    except Exception:
+                        logger.warning("Failed to mark node %s as pending for vector indexing", node.id)
 
         schema_extracted_nodes: list[str] = []
         if req.schema_ref:
@@ -433,7 +488,9 @@ class MemoryAPI:
             logger.debug("Entity extraction skipped: %s", e)
 
         consolidation_triggered = False
-        if req.auto_consolidate:
+        if req.auto_consolidate and gate_result.decision not in (
+            WriteDecision.CONTRADICTION_CANDIDATE, WriteDecision.DUPLICATE,
+        ):
             try:
                 triggered = await self._consolidation.maybe_trigger_consolidation(
                     req.space_id, trigger="manual"
@@ -441,6 +498,25 @@ class MemoryAPI:
                 consolidation_triggered = triggered
             except Exception as e:
                 logger.warning("Auto-consolidation failed: %s", e)
+
+        if gate_result.decision == WriteDecision.CONTRADICTION_CANDIDATE:
+            try:
+                await self._consolidation.maybe_trigger_consolidation(
+                    req.space_id, trigger="contradiction_candidate"
+                )
+                consolidation_triggered = True
+            except Exception as e:
+                logger.warning("Contradiction consolidation trigger failed: %s", e)
+
+            for conflict_id in (gate_result.contradiction_with or []):
+                try:
+                    await self._repo.create_cognitive_edge(CognitiveEdge(
+                        edge_type="CONTRADICTS",
+                        from_id=node_id,
+                        to_id=conflict_id,
+                    ))
+                except Exception as e:
+                    logger.debug("CONTRADICTS edge creation skipped for %s→%s: %s", node_id, conflict_id, e)
 
         superseded_node_id: str | None = None
         if req.supersede_target:
@@ -464,27 +540,21 @@ class MemoryAPI:
             except Exception as e:
                 logger.warning("Supersede failed for '%s': %s", req.supersede_target, e)
 
-        try:
-            _log_remember(
-                space_id=req.space_id,
-                content=req.content,
-                node_id=node_id,
-                memory_type=req.memory_type,
-                agent_name=req.created_by or "system",
-            )
-        except Exception:
-            logger.debug("Activity log write skipped", exc_info=True)
+        response_data = {
+            "memory_id": node_id,
+            "memory_type": req.memory_type,
+            "visibility": req.visibility,
+            "extracted_entities": extracted_entities,
+            "schema_extracted_nodes": schema_extracted_nodes,
+            "consolidation_triggered": consolidation_triggered,
+            "superseded_node_id": superseded_node_id,
+        }
+        if gate_result.decision == WriteDecision.CONTRADICTION_CANDIDATE:
+            response_data["decision"] = "contradiction_candidate"
+            response_data["contradiction_with"] = gate_result.contradiction_with or []
 
         return self._make_response(
-            data={
-                "memory_id": node_id,
-                "memory_type": req.memory_type,
-                "visibility": req.visibility,
-                "extracted_entities": extracted_entities,
-                "schema_extracted_nodes": schema_extracted_nodes,
-                "consolidation_triggered": consolidation_triggered,
-                "superseded_node_id": superseded_node_id,
-            },
+            data=response_data,
             space_id=req.space_id,
         )
 
@@ -555,9 +625,7 @@ class MemoryAPI:
 
     async def _recall(self, req: RecallRequest) -> dict[str, Any]:
         if req.reflection_id is not None:
-            return self._recall_reflection_progress(req.reflection_id)
-
-        is_wildcard = req.query and req.query.strip() == "*"
+            return await self._recall_reflection_progress(req.reflection_id)
 
         if not req.query or not req.query.strip():
             raise CognitiveError("Query cannot be empty", CognitiveErrorCode.EMPTY_INPUT)
@@ -565,30 +633,53 @@ class MemoryAPI:
         if not req.space_id or not req.space_id.strip():
             raise CognitiveError("Space ID cannot be empty", CognitiveErrorCode.EMPTY_INPUT)
 
-        if is_wildcard:
-            return await self._recall_wildcard(req)
+        from ontology_engine.engine.cognitive.query_router import detect_query_type
 
-        query_type = "type_filter" if req.memory_type else "semantic"
+        qul_constraints = None
+        _qul_strategy = None
+        if self._qul is not None:
+            try:
+                from ontology_engine.engine.cognitive.query_understanding_layer import RecallContext
+                context = RecallContext(space_id=req.space_id, user_id=req.user_id or "")
+                qul_constraints = await self._qul.extract_constraints(req.query, context)
+                if qul_constraints:
+                    _qul_strategy = self._qul.map_to_retrieval_strategy(qul_constraints)
+                    query_type = self._qul.infer_query_type(qul_constraints)
+                else:
+                    query_type = "type_filter" if req.memory_type else detect_query_type(req.query)
+            except Exception:
+                query_type = "type_filter" if req.memory_type else detect_query_type(req.query)
+        else:
+            query_type = "type_filter" if req.memory_type else detect_query_type(req.query)
+
+        profile = None
+        try:
+            scene = req.disposition_override if isinstance(req.disposition_override, str) else None
+            if scene:
+                try:
+                    profile = await self._repo.get_profile_by_scene(scene, domain_id=req.space_id)
+                except Exception:
+                    pass
+            if profile is None:
+                try:
+                    profile = await self._repo.get_profile_by_scene("default", domain_id=req.space_id)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         if req.memory_type:
             belief_filter = req.belief_status_filter or "accepted"
             nodes = await self._repo.query_nodes(
                 memory_type=req.memory_type,
-                space_id=req.space_id,
-                limit=req.max_results * 3,
+                domain_id=req.space_id,
+                limit=req.max_results,
                 as_of=req.as_of,
                 belief_status=belief_filter,
                 cognitive_layer=req.cognitive_layer,
             )
             results = []
             for n in nodes:
-                if req.query:
-                    query_lower = req.query.lower()
-                    content_lower = n.content.lower()
-                    if query_lower not in content_lower:
-                        query_words = query_lower.split()
-                        if not any(w in content_lower for w in query_words):
-                            continue
                 strength_info = self._compute_strength(n)
                 results.append({
                     "id": n.id,
@@ -603,14 +694,14 @@ class MemoryAPI:
                     "strength": strength_info["value"],
                     "strength_breakdown": strength_info["breakdown"],
                 })
-                if len(results) >= req.max_results:
-                    break
         else:
             retrieval_results = await self._router.route(
                 query=req.query,
                 space_id=req.space_id,
                 top_k=req.max_results,
                 allow_short_circuit=req.allow_short_circuit,
+                disposition=profile,
+                strategy_adjustment=_qul_strategy,
             )
             results = []
             for r in retrieval_results:
@@ -697,18 +788,6 @@ class MemoryAPI:
             result["type_weight"] = tw
 
         try:
-            profile = None
-            scene = req.disposition_override if isinstance(req.disposition_override, str) else None
-            if scene:
-                try:
-                    profile = await self._repo.get_profile_by_scene(scene, domain_id=req.space_id)
-                except Exception:
-                    pass
-            if profile is None:
-                try:
-                    profile = await self._repo.get_profile_by_scene("default", domain_id=req.space_id)
-                except Exception:
-                    pass
             if profile is not None:
                 for result in results:
                     mt = result.get("memory_type", "fragment")
@@ -718,10 +797,21 @@ class MemoryAPI:
         except Exception:
             pass
 
+        recency_bias = 0.5
+        if profile is not None:
+            recency_bias = getattr(profile, 'recency_bias', 0.5)
+        tw = compute_temporal_weight(recency_bias)
+
         for result in results:
             tp = self._compute_temporal_proximity(result)
             result["temporal_proximity"] = round(tp, 4)
-            result["rank_score"] = round(result.get("score", 0.5) * result["type_weight"] * (0.7 + 0.3 * tp), 3)
+            result["rank_score"] = round(result.get("score", 0.5) * result["type_weight"] * ((1 - tw) + tw * tp), 3)
+
+        if qul_constraints and self._qul is not None:
+            try:
+                results = self._qul.apply_constraint_boost(results, qul_constraints)
+            except Exception:
+                pass
 
         if req.token_budget is not None and req.token_budget > 0:
             total_tokens = 0
@@ -738,96 +828,12 @@ class MemoryAPI:
 
         actual_tokens = sum(max(1, len(r.get("text", "")) // 4) for r in results)
 
-        edges: list[dict[str, Any]] = []
-        if req.include_evidence:
-            node_ids = {r.get("id") for r in results if r.get("id")}
-            for nid in node_ids:
-                try:
-                    from_edges = await self._repo.query_cognitive_edges(from_id=nid, limit=20)
-                    to_edges = await self._repo.query_cognitive_edges(to_id=nid, limit=20)
-                    for e in from_edges + to_edges:
-                        edge_dict = {
-                            "source": e.from_id,
-                            "target": e.to_id,
-                            "edge_type": e.edge_type,
-                        }
-                        if e.properties:
-                            edge_dict["properties"] = e.properties
-                        if e.created_at:
-                            edge_dict["created_at"] = e.created_at
-                        edges.append(edge_dict)
-                except Exception:
-                    pass
-            seen = set()
-            unique_edges = []
-            for e in edges:
-                key = (e["source"], e["target"], e["edge_type"])
-                if key not in seen:
-                    seen.add(key)
-                    unique_edges.append(e)
-            edges = unique_edges
-
-        try:
-            _log_recall(
-                space_id=req.space_id,
-                query=req.query,
-                result_count=len(results),
-                query_type=query_type or "unknown",
-                agent_name=getattr(req, 'user_id', "system") or "system",
-            )
-        except Exception:
-            logger.debug("Activity log write skipped", exc_info=True)
-
         return self._make_response(
             data={
                 "results": results,
-                "edges": edges,
                 "total": len(results),
                 "query_type": query_type,
                 "total_tokens": actual_tokens,
-            },
-            space_id=req.space_id,
-        )
-
-    async def _recall_wildcard(self, req: RecallRequest) -> dict[str, Any]:
-        """Wildcard recall: return all nodes in the space filtered by params."""
-        belief_status = req.belief_status_filter or "accepted"
-        nodes = await self._repo.query_nodes(
-            domain_id=req.space_id,
-            limit=req.max_results or 50,
-            belief_status=belief_status,
-            memory_type=req.memory_type,
-        )
-        results = []
-        for n in nodes:
-            results.append({
-                "id": n.id,
-                "memory_type": n.memory_type,
-                "content": n.content[:500],
-                "confidence": n.confidence,
-                "belief_status": n.belief_status,
-                "recorded_at": n.recorded_at,
-                "layer": n.cognitive_layer,
-                "tags": n.tags,
-                "metadata": n.attributes or {},
-            })
-        try:
-            _log_recall(
-                space_id=req.space_id,
-                query="*",
-                result_count=len(results),
-                query_type="list_all",
-                agent_name=getattr(req, 'user_id', "system") or "system",
-            )
-        except Exception:
-            logger.debug("Activity log write skipped", exc_info=True)
-        return self._make_response(
-            data={
-                "results": results,
-                "edges": [],
-                "total": len(results),
-                "query_type": "list_all",
-                "total_tokens": 0,
             },
             space_id=req.space_id,
         )
@@ -862,7 +868,7 @@ class MemoryAPI:
             raise CognitiveError("Space ID cannot be empty", CognitiveErrorCode.EMPTY_INPUT)
 
         if async_mode:
-            job = self._job_store.create_job(
+            job = await self._job_store.create_job(
                 req.query,
                 req.space_id,
                 req.max_iterations,
@@ -885,13 +891,13 @@ class MemoryAPI:
 
         return await self._execute_reflect(req)
 
-    def _recall_reflection_progress(self, reflection_id: str) -> dict[str, Any]:
+    async def _recall_reflection_progress(self, reflection_id: str) -> dict[str, Any]:
         """Query reflection progress via recall(reflection_id=...).
 
         Design §11.2 - Progress query via recall instead of get_reflection_status.
         Returns progress info when in_progress, full result when completed.
         """
-        job = self._job_store.get_job(reflection_id)
+        job = await self._job_store.get_job(reflection_id)
         if not job:
             raise CognitiveError(
                 f"Reflection job '{reflection_id}' not found",
@@ -918,8 +924,8 @@ class MemoryAPI:
             space_id=job.space_id,
         )
 
-    def get_reflection_status(self, reflection_id: str) -> dict[str, Any]:
-        job = self._job_store.get_job(reflection_id)
+    async def get_reflection_status(self, reflection_id: str) -> dict[str, Any]:
+        job = await self._job_store.get_job(reflection_id)
         if not job:
             raise CognitiveError(
                 f"Reflection job '{reflection_id}' not found",
@@ -944,39 +950,15 @@ class MemoryAPI:
         by_type: dict[str, int] = {}
         by_belief: dict[str, int] = {}
         by_layer: dict[str, int] = {}
-        pending_review = 0
-        superseded = 0
-        expired = 0
-        from datetime import datetime, timezone
-        now_iso = datetime.now(timezone.utc).isoformat()
         for n in nodes:
             by_type[n.memory_type] = by_type.get(n.memory_type, 0) + 1
             by_belief[n.belief_status] = by_belief.get(n.belief_status, 0) + 1
             by_layer[n.cognitive_layer] = by_layer.get(n.cognitive_layer, 0) + 1
-            if n.belief_status == "pending_review":
-                pending_review += 1
-            if n.belief_status == "superseded":
-                superseded += 1
-            if n.valid_to and n.valid_to < now_iso:
-                expired += 1
-
-        contradiction_edges = await self._repo.query_cognitive_edges(
-            edge_type="CONTRADICTS", limit=1000,
-        )
-        supersede_edges = await self._repo.query_cognitive_edges(
-            edge_type="SUPERSEDES", limit=1000,
-        )
-
         return {
             "total": total,
             "by_type": by_type,
             "by_belief": by_belief,
             "by_layer": by_layer,
-            "pending_review": pending_review,
-            "superseded": superseded,
-            "expired": expired,
-            "open_contradictions": len(contradiction_edges),
-            "total_corrections": len(supersede_edges),
             "space_id": space_id,
         }
 
@@ -989,7 +971,7 @@ class MemoryAPI:
         return {"types": by_type, "space_id": space_id}
 
     async def get_audit_trail(self, space_id: str, limit: int = 50) -> dict[str, Any]:
-        """Get audit trail for a space (superseded/rejected/pending_review/consolidated nodes)."""
+        """Get audit trail for a space (superseded/rejected/pending_review nodes)."""
         superseded = await self._repo.query_nodes(
             domain_id=space_id, belief_status="superseded", limit=limit,
         )
@@ -999,16 +981,8 @@ class MemoryAPI:
         pending = await self._repo.query_nodes(
             domain_id=space_id, belief_status="pending_review", limit=limit,
         )
-        all_nodes = await self._repo.query_nodes(
-            domain_id=space_id, limit=limit,
-        )
-        consolidated = [
-            n for n in all_nodes
-            if n.consolidated_at is not None
-            and n.belief_status not in ("superseded", "rejected", "pending_review")
-        ]
         entries = []
-        for n in superseded + rejected + pending + consolidated:
+        for n in superseded + rejected + pending:
             entries.append({
                 "id": n.id,
                 "memory_type": n.memory_type,
@@ -1016,18 +990,8 @@ class MemoryAPI:
                 "belief_status": n.belief_status,
                 "superseded_by": n.superseded_by,
                 "updated_at": n.updated_at,
-                "agent_name": n.created_by or "system",
-                "activity_type": _infer_activity_type(n),
-                "timestamp": n.updated_at or n.created_at or "",
-                "operation": _build_operation_desc(n),
-                "result": _build_result_summary(n),
             })
-        response: dict[str, Any] = {"entries": entries[:limit], "space_id": space_id}
-        try:
-            response["activity_entries"] = get_activity_log_writer().query(space_id, limit=limit)
-        except Exception:
-            response["activity_entries"] = []
-        return response
+        return {"entries": entries[:limit], "space_id": space_id}
 
     async def run_consolidation(self, space_id: str) -> dict[str, Any]:
         """Manually trigger consolidation for a space."""
@@ -1036,7 +1000,6 @@ class MemoryAPI:
             "created": result.created,
             "updated": result.updated,
             "deleted": result.deleted,
-            "consolidated_count": len(result.created) + len(result.updated) + len(result.deleted),
             "errors": result.errors,
             "space_id": space_id,
         }
@@ -1050,85 +1013,32 @@ class MemoryAPI:
             "days_elapsed": days_elapsed,
         }
 
-    async def compile_entity_page(
-        self,
-        entity_id: str,
-        space_id: str,
-    ) -> dict[str, Any]:
-        """Compile an EntityPage from an entity node and its related observations.
+    async def dream(self, space_id: str) -> dict[str, Any]:
+        """Run a full dream cycle for a space.
 
-        Design §LC-10 - Compilation layer produces EntityPage/TopicPage views.
-        """
-        from ontology_engine.engine.cognitive.compilation import compile_entity_page as _compile
-
-        page = await _compile(self._repo, entity_id)
-        return self._make_response(
-            data={
-                "entity_id": entity_id,
-                "summary": page.summary,
-                "key_metrics": page.key_metrics,
-                "timeline": [{"date": e.get("date", ""), "event": e.get("event", "")} for e in page.timeline],
-                "related_observations": page.related_observations[:10],
-            },
-            space_id=space_id,
-        )
-
-    async def compile_topic_page(
-        self,
-        topic: str,
-        entity_ids: list[str],
-        space_id: str,
-    ) -> dict[str, Any]:
-        """Compile a TopicPage from a topic and related entity IDs.
-
-        Design §LC-10 - TopicPage synthesizes cross-entity knowledge.
-        """
-        from ontology_engine.engine.cognitive.compilation import compile_topic_page as _compile
-
-        page = await _compile(self._repo, topic, entity_ids)
-        return self._make_response(
-            data={
-                "topic": topic,
-                "entity_ids": entity_ids,
-                "synthesis": page.synthesis,
-                "key_findings": page.key_findings[:10],
-                "open_questions": page.open_questions[:5],
-            },
-            space_id=space_id,
-        )
-
-    async def run_dream_cycle(
-        self,
-        space_id: str,
-    ) -> dict[str, Any]:
-        """Run a full DreamCycle maintenance for a space.
-
-        Design §LC-9 - DreamCycle 5-phase maintenance:
+        Dream cycle performs 5-phase maintenance:
         1. Contradiction detection
         2. Expiry check
         3. Orphan cleanup
         4. Self-link enhancement
         5. Graph completion
-        """
-        if self._dream is None:
-            return self._make_response(
-                data={"skipped": True, "reason": "DreamCycle not configured"},
-                space_id=space_id,
-            )
 
+        Args:
+            space_id: Space to maintain.
+
+        Returns:
+            Dict with phase outcomes.
+        """
         result = await self._dream.run(space_id)
-        return self._make_response(
-            data={
-                "phases_completed": 5,
-                "contradictions_found": len(result.contradictions),
-                "nodes_expired": len(result.expired),
-                "orphans_cleaned": result.orphans_cleaned,
-                "links_enhanced": result.links_enhanced,
-                "graph_completions": result.graph_completed,
-                "errors": result.errors,
-            },
-            space_id=space_id,
-        )
+        return {
+            "contradictions": len(result.contradictions),
+            "expired": len(result.expired),
+            "orphans_cleaned": result.orphans_cleaned,
+            "links_enhanced": result.links_enhanced,
+            "graph_completed": result.graph_completed,
+            "errors": result.errors,
+            "space_id": space_id,
+        }
 
     async def approve_memory(
         self,
@@ -1181,6 +1091,7 @@ class MemoryAPI:
         if action == "approve":
             node = await self._repo.get_node(node_id)
             node.confidence = 1.0
+            node.feedback_weight = 1.0
             await self._repo.update_node(node, reason=reason, action=f"approval_{action}")
         elif action == "reject":
             node = await self._repo.get_node(node_id)
@@ -1198,350 +1109,111 @@ class MemoryAPI:
             space_id=node.space_id,
         )
 
+    async def update_disposition(
+        self,
+        space_id: str,
+        disposition: Any,
+    ) -> dict[str, Any]:
+        if hasattr(self, "_disposition_store") and self._disposition_store:
+            await self._disposition_store.save(space_id, disposition)
+        return self._make_response(
+            data={"space_id": space_id, "updated": True},
+            space_id=space_id,
+        )
+
     async def correct_memory(
         self,
         node_id: str,
         corrected_text: str,
         reason: str = "",
         user_id: str = "system",
+        auto_consolidate: bool = True,
     ) -> dict[str, Any]:
-        """Correct a memory's content, creating a new superseding version.
-
-        Design §13.3 - Correction creates a new node with SUPERSEDES edge.
-        The original node transitions to 'superseded' belief status.
-        Correction propagation is triggered if available.
-        """
-        if not corrected_text or not corrected_text.strip():
-            raise CognitiveError("Corrected text cannot be empty", CognitiveErrorCode.EMPTY_INPUT)
-
         old_node = await self._repo.get_node(node_id)
+        if not old_node:
+            raise CognitiveNodeNotFoundError(node_id)
 
-        new_node_id = self._generate_memory_id(corrected_text, old_node.space_id, old_node.memory_type)
+        effective_space_id = old_node.space_id
 
-        old_source_ids = list(old_node.source_fragment_ids) if old_node.source_fragment_ids else []
-        merged_sources = old_source_ids + [node_id]
+        new_node_id = f"mem:{old_node.memory_type}:{effective_space_id}:{uuid.uuid4().hex[:12]}"
+        new_attributes = dict(old_node.attributes or {})
+        new_attributes["corrected_from"] = node_id
+
         new_node = CognitiveNode(
             id=new_node_id,
             memory_type=old_node.memory_type,
             cognitive_layer=old_node.cognitive_layer,
             content=corrected_text,
             domain_id=old_node.domain_id,
-            space_id=old_node.space_id,
+            space_id=effective_space_id,
             visibility=old_node.visibility,
             created_by=user_id,
             confidence=old_node.confidence,
-            belief_status="accepted",
+            belief_status=old_node.belief_status,
+            occurred_at=old_node.occurred_at,
+            schema_ref=old_node.schema_ref,
             tags=old_node.tags,
-            attributes=old_node.attributes,
-            source_fragment_ids=merged_sources,
-            proof_count=len(merged_sources),
-            extraction_hint="user_correction",
+            attributes=new_attributes,
+            confirmation_count=old_node.confirmation_count,
+            feedback_weight=old_node.feedback_weight,
+            valid_from=old_node.valid_from,
+            valid_to=old_node.valid_to,
+            recorded_at=old_node.recorded_at,
+            strength=old_node.strength,
+            entity_name=old_node.entity_name,
+            entity_type=old_node.entity_type,
+            version=old_node.version + 1,
+            model_domain=old_node.model_domain,
+            source_trust_tier=old_node.source_trust_tier,
+            scope=old_node.scope,
+            source_pipeline=old_node.source_pipeline,
+            source_content_hash=old_node.source_content_hash,
         )
+
         await self._repo.create_node(new_node)
 
-        old_node.superseded_by = new_node_id
-        old_node.belief_status = "superseded"
-        old_node.confidence = 0.0
-        await self._repo.update_node(old_node, reason=reason or "corrected", action="superseded")
+        await self._repo.transition_belief(node_id, "superseded", reason=reason or "corrected")
 
-        edge = CognitiveEdge(
-            edge_type="SUPERSEDES",
-            from_id=new_node_id,
-            to_id=node_id,
-            properties={
-                "reason": reason,
-                "corrected_by": user_id,
-                "corrected_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-        await self._repo.create_cognitive_edge(edge)
+        old_node_updated = await self._repo.get_node(node_id)
+        if old_node_updated:
+            old_node_updated.superseded_by = new_node_id
+            await self._repo.update_node(old_node_updated)
 
-        if self._vector_index is not None:
-            try:
-                await self._vector_index.index_node(
-                    node_id=new_node_id,
-                    content=corrected_text,
-                    memory_type=new_node.memory_type,
-                    tags=new_node.tags,
-                    space_id=new_node.space_id,
-                )
-            except Exception as e:
-                logger.debug("Vector indexing skipped for corrected node %s: %s", new_node_id, e)
+        try:
+            from ontology_engine.engine.cognitive.models import CognitiveEdge
+            await self._repo.create_cognitive_edge(CognitiveEdge(
+                edge_type="SUPERSEDES",
+                from_id=new_node_id,
+                to_id=node_id,
+                properties={"reason": reason or "corrected"},
+            ))
+        except Exception as e:
+            logger.warning("Failed to create SUPERSEDES edge: %s", e)
 
-        if self._correction_propagation is not None:
+        if hasattr(self, "_forgetting") and self._forgetting and hasattr(self._forgetting, "apply_strategic_forgetting"):
+            await self._forgetting.apply_strategic_forgetting(node_id, "superseded")
+
+        if hasattr(self, "_correction_propagation") and self._correction_propagation and hasattr(self._correction_propagation, "propagate"):
             try:
                 await self._correction_propagation.propagate(
-                    new_node_id, cascade_depth=3,
+                    source_node_id=node_id, signal="superseded",
                 )
             except Exception as e:
-                logger.debug("Correction propagation skipped: %s", e)
+                logger.warning("Correction propagation failed for %s: %s", node_id, e)
 
-        try:
-            _log_correct(
-                space_id=space_id,
-                node_id=node_id,
-                new_node_id=new_node_id,
-                agent_name=user_id or "system",
-            )
-        except Exception:
-            logger.debug("Activity log write skipped", exc_info=True)
-
-        return self._make_response(
-            data={
-                "original_node_id": node_id,
-                "new_node_id": new_node_id,
-                "action": "corrected",
-                "reason": reason,
-                "corrected_by": user_id,
-            },
-            space_id=old_node.space_id,
+        logger.info(
+            "Memory corrected: old=%s new=%s space=%s reason=%s",
+            node_id, new_node_id, effective_space_id, reason,
         )
 
-    async def delete_memory(
-        self,
-        node_id: str,
-        space_id: str,
-        cascade: bool = False,
-        user_id: str = "system",
-    ) -> dict[str, Any]:
-        """Delete a memory node. Optionally cascade to connected edges.
-
-        Design §13.4 - Deletion with optional cascade.
-        Protected memories (feedback_weight > 0.8) require explicit confirmation.
-        """
-        node = await self._repo.get_node(node_id)
-
-        if node.feedback_weight > 0.8:
-            raise CognitiveError(
-                f"Node '{node_id}' is protected (feedback_weight={node.feedback_weight}). "
-                f"Explicit confirmation required for deletion.",
-                CognitiveErrorCode.PROTECTED_MEMORY,
+        if auto_consolidate:
+            await self._consolidation.maybe_trigger_consolidation(
+                effective_space_id, trigger="correction",
             )
 
-        deleted_edges: list[str] = []
-        if cascade:
-            try:
-                from_edges = await self._repo.query_cognitive_edges(from_id=node_id, limit=100)
-                to_edges = await self._repo.query_cognitive_edges(to_id=node_id, limit=100)
-                for edge in from_edges + to_edges:
-                    edge_key = f"{edge.from_id}->{edge.to_id}:{edge.edge_type}"
-                    try:
-                        await self._repo.delete_cognitive_edge(edge_key)
-                        deleted_edges.append(edge_key)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.debug("Cascade edge deletion skipped: %s", e)
-
-        await self._repo.delete_node(node_id)
-
-        try:
-            _log_delete(
-                space_id=space_id,
-                node_id=node_id,
-                memory_type=getattr(node, 'memory_type', ''),
-                agent_name=user_id or "system",
-            )
-        except Exception:
-            logger.debug("Activity log write skipped", exc_info=True)
-
         return self._make_response(
-            data={
-                "deleted_node_id": node_id,
-                "cascade": cascade,
-                "deleted_edges": deleted_edges,
-                "deleted_by": user_id,
-            },
-            space_id=space_id,
-        )
-
-    async def list_my_memories(
-        self,
-        space_id: str,
-        user_id: str,
-        scope_type: str | None = None,
-        memory_type: str | None = None,
-        limit: int = 50,
-    ) -> dict[str, Any]:
-        """List memories belonging to a user with optional scope/type filters.
-
-        Design §13.5 - User-scoped memory listing.
-        Filters by created_by=user_id and optional scope_type/memory_type.
-        """
-        nodes = await self._repo.query_nodes(
-            domain_id=space_id,
-            memory_type=memory_type,
-            limit=limit * 3,
-        )
-
-        results = []
-        for n in nodes:
-            if n.created_by != user_id:
-                continue
-            if n.belief_status in ("superseded", "rejected"):
-                continue
-
-            if scope_type is not None:
-                attrs = n.attributes or {}
-                if attrs.get("scope_type") != scope_type:
-                    if hasattr(n, "scope") and isinstance(n.scope, dict):
-                        if n.scope.get("scope_type") != scope_type:
-                            continue
-                    elif attrs.get("scope_type") != scope_type:
-                        continue
-
-            results.append({
-                "id": n.id,
-                "content": n.content[:200],
-                "memory_type": n.memory_type,
-                "cognitive_layer": n.cognitive_layer,
-                "belief_status": n.belief_status,
-                "confidence": n.confidence,
-                "visibility": n.visibility,
-                "created_at": n.created_at,
-                "tags": n.tags,
-            })
-            if len(results) >= limit:
-                break
-
-        return self._make_response(
-            data={
-                "memories": results,
-                "total": len(results),
-                "user_id": user_id,
-                "scope_type": scope_type,
-            },
-            space_id=space_id,
-        )
-
-    async def record_commitment(
-        self,
-        content: str,
-        space_id: str,
-        deadline: str | None = None,
-        task_id: str | None = None,
-        created_by: str | None = None,
-    ) -> dict[str, Any]:
-        """Record a commitment as a commitment-type memory node.
-
-        Design §13.6 - Commitment lifecycle management.
-        Creates a commitment node with deadline and task_id attributes.
-        """
-        if not content or not content.strip():
-            raise CognitiveError("Commitment content cannot be empty", CognitiveErrorCode.EMPTY_INPUT)
-
-        node_id = self._generate_memory_id(content, space_id, "commitment")
-
-        attributes: dict[str, str] = {"commitment_status": "pending"}
-        if deadline:
-            attributes["deadline"] = deadline
-        if task_id:
-            attributes["task_id"] = task_id
-
-        node = CognitiveNode(
-            id=node_id,
-            memory_type="commitment",
-            cognitive_layer="opinion",
-            content=content,
-            domain_id=space_id,
-            space_id=space_id,
-            visibility="shared",
-            created_by=created_by,
-            confidence=1.0,
-            belief_status="accepted",
-            tags=["commitment"],
-            attributes=attributes,
-        )
-        await self._repo.create_node(node)
-
-        if self._vector_index is not None:
-            try:
-                await self._vector_index.index_node(
-                    node_id=node_id,
-                    content=content,
-                    memory_type="commitment",
-                    tags=["commitment"],
-                    space_id=space_id,
-                )
-            except Exception as e:
-                logger.debug("Vector indexing skipped for commitment %s: %s", node_id, e)
-
-        return self._make_response(
-            data={
-                "commitment_id": node_id,
-                "memory_type": "commitment",
-                "status": "pending",
-                "deadline": deadline,
-                "task_id": task_id,
-            },
-            space_id=space_id,
-        )
-
-    async def check_commitments(
-        self,
-        space_id: str,
-        status: str | None = None,
-        overdue: bool = False,
-    ) -> dict[str, Any]:
-        """Check commitments in a space, optionally filtered by status or overdue.
-
-        Design §13.7 - Commitment status checking.
-        Returns commitment nodes with their status and deadline information.
-        """
-        nodes = await self._repo.query_nodes(
-            domain_id=space_id,
-            memory_type="commitment",
-            limit=200,
-        )
-
-        results = []
-        for n in nodes:
-            attrs = n.attributes or {}
-            c_status = attrs.get("commitment_status", "pending")
-            c_deadline = attrs.get("deadline")
-
-            if status is not None and c_status != status:
-                continue
-
-            is_overdue = False
-            if c_deadline:
-                try:
-                    deadline_dt = datetime.fromisoformat(c_deadline.replace("Z", "+00:00"))
-                    now_dt = datetime.now(timezone.utc)
-                    is_overdue = deadline_dt < now_dt
-                except (ValueError, TypeError):
-                    pass
-
-            if overdue and not is_overdue:
-                continue
-
-            if is_overdue and c_status == "pending":
-                attrs["commitment_status"] = "overdue"
-                n.attributes = attrs
-                try:
-                    await self._repo.update_node(n, reason="auto-overdue-detection")
-                except Exception:
-                    pass
-                c_status = "overdue"
-
-            results.append({
-                "id": n.id,
-                "content": n.content[:200],
-                "commitment_status": c_status,
-                "deadline": c_deadline,
-                "task_id": attrs.get("task_id"),
-                "is_overdue": is_overdue,
-                "created_by": n.created_by,
-                "created_at": n.created_at,
-            })
-
-        return self._make_response(
-            data={
-                "commitments": results,
-                "total": len(results),
-                "overdue_count": sum(1 for r in results if r["is_overdue"]),
-            },
-            space_id=space_id,
+            data={"new_node_id": new_node_id, "old_node_id": node_id},
+            space_id=effective_space_id,
         )
 
     async def _execute_reflect(
@@ -1550,7 +1222,7 @@ class MemoryAPI:
         job: ReflectionJob | None = None,
     ) -> dict[str, Any]:
         if job and job.progress:
-            self._job_store.update_progress(
+            await self._job_store.update_progress(
                 job.reflection_id, ReflectionPhase.RETRIEVAL.value, "in_progress"
             )
 
@@ -1559,16 +1231,17 @@ class MemoryAPI:
             space_id=req.space_id,
             max_iterations=req.max_iterations,
             focus_types=req.focus_types,
+            disposition=req.disposition if hasattr(req, "disposition") else None,
         )
 
         if job and job.progress:
-            self._job_store.update_progress(
+            await self._job_store.update_progress(
                 job.reflection_id, ReflectionPhase.RETRIEVAL.value, "completed"
             )
-            self._job_store.update_progress(
+            await self._job_store.update_progress(
                 job.reflection_id, ReflectionPhase.CONTRADICTION_DETECTION.value, "completed"
             )
-            self._job_store.set_partial_results(
+            await self._job_store.set_partial_results(
                 job.reflection_id,
                 "insights",
                 [
@@ -1576,7 +1249,7 @@ class MemoryAPI:
                     for i in reflect_result.insights
                 ],
             )
-            self._job_store.set_partial_results(
+            await self._job_store.set_partial_results(
                 job.reflection_id,
                 "contradictions",
                 [
@@ -1586,7 +1259,7 @@ class MemoryAPI:
             )
 
         if job and job.progress:
-            self._job_store.update_progress(
+            await self._job_store.update_progress(
                 job.reflection_id, ReflectionPhase.BELIEF_REVISION.value, "in_progress"
             )
 
@@ -1651,14 +1324,14 @@ class MemoryAPI:
                     logger.debug("Failed to create CONTRADICTS edge: %s", e)
 
         if job and job.progress:
-            self._job_store.update_progress(
+            await self._job_store.update_progress(
                 job.reflection_id, ReflectionPhase.BELIEF_REVISION.value, "completed"
             )
 
         consolidation_result = None
         if reflect_result.consolidation_requests and not req.skip_consolidation:
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.CONSOLIDATION.value, "in_progress"
                 )
             try:
@@ -1681,19 +1354,19 @@ class MemoryAPI:
             except Exception as e:
                 logger.warning("Consolidation during reflect failed: %s", e)
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.CONSOLIDATION.value, "completed"
                 )
         elif req.skip_consolidation:
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.CONSOLIDATION.value, "completed"
                 )
 
         forgetting_result = None
         if reflect_result.forgetting_requests and not req.skip_forgetting:
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.FORGETTING.value, "in_progress"
                 )
             try:
@@ -1702,19 +1375,19 @@ class MemoryAPI:
             except Exception as e:
                 logger.warning("Forgetting during reflect failed: %s", e)
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.FORGETTING.value, "completed"
                 )
         elif req.skip_forgetting:
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.FORGETTING.value, "completed"
                 )
 
         propagation_result = None
         if not req.skip_correction_propagation and self._correction_propagation is not None:
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.CORRECTION_PROPAGATION.value, "in_progress"
                 )
             try:
@@ -1733,17 +1406,17 @@ class MemoryAPI:
             except Exception as e:
                 logger.warning("Correction propagation failed: %s", e)
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.CORRECTION_PROPAGATION.value, "completed"
                 )
         else:
             if job and job.progress:
-                self._job_store.update_progress(
+                await self._job_store.update_progress(
                     job.reflection_id, ReflectionPhase.CORRECTION_PROPAGATION.value, "completed"
                 )
 
         if job and job.progress:
-            self._job_store.update_progress(
+            await self._job_store.update_progress(
                 job.reflection_id, ReflectionPhase.SCHEMA_SUGGESTION.value, "completed"
             )
 
@@ -1793,8 +1466,9 @@ class MemoryAPI:
                     }
                     for u in reflect_result.mental_model_updates
                 ],
-                "iterations_used": reflect_result.iterations_used if hasattr(reflect_result, "iterations_used") and reflect_result.iterations_used else 1,
-                "tokens_used": reflect_result.tokens_used if hasattr(reflect_result, "tokens_used") and reflect_result.tokens_used else 0,
+                "iterations_used": reflect_result.iterations_used,
+                "tokens_used": reflect_result.tokens_used,
+                "method": reflect_result.method,
             },
             space_id=req.space_id,
         )
@@ -1812,13 +1486,90 @@ class MemoryAPI:
                 skip_correction_propagation=job.skip_correction_propagation,
             )
             result = await self._execute_reflect(req, job)
-            self._job_store.set_partial_results(job.reflection_id, "final_result", result)
+            await self._job_store.set_partial_results(job.reflection_id, "final_result", result)
         except Exception as e:
-            self._job_store.set_error(job.reflection_id, str(e))
+            await self._job_store.set_error(job.reflection_id, str(e))
 
     def _generate_memory_id(self, content: str, space_id: str, memory_type: str) -> str:
         content_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
         return f"mem:{memory_type}:{space_id}:{content_hash}"
+
+    async def get_node(self, space_id: str, node_id: str) -> dict[str, Any]:
+        """Get a cognitive node by ID.
+
+        Args:
+            space_id: Space ID.
+            node_id: Node ID.
+
+        Returns:
+            Node data dictionary.
+
+        Raises:
+            CognitiveNodeNotFoundError: If node doesn't exist.
+        """
+        node = await self._repo.get_node(node_id)
+        return {
+            "id": node.id,
+            "memory_type": node.memory_type,
+            "cognitive_layer": node.cognitive_layer,
+            "content": node.content,
+            "belief_status": node.belief_status,
+            "confidence": node.confidence,
+            "visibility": node.visibility,
+            "created_by": node.created_by,
+            "space_id": node.space_id,
+            "tags": node.tags,
+            "attributes": node.attributes,
+            "schema_ref": node.schema_ref,
+            "occurred_at": node.occurred_at,
+            "recorded_at": node.recorded_at,
+            "valid_from": node.valid_from,
+            "valid_to": node.valid_to,
+            "superseded_by": node.superseded_by,
+            "source_fragment_ids": node.source_fragment_ids,
+        }
+
+    async def list_nodes(
+        self,
+        space_id: str,
+        memory_type: str | None = None,
+        belief_status: str | None = None,
+        limit: int = 1000,
+    ) -> dict[str, Any]:
+        """List cognitive nodes for a space.
+
+        Args:
+            space_id: Space ID.
+            memory_type: Optional memory type filter.
+            belief_status: Optional belief status filter.
+            limit: Maximum number of nodes to return.
+
+        Returns:
+            Dict with nodes list and space_id.
+        """
+        nodes = await self._repo.query_nodes(
+            domain_id=space_id,
+            memory_type=memory_type,
+            belief_status=belief_status,
+            limit=limit,
+        )
+        results = []
+        for n in nodes:
+            strength_info = self._compute_strength(n)
+            results.append({
+                "id": n.id,
+                "memory_type": n.memory_type,
+                "text": n.content,
+                "cognitive_layer": n.cognitive_layer,
+                "belief_status": n.belief_status,
+                "proof_count": len(n.source_fragment_ids),
+                "visibility": n.visibility,
+                "created_by": n.created_by,
+                "confidence": n.confidence,
+                "strength": strength_info["value"],
+                "strength_breakdown": strength_info["breakdown"],
+            })
+        return {"nodes": results, "total": len(results), "space_id": space_id}
 
     def _make_response(
         self,
@@ -1940,6 +1691,17 @@ class MemoryAPI:
         return layer_mapping.get(memory_type, "perception")
 
     @staticmethod
+    def _infer_model_domain(memory_type: str) -> str:
+        domain_mapping = {
+            "entity": "world", "rule": "world", "constraint": "world",
+            "observation": "world",
+            "mental_model": "self", "opinion": "self",
+            "commitment": "task", "task_state": "task", "procedure": "task", "episode": "task",
+            "self_experience": "self", "fragment": "world",
+        }
+        return domain_mapping.get(memory_type, "")
+
+    @staticmethod
     def _compute_temporal_proximity(result: dict[str, Any]) -> float:
         import math
         from datetime import datetime, timezone
@@ -2000,33 +1762,38 @@ class MemoryAPI:
     def _compute_strength(node: CognitiveNode) -> dict[str, Any]:
         """Compute memory strength from node attributes.
 
+        Delegates to lifecycle.compute_memory_strength for the canonical
+        formula, then wraps the result with a breakdown dict.
+
         strength = recency * 0.25 + confirmation * 0.15 + evidence * 0.25
                    + feedback * 0.2 + frequency * 0.15
-
-        Returns strength value and breakdown.
         """
-        recency = 0.5
+        from ontology_engine.engine.cognitive.lifecycle import compute_memory_strength
+
         last_access = node.last_access_at or node.updated_at or node.created_at
+        days_since_access = 0.0
         if last_access:
             try:
                 accessed = datetime.fromisoformat(str(last_access).replace("Z", "+00:00"))
                 now = datetime.now(timezone.utc)
-                age_hours = max(0, (now - accessed).total_seconds() / 3600)
-                recency = max(0.0, 1.0 - (age_hours / (30 * 24)))
+                days_since_access = max(0, (now - accessed).total_seconds() / 86400.0)
             except (ValueError, TypeError):
                 pass
 
+        recency = math.exp(-0.1 * max(0, days_since_access))
         evidence = min(1.0, len(node.source_fragment_ids) / 5.0) if isinstance(node.source_fragment_ids, list) and node.source_fragment_ids else 0.1
-
         feedback = node.feedback_weight
-
         frequency = min(1.0, node.access_count / 10.0) if node.access_count else 0.1
+        confirmation = min(1.0, node.proof_count / 5.0) if hasattr(node, "proof_count") and node.proof_count else 0.1
 
-        confirmation = 0.1
-        if hasattr(node, "proof_count") and node.proof_count:
-            confirmation = min(1.0, node.proof_count / 5.0)
-
-        strength = recency * 0.25 + confirmation * 0.15 + evidence * 0.25 + feedback * 0.2 + frequency * 0.15
+        strength = compute_memory_strength(
+            access_count=int(node.access_count),
+            last_accessed_days=days_since_access,
+            proof_count=len(node.source_fragment_ids) if isinstance(node.source_fragment_ids, list) else 0,
+            feedback_weight=node.feedback_weight,
+            confirmation_count=getattr(node, "confirmation_count", 0),
+            last_confirmed_at=getattr(node, "last_confirmed_at", None),
+        )
 
         return {
             "value": round(strength, 3),

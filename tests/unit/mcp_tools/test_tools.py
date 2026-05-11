@@ -110,7 +110,7 @@ class TestServer:
         server_module = importlib.import_module("ontology_engine.mcp.server")
         list_tools = server_module.list_tools
         tools = await list_tools()
-        assert len(tools) == 23
+        assert len(tools) == 28
         tool_names = [t.name for t in tools]
         assert "oe_create_space" in tool_names
         assert "oe_list_spaces" in tool_names
