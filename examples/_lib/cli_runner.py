@@ -199,7 +199,7 @@ class CLIRunner:
 async def create_runner(space_id: str, tmp_dir: Path | None = None) -> tuple[CLIRunner, Path]:
     if tmp_dir is None:
         tmp_dir = Path(tempfile.mkdtemp(prefix="mem_eval_"))
-    api = await create_memory_api(db_path=str(tmp_dir / "cognitive"))
+    api, _ = await create_memory_api(db_path=str(tmp_dir / "cognitive"))
     return CLIRunner(api, space_id=space_id), tmp_dir
 
 

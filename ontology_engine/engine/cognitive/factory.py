@@ -119,7 +119,7 @@ async def create_memory_api(
     db_path: str | None = None,
     daily_token_budget: int = 20000,
     llm_config: dict[str, Any] | None = None,
-) -> MemoryAPI:
+) -> tuple[MemoryAPI, KuzuGraphStore]:
     """Create a fully-initialized MemoryAPI with all dependencies wired.
 
     Args:
@@ -129,7 +129,8 @@ async def create_memory_api(
             environment variables and config.yaml. Keys: base_url, api_key, model.
 
     Returns:
-        Initialized MemoryAPI ready for use.
+        Tuple of (initialized MemoryAPI, KuzuGraphStore) so the caller can
+        close the store on shutdown.
     """
     path = db_path or os.path.expanduser("~/.ontology_engine/cognitive_db")
 
@@ -196,7 +197,7 @@ async def create_memory_api(
         vector_index=vector_index,
         ingestion_service=ingestion,
         qul=qul,
-    )
+    ), store
 
 
 class MemoryAPISingleton:
@@ -206,7 +207,7 @@ class MemoryAPISingleton:
     Thread-safe via asyncio.Lock — suitable for multi-coroutine ASGI apps.
     For multi-worker deployments (gunicorn -w N), each worker gets its own
     process and thus its own singleton instance; KuzuDB file locking is
-    handled by the KuzuGraphStore-level lock (R2).
+    handled by retry with exponential backoff in KuzuGraphStore.initialize().
     """
 
     _instance: MemoryAPI | None = None
@@ -220,7 +221,7 @@ class MemoryAPISingleton:
             if cls._instance is None or cls._db_path != db_path:
                 if cls._store is not None:
                     await cls._store.close()
-                cls._instance = await create_memory_api(db_path)
+                cls._instance, cls._store = await create_memory_api(db_path)
                 cls._db_path = db_path
             return cls._instance
 

@@ -39,7 +39,7 @@ class TestKuzuGraphStore:
         db_path = str(tmp_path / "test_init.kuzu")
         await store.initialize(db_path)
         assert store._initialized
-        assert store._conn is not None
+        assert store._pool is not None
         await store.close()
 
     @pytest.mark.asyncio
