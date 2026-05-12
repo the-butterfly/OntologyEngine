@@ -1,4 +1,4 @@
-"""Memory API Routes — 9 endpoints for Agent Memory System (remember, recall, reflect, approve, reflect_status, consolidate, forget, stats, types, audit)."""
+"""Memory API Routes — 10 endpoints for Agent Memory System (remember, recall, reflect, approve, reflect_status, consolidate, forget, dream, stats, types, audit)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,21 @@ from fastapi import APIRouter, Body
 from ontology_engine.api.dto.responses import error_response, success_response
 
 router = APIRouter(prefix="/v1/spaces/{space_id}/memory", tags=["memory"])
+
+
+def _is_lock_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "lock" in msg or "could not set" in msg
+
+
+def _handle_error(exc: Exception, code: str) -> Any:
+    if _is_lock_error(exc):
+        return error_response(
+            code="DB_LOCK_ERROR",
+            message=str(exc),
+            suggestion="Another process is using the database. If using uvicorn --reload, wait a moment and retry.",
+        )
+    return error_response(code=code, message=str(exc))
 
 
 async def _get_memory_api():
@@ -66,7 +81,7 @@ async def remember(
             meta={"space_id": space_id}
         )
     except Exception as e:
-        return error_response(code="REMEMBER_ERROR", message=str(e))
+        return _handle_error(e, "REMEMBER_ERROR")
 
 
 @router.post("/recall")
@@ -113,7 +128,7 @@ async def recall(
             meta={"space_id": space_id}
         )
     except Exception as e:
-        return error_response(code="RECALL_ERROR", message=str(e))
+        return _handle_error(e, "RECALL_ERROR")
 
 
 @router.post("/reflect")
@@ -148,7 +163,7 @@ async def reflect(
             meta={"space_id": space_id}
         )
     except Exception as e:
-        return error_response(code="REFLECT_ERROR", message=str(e))
+        return _handle_error(e, "REFLECT_ERROR")
 
 
 @router.post("/approve")
@@ -174,7 +189,7 @@ async def approve(
             meta={"space_id": space_id}
         )
     except Exception as e:
-        return error_response(code="APPROVE_ERROR", message=str(e))
+        return _handle_error(e, "APPROVE_ERROR")
 
 
 @router.post("/consolidate")
@@ -187,7 +202,7 @@ async def consolidate(
         result = await api.run_consolidation(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="CONSOLIDATE_ERROR", message=str(e))
+        return _handle_error(e, "CONSOLIDATE_ERROR")
 
 
 @router.post("/forget")
@@ -201,7 +216,19 @@ async def force_forget(
         result = await api.run_forgetting(space_id, days_elapsed=days_elapsed)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="FORGET_ERROR", message=str(e))
+        return _handle_error(e, "FORGET_ERROR")
+
+
+@router.post("/dream")
+async def dream(
+    space_id: str,
+) -> dict[str, Any] | Any:
+    try:
+        api = await _get_memory_api()
+        result = await api.dream(space_id)
+        return success_response(data=result, meta={"space_id": space_id})
+    except Exception as e:
+        return _handle_error(e, "DREAM_ERROR")
 
 
 @router.get("/stats")
@@ -213,7 +240,7 @@ async def stats(
         result = await api.get_stats(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="STATS_ERROR", message=str(e))
+        return _handle_error(e, "STATS_ERROR")
 
 
 @router.get("/types")
@@ -225,7 +252,7 @@ async def types_list(
         result = await api.get_types(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="TYPES_ERROR", message=str(e))
+        return _handle_error(e, "TYPES_ERROR")
 
 
 @router.get("/audit")
@@ -238,7 +265,7 @@ async def audit(
         result = await api.get_audit_trail(space_id, limit=limit)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="AUDIT_ERROR", message=str(e))
+        return _handle_error(e, "AUDIT_ERROR")
 
 
 @router.get("/nodes")
@@ -259,7 +286,7 @@ async def list_nodes(
         )
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="LIST_NODES_ERROR", message=str(e))
+        return _handle_error(e, "LIST_NODES_ERROR")
 
 
 @router.get("/{node_id}")

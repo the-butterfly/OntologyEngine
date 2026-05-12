@@ -103,7 +103,7 @@ class CLIRunner:
             cognitive_layer=cognitive_layer, include_superseded=include_superseded, user_id=user_id)
         return r.get("data", r)
 
-    async def reflect(self, query: str, *, max_iterations: int = 2,
+    async def reflect(self, query: str, *, max_iterations: int = 5,
                       focus_types: list[str] | None = None, async_mode: bool = False,
                       skip_consolidation: bool = False, skip_forgetting: bool = True,
                       cascade_depth: int = 3) -> dict:
@@ -214,7 +214,7 @@ class CLIRunner:
 async def create_runner(space_id: str, tmp_dir: Path | None = None) -> tuple[CLIRunner, Path]:
     if tmp_dir is None:
         tmp_dir = Path(tempfile.mkdtemp(prefix="mem_eval_"))
-    api = await create_memory_api(db_path=str(tmp_dir / "cognitive"))
+    api, _ = await create_memory_api(db_path=str(tmp_dir / "cognitive"))
     return CLIRunner(api, space_id=space_id), tmp_dir
 
 

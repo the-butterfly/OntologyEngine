@@ -9,11 +9,80 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any
 
 from ontology_engine.storage.base import GraphQueryError, GraphStoreBackend
 
 logger = logging.getLogger(__name__)
+
+_LOCK_RETRY_ATTEMPTS = 5
+_LOCK_RETRY_BASE_DELAY = 0.5
+_LOCK_RETRY_MAX_DELAY = 8.0
+
+
+class KuzuConnectionPool:
+    """Pool of ``kuzu.Connection`` objects sharing one ``kuzu.Database``.
+
+    KuzuDB's Python binding is not thread-safe: concurrent ``execute()`` on the
+    same ``Connection`` causes data corruption or segfaults.  However, multiple
+    ``Connection`` objects attached to the same ``Database`` *are* safe to use
+    concurrently as long as each connection is used by at most one coroutine at
+    a time.
+
+    The pool enforces this by handing out connections exclusively via the
+    ``acquire()`` async context manager.  Callers never hold a raw connection;
+    they ``async with pool.acquire() as conn:`` and the pool guarantees no
+    two coroutines share the same connection.
+
+    Args:
+        db: An already-opened ``kuzu.Database`` instance.
+        pool_size: Number of connections in the pool.  Defaults to 3 which
+            is sufficient for typical async workloads while keeping resource
+            usage modest.
+    """
+
+    def __init__(self, db: Any, pool_size: int = 3) -> None:
+        self._db = db
+        self._pool_size = pool_size
+        self._semaphore = asyncio.Semaphore(pool_size)
+        self._connections: list[Any] = []
+        self._available: asyncio.Queue[Any] = asyncio.Queue(maxsize=pool_size)
+        self._closed = False
+
+    async def initialize(self) -> None:
+        import kuzu
+
+        for _ in range(self._pool_size):
+            conn = kuzu.Connection(self._db)
+            self._connections.append(conn)
+            await self._available.put(conn)
+
+    @asynccontextmanager
+    async def acquire(self):  # type: ignore[no-untyped-def]
+        if self._closed:
+            raise GraphQueryError("KuzuConnectionPool is closed")
+        await self._semaphore.acquire()
+        conn = await self._available.get()
+        try:
+            yield conn
+        finally:
+            await self._available.put(conn)
+            self._semaphore.release()
+
+    async def close(self) -> None:
+        self._closed = True
+        for conn in self._connections:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        self._connections.clear()
+        while not self._available.empty():
+            try:
+                self._available.get_nowait()
+            except asyncio.QueueEmpty:
+                break
 
 
 class KuzuGraphStore(GraphStoreBackend):
@@ -34,19 +103,22 @@ class KuzuGraphStore(GraphStoreBackend):
 
     Default database path: ``~/.ontology_engine/data/{space_id}/graph.kuzu``
 
-    Thread safety: All ``_conn.execute()`` calls are serialized via an
-    ``asyncio.Lock`` (``_execute_lock``).  This prevents concurrent Cypher
-    execution which the Kuzu Python binding does not support.  For multi-worker
-    deployments (gunicorn -w N), each worker process opens its own Database +
-    Connection; the lock only coordinates coroutines *within* a single process.
+    Concurrency model:
+    - A ``KuzuConnectionPool`` manages multiple ``kuzu.Connection`` objects.
+    - Each query acquires a connection exclusively via ``pool.acquire()``,
+      guaranteeing no two coroutines share the same connection.
+    - ``initialize()`` retries with exponential backoff when the database file
+      lock is held by another process (e.g. during ``uvicorn --reload``).
+    - For multi-worker deployments (gunicorn -w N), each worker process opens
+      its own Database + pool; the file lock is handled by retry at init time.
     """
 
-    def __init__(self) -> None:
-        self._db: Any | None = None  # kuzu.Database
-        self._conn: Any | None = None  # kuzu.Connection
+    def __init__(self, pool_size: int = 3) -> None:
+        self._db: Any | None = None
+        self._pool: KuzuConnectionPool | None = None
         self._initialized = False
         self._fragment_cache: dict[str, bool] = {}
-        self._execute_lock: asyncio.Lock = asyncio.Lock()
+        self._pool_size = pool_size
 
     # Pre-defined query specs for mutual index relations (class-level constant).
     # Each entry lists ALL rel-tables that carry that logical edge type, so that
@@ -71,29 +143,38 @@ class KuzuGraphStore(GraphStoreBackend):
     }
 
     def _default_path(self) -> str:
+        """Return default kuzu database path."""
         base = os.path.expanduser("~/.ontology_engine/data")
         return os.path.join(base, "default", "graph.kuzu")
 
     async def _execute(self, query: str, parameters: dict[str, Any] | None = None) -> Any:
-        """Execute a Cypher query with lock protection.
+        """Execute a Cypher query via the connection pool.
 
-        All KuzuDB connection calls must go through this method to ensure
-        serialization.  The Kuzu Python binding is not thread-safe and
-        concurrent execute() calls on the same Connection cause data
-        corruption or segfaults.
+        Acquires an exclusive connection from the pool, executes the query,
+        and returns the connection.  This guarantees no two coroutines share
+        the same ``kuzu.Connection`` which the Kuzu Python binding does not
+        support.
         """
         self._ensure_initialized()
-        async with self._execute_lock:
-            return self._conn.execute(query, parameters or {})
+        assert self._pool is not None
+        async with self._pool.acquire() as conn:
+            return conn.execute(query, parameters or {})
 
     async def initialize(self, db_path: str | None = None) -> None:
-        """Initialize kuzu database connection.
+        """Initialize kuzu database connection with retry on lock contention.
+
+        When ``uvicorn --reload`` restarts the worker, the old process may
+        still hold the database file lock for a brief moment.  This method
+        retries with exponential backoff so the new process can acquire the
+        lock once the old one releases it.
 
         Args:
-            db_path: Database path. Defaults to ``~/.ontology_engine/data/{space_id}/graph.kuzu``.
+            db_path: Database path. Defaults to
+                ``~/.ontology_engine/data/{space_id}/graph.kuzu``.
 
         Raises:
-            GraphQueryError: If already initialized or kuzu not installed.
+            GraphQueryError: If already initialized, kuzu not installed, or
+                the database lock cannot be acquired after all retries.
         """
         if self._initialized:
             raise GraphQueryError("KuzuGraphStore already initialized")
@@ -106,14 +187,45 @@ class KuzuGraphStore(GraphStoreBackend):
             ) from exc
 
         path = db_path or self._default_path()
-        # Ensure parent directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        self._db = kuzu.Database(path)
-        self._conn = kuzu.Connection(self._db)
+        last_error: Exception | None = None
+        for attempt in range(1, _LOCK_RETRY_ATTEMPTS + 1):
+            try:
+                self._db = kuzu.Database(path)
+                break
+            except RuntimeError as exc:
+                last_error = exc
+                msg = str(exc).lower()
+                if "lock" not in msg and "could not set" not in msg:
+                    raise GraphQueryError(
+                        f"Failed to open KuzuDB at {path}: {exc}"
+                    ) from exc
+                if attempt < _LOCK_RETRY_ATTEMPTS:
+                    delay = min(
+                        _LOCK_RETRY_BASE_DELAY * (2 ** (attempt - 1)),
+                        _LOCK_RETRY_MAX_DELAY,
+                    )
+                    logger.warning(
+                        "KuzuDB lock contention on %s (attempt %d/%d), "
+                        "retrying in %.1fs — another process likely holds the lock",
+                        path, attempt, _LOCK_RETRY_ATTEMPTS, delay,
+                    )
+                    await asyncio.sleep(delay)
+        else:
+            raise GraphQueryError(
+                f"Could not acquire KuzuDB lock on {path} after "
+                f"{_LOCK_RETRY_ATTEMPTS} attempts. Another process is likely "
+                f"using the database. If using uvicorn --reload, the old "
+                f"worker should release the lock shortly. Original error: "
+                f"{last_error}"
+            ) from last_error
+
+        self._pool = KuzuConnectionPool(self._db, pool_size=self._pool_size)
+        await self._pool.initialize()
         self._initialized = True
         await self._ensure_schema()
-        logger.info("Kuzu graph store initialized at %s", path)
+        logger.info("Kuzu graph store initialized at %s (pool_size=%d)", path, self._pool_size)
 
     async def _ensure_schema(self) -> None:
         """Create node/rel tables if they don't exist.
@@ -590,17 +702,19 @@ class KuzuGraphStore(GraphStoreBackend):
         pass
 
     def _ensure_initialized(self) -> None:
-        if not self._initialized or self._conn is None:
+        if not self._initialized or self._pool is None:
             raise GraphQueryError(
                 "KuzuGraphStore not initialized. Call initialize() first."
             )
 
     async def close(self) -> None:
-        """Close database connection."""
+        """Close database connection pool and release resources."""
+        if self._pool is not None:
+            await self._pool.close()
         if self._db is not None:
             self._db.close()
         self._db = None
-        self._conn = None
+        self._pool = None
         self._initialized = False
 
     # --- Node Management ---
@@ -1986,16 +2100,20 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.proof_count AS proof_count,
                    n.valid_from AS valid_from, n.valid_to AS valid_to,
                    n.recorded_at AS recorded_at, n.tags AS tags,
+                   n.attributes AS attributes,
                    n.confirmation_count AS confirmation_count,
                    n.strength AS strength,
-                   n.entity_name AS entity_name, n.entity_type AS entity_type,
-                   n.version AS version, n.last_confirmed_at AS last_confirmed_at,
+                   n.entity_name AS entity_name,
+                   n.entity_type AS entity_type,
+                   n.version AS version,
+                   n.last_confirmed_at AS last_confirmed_at,
                    n.consolidation_reasoning AS consolidation_reasoning,
-                   n.compiled_at AS compiled_at, n.model_domain AS model_domain,
-                   n.source_trust_tier AS source_trust_tier, n.scope AS scope,
+                   n.compiled_at AS compiled_at,
+                   n.model_domain AS model_domain,
+                   n.source_trust_tier AS source_trust_tier,
+                   n.scope AS scope,
                    n.source_pipeline AS source_pipeline,
-                   n.source_content_hash AS source_content_hash,
-                   n.attributes AS attributes
+                   n.source_content_hash AS source_content_hash
         """, {"id": node_id})
 
         df = result.get_as_df()
@@ -2055,20 +2173,20 @@ class KuzuGraphStore(GraphStoreBackend):
             "valid_to": safe_val(row["valid_to"]),
             "recorded_at": safe_val(row["recorded_at"]),
             "tags": json.loads(safe_val(row["tags"], "[]")),
-            "confirmation_count": safe_val(row["confirmation_count"], 0),
-            "strength": safe_val(row["strength"], 1.0),
-            "entity_name": safe_val(row["entity_name"]),
-            "entity_type": safe_val(row["entity_type"]),
-            "version": safe_val(row["version"], 1),
-            "last_confirmed_at": safe_val(row["last_confirmed_at"]),
-            "consolidation_reasoning": safe_val(row["consolidation_reasoning"]),
-            "compiled_at": safe_val(row["compiled_at"]),
-            "model_domain": safe_val(row["model_domain"]),
-            "source_trust_tier": safe_val(row["source_trust_tier"]),
-            "scope": safe_val(row["scope"]),
-            "source_pipeline": safe_val(row["source_pipeline"]),
-            "source_content_hash": safe_val(row["source_content_hash"]),
             "attributes": parse_json_field(row["attributes"]) or {},
+            "confirmation_count": safe_val(row.get("confirmation_count"), 0),
+            "strength": safe_val(row.get("strength"), 1.0),
+            "entity_name": safe_val(row.get("entity_name")),
+            "entity_type": safe_val(row.get("entity_type")),
+            "version": safe_val(row.get("version"), 1),
+            "last_confirmed_at": safe_val(row.get("last_confirmed_at")),
+            "consolidation_reasoning": safe_val(row.get("consolidation_reasoning")),
+            "compiled_at": safe_val(row.get("compiled_at")),
+            "model_domain": safe_val(row.get("model_domain")),
+            "source_trust_tier": safe_val(row.get("source_trust_tier")),
+            "scope": safe_val(row.get("scope")),
+            "source_pipeline": safe_val(row.get("source_pipeline")),
+            "source_content_hash": safe_val(row.get("source_content_hash")),
         }
 
     async def delete_cognitive_node(self, node_id: str) -> None:
@@ -2154,15 +2272,6 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.proof_count AS proof_count,
                    n.valid_from AS valid_from, n.valid_to AS valid_to,
                    n.recorded_at AS recorded_at, n.tags AS tags,
-                   n.confirmation_count AS confirmation_count,
-                   n.strength AS strength,
-                   n.entity_name AS entity_name, n.entity_type AS entity_type,
-                   n.version AS version, n.last_confirmed_at AS last_confirmed_at,
-                   n.consolidation_reasoning AS consolidation_reasoning,
-                   n.compiled_at AS compiled_at, n.model_domain AS model_domain,
-                   n.source_trust_tier AS source_trust_tier, n.scope AS scope,
-                   n.source_pipeline AS source_pipeline,
-                   n.source_content_hash AS source_content_hash,
                    n.attributes AS attributes
             ORDER BY n.created_at DESC
             LIMIT {limit}
@@ -2227,86 +2336,23 @@ class KuzuGraphStore(GraphStoreBackend):
                 "valid_to": _safe(row["valid_to"]),
                 "recorded_at": _safe(row["recorded_at"]),
                 "tags": _json.loads(_safe(row["tags"], "[]")),
-                "confirmation_count": _safe(row["confirmation_count"], 0),
-                "strength": _safe(row["strength"], 1.0),
-                "entity_name": _safe(row["entity_name"]),
-                "entity_type": _safe(row["entity_type"]),
-                "version": _safe(row["version"], 1),
-                "last_confirmed_at": _safe(row["last_confirmed_at"]),
-                "consolidation_reasoning": _safe(row["consolidation_reasoning"]),
-                "compiled_at": _safe(row["compiled_at"]),
-                "model_domain": _safe(row["model_domain"]),
-                "source_trust_tier": _safe(row["source_trust_tier"]),
-                "scope": _safe(row["scope"]),
-                "source_pipeline": _safe(row["source_pipeline"]),
-                "source_content_hash": _safe(row["source_content_hash"]),
-                "attributes": _parse(row["attributes"]) or {},
+                "confirmation_count": _safe(row.get("confirmation_count"), 0),
+                "attributes": _parse(row.get("attributes")) or {},
+                "strength": _safe(row.get("strength"), 1.0),
+                "entity_name": _safe(row.get("entity_name")),
+                "entity_type": _safe(row.get("entity_type")),
+                "version": _safe(row.get("version"), 1),
+                "last_confirmed_at": _safe(row.get("last_confirmed_at")),
+                "consolidation_reasoning": _safe(row.get("consolidation_reasoning")),
+                "compiled_at": _safe(row.get("compiled_at")),
+                "model_domain": _safe(row.get("model_domain")),
+                "source_trust_tier": _safe(row.get("source_trust_tier")),
+                "scope": _safe(row.get("scope")),
+                "source_pipeline": _safe(row.get("source_pipeline")),
+                "source_content_hash": _safe(row.get("source_content_hash")),
             }
             for _, row in df.iterrows()
         ]
-
-    async def update_cognitive_node_with_occ(
-        self,
-        node_id: str,
-        expected_version: int,
-        updates: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        self._ensure_initialized()
-        import json
-
-        set_clauses = ["n.version = n.version + 1"]
-        params: dict[str, Any] = {"id": node_id, "expected_version": expected_version}
-
-        field_mappings = {
-            "content": "n.content = $content",
-            "strength": "n.strength = $strength",
-            "feedback_weight": "n.feedback_weight = $feedback_weight",
-            "belief_status": "n.belief_status = $belief_status",
-            "attributes": "n.attributes = $attributes",
-            "memory_type": "n.memory_type = $memory_type",
-            "entity_name": "n.entity_name = $entity_name",
-            "entity_type": "n.entity_type = $entity_type",
-            "model_domain": "n.model_domain = $model_domain",
-            "scope": "n.scope = $scope",
-            "source_trust_tier": "n.source_trust_tier = $source_trust_tier",
-            "last_confirmed_at": "n.last_confirmed_at = $last_confirmed_at",
-            "consolidation_reasoning": "n.consolidation_reasoning = $consolidation_reasoning",
-            "valid_to": "n.valid_to = $valid_to",
-            "superseded_by": "n.superseded_by = $superseded_by",
-            "confidence": "n.confidence = $confidence",
-            "schema_ref": "n.schema_ref = $schema_ref",
-            "extraction_hint": "n.extraction_hint = $extraction_hint",
-            "source_fragment_ids": "n.source_fragment_ids = $source_fragment_ids",
-            "tags": "n.tags = $tags",
-            "proof_count": "n.proof_count = $proof_count",
-            "confirmation_count": "n.confirmation_count = $confirmation_count",
-        }
-
-        for field_name, cypher_set in field_mappings.items():
-            if field_name in updates:
-                val = updates[field_name]
-                if field_name in ("source_fragment_ids", "tags", "attributes"):
-                    val = json.dumps(val) if not isinstance(val, str) else val
-                params[field_name] = val
-                set_clauses.append(cypher_set)
-
-        set_str = ", ".join(set_clauses)
-
-        cypher = f"""
-            MATCH (n:CognitiveNode {{id: $id}})
-            WHERE n.version = $expected_version
-            SET {set_str}
-            RETURN n.version AS new_version
-        """
-
-        try:
-            result = await self._execute(cypher, params)
-            df = result.get_as_df()
-            if df.empty:
-                return None
-            return await self.get_cognitive_node(node_id)
-        except Exception:
-            return None
 
     async def update_cognitive_node_history(
         self,
@@ -2315,30 +2361,30 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> None:
         """Append a history entry to a CognitiveNode.
 
-        Uses _execute_lock to protect the read-modify-write sequence,
-        preventing lost updates when concurrent coroutines append history.
+        Args:
+            node_id: Unique identifier for the cognitive node.
+            history_entry: History entry to append.
         """
         self._ensure_initialized()
         import json
 
-        async with self._execute_lock:
-            current = self._conn.execute("""
-                MATCH (n:CognitiveNode {id: $id})
-                RETURN n.history AS history
-            """, {"id": node_id})
+        current = await self._execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            RETURN n.history AS history
+        """, {"id": node_id})
 
-            df = current.get_as_df()
-            if df.empty:
-                return
+        df = current.get_as_df()
+        if df.empty:
+            return
 
-            history_str = df.iloc[0]["history"]
-            history = json.loads(history_str) if history_str else []
-            history.append(history_entry)
+        history_str = df.iloc[0]["history"]
+        history = json.loads(history_str) if history_str else []
+        history.append(history_entry)
 
-            self._conn.execute("""
-                MATCH (n:CognitiveNode {id: $id})
-                SET n.history = $history
-            """, {"id": node_id, "history": json.dumps(history)})
+        await self._execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            SET n.history = $history
+        """, {"id": node_id, "history": json.dumps(history)})
 
     async def update_cognitive_node_belief(
         self,
@@ -2348,8 +2394,10 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> None:
         """Update the belief status of a CognitiveNode.
 
-        Uses _execute_lock to protect the read-modify-write sequence,
-        preventing lost updates when concurrent coroutines change belief.
+        Args:
+            node_id: Unique identifier for the cognitive node.
+            new_belief: New belief status.
+            reason: Optional reason for the belief change.
         """
         self._ensure_initialized()
         import json
@@ -2365,32 +2413,31 @@ class KuzuGraphStore(GraphStoreBackend):
             "timestamp": now,
         }
 
-        async with self._execute_lock:
-            current = self._conn.execute("""
-                MATCH (n:CognitiveNode {id: $id})
-                RETURN n.belief_status AS belief_status, n.history AS history
-            """, {"id": node_id})
+        current = await self._execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            RETURN n.belief_status AS belief_status, n.history AS history
+        """, {"id": node_id})
 
-            df = current.get_as_df()
-            if not df.empty:
-                history_entry["old_belief"] = df.iloc[0]["belief_status"]
-                history_str = df.iloc[0]["history"]
-                history = json.loads(history_str) if history_str else []
-                history.append(history_entry)
-            else:
-                history = [history_entry]
+        df = current.get_as_df()
+        if not df.empty:
+            history_entry["old_belief"] = df.iloc[0]["belief_status"]
+            history_str = df.iloc[0]["history"]
+            history = json.loads(history_str) if history_str else []
+            history.append(history_entry)
+        else:
+            history = [history_entry]
 
-            self._conn.execute("""
-                MATCH (n:CognitiveNode {id: $id})
-                SET n.belief_status = $new_belief,
-                    n.history = $history,
-                    n.updated_at = $updated_at
-            """, {
-                "id": node_id,
-                "new_belief": new_belief,
-                "history": json.dumps(history),
-                "updated_at": now,
-            })
+        await self._execute("""
+            MATCH (n:CognitiveNode {id: $id})
+            SET n.belief_status = $new_belief,
+                n.history = $history,
+                n.updated_at = $updated_at
+        """, {
+            "id": node_id,
+            "new_belief": new_belief,
+            "history": json.dumps(history),
+            "updated_at": now,
+        })
 
     # --- Agent Memory: DispositionProfile Management ---
 
@@ -2521,20 +2568,40 @@ class KuzuGraphStore(GraphStoreBackend):
         }
 
     async def compute_dynamic_weights(self, profile: dict[str, Any]) -> dict[str, float]:
-        from ontology_engine.engine.cognitive.models import DispositionProfile, apply_dynamic_weight
-        from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
-        disposition = DispositionProfile(
-            id=profile.get("id", "computed"),
-            scene=profile.get("scene", "default"),
-            skepticism=profile.get("skepticism", 0.5),
-            evidence_demand=profile.get("evidence_demand", 0.5),
-            abstraction_preference=profile.get("abstraction_preference", 0.5),
-            thoroughness=profile.get("thoroughness", 0.5),
-            recency_bias=profile.get("recency_bias", 0.5),
-            empathy=profile.get("empathy", 0.5),
-            risk_tolerance=profile.get("risk_tolerance", 0.5),
-        )
+        """Compute dynamic type weights based on a DispositionProfile.
+
+        Args:
+            profile: DispositionProfile dictionary.
+
+        Returns:
+            Dictionary of memory_type -> weight.
+        """
+        skepticism = profile.get("skepticism", 0.5)
+        empathy = profile.get("empathy", 0.5)
+        risk_tolerance = profile.get("risk_tolerance", 0.5)
+
+        base_weights = {
+            "mental_model": 3.0,
+            "opinion": 2.5,
+            "entity": 2.0,
+            "rule": 2.0,
+            "observation": 1.5,
+            "procedure": 1.8,
+            "episode": 1.2,
+            "fragment": 1.0,
+        }
+
         adjusted = {}
-        for memory_type, base_weight in BASE_TYPE_WEIGHTS.items():
-            adjusted[memory_type] = apply_dynamic_weight(base_weight, memory_type, disposition)
+        for memory_type, base_weight in base_weights.items():
+            if memory_type in ("mental_model", "opinion", "episode"):
+                adjusted[memory_type] = base_weight * (1.0 - (skepticism - 0.5) * 0.6)
+            elif memory_type in ("entity", "rule"):
+                adjusted[memory_type] = base_weight * (1.0 + (skepticism - 0.5) * 0.4)
+            elif memory_type == "observation":
+                adjusted[memory_type] = base_weight * (1.0 + (empathy - 0.5) * 0.3)
+            elif memory_type == "procedure":
+                adjusted[memory_type] = base_weight * (1.0 + (risk_tolerance - 0.5) * 0.2)
+            else:
+                adjusted[memory_type] = base_weight
+
         return adjusted

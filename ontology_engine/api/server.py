@@ -103,6 +103,9 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
 
     yield
 
+    from ontology_engine.engine.cognitive.factory import MemoryAPISingleton
+    await MemoryAPISingleton.close()
+
     if storage:
         await storage.close()
 
