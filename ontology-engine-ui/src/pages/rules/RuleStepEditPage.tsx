@@ -49,7 +49,9 @@ export const RuleStepEditPage: React.FC = () => {
       { label: '编辑规则实例' },
     ]}>
       <div style={{ textAlign: 'center', padding: '50px' }}>
-        <Spin size="large" tip={loading ? '正在加载...' : '正在跳转...'} />
+        <Spin size="large" tip={loading ? '正在加载...' : '正在跳转...'}>
+          <div style={{ minHeight: 100 }} />
+        </Spin>
       </div>
     </RuleGroupLayout>
   );

@@ -301,7 +301,9 @@ export default function SimulationPanel({
 
           {loading && (
             <div style={{ textAlign: 'center', padding: '20px' }}>
-              <Spin tip="模拟执行中..." />
+              <Spin tip="模拟执行中...">
+                <div style={{ minHeight: 80 }} />
+              </Spin>
             </div>
           )}
 
