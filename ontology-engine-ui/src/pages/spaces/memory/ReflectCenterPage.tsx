@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Input, Button, Form, message, Typography, List, Tag, Progress, Collapse, Descriptions, Space, Alert } from 'antd';
+import { Card, Input, Button, Form, App, Typography, List, Tag, Progress, Collapse, Descriptions, Space, Alert } from 'antd';
 import { SyncOutlined, WarningOutlined, BulbOutlined, FileTextOutlined } from '@ant-design/icons';
 import { memoryApi } from '../../../services/memoryApi';
 import type { ReflectResponse } from '../../../types/api';
@@ -11,6 +11,7 @@ const { Panel } = Collapse;
 
 const ReflectCenterPage: React.FC = () => {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<ReflectResponse[]>([]);

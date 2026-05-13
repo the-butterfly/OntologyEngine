@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, Button, Tag, Statistic, Row, Col, message, Typography, List, Timeline, Tabs, Empty, Badge } from 'antd';
-import { SyncOutlined, HistoryOutlined, BuildOutlined, SearchOutlined, ThunderboltOutlined, WarningOutlined, CheckCircleOutlined, ExclamationCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { Card, Button, Tag, Statistic, Row, Col, App, Typography, List, Timeline, Tabs, Empty, Badge } from 'antd';
+import { SyncOutlined, HistoryOutlined, BuildOutlined, SearchOutlined, ThunderboltOutlined, WarningOutlined, CheckCircleOutlined, ExclamationCircleOutlined, EyeOutlined, CloudOutlined } from '@ant-design/icons';
 import { memoryApi } from '../../../services/memoryApi';
-import type { MemoryStats, AuditEntry } from '../../../types/api';
-import type { Contradiction } from '../../../types/memory';
+import type { MemoryStats } from '../../../types/api';
+import type { Contradiction, CognitiveNode } from '../../../types/memory';
 
 const { Title, Text } = Typography;
 
@@ -25,9 +25,10 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 const MemoryManagePage: React.FC = () => {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const { message } = App.useApp();
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [correctionHistory, setCorrectionHistory] = useState<AuditEntry[]>([]);
+  const [correctionHistory, setCorrectionHistory] = useState<CognitiveNode[]>([]);
   const [contradictions, setContradictions] = useState<Contradiction[]>([]);
   const [contradictionLoading, setContradictionLoading] = useState(false);
 
@@ -51,10 +52,11 @@ const MemoryManagePage: React.FC = () => {
   const loadCorrectionHistory = async () => {
     if (!spaceId) return;
     try {
-      const entries = await memoryApi.getAuditTrail(spaceId, 50);
-      // Filter entries that are superseded (corrections)
-      const corrections = entries.filter((e) => e.belief_status === 'superseded' || e.superseded_by);
-      setCorrectionHistory(corrections);
+      const result = await memoryApi.listNodes(spaceId, {
+        beliefStatus: 'superseded',
+        limit: 200,
+      });
+      setCorrectionHistory(result.nodes);
     } catch (e) {
       console.error('Failed to load correction history:', e);
     }
@@ -110,6 +112,23 @@ const MemoryManagePage: React.FC = () => {
       await loadStats();
     } catch (e) {
       message.error(e instanceof Error ? e.message : '遗忘失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDream = async () => {
+    if (!spaceId) return;
+    setLoading(true);
+    try {
+      const result = await memoryApi.dream(spaceId);
+      message.success(
+        `Dream Cycle 完成: 矛盾=${result.contradictions}, 过期=${result.expired}, 孤立清理=${result.orphansCleaned}, 链接增强=${result.linksEnhanced}`
+      );
+      await loadStats();
+      await loadContradictions();
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Dream Cycle 失败');
     } finally {
       setLoading(false);
     }
@@ -205,6 +224,9 @@ const MemoryManagePage: React.FC = () => {
                 </Button>
                 <Button onClick={handleForget} loading={loading} style={{ marginRight: 8 }}>
                   遗忘(30天)
+                </Button>
+                <Button onClick={handleDream} loading={loading} icon={<CloudOutlined />} style={{ marginRight: 8 }}>
+                  Dream Cycle
                 </Button>
                 <Button onClick={loadContradictions} loading={contradictionLoading}>
                   刷新矛盾
@@ -327,13 +349,13 @@ const MemoryManagePage: React.FC = () => {
               <Timeline.Item key={entry.id}>
                 <div>
                   <Tag color="purple">SUPERSEDED</Tag>
-                  <Text strong style={{ marginLeft: 8 }}>{entry.memory_type}</Text>
-                  <Text type="secondary" style={{ marginLeft: 8 }}>{entry.updated_at}</Text>
+                  <Text strong style={{ marginLeft: 8 }}>{entry.memoryType}</Text>
+                  <Text type="secondary" style={{ marginLeft: 8 }}>{entry.recordedAt}</Text>
                 </div>
-                <div style={{ marginTop: 4, color: '#666' }}>{entry.content.substring(0, 100)}...</div>
-                {entry.superseded_by && (
+                <div style={{ marginTop: 4, color: '#666' }}>{entry.content?.substring(0, 100)}...</div>
+                {entry.supersededBy && (
                   <div style={{ marginTop: 4 }}>
-                    <Text type="secondary">被替代为: <Tag>{entry.superseded_by}</Tag></Text>
+                    <Text type="secondary">被替代为: <Tag>{entry.supersededBy}</Tag></Text>
                   </div>
                 )}
               </Timeline.Item>

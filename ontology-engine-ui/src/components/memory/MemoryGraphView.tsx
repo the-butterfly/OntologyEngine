@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Graph } from '@antv/g6';
 import type { CognitiveNode } from '../../types/memory';
 
@@ -44,78 +44,166 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
+  const isDestroyedRef = useRef(false);
+  const onNodeClickRef = useRef(onNodeClick);
 
-  useEffect(() => {
-    if (!containerRef.current || nodes.length === 0) return;
+  onNodeClickRef.current = onNodeClick;
 
-    const graph = new Graph({
-      container: containerRef.current,
-      width: containerRef.current.clientWidth,
-      height,
-      autoFit: 'view',
-      padding: [20, 20, 20, 20],
-      data: {
-        nodes: nodes.map((node) => ({
-          id: node.id,
-          label: node.content.substring(0, 20) + (node.content.length > 20 ? '...' : ''),
-          data: { cognitiveLayer: node.cognitiveLayer, confidence: node.confidence },
-        })),
-        edges: edges.map((edge, i) => ({
-          id: `edge-${i}`,
-          source: edge.source,
-          target: edge.target,
-          data: { edgeType: edge.edgeType },
-        })),
-      },
-      node: {
-        type: 'circle',
+  const renderGraph = useCallback(async () => {
+    if (!containerRef.current) return;
+    if (isDestroyedRef.current) return;
+    if (!nodes || nodes.length === 0) return;
+
+    if (containerRef.current) {
+      while (containerRef.current.firstChild) {
+        containerRef.current.removeChild(containerRef.current.firstChild);
+      }
+    }
+
+    if (graphRef.current) {
+      try {
+        graphRef.current.destroy();
+      } catch {
+        // Ignore
+      }
+      graphRef.current = null;
+    }
+
+    if (isDestroyedRef.current) return;
+
+    const container = containerRef.current;
+    const width = container.clientWidth || 800;
+    const containerHeight = container.clientHeight || height;
+
+    const g6Data = {
+      nodes: nodes.map((node) => ({
+        id: node.id,
+        data: {
+          label: node.content ? node.content.substring(0, 20) + (node.content.length > 20 ? '...' : '') : node.id,
+          cognitiveLayer: node.cognitiveLayer,
+          confidence: node.confidence,
+          memoryType: node.memoryType,
+        },
         style: {
-          fill: (d: any) => LAYER_COLORS[d.data?.cognitiveLayer] || '#999',
+          fill: LAYER_COLORS[node.cognitiveLayer] || '#999',
           stroke: '#fff',
           lineWidth: 2,
-          size: (d: any) => Math.max(20, Math.min(60, (d.data?.confidence || 0.5) * 60)),
-          labelText: (d: any) => d.label || d.id,
+          size: Math.max(20, Math.min(60, (node.confidence || 0.5) * 60)),
+          labelText: node.content ? node.content.substring(0, 20) + (node.content.length > 20 ? '...' : '') : node.id,
           labelFill: '#333',
           labelFontSize: 10,
+          labelPlacement: 'bottom',
         },
-        state: {
-          hover: {
-            lineWidth: 3,
-            shadowBlur: 16,
-            shadowColor: 'rgba(24, 144, 255, 0.3)',
-          },
-        },
-      },
-      edge: {
-        type: 'line',
+      })),
+      edges: edges.map((edge, i) => ({
+        id: `edge-${i}`,
+        source: edge.source,
+        target: edge.target,
+        data: { edgeType: edge.edgeType },
         style: {
-          stroke: (d: any) => EDGE_COLORS[d.data?.edgeType] || '#d9d9d9',
+          stroke: EDGE_COLORS[edge.edgeType] || '#d9d9d9',
           lineWidth: 1.5,
           endArrow: true,
+          endArrowSize: 8,
         },
-      },
-      layout: {
-        type: 'force',
-        preventOverlap: true,
-        linkDistance: 100,
-        nodeStrength: -50,
-      },
-      behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
-    });
+      })),
+    };
 
-    graphRef.current = graph;
+    try {
+      const graph = new Graph({
+        container,
+        width,
+        height: containerHeight,
+        autoFit: 'view',
+        padding: [20, 20, 20, 20],
+        data: g6Data,
+        node: {
+          type: 'circle',
+          state: {
+            hover: {
+              lineWidth: 3,
+              shadowBlur: 16,
+              shadowColor: 'rgba(24, 144, 255, 0.3)',
+            },
+          },
+        },
+        edge: {
+          type: 'line',
+        },
+        layout: {
+          type: 'force',
+          preventOverlap: true,
+          linkDistance: 100,
+          nodeStrength: -50,
+          edgeStrength: 0.5,
+        },
+        behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
+      });
 
-    graph.on('node:click', (evt: any) => {
-      const nodeId = evt.target?.id || evt.nodeId;
-      if (nodeId) {
-        onNodeClick?.(nodeId);
+      if (isDestroyedRef.current) {
+        graph.destroy();
+        return;
       }
-    });
+
+      graph.on('node:click', (evt: any) => {
+        const nodeId = evt.target?.id || evt.nodeId;
+        if (nodeId && !isDestroyedRef.current) {
+          onNodeClickRef.current?.(nodeId);
+        }
+      });
+
+      await graph.render();
+
+      if (!isDestroyedRef.current) {
+        graphRef.current = graph;
+      } else {
+        graph.destroy();
+      }
+    } catch (e) {
+      if (!isDestroyedRef.current) {
+        console.error('Failed to render graph:', e);
+      }
+    }
+  }, [nodes, edges, height]);
+
+  useEffect(() => {
+    isDestroyedRef.current = false;
+    renderGraph();
 
     return () => {
-      graph.destroy();
+      isDestroyedRef.current = true;
+      if (graphRef.current) {
+        try {
+          graphRef.current.destroy();
+        } catch {
+          // Ignore
+        }
+        graphRef.current = null;
+      }
+      if (containerRef.current) {
+        while (containerRef.current.firstChild) {
+          containerRef.current.removeChild(containerRef.current.firstChild);
+        }
+      }
     };
-  }, [nodes, edges, height]);
+  }, [renderGraph]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (graphRef.current && containerRef.current && !isDestroyedRef.current) {
+        try {
+          graphRef.current.resize(
+            containerRef.current.clientWidth,
+            containerRef.current.clientHeight,
+          );
+        } catch {
+          // Ignore
+        }
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (nodes.length === 0) {
     return (

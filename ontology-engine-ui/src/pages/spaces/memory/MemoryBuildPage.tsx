@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Input, Select, Button, Form, message, Typography, List, Tag, Space, Popconfirm } from 'antd';
+import { Card, Input, Select, Button, Form, App, Typography, List, Tag, Space, Popconfirm } from 'antd';
 import { BuildOutlined, CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons';
 import { memoryApi } from '../../../services/memoryApi';
 import type { CognitiveNode } from '../../../types/memory';
@@ -20,6 +20,7 @@ const BELIEF_STATUS_COLORS: Record<string, string> = {
 
 const MemoryBuildPage: React.FC = () => {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [pendingReviews, setPendingReviews] = useState<CognitiveNode[]>([]);

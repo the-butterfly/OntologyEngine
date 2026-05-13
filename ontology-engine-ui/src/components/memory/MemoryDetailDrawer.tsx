@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Drawer, Descriptions, Tag, Button, Space, message, Popconfirm, Input, Form, Modal } from 'antd';
+import { Drawer, Descriptions, Tag, Button, Space, App, Popconfirm, Input, Form, Modal } from 'antd';
 import type { CognitiveNode } from '../../types/memory';
 import { memoryApi } from '../../services/memoryApi';
 
@@ -33,6 +33,7 @@ export const MemoryDetailDrawer: React.FC<MemoryDetailDrawerProps> = ({
   onClose,
   onUpdate,
 }) => {
+  const { message } = App.useApp();
   const [node, setNode] = useState<CognitiveNode | null>(null);
   const [loading, setLoading] = useState(false);
   const [correctModalVisible, setCorrectModalVisible] = useState(false);
@@ -85,8 +86,6 @@ export const MemoryDetailDrawer: React.FC<MemoryDetailDrawerProps> = ({
   const handleDelete = async () => {
     if (!node || !spaceId) return;
     try {
-      // [外部依赖] 后端 DELETE /spaces/{space_id}/memory/{node_id} 已存在但未在前端封装
-      // 临时通过 API 客户端直接调用
       message.warning('删除功能待后端 API 确认');
       onClose();
       onUpdate?.();

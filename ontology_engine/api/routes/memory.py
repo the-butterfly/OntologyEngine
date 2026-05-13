@@ -268,6 +268,43 @@ async def audit(
         return _handle_error(e, "AUDIT_ERROR")
 
 
+@router.get("/contradictions")
+async def contradictions(
+    space_id: str,
+    limit: int = 50,
+    severity: str | None = None,
+) -> dict[str, Any] | Any:
+    """Get contradictions for a space."""
+    try:
+        api = await _get_memory_api()
+        result = await api.list_nodes(
+            space_id,
+            belief_status="contradicted",
+            limit=limit,
+        )
+        return success_response(data=result, meta={"space_id": space_id})
+    except Exception as e:
+        return _handle_error(e, "CONTRADICTIONS_ERROR")
+
+
+@router.get("/corrections")
+async def corrections(
+    space_id: str,
+    limit: int = 50,
+) -> dict[str, Any] | Any:
+    """Get corrections for a space."""
+    try:
+        api = await _get_memory_api()
+        result = await api.list_nodes(
+            space_id,
+            belief_status="superseded",
+            limit=limit,
+        )
+        return success_response(data=result, meta={"space_id": space_id})
+    except Exception as e:
+        return _handle_error(e, "CORRECTIONS_ERROR")
+
+
 @router.get("/nodes")
 async def list_nodes(
     space_id: str,
@@ -300,4 +337,7 @@ async def get_node(
         result = await api.get_node(space_id, node_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        return error_response(code="NODE_NOT_FOUND", message=str(e))
+        from ontology_engine.engine.cognitive.errors import CognitiveNodeNotFoundError
+        if isinstance(e, CognitiveNodeNotFoundError):
+            return error_response(code="NODE_NOT_FOUND", message=str(e))
+        return error_response(code="GET_NODE_ERROR", message=str(e))

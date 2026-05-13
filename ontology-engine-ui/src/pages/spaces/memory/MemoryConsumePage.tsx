@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Input, Button, List, Tag, Slider, Form, message, Typography, Collapse, Descriptions, Space, Tree, Spin, Empty } from 'antd';
+import { Card, Input, Button, List, Tag, Slider, Form, App, Typography, Collapse, Descriptions, Space, Tree, Spin, Empty } from 'antd';
 import { SearchOutlined, EyeOutlined, LinkOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { memoryApi } from '../../../services/memoryApi';
 import type { CognitiveNode } from '../../../types/memory';
@@ -33,6 +33,7 @@ interface EvidenceNode {
 
 const MemoryConsumePage: React.FC = () => {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const { message } = App.useApp();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CognitiveNode[]>([]);
   const [loading, setLoading] = useState(false);
