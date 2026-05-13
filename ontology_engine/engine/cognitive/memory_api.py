@@ -960,6 +960,9 @@ class MemoryAPI:
             "graph_completed": result.graph_completed,
             "errors": result.errors,
             "space_id": space_id,
+            "phases_completed": 5 - len(result.errors),
+            "skipped": False,
+            "contradictions_found": len(result.contradictions),
         }
 
     async def run_dream_cycle(self, space_id: str) -> dict[str, Any]:
@@ -1358,22 +1361,7 @@ class MemoryAPI:
                     }
                     for i in reflect_result.insights
                 ],
-                "contradictions": [
-                    {
-                        "description": (
-                            f"{c.contradiction_type} in {c.contradiction_field}"
-                            if c.contradiction_field
-                            else f"Contradiction: {c.contradiction_type}"
-                        ),
-                        "conflict_type": c.contradiction_type,
-                        "sources": {
-                            c.node_ids[0]: c.old_value if len(c.node_ids) > 0 else "unknown",
-                            c.node_ids[1]: c.new_value if len(c.node_ids) > 1 else "unknown",
-                        } if c.old_value and c.new_value and len(c.node_ids) >= 2 else {},
-                        "resolution_suggestion": c.suggested_resolution,
-                    }
-                    for c in reflect_result.contradictions
-                ],
+                "contradictions": [c.to_api_dict() for c in reflect_result.contradictions],
                 "consolidation": {
                     "fragments_processed": (consolidation_result.get("created", 0) + consolidation_result.get("updated", 0) + consolidation_result.get("deleted", 0) + consolidation_result.get("errors", 0)) if consolidation_result else 0,
                     "observations_created": consolidation_result.get("created", 0) if consolidation_result else 0,

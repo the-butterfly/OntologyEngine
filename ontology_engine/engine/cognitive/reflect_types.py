@@ -60,6 +60,16 @@ class ContradictionReport:
     new_value: str = ""
     suggested_resolution: str = ""
 
+    def to_api_dict(self) -> dict[str, Any]:
+        return {
+            "contradiction_type": self.contradiction_type,
+            "node_ids": self.node_ids,
+            "contradiction_field": self.contradiction_field,
+            "old_value": self.old_value,
+            "new_value": self.new_value,
+            "suggested_resolution": self.suggested_resolution,
+        }
+
 
 @dataclass
 class MentalModelUpdate:
