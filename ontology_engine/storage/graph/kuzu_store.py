@@ -680,6 +680,9 @@ class KuzuGraphStore(GraphStoreBackend):
             )
         """)
 
+        # ── Agent Memory: Schema Migration ─────────────────────────────
+        await self._migrate_cognitive_node_schema()
+
         # ── Agent Memory: Indexes ────────────────────────────────────────
         # KuzuDB auto-creates indexes for PRIMARY KEY columns.
         # KuzuDB does not support CREATE INDEX IF NOT EXISTS syntax.
@@ -700,6 +703,35 @@ class KuzuGraphStore(GraphStoreBackend):
         #         if "already exists" not in msg:
         #             logger.warning("Failed to create index: %s — %s", idx_stmt, e)
         pass
+
+    async def _migrate_cognitive_node_schema(self) -> None:
+        """Add missing columns to CognitiveNode table for databases created before schema updates.
+
+        CREATE TABLE IF NOT EXISTS does not add new columns to existing tables,
+        so we need ALTER TABLE statements to migrate older databases.
+        """
+        migrations: list[tuple[str, str]] = [
+            ("confirmation_count", "INT64 DEFAULT 0"),
+            ("strength", "DOUBLE DEFAULT 1.0"),
+            ("entity_name", "STRING"),
+            ("entity_type", "STRING"),
+            ("version", "INT64 DEFAULT 1"),
+            ("last_confirmed_at", "STRING"),
+            ("consolidation_reasoning", "STRING"),
+            ("compiled_at", "STRING"),
+            ("model_domain", "STRING"),
+            ("source_trust_tier", "STRING"),
+            ("scope", "STRING"),
+            ("source_pipeline", "STRING"),
+            ("source_content_hash", "STRING"),
+        ]
+        for prop_name, prop_type in migrations:
+            try:
+                await self._execute(
+                    f"ALTER TABLE CognitiveNode ADD {prop_name} {prop_type}"
+                )
+            except Exception:
+                pass
 
     def _ensure_initialized(self) -> None:
         if not self._initialized or self._pool is None:
@@ -2127,6 +2159,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 return None
             if isinstance(value, float) and __import__("math").isnan(value):
                 return None
+            if hasattr(value, 'item'):
+                return value.item()
             if isinstance(value, (list, dict)):
                 return value
             if isinstance(value, (int, float)):
@@ -2141,6 +2175,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 return default
             if isinstance(value, float) and __import__("math").isnan(value):
                 return default
+            if hasattr(value, 'item'):
+                return value.item()
             return value
 
         return {
@@ -2272,7 +2308,20 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.proof_count AS proof_count,
                    n.valid_from AS valid_from, n.valid_to AS valid_to,
                    n.recorded_at AS recorded_at, n.tags AS tags,
-                   n.attributes AS attributes
+                   n.attributes AS attributes,
+                   n.confirmation_count AS confirmation_count,
+                   n.strength AS strength,
+                   n.entity_name AS entity_name,
+                   n.entity_type AS entity_type,
+                   n.version AS version,
+                   n.last_confirmed_at AS last_confirmed_at,
+                   n.consolidation_reasoning AS consolidation_reasoning,
+                   n.compiled_at AS compiled_at,
+                   n.model_domain AS model_domain,
+                   n.source_trust_tier AS source_trust_tier,
+                   n.scope AS scope,
+                   n.source_pipeline AS source_pipeline,
+                   n.source_content_hash AS source_content_hash
             ORDER BY n.created_at DESC
             LIMIT {limit}
         """
@@ -2289,6 +2338,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 return None
             if isinstance(val, float) and _math.isnan(val):
                 return None
+            if hasattr(val, 'item'):
+                return val.item()
             if isinstance(val, (list, dict)):
                 return val
             if isinstance(val, (int, float)):
@@ -2303,6 +2354,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 return default
             if isinstance(val, float) and _math.isnan(val):
                 return default
+            if hasattr(val, 'item'):
+                return val.item()
             return val
 
         return [
@@ -2336,20 +2389,20 @@ class KuzuGraphStore(GraphStoreBackend):
                 "valid_to": _safe(row["valid_to"]),
                 "recorded_at": _safe(row["recorded_at"]),
                 "tags": _json.loads(_safe(row["tags"], "[]")),
-                "confirmation_count": _safe(row.get("confirmation_count"), 0),
-                "attributes": _parse(row.get("attributes")) or {},
-                "strength": _safe(row.get("strength"), 1.0),
-                "entity_name": _safe(row.get("entity_name")),
-                "entity_type": _safe(row.get("entity_type")),
-                "version": _safe(row.get("version"), 1),
-                "last_confirmed_at": _safe(row.get("last_confirmed_at")),
-                "consolidation_reasoning": _safe(row.get("consolidation_reasoning")),
-                "compiled_at": _safe(row.get("compiled_at")),
-                "model_domain": _safe(row.get("model_domain")),
-                "source_trust_tier": _safe(row.get("source_trust_tier")),
-                "scope": _safe(row.get("scope")),
-                "source_pipeline": _safe(row.get("source_pipeline")),
-                "source_content_hash": _safe(row.get("source_content_hash")),
+                "confirmation_count": _safe(row["confirmation_count"], 0),
+                "attributes": _parse(row["attributes"]) or {},
+                "strength": _safe(row["strength"], 1.0),
+                "entity_name": _safe(row["entity_name"]),
+                "entity_type": _safe(row["entity_type"]),
+                "version": _safe(row["version"], 1),
+                "last_confirmed_at": _safe(row["last_confirmed_at"]),
+                "consolidation_reasoning": _safe(row["consolidation_reasoning"]),
+                "compiled_at": _safe(row["compiled_at"]),
+                "model_domain": _safe(row["model_domain"]),
+                "source_trust_tier": _safe(row["source_trust_tier"]),
+                "scope": _safe(row["scope"]),
+                "source_pipeline": _safe(row["source_pipeline"]),
+                "source_content_hash": _safe(row["source_content_hash"]),
             }
             for _, row in df.iterrows()
         ]
