@@ -125,6 +125,23 @@ class DeduplicationGate:
             )
             for r in results:
                 if r.score >= self._similarity_threshold:
+                    node = await self._repo.get_node(r.doc_id)
+                    if node and node.belief_status not in ("superseded", "rejected"):
+                        from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
+                        conflict = ReflectAgent._has_mutually_exclusive_values(content, node.content)
+                        has_negation = ReflectAgent._has_negation_conflict(content, node.content)
+                        if conflict or has_negation:
+                            logger.info(
+                                "Contradiction in high-similarity pair: score=%.3f, "
+                                "conflict=%s for content='%s'",
+                                r.score, conflict or "negation", content[:50],
+                            )
+                            return GateResult(
+                                decision=WriteDecision.CONTRADICTION_CANDIDATE,
+                                reason=f"value_conflict_in_duplicate: {conflict or 'negation'}",
+                                contradiction_with=[r.doc_id],
+                            )
+
                     logger.info(
                         "Duplicate detected: score=%.3f for content='%s'",
                         r.score, content[:50],
