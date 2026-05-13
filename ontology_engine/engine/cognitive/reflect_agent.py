@@ -365,6 +365,12 @@ Rules:
                 source=f"search_by_type:{memory_type}",
                 memory_type=n.memory_type,
                 cognitive_layer=n.cognitive_layer,
+                metadata={
+                    "belief_status": n.belief_status,
+                    "confidence": n.confidence,
+                    "tags": n.tags or [],
+                    "entity_name": n.entity_name or "",
+                },
             )
             for n in nodes
         ]
@@ -413,7 +419,7 @@ Rules:
                 continue
 
             accepted = [r for r in layer_results if r.metadata.get("belief_status") == "accepted"]
-            contradicted = [r for r in layer_results if r.metadata.get("belief_status") == "contradicted"]
+            contradicted = [r for r in layer_results if r.metadata.get("belief_status") in ("contradicted", "pending_review")]
 
             for a in accepted:
                 for c in contradicted:
@@ -422,9 +428,45 @@ Rules:
                         contradiction_type="belief_conflict",
                         contradiction_field="belief_status",
                         old_value="accepted",
-                        new_value="contradicted",
+                        new_value=c.metadata.get("belief_status", "unknown"),
                         suggested_resolution="Review both memories and resolve conflict",
                     ))
+
+            same_type_groups: dict[str, list[RetrievalResult]] = {}
+            for r in layer_results:
+                key = f"{r.memory_type}:{r.metadata.get('entity_name', '')}"
+                same_type_groups.setdefault(key, []).append(r)
+
+            for key, group in same_type_groups.items():
+                if len(group) < 2:
+                    continue
+                for i in range(len(group)):
+                    for j in range(i + 1, len(group)):
+                        a, b = group[i], group[j]
+                        if a.metadata.get("belief_status") in ("superseded", "rejected"):
+                            continue
+                        if b.metadata.get("belief_status") in ("superseded", "rejected"):
+                            continue
+                        if self._has_negation_conflict(a.content, b.content):
+                            contradictions.append(ContradictionReport(
+                                node_ids=[a.doc_id, b.doc_id],
+                                contradiction_type="negation_conflict",
+                                contradiction_field="content",
+                                old_value=a.content[:80],
+                                new_value=b.content[:80],
+                                suggested_resolution="Negation conflict detected, review both",
+                            ))
+                        elif a.memory_type in ("observation", "rule", "entity", "constraint", "opinion"):
+                            conflict = self._has_mutually_exclusive_values(a.content, b.content)
+                            if conflict:
+                                contradictions.append(ContradictionReport(
+                                    node_ids=[a.doc_id, b.doc_id],
+                                    contradiction_type="value_conflict",
+                                    contradiction_field=conflict,
+                                    old_value=a.content[:80],
+                                    new_value=b.content[:80],
+                                    suggested_resolution="Value conflict detected, determine which is current",
+                                ))
 
         return contradictions
 
@@ -516,13 +558,18 @@ Rules:
 
         try:
             nodes = await self._repo.query_nodes(domain_id=space_id, limit=500)
-        except Exception:
+        except Exception as e:
+            logger.warning("Rule-based contradiction detection query failed: %s", e)
             return contradictions
 
         tag_groups: dict[str, list] = {}
         for n in nodes:
             for tag in n.tags:
                 tag_groups.setdefault(tag, []).append(n)
+            if n.entity_name:
+                tag_groups.setdefault(f"__entity__:{n.entity_name}", []).append(n)
+            if not n.tags and not n.entity_name:
+                tag_groups.setdefault("__untagged__", []).append(n)
 
         for tag, group in tag_groups.items():
             if len(group) < 2:
@@ -535,7 +582,7 @@ Rules:
                         continue
 
                     if self._has_negation_conflict(a.content, b.content):
-                        if skepticism_threshold > 0.3:
+                        if skepticism_threshold >= 0.3:
                             contradictions.append(ContradictionReport(
                                 contradiction_type="negation_conflict",
                                 node_ids=[a.id, b.id],
@@ -544,7 +591,7 @@ Rules:
                             ))
                         continue
 
-                    if a.memory_type == b.memory_type and a.memory_type in ("observation", "rule", "entity"):
+                    if a.memory_type == b.memory_type and a.memory_type in ("observation", "rule", "entity", "constraint", "opinion", "commitment"):
                         conflict = self._has_mutually_exclusive_values(a.content, b.content)
                         if conflict:
                             contradictions.append(ContradictionReport(
