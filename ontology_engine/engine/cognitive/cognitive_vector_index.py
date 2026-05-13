@@ -356,27 +356,27 @@ class CognitiveVectorIndex:
         enriched = _enrich_content(content, memory_type, tags)
         vector = await self._compute_embedding(enriched)
 
-        if vector is None:
-            raise RuntimeError(f"Embedding computation failed for node {node_id}")
-
-        meta = {
-            "space_id": space_id,
-            "memory_type": memory_type,
-            "model_signature": self._config.model_signature,
-        }
-        if self._use_chroma and self._chroma_collection is not None:
-            await asyncio.to_thread(
-                self._chroma_collection.upsert,
-                ids=[node_id],
-                embeddings=[vector],
-                metadatas=[meta],
-            )
-        elif self._vector_store is not None:
-            await self._vector_store.add_vectors(
-                ids=[node_id],
-                vectors=[vector],
-                metadata=[meta],
-            )
+        if vector is not None:
+            meta = {
+                "space_id": space_id,
+                "memory_type": memory_type,
+                "model_signature": self._config.model_signature,
+            }
+            if self._use_chroma and self._chroma_collection is not None:
+                await asyncio.to_thread(
+                    self._chroma_collection.upsert,
+                    ids=[node_id],
+                    embeddings=[vector],
+                    metadatas=[meta],
+                )
+            elif self._vector_store is not None:
+                await self._vector_store.add_vectors(
+                    ids=[node_id],
+                    vectors=[vector],
+                    metadata=[meta],
+                )
+        else:
+            logger.debug("No embedding available for node %s, BM25-only indexing", node_id)
 
         tokens = _simple_tokenize(enriched)
         for token in set(tokens):
