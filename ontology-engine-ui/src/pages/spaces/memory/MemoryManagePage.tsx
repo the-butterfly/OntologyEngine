@@ -56,7 +56,8 @@ const MemoryManagePage: React.FC = () => {
         beliefStatus: 'superseded',
         limit: 200,
       });
-      setCorrectionHistory(result.nodes);
+      const nodes = Array.isArray(result) ? result : result?.nodes || [];
+      setCorrectionHistory(nodes);
     } catch (e) {
       console.error('Failed to load correction history:', e);
     }
@@ -67,7 +68,8 @@ const MemoryManagePage: React.FC = () => {
     setContradictionLoading(true);
     try {
       const data = await memoryApi.getContradictions(spaceId);
-      setContradictions(data);
+      const items = Array.isArray(data) ? data : (data as any)?.nodes || [];
+      setContradictions(items);
     } catch (e) {
       console.error('Failed to load contradictions:', e);
       setContradictions([]);
