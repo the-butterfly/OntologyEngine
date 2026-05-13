@@ -79,11 +79,16 @@ export interface GraphData {
 
 export interface AgentActivity {
   id: string;
+  spaceId: string;
   agentName: string;
   activityType: string;
-  description: string;
   timestamp: string;
-  nodeIds?: string[];
+  operation: string;
+  result: string;
+  nodeIds: string[];
+  durationMs: number;
+  success: boolean;
+  description?: string;
   metadata?: Record<string, any>;
 }
 

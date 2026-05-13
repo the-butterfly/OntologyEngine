@@ -2,7 +2,7 @@
  * API type definitions for Agent Memory operations.
  */
 
-import type { CognitiveNode, AgentActivity, Contradiction, Correction, Insight, GraphData, DispositionProfile } from './memory';
+import type { CognitiveNode, Contradiction, Correction, Insight, GraphData, DispositionProfile, GraphEdge, AgentActivity } from './memory';
 
 export interface RecallRequest {
   query: string;
@@ -27,6 +27,7 @@ export interface RecallResponse {
   totalCount: number;
   executionTimeMs: number;
   layers?: string[];
+  edges?: GraphEdge[];
 }
 
 export interface ReflectRequest {
@@ -69,23 +70,19 @@ export interface MemoryStats {
   total_corrections?: number;
 }
 
-export interface AuditEntry {
-  id: string;
-  memory_type: string;
-  content: string;
-  belief_status: string;
-  superseded_by?: string;
-  updated_at: string;
-}
+export type { AgentActivity } from './memory';
+
+/** @deprecated Use AgentActivity instead */
+export type AuditEntry = AgentActivity;
 
 export interface AuditResponse {
-  entries: AuditEntry[];
+  entries: AgentActivity[];
   space_id: string;
 }
 
 export interface DashboardData {
   stats: MemoryStats;
-  recentActivities: AuditEntry[];
+  recentActivities: AgentActivity[];
   pendingReviews: number;
   openContradictions: Contradiction[];
   recentInsights: Insight[];

@@ -3,13 +3,12 @@
 
 import type {
   CognitiveNode,
-  AgentActivity,
   Contradiction,
   Correction,
   GraphData,
   Insight,
 } from '../types/memory';
-import type { AuditEntry } from '../types/api';
+import type { AgentActivity } from '../types/api';
 import type {
   RecallRequest,
   RecallResponse,
@@ -187,6 +186,20 @@ export const memoryApi = {
     await memoryService.post(spacePath(spaceId, '/forget'), { days_elapsed: daysElapsed });
   },
 
+  /** POST /spaces/{space_id}/memory/dream */
+  async dream(spaceId: string): Promise<{
+    contradictions: number;
+    expired: number;
+    orphansCleaned: number;
+    linksEnhanced: number;
+    graphCompleted: number;
+    errors: string[];
+    spaceId: string;
+  }> {
+    const response = await memoryService.post<any>(spacePath(spaceId, '/dream'), {});
+    return snakeToCamel(response);
+  },
+
   // ===== Query Operations =====
 
   /** GET /spaces/{space_id}/memory/stats */
@@ -200,7 +213,7 @@ export const memoryApi = {
   },
 
   /** GET /spaces/{space_id}/memory/audit */
-  async getAuditTrail(spaceId: string, limit: number = 50): Promise<AuditEntry[]> {
+  async getAuditTrail(spaceId: string, limit: number = 50): Promise<AgentActivity[]> {
     const response = await memoryService.get<any>(spacePath(spaceId, '/audit'), { limit });
     // Use activity_entries if available (real activity logs), otherwise fall back to entries
     // Note: response is already unwrapped by createApiService, so fields are still snake_case
@@ -243,7 +256,7 @@ export const memoryApi = {
   },
 
   /** Get agent activities — maps to audit trail */
-  async getActivities(spaceId: string): Promise<AuditEntry[]> {
+  async getActivities(spaceId: string): Promise<AgentActivity[]> {
     const response = await memoryService.get<any>(spacePath(spaceId, '/audit'), { limit: 50 });
     // Use activity_entries if available (real activity logs), otherwise fall back to entries
     const entries = response.activity_entries || response.entries || [];
@@ -298,7 +311,7 @@ export const memoryApi = {
   async getDashboard(spaceId: string): Promise<DashboardData> {
     const [stats, activities, pendingReviews] = await Promise.all([
       memoryService.get<MemoryStats>(spacePath(spaceId, '/stats')).catch(() => null),
-      memoryService.get<AuditResponse>(spacePath(spaceId, '/audit'), { limit: 5 }).then(r => r.entries).catch(() => [] as AuditEntry[]),
+      memoryService.get<AuditResponse>(spacePath(spaceId, '/audit'), { limit: 5 }).then(r => r.entries).catch(() => [] as AgentActivity[]),
       this.listNodes(spaceId, { beliefStatus: 'pending_review', limit: 100 })
         .then((r: any) => r.nodes)
         .catch(() => []),
