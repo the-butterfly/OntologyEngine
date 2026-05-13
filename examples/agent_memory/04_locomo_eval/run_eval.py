@@ -57,7 +57,7 @@ async def run_t1_single_hop_recall(cli: CLIRunner, report: EvalReport):
 
         recall = await cli.recall("TechNova总部在哪里", max_results=5)
         results = recall.get("results", [])
-        hit = any("深圳" in r.get("content", "") for r in results)
+        hit = any("深圳" in r.get("text", "") for r in results)
         ok = len(results) > 0
         report.add(_ok("T1: Single-hop recall", ok,
                        1.0 if hit else 0.5 if ok else 0.0,
@@ -76,8 +76,8 @@ async def run_t2_multi_hop_reasoning(cli: CLIRunner, report: EvalReport):
 
         recall = await cli.recall("王芳的技术架构使用了什么云平台和编排方案", max_results=10)
         results = recall.get("results", [])
-        has_cloud = any("CloudGroup" in r.get("content", "") or "cloudgroup" in str(r.get("tags", [])).lower() for r in results)
-        has_k8s = any("Kubernetes" in r.get("content", "") for r in results)
+        has_cloud = any("CloudGroup" in r.get("text", "") or "cloudgroup" in str(r.get("tags", [])).lower() for r in results)
+        has_k8s = any("Kubernetes" in r.get("text", "") for r in results)
         ok = len(results) > 0
         report.add(_ok("T2: Multi-hop reasoning", ok,
                        1.0 if has_cloud and has_k8s else 0.5 if ok else 0.0,
@@ -98,7 +98,7 @@ async def run_t3_temporal_reasoning(cli: CLIRunner, report: EvalReport):
 
         recall = await cli.recall("TechNova最新的API限流策略", max_results=5)
         results = recall.get("results", [])
-        has_latest = any("10000" in r.get("content", "") for r in results)
+        has_latest = any("10000" in r.get("text", "") for r in results)
         ok = len(results) > 0
         report.add(_ok("T3: Temporal reasoning", ok,
                        1.0 if has_latest else 0.5 if ok else 0.0,

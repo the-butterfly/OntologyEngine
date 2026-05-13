@@ -64,7 +64,7 @@ async def run_t2_policy_update(cli: CLIRunner, report: EvalReport):
                                tags=["policy", "api"], confidence=0.95)
         recall = await cli.recall("API限流策略", max_results=5)
         results = recall.get("results", [])
-        has_new = any("5000" in r.get("content", "") for r in results)
+        has_new = any("5000" in r.get("text", "") for r in results)
         ok = len(results) > 0
         report.add(_ok("T2: Policy update session", ok,
                        1.0 if has_new else 0.5 if ok else 0.0,
