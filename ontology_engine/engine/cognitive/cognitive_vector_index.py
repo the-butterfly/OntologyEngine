@@ -1,12 +1,13 @@
 """Cognitive vector index for semantic search over CognitiveNode content.
 
 Bridges the gap between the CognitiveNode graph model and vector search.
-Provides a four-tier embedding strategy with graceful degradation:
+Provides a five-tier embedding strategy with graceful degradation:
 
 1. OpenAI-compatible API (LMStudio, vLLM, OpenAI, etc.)
 2. sentence-transformers local model
-3. BM25 TF-IDF scoring (always available, no model needed)
-4. Content substring matching (last resort)
+3. LLM-based semantic pseudo-embedding (chat API fallback)
+4. BM25 TF-IDF scoring (always available, no model needed)
+5. Content substring matching (last resort)
 
 Persistence:
 - When persist_dir is configured, vectors are stored in ChromaDB
@@ -47,9 +48,12 @@ Environment variable overrides::
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import math
 import os
+import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -81,6 +85,10 @@ class EmbeddingConfig:
     model: str | None = None
     dimension: int = DEFAULT_ST_DIMENSION
     persist_dir: str | None = None
+    llm_api_key: str | None = None
+    llm_base_url: str | None = None
+    llm_model: str | None = None
+    enable_llm_enhancement: bool = False
 
     @property
     def model_signature(self) -> str:
@@ -128,6 +136,13 @@ class EmbeddingConfig:
             model=raw.get("model") or os.environ.get("OE_EMBEDDING_MODEL"),
             dimension=int(raw.get("dimension") or os.environ.get("OE_EMBEDDING_DIMENSION", DEFAULT_ST_DIMENSION)),
             persist_dir=raw.get("persist_dir") or os.environ.get("OE_EMBEDDING_PERSIST_DIR"),
+            llm_api_key=raw.get("llm_api_key") or os.environ.get("OE_EMBEDDING_LLM_API_KEY", "xx"),
+            llm_base_url=raw.get("llm_base_url") or os.environ.get("OE_EMBEDDING_LLM_BASE_URL", "http://localhost:9528/v1"),
+            llm_model=raw.get("llm_model") or os.environ.get("OE_EMBEDDING_LLM_MODEL", "sensenova/sensenova-6.7-flash-lite"),
+            enable_llm_enhancement=bool(
+                raw.get("enable_llm_enhancement", False)
+                or os.environ.get("OE_EMBEDDING_ENABLE_LLM_ENHANCEMENT", "")
+            ),
         )
 
 
@@ -150,6 +165,20 @@ def _simple_tokenize(text: str) -> list[str]:
         if cjk_with_pos[i][1] + 1 == cjk_with_pos[i + 1][1]:
             cjk_bigrams.append(cjk_with_pos[i][0] + cjk_with_pos[i + 1][0])
     return ascii_tokens + cjk_chars + cjk_bigrams
+
+
+def _concept_to_vector(concept: str, dimension: int, seed: int = 0) -> list[float]:
+    h = hashlib.sha256(f"{concept}:{seed}".encode()).digest()
+    vec = []
+    for i in range(dimension):
+        b0 = h[(i * 2) % 32]
+        b1 = h[(i * 2 + 1) % 32]
+        val = ((b0 << 8) | b1) / 32768.0 - 1.0
+        vec.append(val)
+    norm = math.sqrt(sum(v * v for v in vec))
+    if norm > 0:
+        vec = [v / norm for v in vec]
+    return vec
 
 
 class CognitiveVectorIndex:
@@ -175,6 +204,7 @@ class CognitiveVectorIndex:
         self._chroma_collection: Any | None = None
         self._embedding_fn: Any | None = None
         self._api_client: Any | None = None
+        self._llm_client: Any | None = None
         self._doc_freq: Counter[str] = Counter()
         self._total_docs = 0
         self._initialized = False
@@ -191,6 +221,8 @@ class CognitiveVectorIndex:
             self._init_sentence_transformers()
         else:
             logger.info("Using BM25-only search (no embedding model)")
+
+        self._init_llm_client()
 
         has_embedding = self._embedding_fn is not None or self._api_client is not None
 
@@ -287,6 +319,34 @@ class CognitiveVectorIndex:
                 "falling back to BM25"
             )
 
+    def _init_llm_client(self) -> None:
+        if not self._config.enable_llm_enhancement:
+            return
+        llm_base_url = self._config.llm_base_url
+        llm_model = self._config.llm_model
+        if not llm_base_url or not llm_model:
+            logger.info("LLM fallback not configured (no llm_base_url/llm_model)")
+            return
+        try:
+            import httpx
+            self._llm_client = httpx.AsyncClient(
+                base_url=llm_base_url.rstrip("/"),
+                timeout=httpx.Timeout(60.0, connect=5.0),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self._config.llm_api_key or 'xx'}",
+                },
+            )
+            logger.info(
+                "LLM semantic fallback client initialized: %s, model=%s",
+                llm_base_url,
+                llm_model,
+            )
+        except ImportError:
+            logger.warning("httpx not installed, LLM semantic fallback unavailable")
+        except Exception as e:
+            logger.warning("LLM client init failed: %s", e)
+
     def _init_sentence_transformers(self) -> None:
         model = self._config.model or DEFAULT_ST_MODEL
         try:
@@ -331,6 +391,170 @@ class CognitiveVectorIndex:
             logger.warning("Local embedding computation failed: %s", e)
             return None
 
+    @staticmethod
+    def _extract_json_from_llm_response(data: dict[str, Any]) -> str:
+        message: dict[str, Any] = data["choices"][0]["message"]
+        content: Any = message.get("content")
+        reasoning: Any = message.get("reasoning")
+
+        if content and isinstance(content, str) and content.strip():
+            return str(content).strip()
+
+        text = reasoning or ""
+        if not text:
+            return ""
+
+        json_match = re.search(r'\{[^{}]*"concepts"\s*:\s*\[.*?\]\s*\}', text, re.DOTALL)
+        if json_match:
+            return json_match.group(0)
+
+        json_match = re.search(r'\{[^{}]*"keywords"\s*:\s*\[.*?\]\s*\}', text, re.DOTALL)
+        if json_match:
+            return json_match.group(0)
+
+        json_match = re.search(r'\{.*?"concepts"\s*:.*?\}', text, re.DOTALL)
+        if json_match:
+            return json_match.group(0)
+
+        json_match = re.search(r'\{.*?"keywords"\s*:.*?\}', text, re.DOTALL)
+        if json_match:
+            return json_match.group(0)
+
+        return ""
+
+    async def _compute_embedding_llm(self, text: str) -> list[float] | None:
+        if self._llm_client is None:
+            return None
+
+        prompt = (
+            "You are a semantic feature extractor. Given a text, extract 10-20 key "
+            "semantic concepts, features, or themes that represent the text's meaning.\n\n"
+            "Return ONLY a valid JSON object with a \"concepts\" array. Each concept has "
+            "\"term\" (string) and \"weight\" (float 0-1, indicating importance).\n\n"
+            "Example: {\"concepts\": [{\"term\": \"machine learning\", \"weight\": 0.9}, "
+            "{\"term\": \"neural networks\", \"weight\": 0.8}]}\n\n"
+            f"Text: {text}"
+        )
+
+        payload = {
+            "model": self._config.llm_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "max_tokens": 2048,
+        }
+
+        try:
+            resp = await self._llm_client.post("/chat/completions", json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            content = self._extract_json_from_llm_response(data)
+
+            if not content:
+                return None
+
+            if "```" in content:
+                lines = content.split("\n")
+                cleaned = []
+                in_fence = False
+                for line in lines:
+                    if line.strip().startswith("```"):
+                        in_fence = not in_fence
+                        continue
+                    if in_fence or not line.strip():
+                        cleaned.append(line.strip())
+                if cleaned:
+                    content = "\n".join(cleaned)
+
+            concepts_data = json.loads(content)
+            concepts = concepts_data.get("concepts", [])
+
+            if not concepts:
+                return None
+
+            dimension = self._effective_dimension
+            vector: list[float] = [0.0] * dimension
+
+            for item in concepts:
+                term = str(item.get("term", ""))
+                weight = float(item.get("weight", 0.5))
+                if not term:
+                    continue
+                concept_vec = _concept_to_vector(term, dimension)
+                for i in range(dimension):
+                    vector[i] += concept_vec[i] * weight
+
+            norm = math.sqrt(sum(v * v for v in vector))
+            if norm > 0:
+                vector = [v / norm for v in vector]
+
+            logger.debug("LLM pseudo-embedding: %d concepts → %d-dim vector", len(concepts), dimension)
+            return vector
+
+        except json.JSONDecodeError as e:
+            logger.warning("LLM embedding response JSON parse failed: %s", e)
+            return None
+        except Exception as e:
+            logger.warning("LLM embedding computation failed: %s", e)
+            return None
+
+    async def _enhance_bm25_with_llm(self, text: str) -> str:
+        if self._llm_client is None:
+            return text
+
+        prompt = (
+            "You are a keyword expander for search. Given a text, generate 5-10 related "
+            "keywords, synonyms, or search terms that would help retrieve this content.\n\n"
+            "Return ONLY a valid JSON object with a \"keywords\" array of strings.\n\n"
+            "Example: {\"keywords\": [\"AI\", \"deep learning\", \"model training\", \"ML\"]}\n\n"
+            f"Text: {text}"
+        )
+
+        payload = {
+            "model": self._config.llm_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "max_tokens": 1024,
+        }
+
+        try:
+            resp = await self._llm_client.post("/chat/completions", json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            content = self._extract_json_from_llm_response(data)
+
+            if not content:
+                return text
+
+            if "```" in content:
+                lines = content.split("\n")
+                cleaned = []
+                in_fence = False
+                for line in lines:
+                    if line.strip().startswith("```"):
+                        in_fence = not in_fence
+                        continue
+                    if in_fence or not line.strip():
+                        cleaned.append(line.strip())
+                if cleaned:
+                    content = "\n".join(cleaned)
+
+            keywords_data = json.loads(content)
+            keywords = keywords_data.get("keywords", [])
+
+            if not keywords:
+                return text
+
+            expanded = text + " " + " ".join(keywords)
+            logger.debug("LLM BM25 enhancement: %d keywords added", len(keywords))
+            return expanded
+
+        except json.JSONDecodeError as e:
+            logger.debug("LLM BM25 enhancement JSON parse failed: %s", e)
+            return text
+        except Exception as e:
+            logger.debug("LLM BM25 enhancement failed: %s", e)
+            return text
+
     async def _compute_embedding(self, text: str) -> list[float] | None:
         if self._api_client is not None:
             result = await self._compute_embedding_api(text)
@@ -338,6 +562,10 @@ class CognitiveVectorIndex:
                 return result
         if self._embedding_fn is not None:
             result = await self._compute_embedding_local(text)
+            if result is not None:
+                return result
+        if self._llm_client is not None:
+            result = await self._compute_embedding_llm(text)
             if result is not None:
                 return result
         return None
@@ -382,6 +610,13 @@ class CognitiveVectorIndex:
         for token in set(tokens):
             self._doc_freq[token] += 1
         self._total_docs += 1
+
+        expanded = await self._enhance_bm25_with_llm(enriched)
+        if expanded != enriched:
+            expanded_tokens = _simple_tokenize(expanded)
+            new_tokens = set(expanded_tokens) - set(tokens)
+            for token in new_tokens:
+                self._doc_freq[token] += 1
 
     async def vector_search(
         self,
@@ -574,5 +809,7 @@ class CognitiveVectorIndex:
             await self._vector_store.close()
         if self._api_client is not None:
             await self._api_client.aclose()
+        if self._llm_client is not None:
+            await self._llm_client.aclose()
         self._chroma_collection = None
         self._initialized = False
