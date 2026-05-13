@@ -169,7 +169,9 @@ export const RuleLogicCanvasPage: React.FC<RuleLogicCanvasPageProps> = ({
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <Spin size="large" tip="加载规则逻辑..." />
+        <Spin size="large" tip="加载规则逻辑...">
+          <div style={{ minHeight: 100 }} />
+        </Spin>
       </div>
     );
   }

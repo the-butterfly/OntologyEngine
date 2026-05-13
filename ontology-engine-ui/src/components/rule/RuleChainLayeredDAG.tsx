@@ -239,7 +239,9 @@ export default function RuleChainLayeredDAG({
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
-        <Spin tip="加载 DAG 结构..." />
+        <Spin tip="加载 DAG 结构...">
+          <div style={{ minHeight: 80 }} />
+        </Spin>
       </div>
     );
   }
