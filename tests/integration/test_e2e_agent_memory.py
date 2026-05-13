@@ -273,7 +273,7 @@ class TestE2EComplianceMemory:
 
         await asyncio.sleep(0.5)
 
-        status = api.get_reflection_status(reflection_id)
+        status = await api.get_reflection_status(reflection_id)
         status_data = status.get("data", status)
         assert status_data["reflection_id"] == reflection_id
 
