@@ -344,7 +344,7 @@ class MemoryAPI:
                     source_pipeline="api",
                     user_id=req.created_by or "system",
                 )
-                node_id = ingest_result.get("cognitive_node_id", node_id)
+                node_id = ingest_result.get("node_id", node_id)
                 return self._make_response(
                     data={
                         "memory_id": node_id,
@@ -961,6 +961,9 @@ class MemoryAPI:
             "errors": result.errors,
             "space_id": space_id,
         }
+
+    async def run_dream_cycle(self, space_id: str) -> dict[str, Any]:
+        return await self.dream(space_id)
 
     async def approve_memory(
         self,

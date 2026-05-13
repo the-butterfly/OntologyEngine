@@ -138,7 +138,7 @@ class TestIngestionIntegration:
     async def test_remember_uses_ingestion_when_available(self):
         mock_ingestion = AsyncMock()
         mock_ingestion.ingest.return_value = {
-            "cognitive_node_id": "mem:entity:test:abc123",
+            "node_id": "mem:entity:test:abc123",
             "fragment_id": "frag:abc123",
         }
 
