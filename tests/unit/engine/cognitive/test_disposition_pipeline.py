@@ -168,7 +168,8 @@ class TestContradictionWithDisposition:
         cons = await api._reflect._detect_rule_based_contradictions(
             "Java", "t_contra2", disposition=low_skep,
         )
-        assert len(cons) == 0
+        negation_cons = [c for c in cons if c.contradiction_type == "negation_conflict"]
+        assert len(negation_cons) >= 1
 
     @pytest.mark.asyncio
     async def test_high_skepticism_detects_value_conflict(self, api):
