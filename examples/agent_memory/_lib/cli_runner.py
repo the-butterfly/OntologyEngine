@@ -73,6 +73,9 @@ class CLIRunner:
     def space(self) -> str:
         return self._space
 
+    def set_space(self, space_id: str) -> None:
+        self._space = space_id
+
     async def remember(self, content: str, *, memory_type: str = "fragment",
                        tags: list[str] | None = None, confidence: float = 1.0,
                        visibility: str = "shared", created_by: str | None = None,
