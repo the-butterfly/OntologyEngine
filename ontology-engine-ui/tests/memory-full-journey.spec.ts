@@ -81,6 +81,15 @@ function mockApiResponses(page: Page) {
     if (url.includes("/memory/approve") && method === "POST") return route.fulfill(jsonOk(null));
     if (url.includes("/memory/consolidate") && method === "POST") return route.fulfill(jsonOk(null));
     if (url.includes("/memory/forget") && method === "POST") return route.fulfill(jsonOk(null));
+    if (url.includes("/memory/dream") && method === "POST") return route.fulfill(jsonOk({
+      contradictions: 2,
+      expired: 1,
+      orphans_cleaned: 3,
+      links_enhanced: 5,
+      graph_completed: 4,
+      errors: [],
+      space_id: MOCK_SPACE_ID,
+    }));
 
     // Default: return null data for any unhandled v1 request
     return route.fulfill(jsonOk(null));
@@ -359,5 +368,35 @@ test.describe("J10: 验证案例映射 — 覆盖所有 8 组", () => {
     await page.locator(".ant-tabs-tab:has-text('验证演示')").click();
     await page.waitForTimeout(500);
     await expect(page.locator(".ant-select").first()).toBeVisible();
+  });
+});
+
+test.describe("J11: Dream Cycle 维护", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApiResponses(page);
+    await navigateToMemory(page, "/manage");
+  });
+
+  test("J11.1: should execute Dream Cycle and show success message", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "Dream Cycle" })).toBeVisible();
+    await page.getByRole("button", { name: "Dream Cycle" }).click();
+    await page.waitForTimeout(1500);
+
+    const successMsg = page.locator(".ant-message-success");
+    await expect(successMsg).toBeVisible();
+  });
+
+  test("J11.2: Dream Cycle result reflected in activity list", async ({ page }) => {
+    const dreamBtn = page.getByRole("button", { name: "Dream Cycle" });
+    await dreamBtn.click();
+    await page.waitForTimeout(1500);
+
+    await page.goto(`${BASE_URL}/spaces/${MOCK_SPACE_ID}/memory?tab=activities`);
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+
+    const items = page.locator(".ant-list-item");
+    const count = await items.count();
+    expect(count).toBeGreaterThanOrEqual(1);
   });
 });
