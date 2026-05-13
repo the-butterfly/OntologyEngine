@@ -468,7 +468,20 @@ Rules:
                                     suggested_resolution="Value conflict detected, determine which is current",
                                 ))
 
-        return contradictions
+        return self._deduplicate_contradictions(contradictions)
+
+    def _deduplicate_contradictions(
+        self,
+        contradictions: list["ContradictionReport"],
+    ) -> list["ContradictionReport"]:
+        seen: set[tuple[str, frozenset[str]]] = set()
+        result: list["ContradictionReport"] = []
+        for c in contradictions:
+            key = (c.contradiction_type, frozenset(c.node_ids))
+            if key not in seen:
+                seen.add(key)
+                result.append(c)
+        return result
 
     def _generate_insights(
         self,
@@ -603,7 +616,7 @@ Rules:
                                 suggested_resolution="Review both memories and determine which is current",
                             ))
 
-        return contradictions
+        return self._deduplicate_contradictions(contradictions)
 
     @staticmethod
     def _has_negation_conflict(text_a: str, text_b: str) -> bool:
