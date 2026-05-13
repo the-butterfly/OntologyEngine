@@ -30,16 +30,22 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle common errors
-    if (error.response?.status === 401) {
-      // Unauthorized - could trigger logout
-      console.error('Unauthorized, please login again');
-    } else if (error.response?.status === 403) {
-      console.error('Forbidden - insufficient permissions');
-    } else if (error.response?.status === 404) {
-      console.error('Resource not found');
-    } else if (error.response?.status >= 500) {
-      console.error('Server error');
+    const status = error.response?.status;
+    const url = error.config?.url || 'unknown';
+    const method = error.config?.method?.toUpperCase() || 'GET';
+    const backendError = error.response?.data?.error;
+    const backendMsg = backendError?.message || error.message || 'Unknown';
+
+    if (status === 401) {
+      console.error(`[401] ${method} ${url} — Unauthorized, please login again`);
+    } else if (status === 403) {
+      console.error(`[403] ${method} ${url} — Forbidden`);
+    } else if (status === 404) {
+      console.error(`[404] ${method} ${url} — Not found`);
+    } else if (status && status >= 500) {
+      console.error(`[${status}] ${method} ${url} — ${backendMsg}`);
+    } else if (!error.response) {
+      console.error(`[NETWORK] ${method} ${url} — ${error.message}`);
     }
     return Promise.reject(error);
   }
