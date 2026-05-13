@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Card, Tabs, Statistic, Row, Col, Spin, Alert, List, Tag, Typography, Table, Button, Space, Steps, Progress, Select, Empty } from 'antd';
 import { DatabaseOutlined, FileTextOutlined, ExperimentOutlined, EyeOutlined, PlayCircleOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { memoryApi } from '../../../services/memoryApi';
-import type { MemoryStats, DashboardData, AuditEntry } from '../../../types/api';
+import type { MemoryStats, DashboardData, AgentActivity } from '../../../types/api';
 import type { CognitiveNode } from '../../../types/memory';
 import { MemoryDetailDrawer, MemoryGraphView } from '../../../components/memory';
 
@@ -40,10 +40,11 @@ interface ValidationStepState {
 
 const MemoryOverviewPage: React.FC = () => {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<MemoryStats | null>(null);
-  const [activities, setActivities] = useState<AuditEntry[]>([]);
+  const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [nodes, setNodes] = useState<CognitiveNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<{ source: string; target: string; edgeType: string }[]>([]);
@@ -53,6 +54,7 @@ const MemoryOverviewPage: React.FC = () => {
   const [validationSteps, setValidationSteps] = useState<ValidationStepState[]>([]);
   const [validationRunning, setValidationRunning] = useState(false);
   const [validationResult, setValidationResult] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
 
 
   useEffect(() => {
@@ -93,16 +95,23 @@ const MemoryOverviewPage: React.FC = () => {
     setDetailNodeId(null);
   };
 
-  // Agent 活动轮询
+  // Agent 活动轮询 — 仅在 activities Tab 激活时
   useEffect(() => {
-    if (!spaceId) return;
+    if (!spaceId || activeTab !== 'activities') return;
     const interval = setInterval(() => {
       memoryApi.getActivities(spaceId).then((data) => {
         setActivities(data);
       }).catch(() => {});
     }, 5000);
     return () => clearInterval(interval);
-  }, [spaceId]);
+  }, [spaceId, activeTab]);
+
+  const activityStats = useMemo(() => ({
+    total: activities.length,
+    remember: activities.filter((a) => a.activityType === 'remember').length,
+    recall: activities.filter((a) => a.activityType === 'recall').length,
+    success: activities.filter((a) => a.success).length,
+  }), [activities]);
 
   const runValidation = async (caseId: string) => {
     if (!spaceId || !caseId) return;
@@ -356,33 +365,33 @@ const MemoryOverviewPage: React.FC = () => {
               <Card>
                 <Statistic
                   title="总活动数"
-                  value={activities.length}
+                  value={activityStats.total}
                 />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
                 <Statistic
-                  title="待审核"
-                  value={activities.filter((a) => a.belief_status === 'pending_review').length}
-                  valueStyle={{ color: '#fa8c16' }}
+                  title="Remember"
+                  value={activityStats.remember}
+                  valueStyle={{ color: '#52c41a' }}
                 />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
                 <Statistic
-                  title="已拒绝"
-                  value={activities.filter((a) => a.belief_status === 'rejected').length}
-                  valueStyle={{ color: '#ff4d4f' }}
+                  title="Recall"
+                  value={activityStats.recall}
+                  valueStyle={{ color: '#1890ff' }}
                 />
               </Card>
             </Col>
             <Col span={6}>
               <Card>
                 <Statistic
-                  title="已替代"
-                  value={activities.filter((a) => a.belief_status === 'superseded' || a.superseded_by).length}
+                  title="成功"
+                  value={activityStats.success}
                   valueStyle={{ color: '#722ed1' }}
                 />
               </Card>
@@ -397,18 +406,27 @@ const MemoryOverviewPage: React.FC = () => {
                 renderItem={(item) => (
                   <List.Item
                     actions={[
-                      <Tag color={BELIEF_STATUS_COLORS[item.belief_status] || 'default'}>{item.belief_status}</Tag>,
-                      <Button size="small" icon={<EyeOutlined />} onClick={() => handleOpenDetail(item.id)}>查看</Button>,
+                      <Tag color={item.success ? 'green' : 'red'}>{item.success ? '成功' : '失败'}</Tag>,
+                      <Tag>{item.activityType}</Tag>,
                     ]}
                   >
                     <List.Item.Meta
                       title={
                         <Space>
-                          <Tag>{item.memory_type}</Tag>
+                          <Text strong>{item.operation}</Text>
                           <Text type="secondary" style={{ fontSize: 12 }}>{item.id.slice(0, 16)}...</Text>
                         </Space>
                       }
-                      description={item.content}
+                      description={
+                        <div>
+                          <div>{item.result}</div>
+                          <div style={{ marginTop: 4 }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Agent: {item.agentName} | {new Date(item.timestamp).toLocaleString()}
+                            </Text>
+                          </div>
+                        </div>
+                      }
                     />
                   </List.Item>
                 )}
@@ -534,10 +552,15 @@ const MemoryOverviewPage: React.FC = () => {
     },
   ];
 
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    setSearchParams({ tab: key });
+  };
+
   return (
     <div>
       <Title level={3}>记忆总览</Title>
-      <Tabs defaultActiveKey="overview" items={tabItems} />
+      <Tabs activeKey={activeTab} onChange={handleTabChange} items={tabItems} />
       <MemoryDetailDrawer
         nodeId={detailNodeId}
         spaceId={spaceId || ''}
