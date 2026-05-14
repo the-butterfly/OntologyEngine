@@ -1,0 +1,105 @@
+{
+  "timestamp": "20260514_233843",
+  "case": "acpt_management",
+  "total": 8,
+  "mean_score": 0.625,
+  "min_score": 0.0,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "B-01: Basic ingestion + type correctness",
+      "score": 0.3,
+      "details": "node_id=mem:entity:acpt_management_b01:cf188f42e6a8, stats={'total': 3, 'by_type': {'entity': 2, 'fragment': 1}, 'by_belief': {'accepted': 3}, 'by_layer': {'semantic': 2, 'perception': 1}, 'space_id': 'acpt_management_b01'}",
+      "latency_ms": 322.1,
+      "sub_scores": {
+        "score": 0.3,
+        "b01_check_0": 1.0,
+        "b01_check_1": 0.0,
+        "b01_check_2": 0.0
+      }
+    },
+    {
+      "name": "B-02: Deduplication",
+      "score": 0.7,
+      "details": "id1=mem:fragment:acpt_management_b02:949641e14d0f, id2=mem:fragment:acpt_management_b02:949641e14d0f, total=3",
+      "latency_ms": 66.9,
+      "sub_scores": {
+        "score": 0.7,
+        "b02_check_0": 1.0,
+        "b02_check_1": 0.0,
+        "b02_check_2": 1.0
+      }
+    },
+    {
+      "name": "B-03: Entity resolution",
+      "score": 0.25,
+      "details": "entities=0, total=7, has_entity_name=False",
+      "latency_ms": 134.7,
+      "sub_scores": {
+        "score": 0.25,
+        "b03_check_0": 0.0,
+        "b03_check_1": 1.0,
+        "b03_check_2": 0.0
+      }
+    },
+    {
+      "name": "B-04: Visibility auto-inference",
+      "score": 1.0,
+      "details": "pii_visible=True, normal_visible=True, pii_id=mem:fragment:acpt_management_b04:46c37b375296",
+      "latency_ms": 177.5,
+      "sub_scores": {
+        "score": 1.0,
+        "b04_check_0": 1.0,
+        "b04_check_1": 1.0,
+        "b04_check_2": 1.0
+      }
+    },
+    {
+      "name": "B-05: Cognitive layer inference",
+      "score": 1.0,
+      "details": "observation=True, entity=True, rule=True, mental_model=True",
+      "latency_ms": 226.7,
+      "sub_scores": {
+        "score": 1.0,
+        "b05_check_0": 1.0,
+        "b05_check_1": 1.0,
+        "b05_check_2": 1.0,
+        "b05_check_3": 1.0
+      }
+    },
+    {
+      "name": "B-06: Belief status lifecycle",
+      "score": 0.0,
+      "details": "CognitiveNode 'mem:fragment:acpt_management_b06:548048b5bfac' not found",
+      "latency_ms": 32.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "B-07: Version history + SUPERSEDES edge",
+      "score": 0.75,
+      "details": "corr1_ok=True, corr2_ok=True, has_superseded=True, corrections=1",
+      "latency_ms": 347.6,
+      "sub_scores": {
+        "score": 0.75,
+        "b07_check_0": 1.0,
+        "b07_check_1": 1.0,
+        "b07_check_2": 1.0,
+        "b07_check_3": 0.0
+      }
+    },
+    {
+      "name": "B-08: Schema-guided extraction",
+      "score": 1.0,
+      "details": "id1=mem:observation:acpt_management_b08:caba3d6727ed, id2=mem:observation:acpt_management_b08:cb3882d22a16, recall_found=True, total=15",
+      "latency_ms": 309.8,
+      "sub_scores": {
+        "score": 1.0,
+        "b08_check_0": 1.0,
+        "b08_check_1": 1.0,
+        "b08_check_2": 1.0,
+        "b08_check_3": 1.0
+      }
+    }
+  ]
+}
