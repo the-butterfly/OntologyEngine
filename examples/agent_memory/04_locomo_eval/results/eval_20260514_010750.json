@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260514_010750",
+  "case": "case8",
+  "total": 10,
+  "passed": 2,
+  "pass_rate": 0.2,
+  "results": [
+    {
+      "name": "T1: Single-hop recall",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T2: Multi-hop reasoning",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T3: Temporal reasoning",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T4: Contradiction detection",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T5: Consolidation & upgrade",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T6: Supersede & belief",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T7: Forgetting & protection",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T8: Correction propagation",
+      "passed": true,
+      "score": 1.0,
+      "details": "original=mem:observation:locomo_eval:3de31586fe95, corrected=mem:observation:locomo_eval:3273b729e669",
+      "latency_ms": 101545.51410675049
+    },
+    {
+      "name": "T9: DreamCycle",
+      "passed": false,
+      "score": 0.0,
+      "details": "TIMEOUT",
+      "latency_ms": 120000.0
+    },
+    {
+      "name": "T10: Full lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "remember=True, recall=True, reflect=True, correct=True, dream=True, forget=True",
+      "latency_ms": 113085.80899238586
+    }
+  ]
+}
