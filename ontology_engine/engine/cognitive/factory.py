@@ -22,7 +22,9 @@ from typing import Any
 
 from ontology_engine.engine.cognitive.cognitive_vector_index import CognitiveVectorIndex, EmbeddingConfig
 from ontology_engine.engine.cognitive.consolidation_engine import ConsolidationEngine
+from ontology_engine.engine.cognitive.consolidation_types import Fragment, CreateAction, UpdateAction, DeleteAction
 from ontology_engine.engine.cognitive.correction_propagation import CorrectionPropagation
+from ontology_engine.engine.cognitive.models import CognitiveNode
 from ontology_engine.engine.cognitive.entity_resolver import EntityResolver
 from ontology_engine.engine.cognitive.lifecycle import DreamCycle, ForgettingEngine
 from ontology_engine.engine.cognitive.memory_api import MemoryAPI
@@ -115,6 +117,127 @@ async def _create_llm_call_fn(llm_config: dict[str, Any]) -> Any:
     return llm_call_fn
 
 
+def _build_consolidation_adapter(llm_call_fn):
+    """Wrap llm_call_fn(prompt, system) into ConsolidationEngine's expected signature.
+
+    ConsolidationEngine._consolidate_batch_with_llm calls:
+        await self._llm_consolidate(fragments, existing)
+    where fragments is list[Fragment] and existing is list[CognitiveNode].
+
+    The raw llm_call_fn accepts (str, str) -> str and cannot handle dataclass
+    arguments directly (httpx json.dumps fails on non-serializable types).
+
+    This adapter:
+    1. Serializes Fragment/CognitiveNode to dicts
+    2. Builds a consolidation prompt
+    3. Calls the original llm_call_fn
+    4. Parses the JSON response into action objects
+    5. Falls back to empty list on any error (ConsolidationEngine uses rule-based fallback)
+    """
+    import json
+
+    SYSTEM_PROMPT = (
+        "You are a cognitive consolidation engine. "
+        "Analyze unconsolidated memory fragments and existing observations, "
+        "then produce consolidation actions as JSON. "
+        "Output ONLY a JSON object with an 'actions' array. No other text."
+    )
+
+    async def adapter(
+        fragments: list[Fragment],
+        existing_nodes: list[CognitiveNode],
+    ) -> list[CreateAction | UpdateAction | DeleteAction]:
+        frag_dicts = [
+            {
+                "id": f.id,
+                "content": f.content,
+                "tags": f.tags,
+                "space_id": f.space_id,
+                "version": f.version,
+                "created_at": f.created_at,
+            }
+            for f in fragments
+        ]
+        node_dicts = [n.to_dict() for n in existing_nodes]
+
+        prompt = json.dumps(
+            {
+                "task": "consolidate_memories",
+                "fragments": frag_dicts,
+                "existing_observations": node_dicts,
+                "instructions": (
+                    "Analyze the fragments and existing observations. "
+                    "Produce consolidation actions:\n"
+                    '- "create": new coherent observation from fragments. '
+                    'Fields: type, text, memory_type (observation/entity), tags, confidence (0-1), source_fragment_ids\n'
+                    '- "update": extend an existing observation with new fragments. '
+                    'Fields: type, target_id, updated_text, updated_tags, confidence (0-1), source_fragment_ids\n'
+                    '- "delete": supersede an outdated/contradicted observation. '
+                    'Fields: type, target_id, replacement_id (optional), reason\n'
+                    "Return ONLY: {\"actions\": [...]}"
+                ),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+
+        try:
+            response = await llm_call_fn(prompt, SYSTEM_PROMPT)
+            result = json.loads(response)
+            actions_data = result.get("actions", [])
+        except Exception as e:
+            logger.warning(
+                "LLM consolidation response parsing failed, falling back to rule-based: %s",
+                e,
+            )
+            return []
+
+        frag_map = {f.id: f for f in fragments}
+        actions: list[CreateAction | UpdateAction | DeleteAction] = []
+
+        for a in actions_data:
+            try:
+                atype = a.get("type", "")
+                frag_ids = a.get("source_fragment_ids", [])
+                source_frags = [frag_map[fid] for fid in frag_ids if fid in frag_map]
+
+                if atype == "create":
+                    actions.append(
+                        CreateAction(
+                            text=a.get("text", ""),
+                            memory_type=a.get("memory_type", "observation"),
+                            tags=a.get("tags", []),
+                            confidence=float(a.get("confidence", 0.7)),
+                            source_fragments=source_frags,
+                        )
+                    )
+                elif atype == "update":
+                    actions.append(
+                        UpdateAction(
+                            target_id=a.get("target_id", ""),
+                            updated_text=a.get("updated_text", ""),
+                            updated_tags=a.get("updated_tags", []),
+                            confidence=float(a.get("confidence", 0.7)),
+                            new_source_fragments=source_frags,
+                        )
+                    )
+                elif atype == "delete":
+                    actions.append(
+                        DeleteAction(
+                            target_id=a.get("target_id", ""),
+                            replacement_id=a.get("replacement_id"),
+                            reason=a.get("reason", "superseded_by_consolidation"),
+                        )
+                    )
+            except Exception as e:
+                logger.warning("Failed to parse consolidation action: %s", e)
+                continue
+
+        return actions
+
+    return adapter
+
+
 async def create_memory_api(
     db_path: str | None = None,
     daily_token_budget: int = 20000,
@@ -156,7 +279,7 @@ async def create_memory_api(
 
     consolidation = ConsolidationEngine(
         repository=repo,
-        llm_consolidate_fn=llm_call_fn,
+        llm_consolidate_fn=_build_consolidation_adapter(llm_call_fn) if llm_call_fn else None,
     )
     resolver = EntityResolver(repository=repo, llm_call_fn=llm_call_fn)
     rrf = RRFFusionEngine(

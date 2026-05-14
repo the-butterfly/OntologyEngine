@@ -102,6 +102,9 @@ class CognitiveIngestionService:
         scope: str = "",
         source_pipeline: str = "api",
         user_id: str = "system",
+        visibility: str = "shared",
+        confidence: float = 1.0,
+        belief_status: str = "accepted",
     ) -> dict[str, Any]:
         source_content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
         model_domain = self.DOMAIN_MAPPING.get(memory_type)
@@ -118,6 +121,9 @@ class CognitiveIngestionService:
             source_trust_tier=source_trust_tier,
             source_pipeline=source_pipeline,
             created_by=user_id,
+            visibility=visibility,
+            confidence=confidence,
+            belief_status=belief_status,
         )
         await self._repo.create_node(fragment)
 
@@ -151,7 +157,7 @@ class CognitiveIngestionService:
         for entity in entities[:10]:
             try:
                 entity_id = await self._resolve_or_create_entity(
-                    entity, space_id, source_pipeline, user_id,
+                    entity, space_id, source_pipeline, user_id, visibility, confidence,
                 )
                 if entity_id:
                     created_entity_ids.append(entity_id)
@@ -185,6 +191,9 @@ class CognitiveIngestionService:
                 source_pipeline=source_pipeline,
                 tags=tags or [],
                 created_by=user_id,
+                visibility=visibility,
+                confidence=confidence,
+                belief_status=belief_status,
             )
             await self._repo.create_node(node)
 
@@ -266,6 +275,8 @@ class CognitiveIngestionService:
         space_id: str,
         source_pipeline: str,
         user_id: str,
+        visibility: str = "shared",
+        confidence: float = 1.0,
     ) -> str | None:
         """Resolve an extracted entity to an existing node or create a new one.
 
@@ -293,7 +304,8 @@ class CognitiveIngestionService:
             space_id=space_id,
             entity_name=entity.text,
             entity_type=entity.entity_type,
-            confidence=entity.confidence,
+            confidence=confidence,
+            visibility=visibility,
             model_domain="world",
             source_pipeline=source_pipeline,
             created_by=user_id,

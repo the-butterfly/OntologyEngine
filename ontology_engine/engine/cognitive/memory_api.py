@@ -343,6 +343,9 @@ class MemoryAPI:
                     scope=model_domain,
                     source_pipeline="api",
                     user_id=req.created_by or "system",
+                    visibility=req.visibility,
+                    confidence=req.confidence,
+                    belief_status=req.belief_status,
                 )
                 node_id = ingest_result.get("node_id", node_id)
                 return self._make_response(
@@ -677,19 +680,72 @@ class MemoryAPI:
                     evidence = await self._router.expand_evidence(
                         result["id"], req.space_id, depth=req.evidence_depth
                     )
-                    result["evidence"] = [
-                        {
-                            "id": e.doc_id,
-                            "memory_type": e.memory_type,
-                            "text": e.content,
-                            "edge_type": e.edge_type,
-                            "confidence": e.confidence,
-                            "contribution": e.contribution,
-                        }
-                        for e in evidence
-                    ]
+                    if not evidence:
+                        try:
+                            node = await self._repo.get_node(result["id"])
+                            if node.source_fragment_ids:
+                                for frag_id in node.source_fragment_ids:
+                                    try:
+                                        frag = await self._repo.get_node(frag_id)
+                                        from ontology_engine.engine.cognitive.rrf_types import RetrievalResult
+                                        evidence.append(RetrievalResult(
+                                            doc_id=frag.id,
+                                            content=frag.content,
+                                            source="evidence_depth_1",
+                                            memory_type=frag.memory_type,
+                                            cognitive_layer=frag.cognitive_layer,
+                                            edge_type="SUPPORTS",
+                                            confidence=frag.confidence,
+                                            contribution=round(1.0 / len(node.source_fragment_ids), 3),
+                                        ))
+                                    except Exception:
+                                        continue
+                        except Exception:
+                            pass
+                    if not evidence:
+                        try:
+                            consolidated_edges = await self._repo.query_cognitive_edges(
+                                from_id=result["id"], edge_type="CONSOLIDATED_INTO", limit=5,
+                            )
+                            for edge in consolidated_edges:
+                                try:
+                                    consolidated = await self._repo.get_node(edge.to_id)
+                                    if consolidated.source_fragment_ids:
+                                        for frag_id in consolidated.source_fragment_ids:
+                                            try:
+                                                frag = await self._repo.get_node(frag_id)
+                                                from ontology_engine.engine.cognitive.rrf_types import RetrievalResult
+                                                evidence.append(RetrievalResult(
+                                                    doc_id=frag.id,
+                                                    content=frag.content,
+                                                    source="evidence_depth_1",
+                                                    memory_type=frag.memory_type,
+                                                    cognitive_layer=frag.cognitive_layer,
+                                                    edge_type="SUPPORTS",
+                                                    confidence=frag.confidence,
+                                                    contribution=round(1.0 / len(consolidated.source_fragment_ids), 3),
+                                                ))
+                                            except Exception:
+                                                continue
+                                        break
+                                except Exception:
+                                    continue
+                        except Exception:
+                            pass
+                    if evidence:
+                        result["evidence"] = [
+                            {
+                                "id": e.doc_id,
+                                "memory_type": e.memory_type,
+                                "text": e.content,
+                                "edge_type": e.edge_type,
+                                "confidence": e.confidence,
+                                "contribution": e.contribution,
+                            }
+                            for e in evidence
+                        ]
                 except Exception:
-                    result["evidence"] = []
+                    pass
 
         for result in results:
             tw = BASE_TYPE_WEIGHTS.get(result.get("memory_type", "fragment"), 1.0)
@@ -1502,6 +1558,280 @@ class MemoryAPI:
                 "strength_breakdown": strength_info["breakdown"],
             })
         return {"nodes": results, "total": len(results), "space_id": space_id}
+
+    async def list_my_memories(
+        self,
+        space_id: str,
+        user_id: str,
+        scope_type: str | None = None,
+        memory_type: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        try:
+            nodes = await self._repo.query_nodes(
+                domain_id=space_id,
+                memory_type=memory_type,
+                limit=10000,
+            )
+            filtered = [n for n in nodes if n.created_by == user_id]
+            if scope_type:
+                filtered = [n for n in filtered if getattr(n, "scope", None) == scope_type]
+            filtered = filtered[:limit]
+            results = []
+            for n in filtered:
+                strength_info = self._compute_strength(n)
+                results.append({
+                    "id": n.id,
+                    "memory_type": n.memory_type,
+                    "text": n.content,
+                    "cognitive_layer": n.cognitive_layer,
+                    "belief_status": n.belief_status,
+                    "proof_count": len(n.source_fragment_ids),
+                    "visibility": n.visibility,
+                    "created_by": n.created_by,
+                    "confidence": n.confidence,
+                    "strength": strength_info["value"],
+                    "strength_breakdown": strength_info["breakdown"],
+                })
+            return self._make_response(
+                data={"nodes": results, "total": len(results), "space_id": space_id},
+                space_id=space_id,
+            )
+        except Exception as e:
+            logger.warning("list_my_memories failed: %s", e)
+            return self._make_response(
+                data={"nodes": [], "total": 0, "space_id": space_id},
+                space_id=space_id,
+            )
+
+    async def record_commitment(
+        self,
+        content: str,
+        space_id: str,
+        deadline: str | None = None,
+        task_id: str | None = None,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            node_id = self._generate_memory_id(content, space_id, "commitment")
+            cognitive_layer = self._infer_cognitive_layer("commitment")
+            model_domain = self._infer_model_domain("commitment")
+
+            attributes: dict[str, str] = {}
+            if deadline:
+                attributes["deadline"] = deadline
+            if task_id:
+                attributes["task_id"] = task_id
+
+            node = CognitiveNode(
+                id=node_id,
+                memory_type="commitment",
+                cognitive_layer=cognitive_layer,
+                model_domain=model_domain,
+                content=content,
+                domain_id=space_id,
+                space_id=space_id,
+                visibility="shared",
+                created_by=created_by,
+                confidence=1.0,
+                belief_status="accepted",
+                tags=[],
+                attributes=attributes,
+                source_fragment_ids=[],
+                proof_count=1,
+            )
+            await self._repo.create_node(node)
+            return self._make_response(
+                data={
+                    "memory_id": node_id,
+                    "node_id": node_id,
+                    "commitment_id": node_id,
+                    "decision": "accepted",
+                    "space_id": space_id,
+                },
+                space_id=space_id,
+            )
+        except Exception as e:
+            logger.warning("record_commitment failed: %s", e)
+            return self._make_response(
+                data={"memory_id": None, "error": str(e), "space_id": space_id},
+                space_id=space_id,
+            )
+
+    async def check_commitments(
+        self,
+        space_id: str,
+        status: str | None = None,
+        overdue: bool = False,
+    ) -> dict[str, Any]:
+        try:
+            nodes = await self._repo.query_nodes(
+                domain_id=space_id,
+                memory_type="commitment",
+                limit=500,
+            )
+            now = datetime.now(timezone.utc)
+            results = []
+            for n in nodes:
+                n_status = getattr(n, "belief_status", "accepted")
+                if status and n_status != status:
+                    continue
+                n_deadline = n.attributes.get("deadline") if n.attributes else None
+                is_overdue = False
+                if n_deadline:
+                    try:
+                        dl = datetime.fromisoformat(str(n_deadline).replace("Z", "+00:00"))
+                        is_overdue = dl < now
+                    except (ValueError, TypeError):
+                        pass
+                if overdue and not is_overdue:
+                    continue
+                results.append({
+                    "id": n.id,
+                    "content": n.content,
+                    "status": n_status,
+                    "deadline": n_deadline,
+                    "task_id": n.attributes.get("task_id") if n.attributes else None,
+                    "created_by": n.created_by,
+                    "is_overdue": is_overdue,
+                    "created_at": n.created_at,
+                })
+            return self._make_response(
+                data={"commitments": results, "total": len(results), "space_id": space_id},
+                space_id=space_id,
+            )
+        except Exception as e:
+            logger.warning("check_commitments failed: %s", e)
+            return self._make_response(
+                data={"commitments": [], "total": 0, "space_id": space_id},
+                space_id=space_id,
+            )
+
+    async def compile_entity_page(
+        self,
+        entity_id: str,
+        space_id: str,
+    ) -> dict[str, Any]:
+        try:
+            nodes = await self._repo.query_nodes(
+                domain_id=space_id,
+                limit=5000,
+            )
+            entity_nodes = [
+                n for n in nodes
+                if n.entity_name == entity_id or entity_id in n.id
+            ]
+            entity_node_ids = {en.id for en in entity_nodes}
+            entity_names: set[str] = set()
+            src_fragment_ids: set[str] = set()
+            for en in entity_nodes:
+                if en.entity_name:
+                    entity_names.add(en.entity_name)
+                for fid in (en.source_fragment_ids or []):
+                    src_fragment_ids.add(fid)
+            related_nodes = [
+                n for n in nodes
+                if n.id not in entity_node_ids and (
+                    n.id in src_fragment_ids or (
+                        n.entity_name and n.entity_name in entity_names
+                    )
+                )
+            ]
+            page_nodes = entity_nodes + related_nodes[:20]
+            node_list = []
+            for n in page_nodes:
+                strength_info = self._compute_strength(n)
+                node_list.append({
+                    "id": n.id,
+                    "memory_type": n.memory_type,
+                    "text": n.content,
+                    "entity_name": n.entity_name,
+                    "entity_type": n.entity_type,
+                    "belief_status": n.belief_status,
+                    "confidence": n.confidence,
+                    "strength": strength_info["value"],
+                    "created_by": n.created_by,
+                    "created_at": n.created_at,
+                    "tags": n.tags,
+                    "attributes": n.attributes,
+                })
+            return self._make_response(
+                data={
+                    "entity_id": entity_id,
+                    "nodes": node_list,
+                    "total_nodes": len(node_list),
+                    "entity_node_count": len(entity_nodes),
+                    "related_node_count": len(related_nodes[:20]),
+                    "space_id": space_id,
+                },
+                space_id=space_id,
+            )
+        except Exception as e:
+            logger.warning("compile_entity_page failed: %s", e)
+            return self._make_response(
+                data={"entity_id": entity_id, "nodes": [], "total_nodes": 0, "space_id": space_id},
+                space_id=space_id,
+            )
+
+    async def compile_topic_page(
+        self,
+        topic: str,
+        entity_ids: list[str],
+        space_id: str,
+    ) -> dict[str, Any]:
+        try:
+            nodes = await self._repo.query_nodes(
+                domain_id=space_id,
+                limit=5000,
+            )
+            entity_set = set(entity_ids)
+            topic_lower = topic.lower()
+            topic_nodes: list[Any] = []
+            for n in nodes:
+                matches = False
+                if n.entity_name and n.entity_name in entity_set:
+                    matches = True
+                elif topic_lower in (n.content or "").lower():
+                    matches = True
+                elif any(tag and topic_lower in tag.lower() for tag in (n.tags or [])):
+                    matches = True
+                if matches:
+                    topic_nodes.append(n)
+
+            topic_nodes = topic_nodes[:100]
+            node_list = []
+            for n in topic_nodes:
+                strength_info = self._compute_strength(n)
+                node_list.append({
+                    "id": n.id,
+                    "memory_type": n.memory_type,
+                    "text": n.content,
+                    "entity_name": n.entity_name,
+                    "entity_type": n.entity_type,
+                    "belief_status": n.belief_status,
+                    "confidence": n.confidence,
+                    "strength": strength_info["value"],
+                    "created_by": n.created_by,
+                    "created_at": n.created_at,
+                    "tags": n.tags,
+                    "attributes": n.attributes,
+                })
+            return self._make_response(
+                data={
+                    "topic": topic,
+                    "entity_ids": entity_ids,
+                    "nodes": node_list,
+                    "total_nodes": len(node_list),
+                    "space_id": space_id,
+                },
+                space_id=space_id,
+            )
+        except Exception as e:
+            logger.warning("compile_topic_page failed: %s", e)
+            return self._make_response(
+                data={"topic": topic, "entity_ids": entity_ids, "nodes": [], "total_nodes": 0, "space_id": space_id},
+                space_id=space_id,
+            )
 
     def _make_response(
         self,

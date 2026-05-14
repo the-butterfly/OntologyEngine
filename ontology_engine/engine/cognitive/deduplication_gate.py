@@ -11,6 +11,7 @@ Design reference: docs/02-design/agent-memory/memory-lifecycle.md §0
 from __future__ import annotations
 
 import enum
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -118,6 +119,9 @@ class DeduplicationGate:
         try:
             query_vector = await self._vector_index._compute_embedding(content)
             if query_vector is None:
+                dedup_result = await self._check_duplicate_by_content_hash(content, space_id)
+                if dedup_result is not None:
+                    return dedup_result
                 return GateResult(decision=WriteDecision.ACCEPT, reason="no_embedding_model")
 
             results = await self._vector_index._vector_search_embedding(
@@ -155,6 +159,32 @@ class DeduplicationGate:
             logger.warning("Vector dedup check failed: %s", e)
 
         return GateResult(decision=WriteDecision.ACCEPT, reason="no_duplicate_found")
+
+    async def _check_duplicate_by_content_hash(
+        self,
+        content: str,
+        space_id: str,
+    ) -> GateResult | None:
+        content_hash = hashlib.sha256(content.encode()).hexdigest()
+        try:
+            nodes = await self._repo.query_nodes(domain_id=space_id, limit=500)
+            for node in nodes:
+                if node.belief_status in ("superseded", "rejected"):
+                    continue
+                node_hash = hashlib.sha256(node.content.encode()).hexdigest()
+                if node_hash == content_hash:
+                    logger.info(
+                        "Duplicate by content hash: content='%s'",
+                        content[:50],
+                    )
+                    return GateResult(
+                        decision=WriteDecision.DUPLICATE,
+                        reason="content_hash_match",
+                        duplicate_of=node.id,
+                    )
+        except Exception as e:
+            logger.warning("Content hash dedup check failed: %s", e)
+        return None
 
     async def _check_contradiction(
         self,
