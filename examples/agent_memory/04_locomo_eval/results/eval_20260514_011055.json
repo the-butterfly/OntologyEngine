@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260514_011055",
+  "case": "case8",
+  "total": 10,
+  "passed": 8,
+  "pass_rate": 0.8,
+  "results": [
+    {
+      "name": "T1: Single-hop recall",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=3, found_shenzhen=False",
+      "latency_ms": 776.137113571167
+    },
+    {
+      "name": "T2: Multi-hop reasoning",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=5, cloud=False, k8s=False",
+      "latency_ms": 360.8419895172119
+    },
+    {
+      "name": "T3: Temporal reasoning",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=3, has_latest=False",
+      "latency_ms": 310.0900650024414
+    },
+    {
+      "name": "T4: Contradiction detection",
+      "passed": false,
+      "score": 0.5,
+      "details": "contradictions=0, insights=0",
+      "latency_ms": 173.72512817382812
+    },
+    {
+      "name": "T5: Consolidation & upgrade",
+      "passed": true,
+      "score": 0.5,
+      "details": "before=39, after=39, consolidated=0",
+      "latency_ms": 171.37718200683594
+    },
+    {
+      "name": "T6: Supersede & belief revision",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:locomo_eval:185e5ecf9529, new_id=mem:observation:locomo_eval:33edd8bdff97",
+      "latency_ms": 181.1370849609375
+    },
+    {
+      "name": "T7: Forgetting & protection",
+      "passed": true,
+      "score": 1.0,
+      "details": "forget_result=True",
+      "latency_ms": 275.897741317749
+    },
+    {
+      "name": "T8: Correction propagation",
+      "passed": true,
+      "score": 1.0,
+      "details": "original=mem:observation:locomo_eval:d3584881c6e9, corrected=mem:observation:locomo_eval:609c5090048f",
+      "latency_ms": 143.8300609588623
+    },
+    {
+      "name": "T9: DreamCycle maintenance",
+      "passed": false,
+      "score": 0.0,
+      "details": "phases=0, contradictions=0, skipped=False",
+      "latency_ms": 120.49007415771484
+    },
+    {
+      "name": "T10: Full lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "remember=True, recall=True, reflect=True, correct=True, dream=True, forget=True",
+      "latency_ms": 365.1711940765381
+    }
+  ]
+}

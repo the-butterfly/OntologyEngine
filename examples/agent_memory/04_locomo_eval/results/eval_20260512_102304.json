@@ -1,0 +1,79 @@
+{
+  "timestamp": "20260512_102304",
+  "case": "case8",
+  "total": 10,
+  "passed": 6,
+  "pass_rate": 0.6,
+  "results": [
+    {
+      "name": "T1: Single-hop recall",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=3, found_shenzhen=False",
+      "latency_ms": 571.9759464263916
+    },
+    {
+      "name": "T2: Multi-hop reasoning",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=5, cloud=False, k8s=False",
+      "latency_ms": 410.5520248413086
+    },
+    {
+      "name": "T3: Temporal reasoning",
+      "passed": true,
+      "score": 0.5,
+      "details": "hits=3, has_latest=False",
+      "latency_ms": 340.93594551086426
+    },
+    {
+      "name": "T4: Contradiction detection",
+      "passed": false,
+      "score": 0.5,
+      "details": "contradictions=0, insights=0",
+      "latency_ms": 183.83264541625977
+    },
+    {
+      "name": "T5: Consolidation & upgrade",
+      "passed": true,
+      "score": 0.5,
+      "details": "before=39, after=39, consolidated=0",
+      "latency_ms": 167.68717765808105
+    },
+    {
+      "name": "T6: Supersede & belief revision",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:locomo_eval:2aeb7efd4d7d, new_id=mem:observation:locomo_eval:83a69ef7e931",
+      "latency_ms": 212.08882331848145
+    },
+    {
+      "name": "T7: Forgetting & protection",
+      "passed": true,
+      "score": 1.0,
+      "details": "forget_result=True",
+      "latency_ms": 301.61499977111816
+    },
+    {
+      "name": "T8",
+      "passed": false,
+      "score": 0.0,
+      "details": "CognitiveNode 'mem:observation:locomo_eval:03571ed9cd55' not found",
+      "latency_ms": 88.02509307861328
+    },
+    {
+      "name": "T9",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'run_dream_cycle'",
+      "latency_ms": 101.19223594665527
+    },
+    {
+      "name": "T10",
+      "passed": false,
+      "score": 0.0,
+      "details": "CognitiveNode 'mem:entity:locomo_eval:98d8efbbc435' not found",
+      "latency_ms": 147.95708656311035
+    }
+  ]
+}

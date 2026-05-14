@@ -1,0 +1,128 @@
+{
+  "timestamp": "20260514_080431",
+  "case": "case10",
+  "total": 17,
+  "passed": 14,
+  "pass_rate": 0.8235294117647058,
+  "results": [
+    {
+      "name": "R-01: Negation conflict",
+      "passed": true,
+      "score": 1.0,
+      "details": "negation_contradictions=16, total=16",
+      "latency_ms": 1393.6610221862793
+    },
+    {
+      "name": "R-02: Value conflict",
+      "passed": true,
+      "score": 1.0,
+      "details": "value_contradictions=5, total=5",
+      "latency_ms": 379.15587425231934
+    },
+    {
+      "name": "R-03: Belief conflict via supersede",
+      "passed": false,
+      "score": 0.0,
+      "details": "contradictions=0",
+      "latency_ms": 153.11002731323242
+    },
+    {
+      "name": "R-04",
+      "passed": false,
+      "score": 0.0,
+      "details": "CLIRunner.remember() got an unexpected keyword argument 'entity_name'",
+      "latency_ms": 0.0069141387939453125
+    },
+    {
+      "name": "R-05: Constraint conflict",
+      "passed": false,
+      "score": 0.0,
+      "details": "contradictions=0",
+      "latency_ms": 195.10316848754883
+    },
+    {
+      "name": "B-01: Empty space",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=0",
+      "latency_ms": 81.39491081237793
+    },
+    {
+      "name": "B-02: Single node (no contradiction possible)",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=0",
+      "latency_ms": 82.88407325744629
+    },
+    {
+      "name": "B-03: Same content (no contradiction)",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=0",
+      "latency_ms": 172.3039150238037
+    },
+    {
+      "name": "B-04: No-tag nodes (untagged fallback)",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=5",
+      "latency_ms": 426.0411262512207
+    },
+    {
+      "name": "B-05: Superseded nodes excluded",
+      "passed": true,
+      "score": 1.0,
+      "details": "superseded_in_conflicts=0, total=0",
+      "latency_ms": 259.2439651489258
+    },
+    {
+      "name": "A-01: Special characters in content",
+      "passed": true,
+      "score": 0.8,
+      "details": "contradictions=0",
+      "latency_ms": 165.21978378295898
+    },
+    {
+      "name": "A-02: Mixed language content",
+      "passed": true,
+      "score": 0.5,
+      "details": "contradictions=0",
+      "latency_ms": 240.1111125946045
+    },
+    {
+      "name": "A-03: Very long content",
+      "passed": true,
+      "score": 0.8,
+      "details": "contradictions=5",
+      "latency_ms": 499.8741149902344
+    },
+    {
+      "name": "P-01: 50+ nodes stress test",
+      "passed": true,
+      "score": 0.8,
+      "details": "elapsed=106ms, contradictions=0",
+      "latency_ms": 3046.276807785034
+    },
+    {
+      "name": "I-01: Reflect with consolidation enabled",
+      "passed": true,
+      "score": 0.8,
+      "details": "contradictions=0, consolidation=None",
+      "latency_ms": 642.0910358428955
+    },
+    {
+      "name": "I-02: Reflect with forgetting enabled",
+      "passed": true,
+      "score": 0.8,
+      "details": "forgetting=None",
+      "latency_ms": 121.57583236694336
+    },
+    {
+      "name": "I-03: Metadata propagation in RetrievalResult",
+      "passed": true,
+      "score": 1.0,
+      "details": "belief=True, conf=True, tags=True, entity=True",
+      "latency_ms": 0.049114227294921875
+    }
+  ]
+}
