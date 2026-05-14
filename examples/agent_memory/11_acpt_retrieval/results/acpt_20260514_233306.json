@@ -1,0 +1,101 @@
+{
+  "timestamp": "20260514_233306",
+  "case": "acpt_retrieval",
+  "total": 9,
+  "mean_score": 0.7667,
+  "min_score": 0.4,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "A-01 Single-hop exact match",
+      "score": 0.4,
+      "details": "f1=0.4000 precision=0.2500 recall=1.0000 noise_penalty=0.0",
+      "latency_ms": 1906.0,
+      "sub_scores": {
+        "f1": 0.4,
+        "precision": 0.25,
+        "recall": 1.0
+      }
+    },
+    {
+      "name": "A-02 Semantic gap recall",
+      "score": 1.0,
+      "details": "rank_weighted=1.1333 CloudGroup_rank=1 K8s_rank=None",
+      "latency_ms": 892.0,
+      "sub_scores": {
+        "rank_weighted": 1.1333
+      }
+    },
+    {
+      "name": "A-03 Multi-hop recall chain",
+      "score": 1.0,
+      "details": "adjacency=1.0000 王芳<->CloudGroup=1.0000, CloudGroup<->Kubernetes=1.0000",
+      "latency_ms": 816.4,
+      "sub_scores": {
+        "adjacency_score": 1.0,
+        "王芳<->CloudGroup": 1.0,
+        "CloudGroup<->Kubernetes": 1.0
+      }
+    },
+    {
+      "name": "A-04 Temporal ordering",
+      "score": 1.0,
+      "details": "rank1_has_latest=True last_has_oldest=True",
+      "latency_ms": 816.9,
+      "sub_scores": {
+        "rank1_latest": 1.0,
+        "last_oldest": 1.0
+      }
+    },
+    {
+      "name": "A-05 Cross-type recall",
+      "score": 1.0,
+      "details": "types_found=['entity', 'fragment', 'observation', 'rule'], distinct_count=4",
+      "latency_ms": 752.5,
+      "sub_scores": {
+        "distinct_types": 4.0
+      }
+    },
+    {
+      "name": "A-06 Confidence filtering",
+      "score": 0.5,
+      "details": "low_conf_excluded=False relevant_found=True",
+      "latency_ms": 769.3,
+      "sub_scores": {
+        "low_conf_excluded": 0.0,
+        "relevant_found": 1.0
+      }
+    },
+    {
+      "name": "A-07 Evidence chain expansion",
+      "score": 0.5,
+      "details": "has_evidence=True evidence_depth=3",
+      "latency_ms": 1446.0,
+      "sub_scores": {
+        "has_evidence": 1.0,
+        "evidence_non_empty": 0.0
+      }
+    },
+    {
+      "name": "A-08 Private memory isolation",
+      "score": 0.5,
+      "details": "alice_leak=True bob_found=True",
+      "latency_ms": 763.1,
+      "sub_scores": {
+        "alice_leak": 1.0,
+        "bob_found": 1.0
+      }
+    },
+    {
+      "name": "A-09 Token budget truncation",
+      "score": 1.0,
+      "details": "result_count=7 budget=400 total_chars=690",
+      "latency_ms": 1151.0,
+      "sub_scores": {
+        "result_count": 7.0,
+        "total_chars": 690.0
+      }
+    }
+  ]
+}
