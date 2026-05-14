@@ -1,172 +1,146 @@
-# OntologyEngine 示例案例
+# Agent Memory Examples & Acceptance Tests
 
-> **status**: draft | **last_verified**: 2026-05-06
-
-本目录包含三类案例：
-- **canonical schema case**：以 `schema.yaml / instances.yaml / testcases.yaml` 为核心的结构化验收案例
-- **narrative journey case**：以 `scenario / journey / visualization` 为核心的用户旅程案例
-- **agent memory case**：以 `run_eval.py` 为核心的 Agent 记忆系统验证案例（位于 [`agent_memory/`](./agent_memory/)）
+本目录包含 Agent Memory（知识库/记忆系统）的评估脚本和验收测试。
+所有脚本通过 `_lib/cli_runner.py` 中的 `CLIRunner` 统一调用 `MemoryAPI`，
+无需直接依赖内部模块。
 
 ---
 
-## 一、案例总览
+## 目录结构
 
-### 1.1 Ontology Schema 案例
-
-| 案例 | 类型 | 场景 | 本轮重点 |
-|------|------|------|----------|
-| [`supply_chain_finance/`](./supply_chain_finance/) | canonical | 供应链金融授信评估 | L3 图指标、规则声明/逻辑分离、多维指标 DAG |
-| [`consumer_credit/`](./consumer_credit/) | canonical | 个人消费信贷风险评估 | Indicator、一票否决、产品分流、关系网络风险 |
-| [`case1_regulatory_compliance/`](./case1_regulatory_compliance/) | narrative | 供应链金融准入规则热更新与追溯 | 规则版本、影响分析、版本对比 API、视图消费、回滚验证 |
-| [`case3_tax_simulation/`](./case3_tax_simulation/) | narrative | 亚太区总部策略沙盘 | 场景参数包、仿真报告模板、推荐解释、报告消费 |
-| [`case4_bi_query_agent/`](./case4_bi_query_agent/) | hybrid | BI 智能问数与经营看板联动 | Layer-R / Layer-S、指标卡编辑、问答与视图互证 |
-
-### 1.2 Agent Memory 案例
-
-所有 Agent 记忆系统验证案例已整合到 [`agent_memory/`](./agent_memory/) 目录：
-
-| 目录 | 验证维度 | 轨迹数 | 原案例编号 |
-|------|---------|:------:|-----------|
-| [`01_ingestion_pipeline/`](./agent_memory/01_ingestion_pipeline/) | 摄取管线 | 8 | case5 |
-| [`02_contradiction_belief/`](./agent_memory/02_contradiction_belief/) | 矛盾+信念修订 | 7 | case6 |
-| [`03_consolidation_compilation/`](./agent_memory/03_consolidation_compilation/) | 巩固+编译 | 8 | case7 |
-| [`04_locomo_eval/`](./agent_memory/04_locomo_eval/) | LOCOMO综合评估 | 10+6+6 | case8+9+10 |
-| [`05_lifecycle_governance/`](./agent_memory/05_lifecycle_governance/) | 生命周期+治理 | 8+8 | case11+12 |
-| [`06_full_agent_eval/`](./agent_memory/06_full_agent_eval/) | 全量评估+LLM | 8+8 | case13+14 |
-| [`07_modeling_objects/`](./agent_memory/07_modeling_objects/) | 建模对象+权限 | 8 | case15 |
-| [`08_qul_lifecycle/`](./agent_memory/08_qul_lifecycle/) | QUL+生命周期 | 8 | case16 |
-
-详见 [`agent_memory/README.md`](./agent_memory/README.md)。
-
----
-
-## 二、本轮统一设计原则
-
-### 2.1 真实业务口径
-
-新案例不再使用“玩具化问法”，而是优先采用真实企业经营分析与策略分析的口径组织内容。
-
-本轮重点引入的公开通用指标定义包括：
-
-- **毛利率（Gross Margin）**
-- **DSO（应收账款周转天数）**
-- **DIO（库存周转天数）**
-
-> 指标定义参考公开财务教育资料；案例数值采用**合成但真实感足够**的业务数据，避免伪造具体上市公司事实。
-
-### 2.2 知识资产闭环
-
-每个 narrative case 都尽量覆盖以下对象：
-
-- **资产编辑**：规则组、指标卡、场景参数包、候选规则卡
-- **资产呈现**：依赖图、证据链、资产目录、版本 diff、仪表盘
-- **结果消费**：视图、问答、报告、异常清单、推荐结论
-- **相互印证**：结果可回溯到资产版本和证据来源；资产变更可反映到结果变化
-
----
-
-## 三、知识资产闭环矩阵
-
-| 案例 | 资产编辑 | 资产呈现 | 结果消费 | 互相印证方式 |
-|------|----------|----------|----------|--------------|
-| `case1_regulatory_compliance` | 发布白名单新版本、回滚旧版本 | 规则版本 diff、版本对比 API、证据链、合规仪表盘 | 合规视图、审计报告 | 规则版本变化直接改变通过率，版本对比 API 展示 diff，且可回溯到证据与定义来源 |
-| `case3_tax_simulation` | 编辑场景参数包、发布假设版本 | 参数卡、仿真报告模板、对比矩阵、推荐解释链 | 场景比较视图、CFO 报告 | 参数版本变化导致推荐方案变化，报告由模板生成可追溯到模板版本 |
-| `case4_bi_query_agent` | 修订指标卡 v1.4→v1.5、修订异常阈值 v1→v2 | 资产目录、问答证据链、经营看板、版本 diff | 问数回答、视图列表、异常门店清单 | 指标口径变更后问答答案与看板数值同步变化；规则阈值变更后异常门店清单与问答一致 |
-| `case5_expert_knowledge_crystallization` | 专家标注、候选规则评审、发布组织规则 | 评审看板、候选规则卡、规则组模型映射、版本谱系 | 风险名单视图、规则解释 | 发布后新增命中实体可追溯到原始专家经验；规则组映射到 RuleDefinition+RuleLogic |
-| `case6_contradiction_detection` | 矛盾裁决 | 矛盾记录卡、裁决看板 | 裁决后统一视图 | 裁决结果可追溯到矛盾来源与裁决理由（预留） |
-| `case7_knowledge_compilation` | 编译草稿审核修正 | 编译草稿、审核记录 | 正式知识资产 | 编译结果可溯源到原始文档段落（预留） |
-
----
-
-## 四、如何阅读这些案例
-
-### 4.1 如果你想看结构化 Schema 能力
-
-优先阅读：
-
-- `supply_chain_finance/`
-- `consumer_credit/`
-
-这两组案例更适合验证：
-
-- L1-L4 四层表达
-- 图指标
-- 规则声明 / 逻辑分离
-- What-if 与图遍历
-
-### 4.2 如果你想看用户体验与产品化演示
-
-优先阅读：
-
-- `case1_regulatory_compliance/`
-- `case3_tax_simulation/`
-- `case4_bi_query_agent/`
-- `case5_expert_knowledge_crystallization/`
-
-这几组案例更适合验证：
-
-- 规则热更新的用户旅程
-- 策略沙盘的消费结果
-- 问答 + 视图 + 证据链的联动
-- 知识沉淀闭环
-
----
-
-## 五、目录约定
-
-### 5.1 canonical case
-
-```text
-{case}/
-  schema.yaml
-  instances.yaml
-  testcases.yaml
-  README.md / SCHEMA_DESIGN.md
+```
+examples/agent_memory/
+├── _lib/                              # 共享基础设施
+│   ├── cli_runner.py                  # CLI模拟器，封装所有 MemoryAPI 操作
+│   ├── acpt_test.py                   # 新一代验收测试框架（score-only）
+│   └── __init__.py
+├── 01_ingestion_pipeline/             # 旧: 摄入流水线验证（8 trajectories）
+├── 02_contradiction_belief/           # 旧: 矛盾检测与信念状态（6 trajectories）
+├── 03_consolidation_compilation/      # 旧: 整合与实体/话题编译
+├── 04_locomo_eval/                    # 旧: LoCoMo风格综合评估（10 trajectories）
+├── 05_lifecycle_governance/           # 旧: 生命周期与治理
+├── 06_full_agent_eval/                # 旧: 全栈Agent评估
+├── 07_modeling_objects/               # 旧: 认知对象建模
+├── 08_qul_lifecycle/                  # 旧: QUL生命周期
+├── 09_sota_optimization_eval/         # 旧: SOTA优化基线验证
+├── 10_contradiction_fix_eval/         # 旧: 矛盾修复验证
+├── 11_acpt_retrieval/                 # ★ 新: 检索效果验收测试（9 scenarios）
+├── 12_acpt_management/                # ★ 新: 知识资产管理验收测试（8 scenarios）
+└── TODO.md                            # 遗留问题与待办
 ```
 
-### 5.2 narrative journey case
+---
 
-```text
-{case}/
-  scenario.md
-  journey.md
-  visualization/
-    *.md
-  expected_outputs/        # 如已有
-  api_examples/            # 如已有
+## 评估框架：两代对比
+
+### 旧框架 (01-10): `EvalReport` + `_ok()`
+
+定义于 `_lib/cli_runner.py`，**二元 pass/fail + 数值 score**：
+
+```python
+from _lib.cli_runner import CLIRunner, EvalReport, _ok, create_runner
+
+result = _ok("T1-xxx", passed=True, score=0.8, details="...", latency_ms=100.0)
+report.add(result)
 ```
 
-> 若 narrative case 依赖的 schema / API 尚未完整落地，文档中必须显式标注 **[待核对代码]**。
+**已知问题**：
+- ~60% 的测试检查"API 不崩"即为 pass，区分度低
+- 8 条"永恒真"断言（如 "tags 是 list"、"node_id 非空"）永远通过
+- `remember()` 的参数 `model_domain`、`source_trust_tier` 被**静默丢弃**（未传给 API）
+- 无统一阈值标准
+
+### 新框架 (11+): `AcptReport` + `r()` + Scoring Helpers
+
+定义于 `_lib/acpt_test.py`，**仅连续 score [0.0, 1.0]，无 passed 字段**：
+
+```python
+from _lib.acpt_test import AcptReport, r, f1_score, rank_weighted_score, check_recall_chain_adjacency, score_behavior
+
+result = r("A-01 Single-hop", score=0.75, details="prec=0.5 rec=1.0", latency_ms=100.0, sub_scores={"f1": 0.67})
+report.add(result)
+```
+
+**核心改进**：
+- **纯 score 评估**：每个场景产生 [0.0, 1.0] 连续分数，而非二元 pass/fail
+- **F1 评分**：基于关键词在召回结果中的 precision/recall/F1
+- **Rank-weighted 评分**：`Σ(1/rank_i)` 对相关结果排序质量评分（替代语义鸿沟的人工评估）
+- **Chain adjacency**：验证 recall chain 中相邻节点的关联性（替代多跳推理的人工评估）
+- **Weighted assertion bank**：加权断言组合，区分核心/辅助检查
+- **统一阈值**：全局验收阈值 0.70
+- **独立空间隔离**：每个 scenario 使用独立 space_id，互不干扰
 
 ---
 
-## 六、建议阅读顺序
+## 新验收测试详情
 
-1. 先读本文件，理解不同案例的角色分工
-2. 再读 `case4_bi_query_agent/`，理解“为什么不只是 RAG”
-3. 读 `case1_regulatory_compliance/`，理解“规则资产如何影响消费结果”
-4. 读 `case3_tax_simulation/`，理解“参数包如何驱动策略沙盘”
-5. 读 `case5_expert_knowledge_crystallization/`，理解“个人经验如何沉淀为组织规则”
+### Category A: 检索效果 (`11_acpt_retrieval/`)
+
+| 场景 | 评估方式 | 说明 |
+|------|---------|------|
+| A-01 单跳精确匹配 | F1 (precision/recall/f1) | 查询"TechNova总部在哪"是否返回含"深圳"的结果 |
+| A-02 语义鸿沟 | Rank-weighted `Σ(1/rank_i)` | 查询"云平台技术栈"的 CloudGroup/K8s 排名 |
+| A-03 多跳推理链 | Chain adjacency | 验证"王芳→CloudGroup→Kubernetes"推理链节点相邻性 |
+| A-04 时序排序 | Rank position check | 最新策略(10000/分钟)排最前，最旧排最后 |
+| A-05 跨类型召回 | Type diversity | "架构"查询返回 entity/observation/rule 多种类型 |
+| A-06 置信度过滤 | Filter verification | min_confidence=0.5 应排除低置信(0.3)记忆 |
+| A-07 证据链展开 | Evidence depth | include_evidence=True 应返回非空证据 |
+| A-08 私有隔离 | Cross-user visibility | alice 不应能召回 bob 的 private 记忆 |
+| A-09 Token 预算截断 | Token budget | token_budget=400 应限制返回结果数 |
+
+当前结果：**Mean Score: 0.767 | Min Score: 0.400 | >= 0.7: 5/9**
+
+### Category B: 知识资产管理 (`12_acpt_management/`)
+
+| 场景 | 评估方式 | 说明 |
+|------|---------|------|
+| B-01 基础摄入 | Weighted assertions | 创建 entity 类型记忆，验证 node_id 和 stats |
+| B-02 去重 | Weighted assertions | 相同内容两次 remember 返回相同 node_id |
+| B-03 实体解析 | Weighted assertions | entity 类型创建后可被 recall |
+| B-04 可见性推断 | Weighted assertions | PII 内容自动推断 visibility 并限制访问 |
+| B-05 认知层推断 | Weighted assertions | observation/entity/rule/mental_model 四种类型均可创建 |
+| B-06 信念状态 | Weighted assertions | pending_review 状态可通过 stats 追踪 |
+| B-07 版本历史 | Weighted assertions | correct → SUPERSEDES 边 + audit trail |
+| B-08 结构提取 | Weighted assertions | 结构化内容摄入和召回 |
+
+当前结果：**Mean Score: 0.963 | Min Score: 0.700 | >= 0.7: 8/8**
 
 ---
 
-## 七、关联文档
+## 运行方式
 
-| 主题 | 参考文档 |
-|------|---------|
-| 竞争分析与案例优先级 | `docs/plans/use-case-plan-competitive-analysis.md` |
-| 本轮 examples 落地计划 | `docs/plans/2026-04-25-examples-case-optimization.md` |
-| API / views 设计 | `docs/02-design/api/README.md` |
-| 规则管理 UI 设计 | `docs-ui/03-rule-management-ui-design.md` |
-| Query Engine 设计 | `docs/02-design/query-engine/README.md` |
+```bash
+# 新验收测试（推荐）
+python examples/agent_memory/11_acpt_retrieval/run_eval.py
+python examples/agent_memory/12_acpt_management/run_eval.py
+
+# 旧评估脚本（兼容保留）
+python examples/agent_memory/01_ingestion_pipeline/run_eval.py
+python examples/agent_memory/04_locomo_eval/run_eval.py
+# ... etc
+```
+
+所有脚本均使用临时数据库（`tempfile.mkdtemp`），运行结束后自动清理，不影响生产数据。
 
 ---
 
-## 八、当前空缺与后续演进
+## 设计原则
 
-以下主题仍需继续补强：
+1. **独立空间隔离**：每个测试场景使用 `runner.set_space(f"{SPACE}_{scenario_name}")`，避免数据交叉干扰
+2. **自动化优先**：核心基础内容全自动化；仅保留极少数需要人工判断的语义评估（如 A-07 证据链质量）
+3. **评分有区分度**：每个场景产生 0.0-1.0 分数，避免"API不崩=pass"的低区分度陷阱
+4. **已知缺陷透明**：参数丢弃、置信过滤不生效等已知问题在 `TODO.md` 中记录
+5. **阈值按场景重评估**：当前全局阈值 0.70 为初始值，后续应按各场景独立校准
 
-- `case5_expert_knowledge_crystallization` 的完整 `schema.yaml / instances.yaml / testcases.yaml`
-- `case6_contradiction_detection` 的详细场景与旅程（待 Phase 2 矛盾检测能力落地）
-- `case7_knowledge_compilation` 的详细场景与旅程（待 Phase 2 三通道提取能力落地）
-- 所有 narrative case 的代码层落地验证（当前标注 **[待核对代码]**）
+---
+
+## 后续规划（Phase 2-3）
+
+| Phase | 类别 | 场景数 | 目标 |
+|-------|------|--------|------|
+| 2 | C: 矛盾检测 (Contradiction) | 6 | 语义矛盾、规则矛盾、反馈保护 |
+| 2 | D: 生命周期 (Lifecycle) | 5 | 遗忘、整合、DreamCycle、治理 |
+| 3 | E: 多Agent (Multi-Agent) | 4 | 跨空间隔离、协作、冲突解决 |
+| 3 | F: 鲁棒性 (Robustness) | 3 | 边界条件、错误恢复、性能基准 |
+
+总计 35 个验收场景，覆盖 Agent Memory 全功能矩阵。
