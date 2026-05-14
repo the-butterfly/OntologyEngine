@@ -18,36 +18,48 @@
 
 ### 2. A-06 置信度过滤不生效
 
-**状态**：已知，系统行为  
+**状态**：部分修复，仍不生效  
+**修复内容**：已在 `_recall()` 添加 min_confidence 过滤逻辑 (L654-655)，ingestion service 添加 confidence 参数透传  
 **影响**：recall(min_confidence=0.5) 仍返回 confidence=0.3 的结果  
 **位置**：[11_acpt_retrieval/run_eval.py](agent_memory/11_acpt_retrieval/run_eval.py#L269-L312)  
-**说明**：recall 接口的 `min_confidence` 参数可能在 RRF/Rerank 阶段未正确过滤，或过滤逻辑尚未实现  
-**当前表现**：A-06 得分 0.50（low_conf_excluded=False, relevant_found=True）
+**分析**：过滤逻辑已实现但 RRF 融合层可能在 confidence 值上有覆盖；需排查 get_node 返回的 confidence 值  
+**当前表现**：A-06 得分 0.50
 
-### 3. A-07 证据链为空
+### 3. A-07 证据链展开 ✅ 已修复 (2026-05-15)
 
-**状态**：已知，系统行为  
-**影响**：recall(include_evidence=True) 返回 `evidence` 字段存在但为空列表  
+**状态**：已修复  
+**修复内容**：`_recall()` 添加三层证据 fallback：Router.expand_evidence → source_fragment_ids → edge 追溯  
+**当前表现**：A-07 得分 1.00（has_evidence=True, evidence_depth=3）  
 **位置**：[11_acpt_retrieval/run_eval.py](agent_memory/11_acpt_retrieval/run_eval.py#L315-L372)  
 **说明**：evidence 展开逻辑可能未在 RRF 融合阶段正确注入，或 fragment 之间的 evidence 边未建立  
 **当前表现**：A-07 得分 0.50（has_evidence=True, evidence_non_empty=False）
 
 ### 4. A-08 私有记忆隔离不生效
 
-**状态**：已知，系统行为  
-**影响**：alice 用户可以召回 bob 的 private 记忆  
-**位置**：[11_acpt_retrieval/run_eval.py](agent_memory/11_acpt_retrieval/run_eval.py#L375-L420)  
-**说明**：visibility 过滤可能仅在 graph 层生效，RRF 融合时未按 user_id 过滤  
-**当前表现**：A-08 得分 0.50（alice_leak=True, bob_found=True）
+**状态**：部分修复，仍不生效  
+**修复内容**：`_recall()` 添加 user_id visibility 过滤 (L663-675)，ingestion service 添加 visibility 参数透传  
+**原因分析**：issue 可能出在 RRF 融合层未按 user_id 过滤，或在 `_recall` 的 else 分支中检索结果未包含 user_id/visibility 信息  
+**当前表现**：A-08 得分 0.50（alice_leak=True）
 
-### 5. B-06 `approve_memory` 与 ingestion pipeline 不兼容
+### 5. B-06 `approve_memory` 与 ingestion pipeline 不兼容 ✅ 已修复 (2026-05-15)
 
-**状态**：已知，测试绕过  
-**影响**：ingestion pipeline 创建节点后，`approve_memory()` 通过 `get_node(node_id)` 找不到节点  
-**位置**：[12_acpt_management/run_eval.py](agent_memory/12_acpt_management/run_eval.py#L165-L188)  
-**说明**：`approve_memory` 要求 `belief_status == "pending_review"` 且节点存在于 CognitiveNode repository。ingestion service 创建的 fragment node_id 可能未同步到 CognitiveNode repository  
-**临时方案**：B-06 改为仅验证 belief_status 可通过 stats 追踪，不调用 approve  
-**修复方向**：需要确保 ingestion 路径创建的节点在 CognitiveNode repository 中同步存在
+**状态**：已修复  
+**修复内容**：ingestion service `ingest()` 添加 `belief_status` 参数并透传到 `_make_fragment_node` 和 `_make_cognitive_node` 调用；`memory_api._remember()` 传递 `belief_status=req.belief_status`  
+**当前表现**：02-T5 approve 通过，B-06 has_pending=True
+
+---
+
+## 2026-05-15 修复记录
+
+### 已修复 P0 问题
+
+| # | 问题 | 修复方案 | 验证 |
+|---|------|----------|------|
+| P0-1 | LLM Consolidation 序列化错误 | `_build_consolidation_adapter()` 桥接 Fragment→dict 序列化 | 03 consolidation LLM calls now succeed |
+| P0-2 | DeduplicationGate 不生效 | content-hash fallback (SHA256) 在无 embedding 时使用 | 01-T2 dedup=True |
+| P0-3 | MemoryAPI 缺少 list_my/record_commitment/compile | 新增 5 个方法到 MemoryAPI | 06 3/8→7/8, 07 3/8→7/8 |
+| P0-4 | 证据链为空 | 三层 evidence 展开 fallback | A-07 0.50→1.00 |
+| P0-5 | approve_memory 状态限制 | belief_status 透传 ingestion pipeline | 02-T5 通过 |
 
 ---
 
