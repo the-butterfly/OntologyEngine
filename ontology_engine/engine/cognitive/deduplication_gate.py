@@ -75,7 +75,7 @@ class DeduplicationGate:
         content: str,
         space_id: str,
         memory_type: str = "fragment",
-        tags: list[str] | None = None,
+        tags: dict[str, str | list[str]] | None = None,
         confidence: float = 1.0,
     ) -> GateResult:
         """Run all gate checks on incoming content.
@@ -101,7 +101,7 @@ class DeduplicationGate:
         content: str,
         space_id: str,
         memory_type: str,
-        tags: list[str] | None,
+        tags: dict[str, str | list[str]] | None,
     ) -> GateResult:
         """Check 1: Fast vector deduplication.
 
@@ -191,7 +191,7 @@ class DeduplicationGate:
         content: str,
         space_id: str,
         memory_type: str,
-        tags: list[str] | None,
+        tags: dict[str, str | list[str]] | None,
     ) -> GateResult:
         """Check 2: Contradiction pre-detection.
 
@@ -252,7 +252,7 @@ class DeduplicationGate:
         content: str,
         space_id: str,
         memory_type: str,
-        tags: list[str] | None,
+        tags: dict[str, str | list[str]] | None,
         confidence: float,
     ) -> GateResult:
         """Check 3: Marginal value assessment.

@@ -21,7 +21,7 @@ class QueryConstraint:
 @dataclass
 class StrategyAdjustment:
     boost_factor: float = 1.0
-    boost_model_domain: str | None = None
+    boost_model_tag: str | None = None
     boost_memory_types: list[str] = field(default_factory=list)
     boost_entity_names: list[str] = field(default_factory=list)
     temporal_window_days: int | None = None
@@ -31,8 +31,10 @@ class StrategyAdjustment:
     boost_weights: dict[str, float] = field(default_factory=dict)
 
     def matches(self, result: dict) -> bool:
-        if self.boost_model_domain and result.get("model_domain") != self.boost_model_domain:
-            return False
+        if self.boost_model_tag:
+            result_tags = result.get("tags", {}) or {}
+            if result_tags.get("model") != self.boost_model_tag:
+                return False
         if self.boost_memory_types and result.get("memory_type") not in self.boost_memory_types:
             return False
         if self.boost_entity_names and result.get("entity_name") not in self.boost_entity_names:
@@ -61,11 +63,11 @@ class RecallContext:
 
 CONSTRAINT_TO_RETRIEVAL_STRATEGY = {
     "temporal_scope": StrategyAdjustment(boost_factor=1.3, boost_weights={"temporal": 0.6}, temporal_window_days=30),
-    "user_preference": StrategyAdjustment(boost_factor=1.5, boost_model_domain="self", boost_memory_types=["opinion", "mental_model", "self_experience"]),
-    "decision_type": StrategyAdjustment(boost_factor=1.4, boost_model_domain="task", boost_memory_types=["rule", "constraint"], require_evidence=True),
-    "task_history": StrategyAdjustment(boost_factor=1.3, boost_model_domain="task", boost_memory_types=["commitment", "task_state", "episode"]),
-    "environmental": StrategyAdjustment(boost_factor=1.3, boost_model_domain="world", boost_memory_types=["constraint", "rule"]),
-    "self_reference": StrategyAdjustment(boost_factor=1.2, boost_model_domain="self", boost_memory_types=["self_experience", "procedure"]),
+    "user_preference": StrategyAdjustment(boost_factor=1.5, boost_model_tag="self", boost_memory_types=["opinion", "mental_model", "self_experience"]),
+    "decision_type": StrategyAdjustment(boost_factor=1.4, boost_model_tag="task", boost_memory_types=["rule", "constraint"], require_evidence=True),
+    "task_history": StrategyAdjustment(boost_factor=1.3, boost_model_tag="task", boost_memory_types=["commitment", "task_state", "episode"]),
+    "environmental": StrategyAdjustment(boost_factor=1.3, boost_model_tag="world", boost_memory_types=["constraint", "rule"]),
+    "self_reference": StrategyAdjustment(boost_factor=1.2, boost_model_tag="self", boost_memory_types=["self_experience", "procedure"]),
     "entity_targets": StrategyAdjustment(boost_factor=2.0, boost_entity_names=[]),
     "confidence_demand": StrategyAdjustment(boost_factor=1.0, min_proof_count=2, min_belief_status="accepted"),
 }

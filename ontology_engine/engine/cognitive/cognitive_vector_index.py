@@ -146,12 +146,18 @@ class EmbeddingConfig:
         )
 
 
-def _enrich_content(content: str, memory_type: str, tags: list[str]) -> str:
+def _enrich_content(content: str, memory_type: str, tags: dict[str, str | list[str]] | None = None) -> str:
     parts = []
     if memory_type:
         parts.append(f"[{memory_type}]")
     if tags:
-        parts.append(" ".join(tags))
+        tag_strings = []
+        for k, v in tags.items():
+            if isinstance(v, list):
+                tag_strings.extend(f"{k}:{item}" for item in v)
+            else:
+                tag_strings.append(f"{k}:{v}")
+        parts.append(" ".join(tag_strings))
     return " ".join(parts) + " | " + content if parts else content
 
 
@@ -575,8 +581,8 @@ class CognitiveVectorIndex:
         node_id: str,
         content: str,
         memory_type: str,
-        tags: list[str],
         space_id: str,
+        tags: dict[str, str | list[str]] | None = None,
     ) -> None:
         if not self._initialized:
             return

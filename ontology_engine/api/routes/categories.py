@@ -1,8 +1,8 @@
 # ontology_engine/api/routes/categories.py
 """Category management API routes (Phase 1 Enhancement)."""
-
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -10,6 +10,13 @@ from fastapi import APIRouter, Depends
 from ontology_engine.api.dependencies import get_category_service
 from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.category_service import CategoryService
+
+warnings.warn(
+    "ontology_engine.api.routes.categories is deprecated. "
+    "Use ontology_engine.api.routes.rules instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 router = APIRouter(prefix="/v1/categories", tags=["Categories"])
 

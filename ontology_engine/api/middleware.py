@@ -5,9 +5,17 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 DEPRECATION_MAP: dict[str, tuple[str, str]] = {
+    "/v1/management": ("/v1/spaces", "301"),
+    "/v1/consumption": ("/v1/views", "301"),
+    "/v1/visualize": ("/v1/views", "301"),
+    "/v1/analysis": ("/v1/views", "301"),
     "/v1/entities": ("/v1/spaces/default/instances/entities", "301"),
+    "/v1/relations": ("/v1/spaces/default/instances/relations", "301"),
+    "/v1/datasets": ("/v1/spaces/default/instances/datasets", "301"),
+    "/v1/incremental": ("/v1/spaces/default/instances/incremental", "301"),
+    "/v1/ingestion": ("/v1/spaces/default/instances/ingestion", "301"),
+    "/v1/categories": ("/v1/spaces/default/rules/categories", "301"),
     "/v1/schema": ("/v1/spaces/default/schema", "301"),
-    "/v1/visualization": ("/v1/views/default", "301"),
 }
 
 

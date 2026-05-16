@@ -32,6 +32,8 @@ from ontology_engine.engine.cognitive.query_router import QueryRouter
 from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
+from ontology_engine.storage.base import CognitiveStorageBackend
+from ontology_engine.storage.cognitive.store import CognitiveStore
 from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
 
 logger = logging.getLogger(__name__)
@@ -242,7 +244,7 @@ async def create_memory_api(
     db_path: str | None = None,
     daily_token_budget: int = 20000,
     llm_config: dict[str, Any] | None = None,
-) -> tuple[MemoryAPI, KuzuGraphStore]:
+) -> tuple[MemoryAPI, CognitiveStorageBackend]:
     """Create a fully-initialized MemoryAPI with all dependencies wired.
 
     Args:
@@ -252,8 +254,8 @@ async def create_memory_api(
             environment variables and config.yaml. Keys: base_url, api_key, model.
 
     Returns:
-        Tuple of (initialized MemoryAPI, KuzuGraphStore) so the caller can
-        close the store on shutdown.
+        Tuple of (initialized MemoryAPI, CognitiveStorageBackend) so the caller
+        can close the storage on shutdown.
     """
     path = db_path or os.path.expanduser("~/.ontology_engine/cognitive_db")
 
@@ -267,9 +269,10 @@ async def create_memory_api(
     else:
         logger.info("LLM integration disabled: using rule-based fallbacks")
 
-    store = KuzuGraphStore()
-    await store.initialize(path)
-    repo = CognitiveRepository(store)
+    graph_store = KuzuGraphStore()
+    await graph_store.initialize(path)
+    cognitive_store = CognitiveStore(graph_store)
+    repo = CognitiveRepository(cognitive_store)
 
     vector_index = CognitiveVectorIndex(
         repository=repo,
@@ -320,7 +323,7 @@ async def create_memory_api(
         vector_index=vector_index,
         ingestion_service=ingestion,
         qul=qul,
-    ), store
+    ), cognitive_store
 
 
 class MemoryAPISingleton:
@@ -335,24 +338,24 @@ class MemoryAPISingleton:
 
     _instance: MemoryAPI | None = None
     _db_path: str | None = None
-    _store: KuzuGraphStore | None = None
+    _storage: CognitiveStorageBackend | None = None
     _lock: asyncio.Lock = asyncio.Lock()
 
     @classmethod
     async def get_or_create(cls, db_path: str | None = None) -> MemoryAPI:
         async with cls._lock:
             if cls._instance is None or cls._db_path != db_path:
-                if cls._store is not None:
-                    await cls._store.close()
-                cls._instance, cls._store = await create_memory_api(db_path)
+                if cls._storage is not None:
+                    await cls._storage.close()
+                cls._instance, cls._storage = await create_memory_api(db_path)
                 cls._db_path = db_path
             return cls._instance
 
     @classmethod
     async def close(cls) -> None:
         async with cls._lock:
-            if cls._store is not None:
-                await cls._store.close()
-                cls._store = None
+            if cls._storage is not None:
+                await cls._storage.close()
+                cls._storage = None
             cls._instance = None
             cls._db_path = None

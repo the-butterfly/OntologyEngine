@@ -862,6 +862,80 @@ class BusinessLogicV3(BaseModel):
         return cls(rule_definitions=rule_definitions, rule_logics=rule_logics)
 
 
+# ============== Schema V2 Core Models ==============
+
+
+class MutualIndexEdgeType(str, Enum):
+    EXTRACTED_FROM = "EXTRACTED_FROM"
+    TRACE_TO = "TRACE_TO"
+    DEFINED_IN = "DEFINED_IN"
+    SUPPORTED_BY = "SUPPORTED_BY"
+
+
+class LayerType(str, Enum):
+    L1 = "L1"
+    L2 = "L2"
+    L3 = "L3"
+    L4 = "L4"
+
+
+class L1FactObject(BaseModel):
+    fact_object: str = "L1FactObject"
+    entity_defs: list[FactObjectEntity] = Field(default_factory=list)
+    edge_defs: list[RelationDefinition] = Field(default_factory=list)
+    valid_from: str | None = None
+    valid_to: str | None = None
+
+    @property
+    def _fact_object(self) -> str:
+        return self.fact_object
+
+
+class L2Categorization(BaseModel):
+    fact_object: str = "L2Categorization"
+    dimensions: list[CategorizationDimension] = Field(default_factory=list)
+    valid_from: str | None = None
+    valid_to: str | None = None
+
+    @property
+    def _fact_object(self) -> str:
+        return self.fact_object
+
+
+class L3AnalyticalElement(BaseModel):
+    fact_object: str = "L3AnalyticalElement"
+    metrics: list[MetricDefinitionV2] = Field(default_factory=list)
+    indicators: list[IndicatorDefinition] = Field(default_factory=list)
+    scorecards: list[ScorecardDefinition] = Field(default_factory=list)
+    valid_from: str | None = None
+    valid_to: str | None = None
+
+    @property
+    def _fact_object(self) -> str:
+        return self.fact_object
+
+
+class L4RuleDefinition(BaseModel):
+    fact_object: str = "L4RuleDefinition"
+    rule_definitions: list[RuleDefinitionV2] = Field(default_factory=list)
+    rule_logics: list[RuleLogic] = Field(default_factory=list)
+    valid_from: str | None = None
+    valid_to: str | None = None
+
+    @property
+    def _fact_object(self) -> str:
+        return self.fact_object
+
+
+class SchemaV2(BaseModel):
+    metadata: SchemaMetadata
+    schema_version: str = "2.0"
+    l1: L1FactObject = Field(default_factory=L1FactObject)
+    l2: L2Categorization = Field(default_factory=L2Categorization)
+    l3: L3AnalyticalElement = Field(default_factory=L3AnalyticalElement)
+    l4: L4RuleDefinition = Field(default_factory=L4RuleDefinition)
+
+
 # ============== KGML Schema (Complete) ==============
 
 

@@ -13,14 +13,16 @@ from ontology_engine.services.simulation_session import SessionManager, Simulati
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
 from ontology_engine.services.dag_executor import DAGExecutor
 from ontology_engine.api.dto.responses import success_response, error_response
-from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage
+from ontology_engine.api.dependencies import get_space_service
 
 router = APIRouter(prefix="/v1/simulation", tags=["Simulation"])
 
 # Global session manager and tree builder
 _session_manager = SessionManager()
-_semantic_space_storage = SemanticSpaceStorage()
-_tree_builder = RuleTreeBuilder(semantic_space_storage=_semantic_space_storage)
+
+
+def _get_tree_builder() -> RuleTreeBuilder:
+    return RuleTreeBuilder(space_service=get_space_service())
 
 
 class CreateSimulationRequest(BaseModel):
@@ -49,7 +51,7 @@ async def create_simulation_tree(body: CreateSimulationRequest):
     """
     try:
         # Build execution tree
-        tree = await _tree_builder.build_tree(
+        tree = await _get_tree_builder().build_tree(
             schema_id=body.schema_id,
             entity_id=body.entity_id,
             target_output=body.target_output,
@@ -229,7 +231,7 @@ async def _auto_fill_inputs_from_entity(
         Dict of input_name -> value for auto-filled inputs
     """
     try:
-        space = await _semantic_space_storage.load(schema_id)
+        space = await get_space_service().get_space(schema_id)
         if not space:
             return {}
 
@@ -327,7 +329,7 @@ async def _run_simulation(session: SimulationSession) -> dict[str, Any]:
 
     start_time = time.time()
 
-    space = await _semantic_space_storage.load(session.schema_id)
+    space = await get_space_service().get_space(session.schema_id)
     if not space:
         raise ValueError(f"Space {session.schema_id} not found")
 

@@ -14,6 +14,8 @@ from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
 from ontology_engine.services.space_service import SpaceService
 from ontology_engine.services.category_service import CategoryService
+from ontology_engine.services.consumption_service import ConsumptionService
+from ontology_engine.services.memory_service import MemoryService
 
 __all__ = [
     "SchemaService",
@@ -30,4 +32,6 @@ __all__ = [
     "SimulationService",
     "SpaceService",
     "CategoryService",
+    "ConsumptionService",
+    "MemoryService",
 ]

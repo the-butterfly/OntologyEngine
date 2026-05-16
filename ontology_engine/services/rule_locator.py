@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage
+from ontology_engine.services.space_service import SpaceService
 
 # Key constants for rule definition dicts
 _KEY_INPUTS = "inputs"
@@ -14,13 +14,8 @@ _KEY_ID = "id"
 class RuleLocator:
     """Service to locate rule definitions by their input/output elements."""
 
-    def __init__(self, storage: SemanticSpaceStorage):
-        """Initialize RuleLocator.
-
-        Args:
-            storage: SemanticSpaceStorage instance for querying spaces
-        """
-        self._storage = storage
+    def __init__(self, service: SpaceService):
+        self._service = service
 
     async def locate_by_output(self, output_name: str, schema_id: str) -> list[dict]:
         """Find rule definitions that produce a specific output element.
@@ -59,7 +54,7 @@ class RuleLocator:
         Returns:
             List of rule definition dicts that contain the specified element
         """
-        space = await self._storage.load(schema_id)
+        space = await self._service.get_space(schema_id)
         if not space:
             return []
 

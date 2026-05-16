@@ -1,8 +1,8 @@
 # ontology_engine/api/routes/visualization.py
 """Visualization API routes."""
-
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -16,6 +16,13 @@ from ontology_engine.visualization.simulator import (
     EntityNotFoundError,
     SchemaNotLoadedError,
     dataclasses_asdict,
+)
+
+warnings.warn(
+    "ontology_engine.api.routes.visualization is deprecated. "
+    "Use ontology_engine.api.routes.views instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 router = APIRouter(prefix="/v1/visualize", tags=["Visualization"])

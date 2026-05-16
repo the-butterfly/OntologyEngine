@@ -1,8 +1,8 @@
 # ontology_engine/api/routes/incremental.py
 """Incremental update API routes."""
-
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Query, Depends
@@ -13,6 +13,13 @@ from ontology_engine.services.incremental_update import (
     IncrementalUpdateService,
     EntityChange,
     ChangeType,
+)
+
+warnings.warn(
+    "ontology_engine.api.routes.incremental is deprecated. "
+    "Use ontology_engine.api.routes.instances instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 router = APIRouter(prefix="/v1/incremental", tags=["Incremental Update"])

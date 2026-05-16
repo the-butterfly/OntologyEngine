@@ -1,6 +1,8 @@
 # ontology_engine/api/routes/ingestion.py
 """Ingestion endpoints."""
+from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -10,6 +12,13 @@ from ontology_engine.api.dependencies import get_ingestion_service
 from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.ingestion_service import IngestionService
 from ontology_engine.services.dto import IngestionRequest
+
+warnings.warn(
+    "ontology_engine.api.routes.ingestion is deprecated. "
+    "Use ontology_engine.api.routes.instances instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 router = APIRouter(prefix="/v1/ingestion", tags=["Ingestion"])
 

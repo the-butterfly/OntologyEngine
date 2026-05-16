@@ -24,11 +24,11 @@ from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
 from ontology_engine.services.category_service import CategoryService
-from ontology_engine.storage.config import create_meta_store
-from ontology_engine.core.schema import SchemaLoader
-from ontology_engine.core.instances import InstanceLoader
+from ontology_engine.services.consumption_service import ConsumptionService
+from ontology_engine.services.memory_service import MemoryService
+from ontology_engine.services.space_service import SpaceService
+from ontology_engine.storage.config import create_meta_store  # LAYER-EXCEPTION: lifespan initialization
 from ontology_engine.api import dependencies
-from ontology_engine.core.semantic_space import SemanticSpaceStorage
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +48,18 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     storage = create_meta_store()
     await storage.initialize()
 
-    schema_loader = SchemaLoader()
-    instance_loader = InstanceLoader()
+    space_svc = SpaceService()  # LAYER-EXCEPTION: lifespan initialization
 
     # ---- Legacy engine initialization (for backward-compatible routes) ----
     schema = None
     try:
-        schema = schema_loader.load("examples/supply_chain_finance/schema.yaml")
+        schema = space_svc.load_schema_from_file("examples/supply_chain_finance/schema.yaml")
     except FileNotFoundError:
         pass
 
     try:
         instances_path = "examples/supply_chain_finance/instances.yaml"
-        entities, relations = instance_loader.load(instances_path)
+        entities, relations = space_svc.load_instances_from_file(instances_path)
         for entity in entities:
             await storage.save_entity(entity)
         for relation in relations:
@@ -98,13 +97,15 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     services["dag"] = DAGService(storage=storage, schema=schema)
     services["simulation"] = SimulationService()
     services["category"] = CategoryService(storage=storage)
+    services["consumption"] = ConsumptionService()
+    services["memory"] = MemoryService()
+    services["space"] = space_svc
 
     dependencies.init_dependencies(storage, services)
 
     yield
 
-    from ontology_engine.engine.cognitive.factory import MemoryAPISingleton
-    await MemoryAPISingleton.close()
+    await MemoryService().close()
 
     if storage:
         await storage.close()
@@ -134,52 +135,33 @@ def create_app() -> FastAPI:
     from ontology_engine.api.middleware import DeprecationMiddleware
     app.add_middleware(DeprecationMiddleware, mode="header")
 
-    from ontology_engine.api.routes import (
-        schema,
-        entities,
-        analysis,
-        query,
-        ingestion,
-        visualization,
-        relations,
-        rules,
-        management,
-        consumption,
-        datasets,
-        incremental,
-        categories,
-        simulation,
-    )
-    from ontology_engine.api.routes.actions import router as actions_router
+    from ontology_engine.api.routes.spaces import router as spaces_router
+    from ontology_engine.api.routes.schema import router as schema_router
+    from ontology_engine.api.routes.instances import router as instances_router
+    from ontology_engine.api.routes.rules import router as rules_router
+    from ontology_engine.api.routes.query import router as query_router
+    from ontology_engine.api.routes.views import router as views_router
     from ontology_engine.api.routes.ontology import router as ontology_router
-
-    app.include_router(schema.router, tags=["Schema"])
-    app.include_router(entities.router, tags=["Entities"])
-    app.include_router(analysis.router, tags=["Analysis"])
-    app.include_router(query.router, tags=["Query"])
-    app.include_router(ingestion.router, tags=["Ingestion"])
-    app.include_router(visualization.router, tags=["Visualization"])
-    app.include_router(relations.router, tags=["Relations"])
-    app.include_router(rules.router, tags=["Rules"])
-    app.include_router(management.router, tags=["Management"])
-    app.include_router(consumption.router, tags=["Consumption"])
-    app.include_router(datasets.router, tags=["Datasets"])
-    app.include_router(incremental.router, tags=["Incremental Update"])
-    app.include_router(categories.router, tags=["Categories"])
-    app.include_router(simulation.router, tags=["Simulation"])
-    app.include_router(actions_router, tags=["Actions"])
-    app.include_router(ontology_router, tags=["Ontology"])
-
     from ontology_engine.api.routes.memory import router as memory_router
+    from ontology_engine.api.routes.simulation import router as simulation_router
+
+    app.include_router(spaces_router, tags=["Spaces"])
+    app.include_router(schema_router, tags=["Schema"])
+    app.include_router(instances_router, tags=["Instances"])
+    app.include_router(rules_router, tags=["Rules"])
+    app.include_router(query_router, tags=["Query"])
+    app.include_router(views_router, tags=["Views"])
+    app.include_router(ontology_router, tags=["Ontology"])
     app.include_router(memory_router, tags=["Memory"])
+    app.include_router(simulation_router, tags=["Simulation"])
 
     @app.get("/health")
     async def health_check():
         """Health check endpoint."""
-        space_storage = SemanticSpaceStorage()
         try:
-            all_metadata = await space_storage.list()
-            from ontology_engine.core.semantic_space import SpaceType
+            from ontology_engine.services.types import SpaceType
+            svc = dependencies.get_space_service()
+            all_metadata = await svc.list_metadata()
             mgmt_count = sum(1 for m in all_metadata if m.space_type == SpaceType.MANAGEMENT)
             view_count = sum(1 for m in all_metadata if m.space_type == SpaceType.CONSUMPTION)
             return {

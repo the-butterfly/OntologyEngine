@@ -327,7 +327,7 @@ class TestContradictionDetection:
         r = await api.remember(
             "Entity v1: 华信科技风险C级", "t_contra_v1",
             memory_type="entity",
-            tags=["company"],
+            tags={"label": "company"},
         )
         old_id = r["data"]["memory_id"]
 

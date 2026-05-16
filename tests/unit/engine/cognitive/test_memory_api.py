@@ -73,7 +73,7 @@ class TestMemoryAPI:
         result = await api.remember(
             "Risk score is 85",
             "test_space",
-            tags=["domain:risk", "source:report"],
+            tags={"domain": "risk", "source": "report"},
             memory_type="observation",
         )
         assert result["success"] is True

@@ -47,7 +47,7 @@ class TestQULIntegration:
         api._repo.get_profile_by_scene = AsyncMock(return_value=None)
         api._repo.get_node = AsyncMock(return_value=MagicMock(
             id="n1", content="test", memory_type="entity", cognitive_layer="semantic",
-            confidence=0.9, belief_status="accepted", tags=[], space_id="test",
+            confidence=0.9, belief_status="accepted", tags={}, space_id="test",
             created_at="2026-01-01", access_count=0, last_access_at=None,
             strength=1.0, version=1, source_fragment_ids=[], proof_count=0,
         ))
@@ -103,7 +103,7 @@ class TestQULIntegration:
         mock_qul.map_to_retrieval_strategy = MagicMock(return_value=MagicMock())
         mock_qul.infer_query_type = MagicMock(return_value="preference")
         mock_qul.apply_constraint_boost = MagicMock(return_value=[
-            MagicMock(doc_id="n1", score=0.9, type_weight=2.0, rank_score=1.8, text="test", memory_type="entity", tags=[], space_id="test", node_id="n1", get=lambda k, d=None: {"text": "test"}.get(k, d)),
+            MagicMock(doc_id="n1", score=0.9, type_weight=2.0, rank_score=1.8, text="test", memory_type="entity", tags={}, space_id="test", node_id="n1", get=lambda k, d=None: {"text": "test"}.get(k, d)),
         ])
 
         api = _make_api(qul=mock_qul)
@@ -120,7 +120,7 @@ class TestQULIntegration:
         api._repo.get_profile_by_scene = AsyncMock(return_value=None)
         api._repo.get_node = AsyncMock(return_value=MagicMock(
             id="n1", content="test", memory_type="entity", cognitive_layer="semantic",
-            confidence=0.9, belief_status="accepted", tags=[], space_id="test",
+            confidence=0.9, belief_status="accepted", tags={}, space_id="test",
             created_at="2026-01-01", access_count=0, last_access_at=None,
             strength=1.0, version=1, source_fragment_ids=[], proof_count=0,
         ))
@@ -236,22 +236,22 @@ class TestContradictionCandidateHandling:
 
 class TestModelDomainInference:
     def test_infer_model_domain_world(self):
-        assert MemoryAPI._infer_model_domain("entity") == "world"
-        assert MemoryAPI._infer_model_domain("rule") == "world"
-        assert MemoryAPI._infer_model_domain("observation") == "world"
+        assert MemoryAPI._infer_tags("entity") == {"model": "world"}
+        assert MemoryAPI._infer_tags("rule") == {"model": "world"}
+        assert MemoryAPI._infer_tags("observation") == {"model": "world"}
 
     def test_infer_model_domain_self(self):
-        assert MemoryAPI._infer_model_domain("mental_model") == "self"
-        assert MemoryAPI._infer_model_domain("opinion") == "self"
-        assert MemoryAPI._infer_model_domain("self_experience") == "self"
+        assert MemoryAPI._infer_tags("mental_model") == {"model": "self"}
+        assert MemoryAPI._infer_tags("opinion") == {"model": "self"}
+        assert MemoryAPI._infer_tags("self_experience") == {"model": "self"}
 
     def test_infer_model_domain_task(self):
-        assert MemoryAPI._infer_model_domain("commitment") == "task"
-        assert MemoryAPI._infer_model_domain("procedure") == "task"
-        assert MemoryAPI._infer_model_domain("episode") == "task"
+        assert MemoryAPI._infer_tags("commitment") == {"model": "task"}
+        assert MemoryAPI._infer_tags("procedure") == {"model": "task"}
+        assert MemoryAPI._infer_tags("episode") == {"model": "task"}
 
     def test_infer_model_domain_default(self):
-        assert MemoryAPI._infer_model_domain("unknown_type") == "world"
+        assert MemoryAPI._infer_tags("unknown_type") == {"model": "world"}
 
 
 class TestReflectionJobStoreAsync:

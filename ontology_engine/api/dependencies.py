@@ -19,6 +19,9 @@ from ontology_engine.services.visualization_service import VisualizationService
 from ontology_engine.services.rule_service import RuleService
 from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
+from ontology_engine.services.consumption_service import ConsumptionService
+from ontology_engine.services.memory_service import MemoryService
+from ontology_engine.services.space_service import SpaceService
 
 # Global storage and services (initialized on startup)
 _storage: Any = None
@@ -128,3 +131,21 @@ def get_category_service() -> CategoryService:
     if _services is None or "category" not in _services:
         raise HTTPException(status_code=500, detail="Category service not initialized")
     return _services["category"]
+
+
+def get_consumption_service() -> ConsumptionService:
+    if _services is None or "consumption" not in _services:
+        raise HTTPException(status_code=500, detail="Consumption service not initialized")
+    return _services["consumption"]
+
+
+def get_memory_service() -> MemoryService:
+    if _services is None or "memory" not in _services:
+        raise HTTPException(status_code=500, detail="Memory service not initialized")
+    return _services["memory"]
+
+
+def get_space_service() -> SpaceService:
+    if _services is None or "space" not in _services:
+        raise HTTPException(status_code=500, detail="Space service not initialized")
+    return _services["space"]

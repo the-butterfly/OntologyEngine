@@ -58,7 +58,7 @@ class TestDispositionPipeline:
     async def test_recall_with_disposition_dict_does_not_error(self, api):
         r = await api.remember(
             "Entity: dict pipeline test", "t_pipe_dict",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         result = await api.recall(
             "dict pipeline", "t_pipe_dict",
@@ -72,7 +72,7 @@ class TestDispositionPipeline:
     async def test_recall_with_disposition_scene_string(self, api):
         r = await api.remember(
             "Entity: scene string test", "t_pipe_scene",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         result = await api.recall(
             "scene string", "t_pipe_scene",
@@ -85,7 +85,7 @@ class TestDispositionPipeline:
     async def test_recall_with_disposition_profile_object(self, api):
         r = await api.remember(
             "Entity: profile object test", "t_pipe_obj",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         profile = DispositionProfile(
             id="pipe_test", scene="custom",
@@ -104,7 +104,7 @@ class TestDispositionPipeline:
         from ontology_engine.engine.cognitive.disposition_store import DispositionStore
         r = await api.remember(
             "Entity: store pipeline", "t_pipe_store",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         result = await api.recall(
             "store pipeline", "t_pipe_store",
@@ -118,7 +118,7 @@ class TestDispositionPipeline:
     async def test_recall_null_disposition_is_handled(self, api):
         r = await api.remember(
             "Entity: null disp test", "t_pipe_null",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         result = await api.recall(
             "null disp", "t_pipe_null",
@@ -135,11 +135,11 @@ class TestContradictionWithDisposition:
     async def test_negation_conflict_detected_with_high_skepticism(self, api):
         r1 = await api.remember(
             "华信科技使用Oracle数据库", "t_contra1",
-            memory_type="observation", tags=["tech"],
+            memory_type="observation", tags={"label": "tech"},
         )
         r2 = await api.remember(
             "华信科技不是使用Oracle数据库", "t_contra1",
-            memory_type="observation", tags=["tech"],
+            memory_type="observation", tags={"label": "tech"},
         )
         id1 = r1["data"]["memory_id"]
         id2 = r2["data"]["memory_id"]
@@ -157,11 +157,11 @@ class TestContradictionWithDisposition:
     async def test_low_skepticism_suppresses_negation_conflict(self, api):
         r1 = await api.remember(
             "技术公司使用Java语言", "t_contra2",
-            memory_type="observation", tags=["lang"],
+            memory_type="observation", tags={"label": "lang"},
         )
         r2 = await api.remember(
             "技术公司不是使用Java语言", "t_contra2",
-            memory_type="observation", tags=["lang"],
+            memory_type="observation", tags={"label": "lang"},
         )
 
         low_skep = DispositionProfile(id="low_skep", scene="test", skepticism=0.3)
@@ -175,11 +175,11 @@ class TestContradictionWithDisposition:
     async def test_high_skepticism_detects_value_conflict(self, api):
         r1 = await api.remember(
             "华信科技员工数5000人", "t_contra3",
-            memory_type="observation", tags=["scale"],
+            memory_type="observation", tags={"label": "scale"},
         )
         r2 = await api.remember(
             "华信科技员工数200人", "t_contra3",
-            memory_type="observation", tags=["scale"],
+            memory_type="observation", tags={"label": "scale"},
         )
         id1 = r1["data"]["memory_id"]
         id2 = r2["data"]["memory_id"]
@@ -195,11 +195,11 @@ class TestContradictionWithDisposition:
     async def test_low_skepticism_suppresses_value_conflict(self, api):
         r1 = await api.remember(
             "项目预算100万元", "t_contra4",
-            memory_type="observation", tags=["budget"],
+            memory_type="observation", tags={"label": "budget"},
         )
         r2 = await api.remember(
             "项目预算50万元", "t_contra4",
-            memory_type="observation", tags=["budget"],
+            memory_type="observation", tags={"label": "budget"},
         )
 
         low_skep = DispositionProfile(id="low_skep2", scene="test", skepticism=0.3)
@@ -212,11 +212,11 @@ class TestContradictionWithDisposition:
     async def test_default_skepticism_detects_obvious_contradiction(self, api):
         r1 = await api.remember(
             "项目采用敏捷开发模式", "t_contra5",
-            memory_type="observation", tags=["method"],
+            memory_type="observation", tags={"label": "method"},
         )
         r2 = await api.remember(
             "项目不采用敏捷开发模式", "t_contra5",
-            memory_type="observation", tags=["method"],
+            memory_type="observation", tags={"label": "method"},
         )
         id1 = r1["data"]["memory_id"]
         id2 = r2["data"]["memory_id"]

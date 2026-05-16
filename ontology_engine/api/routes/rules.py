@@ -21,8 +21,13 @@ from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.rule_service import RuleService, RuleServiceError
 from ontology_engine.services.dag_service import DAGService
 from ontology_engine.services.simulation_service import SimulationService
+from ontology_engine.api.routes.categories import router as categories_router
+from ontology_engine.api.routes.actions import router as actions_router
 
 router = APIRouter(prefix="/v1", tags=["Rules"])
+
+router.include_router(categories_router)
+router.include_router(actions_router)
 
 
 # =============================================================================

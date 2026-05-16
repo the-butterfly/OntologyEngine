@@ -16,6 +16,7 @@ Design decisions (from consolidation-engine.md):
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -97,20 +98,29 @@ def maybe_upgrade_to_entity(node: CognitiveNode) -> str | None:
     return None
 
 
-def _generate_uuid5(text: str, tags: list[str]) -> str:
+def _generate_uuid5(text: str, tags: dict[str, str | list[str]] | None = None) -> str:
     """Generate a deterministic ID from text and tags using SHA-1."""
-    key = f"{text}:{','.join(sorted(tags))}"
+    tag_str = json.dumps(tags or {}, sort_keys=True)
+    key = f"{text}:{tag_str}"
     return hashlib.sha1(key.encode()).hexdigest()[:16]
 
 
-def group_by_tags(fragments: list[Fragment]) -> dict[tuple[str, ...], list[Fragment]]:
+def _tags_fingerprint(tags: dict[str, str | list[str]] | None) -> str:
+    """Stable string key for tag-based grouping and dedup."""
+    if not tags:
+        return ""
+    return json.dumps(tags, sort_keys=True)
+
+
+def group_by_tags(fragments: list[Fragment]) -> dict[str, list[Fragment]]:
     """Group fragments by their tags for isolation.
 
     Different tag groups never share the same LLM call.
+    Tags dicts are compared by JSON fingerprint.
     """
-    tag_groups: dict[tuple[str, ...], list[Fragment]] = {}
+    tag_groups: dict[str, list[Fragment]] = {}
     for f in fragments:
-        tag_key = tuple(sorted(f.tags or []))
+        tag_key = _tags_fingerprint(f.tags)
         tag_groups.setdefault(tag_key, []).append(f)
     return tag_groups
 
@@ -186,14 +196,14 @@ class ConsolidationEngine:
 
         for tag_key, fragments in tag_groups.items():
             try:
-                existing = await self._find_related_observations(space_id, list(tag_key))
+                existing = await self._find_related_observations(space_id, tag_key)
                 result = await self._consolidate_batch_with_llm(fragments, existing)
                 action_result = await self._execute_consolidation_actions(list(result), space_id)
                 total_result = total_result.merge(action_result)
             except Exception as e:
                 logger.error("Consolidation failed for tags=%s: %s", tag_key, e)
                 total_result.errors.append({
-                    "tags": list(tag_key),
+                    "tags": tag_key or "(empty)",
                     "error": str(e),
                     "fragment_count": len(fragments),
                 })
@@ -245,7 +255,7 @@ class ConsolidationEngine:
             space_id=space_id,
             belief_status="accepted",
             consolidated_at=datetime.now(timezone.utc).isoformat(),
-            tags=action.tags or [],
+            tags=action.tags or {},
             proof_count=len(source_ids),
             confidence=action.confidence or 0.7,
             consolidation_reasoning=f"Consolidated from {len(source_ids)} fragments via {action.memory_type} consolidation",
@@ -333,8 +343,8 @@ class ConsolidationEngine:
         if action.confidence:
             existing.confidence = max(existing.confidence, action.confidence)
         if action.updated_tags:
-            existing_tags = getattr(existing, "tags", None) or []
-            existing.tags = list(set(existing_tags + action.updated_tags))
+            existing_tags = getattr(existing, "tags", None) or {}
+            existing.tags = {**existing_tags, **action.updated_tags}
 
         await self._repo.update_node(existing, reason="consolidation_update")
 
@@ -480,14 +490,17 @@ class ConsolidationEngine:
             return actions
 
         combined_text = " ".join(f.content for f in fragments)
-        combined_tags = list(set(t for f in fragments for t in f.tags))
+        combined_tags: dict[str, str | list[str]] = {}
+        for f in fragments:
+            if f.tags:
+                combined_tags.update(f.tags)
 
         if existing:
             for node in existing:
                 actions.append(UpdateAction(
                     target_id=node.id,
                     updated_text=f"{node.content} {combined_text}".strip(),
-                    updated_tags=list(set(node.to_dict().get("tags", []) + combined_tags)),
+                    updated_tags={**(node.to_dict().get("tags", {}) or {}), **combined_tags},
                     new_source_fragments=fragments,
                     confidence=0.6,
                 ))
@@ -568,7 +581,7 @@ class ConsolidationEngine:
                     content=n.content,
                     space_id=n.space_id,
                     created_at=n.created_at,
-                    tags=getattr(n, "tags", None) or [],
+                    tags=getattr(n, "tags", None) or {},
                 ))
             except Exception as e:
                 logger.debug("OCC lock failed for %s: %s", n.id, e)
@@ -577,18 +590,20 @@ class ConsolidationEngine:
     async def _find_related_observations(
         self,
         space_id: str,
-        tags: list[str],
+        tag_fingerprint: str,
     ) -> list[CognitiveNode]:
-        """Find existing observations related to the given tags (D-CON-4)."""
+        """Find existing observations related to the given tag fingerprint (D-CON-4).
+
+        Matches by checking if the fragment's tag fingerprint equals the node's tag fingerprint.
+        """
         nodes = await self._repo.query_nodes(
             memory_type="observation",
             domain_id=space_id,
             limit=200,
         )
-        if not tags:
+        if not tag_fingerprint:
             return nodes
-        tag_set = set(tags)
-        return [n for n in nodes if tag_set.issubset(set(n.tags))]
+        return [n for n in nodes if _tags_fingerprint(n.tags) == tag_fingerprint]
 
     async def trigger_mental_model_refresh(self, space_id: str) -> dict[str, Any]:
         """Check for stale mental models and mark them for review.
@@ -666,7 +681,7 @@ class ConsolidationEngine:
     async def trigger_mental_model_refreshes(
         self,
         space_id: str,
-        consolidated_tags: list[str] | None = None,
+        consolidated_tags: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
         """Bulk refresh of mental models, optionally filtered by tags.
 
@@ -688,11 +703,11 @@ class ConsolidationEngine:
 
         marked_stale: list[str] = []
         already_fresh = 0
-        tag_set = set(consolidated_tags)
+        tag_fp = _tags_fingerprint(consolidated_tags)
 
         for model in models:
-            model_tags = set(getattr(model, "tags", []) or [])
-            if not tag_set.intersection(model_tags):
+            model_fp = _tags_fingerprint(getattr(model, "tags", None))
+            if model_fp != tag_fp:
                 already_fresh += 1
                 continue
 

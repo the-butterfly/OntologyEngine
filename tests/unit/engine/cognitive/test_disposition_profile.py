@@ -95,11 +95,11 @@ class TestDispositionProfileRecall:
         """recall with disposition_override should not error."""
         r = await api.remember(
             "Entity: 华信科技 for disposition test", "t_disp",
-            memory_type="entity", tags=["company"],
+            memory_type="entity", tags={"label": "company"},
         )
         await api.remember(
             "Obs: 华信科技 Q1 revenue up", "t_disp",
-            memory_type="observation", tags=["company"],
+            memory_type="observation", tags={"label": "company"},
         )
 
         profile = DispositionProfile(
@@ -119,12 +119,12 @@ class TestDispositionProfileRecall:
         """memory_type filter with text matching should return matching nodes."""
         r = await api.remember(
             "Old entity for recency", "t_disp_rec",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         old_id = r["data"]["memory_id"]
         r = await api.remember(
             "New entity for recency", "t_disp_rec",
-            memory_type="entity", tags=["test"],
+            memory_type="entity", tags={"label": "test"},
         )
         new_id = r["data"]["memory_id"]
 
@@ -143,11 +143,11 @@ class TestDispositionProfileRecall:
         """High abstraction_preference should maintain access to mental_model nodes."""
         await api.remember(
             "Entity: abstract test", "t_disp_abs",
-            memory_type="entity", tags=["abstract"],
+            memory_type="entity", tags={"label": "abstract"},
         )
         await api.remember(
             "Mental model of abstract entity", "t_disp_abs",
-            memory_type="mental_model", tags=["abstract"],
+            memory_type="mental_model", tags={"label": "abstract"},
         )
 
         profile = DispositionProfile(

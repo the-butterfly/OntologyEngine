@@ -70,10 +70,9 @@ logger = logging.getLogger(__name__)
 class RememberRequest:
     content: str
     space_id: str
-    tags: list[str] | None = None
+    tags: dict[str, str | list[str]] | None = None
     memory_type: str = "fragment"
     metadata: dict[str, Any] | None = None
-    auto_consolidate: bool = False
     visibility: str | None = None
     created_by: str | None = None
     confidence: float = 1.0
@@ -230,10 +229,9 @@ class MemoryAPI:
         self,
         content: str,
         space_id: str,
-        tags: list[str] | None = None,
+        tags: dict[str, str | list[str]] | None = None,
         memory_type: str = "fragment",
         metadata: dict[str, Any] | None = None,
-        auto_consolidate: bool = False,
         visibility: str | None = None,
         created_by: str | None = None,
         confidence: float = 1.0,
@@ -254,7 +252,6 @@ class MemoryAPI:
             tags=tags,
             memory_type=memory_type,
             metadata=metadata,
-            auto_consolidate=auto_consolidate,
             visibility=visibility,
             created_by=created_by,
             confidence=confidence,
@@ -329,7 +326,8 @@ class MemoryAPI:
         node_id = self._generate_memory_id(req.content, req.space_id, req.memory_type)
 
         cognitive_layer = self._infer_cognitive_layer(req.memory_type)
-        model_domain = self._infer_model_domain(req.memory_type)
+        initial_tags = self._infer_tags(req.memory_type)
+        merged_tags = {**initial_tags, **(req.tags or {})}
 
         if self._ingestion is not None:
             try:
@@ -337,10 +335,10 @@ class MemoryAPI:
                     content=req.content,
                     space_id=req.space_id,
                     memory_type=req.memory_type,
-                    tags=req.tags,
+                    tags=merged_tags,
                     metadata=req.metadata,
                     source_trust_tier="normal",
-                    scope=model_domain,
+                    scope=merged_tags.get("model", "world"),
                     source_pipeline="api",
                     user_id=req.created_by or "system",
                     visibility=req.visibility,
@@ -365,7 +363,6 @@ class MemoryAPI:
             id=node_id,
             memory_type=req.memory_type,
             cognitive_layer=cognitive_layer,
-            model_domain=model_domain,
             content=req.content,
             domain_id=req.space_id,
             space_id=req.space_id,
@@ -378,7 +375,7 @@ class MemoryAPI:
             valid_from=req.valid_from,
             valid_to=req.valid_to,
             recorded_at=req.recorded_at,
-            tags=req.tags or [],
+            tags=merged_tags,
             attributes=self._extract_attributes(req.memory_type, req.metadata),
             source_fragment_ids=req.source_fragment_ids or [],
             proof_count=len(req.source_fragment_ids) if req.source_fragment_ids else 0,
@@ -442,14 +439,14 @@ class MemoryAPI:
             logger.debug("Entity extraction skipped: %s", e)
 
         consolidation_triggered = False
-        if req.auto_consolidate:
+        if self._consolidation is not None:
             try:
                 triggered = await self._consolidation.maybe_trigger_consolidation(
-                    req.space_id, trigger="manual"
+                    req.space_id, trigger="post_write"
                 )
                 consolidation_triggered = triggered
             except Exception as e:
-                logger.warning("Auto-consolidation failed: %s", e)
+                logger.warning("Consolidation post-write hook failed: %s", e)
 
         superseded_node_id: str | None = None
         if req.supersede_target:
@@ -1146,7 +1143,6 @@ class MemoryAPI:
             entity_name=old_node.entity_name,
             entity_type=old_node.entity_type,
             version=old_node.version + 1,
-            model_domain=old_node.model_domain,
             source_trust_tier=old_node.source_trust_tier,
             scope=old_node.scope,
             source_pipeline=old_node.source_pipeline,
@@ -1503,7 +1499,6 @@ class MemoryAPI:
             "last_confirmed_at": node.last_confirmed_at,
             "consolidation_reasoning": node.consolidation_reasoning,
             "compiled_at": node.compiled_at,
-            "model_domain": node.model_domain,
             "source_trust_tier": node.source_trust_tier,
             "scope": node.scope,
             "source_pipeline": node.source_pipeline,
@@ -1615,7 +1610,6 @@ class MemoryAPI:
         try:
             node_id = self._generate_memory_id(content, space_id, "commitment")
             cognitive_layer = self._infer_cognitive_layer("commitment")
-            model_domain = self._infer_model_domain("commitment")
 
             attributes: dict[str, str] = {}
             if deadline:
@@ -1627,7 +1621,6 @@ class MemoryAPI:
                 id=node_id,
                 memory_type="commitment",
                 cognitive_layer=cognitive_layer,
-                model_domain=model_domain,
                 content=content,
                 domain_id=space_id,
                 space_id=space_id,
@@ -1635,7 +1628,7 @@ class MemoryAPI:
                 created_by=created_by,
                 confidence=1.0,
                 belief_status="accepted",
-                tags=[],
+                tags={"model": "task"},
                 attributes=attributes,
                 source_fragment_ids=[],
                 proof_count=1,
@@ -1793,7 +1786,7 @@ class MemoryAPI:
                     matches = True
                 elif topic_lower in (n.content or "").lower():
                     matches = True
-                elif any(tag and topic_lower in tag.lower() for tag in (n.tags or [])):
+                elif any(topic_lower in str(v).lower() for v in (n.tags or {}).values()):
                     matches = True
                 if matches:
                     topic_nodes.append(n)
@@ -1953,14 +1946,15 @@ class MemoryAPI:
         return layer_mapping.get(memory_type, "perception")
 
     @staticmethod
-    def _infer_model_domain(memory_type: str) -> str:
-        domain_mapping = {
+    def _infer_tags(memory_type: str) -> dict[str, str]:
+        """Infer initial tags from memory type, replacing the removed model_domain."""
+        domain_mapping: dict[str, str] = {
             "entity": "world", "rule": "world", "constraint": "world",
             "observation": "world", "fragment": "world",
             "mental_model": "self", "opinion": "self", "self_experience": "self",
             "commitment": "task", "task_state": "task", "procedure": "task", "episode": "task",
         }
-        return domain_mapping.get(memory_type, "world")
+        return {"model": domain_mapping.get(memory_type, "world")}
 
     @staticmethod
     def _compute_temporal_proximity(result: dict[str, Any]) -> float:

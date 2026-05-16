@@ -1,8 +1,8 @@
 # ontology_engine/api/routes/datasets.py
 """Dataset management API routes."""
-
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -10,6 +10,13 @@ from fastapi import APIRouter, Depends
 from ontology_engine.api.dependencies import get_dataset_service
 from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.dataset_service import DatasetService
+
+warnings.warn(
+    "ontology_engine.api.routes.datasets is deprecated. "
+    "Use ontology_engine.api.routes.instances instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 router = APIRouter(prefix="/v1/datasets", tags=["Datasets"])
 

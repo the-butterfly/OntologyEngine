@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from ontology_engine.services.rule_locator import RuleLocator
+from ontology_engine.services.space_service import SpaceService
 
 
 class RuleTreeBuilder:
@@ -38,23 +39,13 @@ class RuleTreeBuilder:
         }
     """
 
-    def __init__(self, rule_service=None, semantic_space_storage=None, rule_locator=None):
-        """Initialize RuleTreeBuilder.
-
-        Args:
-            rule_service: RuleService instance for locating rule groups (legacy).
-                         If None and semantic_space_storage is provided, will use RuleLocator.
-            semantic_space_storage: Storage instance for accessing SemanticSpace L4 layer.
-                                   Ignored if rule_locator is provided.
-            rule_locator: Optional RuleLocator instance for dependency injection.
-                         If provided, used directly instead of creating one internally.
-        """
+    def __init__(self, rule_service=None, space_service: SpaceService | None = None, rule_locator=None):
         self._rule_service = rule_service
-        self._semantic_space_storage = semantic_space_storage
+        self._space_service = space_service
         if rule_locator:
             self._rule_locator = rule_locator
-        elif semantic_space_storage:
-            self._rule_locator = RuleLocator(semantic_space_storage)
+        elif space_service:
+            self._rule_locator = RuleLocator(space_service)
         else:
             self._rule_locator = None
 

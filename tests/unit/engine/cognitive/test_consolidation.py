@@ -30,35 +30,35 @@ class TestGroupByTags:
         assert result == {}
 
     def test_single_fragment(self):
-        f = Fragment(id="f1", content="test", tags=["a", "b"])
+        f = Fragment(id="f1", content="test", tags={"key": "a"})
         result = group_by_tags([f])
-        assert ("a", "b") in result
-        assert len(result[("a", "b")]) == 1
+        assert len(result) == 1
+        assert len(result['{"key": "a"}']) == 1
 
     def test_tags_sorted(self):
-        f = Fragment(id="f1", content="test", tags=["b", "a"])
+        f = Fragment(id="f1", content="test", tags={"key": "a"})
         result = group_by_tags([f])
-        assert ("a", "b") in result
+        assert '{"key": "a"}' in result
 
     def test_different_tags_isolated(self):
-        f1 = Fragment(id="f1", content="test1", tags=["a"])
-        f2 = Fragment(id="f2", content="test2", tags=["b"])
+        f1 = Fragment(id="f1", content="test1", tags={"key": "a"})
+        f2 = Fragment(id="f2", content="test2", tags={"key": "b"})
         result = group_by_tags([f1, f2])
         assert len(result) == 2
-        assert ("a",) in result
-        assert ("b",) in result
+        assert '{"key": "a"}' in result
+        assert '{"key": "b"}' in result
 
     def test_same_tags_grouped(self):
-        f1 = Fragment(id="f1", content="test1", tags=["a", "b"])
-        f2 = Fragment(id="f2", content="test2", tags=["b", "a"])
+        f1 = Fragment(id="f1", content="test1", tags={"key": "a"})
+        f2 = Fragment(id="f2", content="test2", tags={"key": "a"})
         result = group_by_tags([f1, f2])
         assert len(result) == 1
-        assert len(result[("a", "b")]) == 2
+        assert len(result['{"key": "a"}']) == 2
 
     def test_no_tags(self):
-        f = Fragment(id="f1", content="test", tags=[])
+        f = Fragment(id="f1", content="test", tags={})
         result = group_by_tags([f])
-        assert () in result
+        assert "" in result
 
 
 class TestConsolidationEngine:
@@ -163,8 +163,8 @@ class TestConsolidationEngine:
     async def test_rule_based_consolidation_create(self, engine):
         """Test rule-based consolidation creates observation when no existing."""
         fragments = [
-            Fragment(id="frag_1", content="Test fragment 1", tags=["test"]),
-            Fragment(id="frag_2", content="Test fragment 2", tags=["test"]),
+            Fragment(id="frag_1", content="Test fragment 1", tags={"model": "observation"}),
+            Fragment(id="frag_2", content="Test fragment 2", tags={"model": "observation"}),
         ]
 
         actions = engine._rule_based_consolidation(fragments, [])
@@ -176,7 +176,7 @@ class TestConsolidationEngine:
     async def test_rule_based_consolidation_update(self, engine):
         """Test rule-based consolidation updates when existing nodes found."""
         fragments = [
-            Fragment(id="frag_1", content="New evidence", tags=["test"]),
+            Fragment(id="frag_1", content="New evidence", tags={"model": "observation"}),
         ]
 
         existing = CognitiveNode(
@@ -260,7 +260,7 @@ class TestConsolidationEngine:
         )
 
         fragments = [
-            Fragment(id=f"frag_{i}", content=f"Content {i}", tags=["test"])
+            Fragment(id=f"frag_{i}", content=f"Content {i}", tags={"model": "test"})
             for i in range(4)
         ]
 

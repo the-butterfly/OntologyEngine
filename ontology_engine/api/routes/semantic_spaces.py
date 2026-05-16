@@ -1,24 +1,31 @@
 # ontology_engine/api/routes/semantic_spaces.py
 """Semantic Spaces API routes - management surface for semantic spaces."""
-
 from __future__ import annotations
 
+import warnings
 import uuid
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, Query
 from pydantic import BaseModel, AliasChoices, Field
 
+from ontology_engine.api.dependencies import get_space_service
 from ontology_engine.api.dto.responses import error_response, success_response
-from ontology_engine.core.semantic_space import (
+from ontology_engine.services.types import (
     SemanticSpace,
     SpaceMetadata,
     SpaceStatus,
     SemanticSpaceLayers,
     L4BusinessLogic,
     SpaceInstances,
-    SemanticSpaceStorage,
     SemanticSpaceStorageError,
+)
+
+warnings.warn(
+    "ontology_engine.api.routes.semantic_spaces is deprecated. "
+    "Use ontology_engine.api.routes.spaces instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 router = APIRouter(prefix="/v1/spaces", tags=["SemanticSpaces"])
@@ -159,11 +166,6 @@ def _space_to_response(space: SemanticSpace) -> SpaceResponse:
     )
 
 
-def _get_storage() -> SemanticSpaceStorage:
-    """Get or create storage instance."""
-    return SemanticSpaceStorage()
-
-
 def _compute_etag(space: SemanticSpace) -> str:
     """Compute ETag for a space, including metadata and content state."""
     import hashlib
@@ -193,7 +195,7 @@ def _compute_etag(space: SemanticSpace) -> str:
 @router.post("/", response_model=dict, summary="Create semantic space", description="Create a new semantic space in DRAFT status. After creation, load schema via /schema/load-yaml and activate via /{space_id}/activate before running analysis.")
 async def create_space(request: CreateSpaceRequest):
     """Create a new semantic space."""
-    storage = _get_storage()
+    service = get_space_service()
 
     space_id = f"space_{uuid.uuid4().hex[:8]}"
 
@@ -213,7 +215,7 @@ async def create_space(request: CreateSpaceRequest):
         instances=SpaceInstances(),
     )
 
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=_space_to_response(space))
 
@@ -221,13 +223,13 @@ async def create_space(request: CreateSpaceRequest):
 @router.get("/", response_model=dict, summary="List semantic spaces", description="List all semantic spaces with their IDs, names, statuses, and entity counts.")
 async def list_spaces():
     """List all semantic spaces."""
-    storage = _get_storage()
-    spaces = await storage.list()
+    service = get_space_service()
+    spaces = await service.list_metadata()
 
     # Load full space for counts
     responses = []
     for metadata in spaces:
-        space = await storage.load(metadata.id)
+        space = await service.get_space(metadata.id)
         if space:
             responses.append(_space_to_response(space))
 
@@ -237,8 +239,8 @@ async def list_spaces():
 @router.get("/{space_id}", response_model=dict, summary="Get semantic space", description="Get detailed information about a specific semantic space.")
 async def get_space(space_id: str):
     """Get a semantic space by ID."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -253,8 +255,8 @@ async def update_space_metadata(
     if_match: str | None = Header(default=None, alias="If-Match"),
 ):
     """Update space metadata with optional ETag-based concurrency control."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -279,7 +281,7 @@ async def update_space_metadata(
     if request.status is not None:
         space.metadata.status = request.status
 
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=_space_to_response(space))
 
@@ -287,8 +289,8 @@ async def update_space_metadata(
 @router.delete("/{space_id}", response_model=dict, summary="Delete semantic space", description="Delete a semantic space and all its associated data. Supports ?dry_run=true to preview impact.")
 async def delete_space(space_id: str, dry_run: bool = Query(default=False, description="If true, preview what would be deleted without actually deleting")):
     """Delete (archive) a semantic space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -310,7 +312,7 @@ async def delete_space(space_id: str, dry_run: bool = Query(default=False, descr
             },
         })
 
-    deleted = await storage.delete(space_id)
+    deleted = await service.delete_space(space_id)
 
     if not deleted:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -325,8 +327,8 @@ async def delete_space(space_id: str, dry_run: bool = Query(default=False, descr
 @router.get("/{space_id}/rules/definitions", response_model=dict, summary="List rule definitions", description="List all rule definitions (L4) in the space.")
 async def list_rule_definitions(space_id: str):
     """List all rule definitions in a space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -337,8 +339,8 @@ async def list_rule_definitions(space_id: str):
 @router.post("/{space_id}/rules/definitions", response_model=dict, summary="Create rule definition", description="Add a new rule definition to the space schema L4 layer.")
 async def create_rule_definition(space_id: str, request: CreateRuleDefinitionRequest):
     """Create a new rule definition."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -368,7 +370,7 @@ async def create_rule_definition(space_id: str, request: CreateRuleDefinitionReq
     }
 
     space.layers.L4_business_logic.rule_definitions.append(definition)
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=definition)
 
@@ -376,8 +378,8 @@ async def create_rule_definition(space_id: str, request: CreateRuleDefinitionReq
 @router.get("/{space_id}/rules/definitions/{rule_id}", response_model=dict, summary="Get rule definition", description="Get a specific rule definition by ID.")
 async def get_rule_definition(space_id: str, rule_id: str):
     """Get a rule definition by ID."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -396,8 +398,8 @@ async def get_rule_definition(space_id: str, rule_id: str):
 @router.put("/{space_id}/rules/definitions/{rule_id}", response_model=dict, summary="Update rule definition", description="Update an existing rule definition. Supports ?dry_run=true to preview impact.")
 async def update_rule_definition(space_id: str, rule_id: str, request: CreateRuleDefinitionRequest, dry_run: bool = Query(default=False, description="If true, preview what would change without actually updating")):
     """Update a rule definition."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -442,7 +444,7 @@ async def update_rule_definition(space_id: str, rule_id: str, request: CreateRul
         })
 
     space.layers.L4_business_logic.rule_definitions[index] = definition
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=definition)
 
@@ -450,8 +452,8 @@ async def update_rule_definition(space_id: str, rule_id: str, request: CreateRul
 @router.delete("/{space_id}/rules/definitions/{rule_id}", response_model=dict, summary="Delete rule definition", description="Delete a rule definition. Supports ?dry_run=true to preview impact.")
 async def delete_rule_definition(space_id: str, rule_id: str, dry_run: bool = Query(default=False, description="If true, preview what would be deleted without actually deleting")):
     """Delete a rule definition."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -486,7 +488,7 @@ async def delete_rule_definition(space_id: str, rule_id: str, dry_run: bool = Qu
         if rl.get("definition_id") != rule_id
     ]
 
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data={"deleted": True, "rule_id": rule_id, "cascaded_logics": len(dependent_logics)})
 
@@ -498,8 +500,8 @@ async def delete_rule_definition(space_id: str, rule_id: str, dry_run: bool = Qu
 @router.get("/{space_id}/rules/logics", response_model=dict, summary="List rule logics", description="List all rule logics (L4) in the space.")
 async def list_rule_logics(space_id: str):
     """List all rule logics in a space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -510,8 +512,8 @@ async def list_rule_logics(space_id: str):
 @router.post("/{space_id}/rules/logics", response_model=dict, summary="Create rule logic", description="Add a new rule logic to the space schema L4 layer.")
 async def create_rule_logic(space_id: str, request: CreateRuleLogicRequest):
     """Create a new rule logic."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -539,7 +541,7 @@ async def create_rule_logic(space_id: str, request: CreateRuleLogicRequest):
     }
 
     space.layers.L4_business_logic.rule_logics.append(logic)
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=logic)
 
@@ -547,8 +549,8 @@ async def create_rule_logic(space_id: str, request: CreateRuleLogicRequest):
 @router.get("/{space_id}/rules/logics/{logic_id}", response_model=dict, summary="Get rule logic", description="Get a specific rule logic by ID.")
 async def get_rule_logic(space_id: str, logic_id: str):
     """Get a rule logic by ID."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -567,8 +569,8 @@ async def get_rule_logic(space_id: str, logic_id: str):
 @router.put("/{space_id}/rules/logics/{logic_id}", response_model=dict, summary="Update rule logic", description="Update an existing rule logic.")
 async def update_rule_logic(space_id: str, logic_id: str, request: CreateRuleLogicRequest):
     """Update a rule logic."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -594,7 +596,7 @@ async def update_rule_logic(space_id: str, logic_id: str, request: CreateRuleLog
     }
 
     space.layers.L4_business_logic.rule_logics[index] = logic
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=logic)
 
@@ -602,8 +604,8 @@ async def update_rule_logic(space_id: str, logic_id: str, request: CreateRuleLog
 @router.delete("/{space_id}/rules/logics/{logic_id}", response_model=dict, summary="Delete rule logic", description="Delete a rule logic.")
 async def delete_rule_logic(space_id: str, logic_id: str):
     """Delete a rule logic."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -616,7 +618,7 @@ async def delete_rule_logic(space_id: str, logic_id: str):
     if len(space.layers.L4_business_logic.rule_logics) == original_count:
         return error_response(code="NOT_FOUND", message=f"Rule logic {logic_id} not found")
 
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data={"deleted": True})
 
@@ -628,8 +630,8 @@ async def delete_rule_logic(space_id: str, logic_id: str):
 @router.get("/{space_id}/versions", response_model=dict, summary="List versions", description="List all version snapshots for the space.")
 async def list_versions(space_id: str):
     """List all versions of a space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -653,14 +655,14 @@ async def list_versions(space_id: str):
 @router.post("/{space_id}/versions", response_model=dict, summary="Create version snapshot", description="Create a new version snapshot of the space.")
 async def create_version(space_id: str, request: CreateVersionRequest):
     """Create a new version snapshot."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
 
     try:
-        version = await storage.create_snapshot(
+        version = await service.create_snapshot_with_space(
             space,
             description=request.description,
         )
@@ -681,15 +683,15 @@ async def create_version(space_id: str, request: CreateVersionRequest):
 @router.post("/{space_id}/versions/{version}/rollback", response_model=dict, summary="Rollback to version", description="Rollback the space to a specific version. Supports ?dry_run=true to preview changes.")
 async def rollback_to_version(space_id: str, version: int, dry_run: bool = Query(default=False, description="If true, preview rollback diff without actually rolling back")):
     """Rollback to a previous version."""
-    storage = _get_storage()
+    service = get_space_service()
 
     try:
-        current = await storage.load(space_id)
+        current = await service.get_space(space_id)
         if not current:
             return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
 
         if dry_run:
-            target = await storage.load_version(space_id, version, space=current)
+            target = await service.load_version(space_id, version, space=current)
             if not target:
                 return error_response(code="NOT_FOUND", message=f"Version {version} not found for space {space_id}", suggestion=f"Use GET /v1/spaces/{space_id}/versions to list available versions")
             return success_response(data={
@@ -702,7 +704,7 @@ async def rollback_to_version(space_id: str, version: int, dry_run: bool = Query
                 "target_rule_def_count": len(target.layers.L4_business_logic.rule_definitions),
             })
 
-        restored = await storage.rollback_to_version(space_id, version, space=current)
+        restored = await service.rollback_to_version(space_id, version, space=current)
 
         if not restored:
             return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -719,12 +721,12 @@ async def rollback_to_version(space_id: str, version: int, dry_run: bool = Query
 @router.get("/{space_id}/metrics/{metric_id}/versions", response_model=dict, summary="List metric card versions", description="List all versions of a specific metric card.")
 async def list_metric_versions(space_id: str, metric_id: str):
     """List all versions of a metric card."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
-    versions = await storage._meta_store.list_entity_versions(f"metric.{metric_id}")
+    versions = await service.list_entity_versions(f"metric.{metric_id}")
     return success_response(data={
         "space_id": space_id,
         "metric_id": metric_id,
@@ -735,12 +737,12 @@ async def list_metric_versions(space_id: str, metric_id: str):
 @router.get("/{space_id}/metrics/{metric_id}/versions/{version}", response_model=dict, summary="Get metric card version", description="Get a specific version of a metric card.")
 async def get_metric_version(space_id: str, metric_id: str, version: int):
     """Get a specific version of a metric card."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
-    ver_data = await storage._meta_store.get_entity_version(f"metric.{metric_id}", version)
+    ver_data = await service.get_entity_version(f"metric.{metric_id}", version)
     if not ver_data:
         return error_response(code="NOT_FOUND", message=f"Version {version} not found for metric {metric_id}")
 
@@ -758,12 +760,12 @@ async def create_metric_version(
     body: dict,
 ):
     """Create a new version of a metric card."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
-    existing_versions = await storage._meta_store.list_entity_versions(f"metric.{metric_id}")
+    existing_versions = await service.list_entity_versions(f"metric.{metric_id}")
     next_version = max((v["version"] for v in existing_versions), default=0) + 1
 
     formula = body.get("formula")
@@ -778,7 +780,7 @@ async def create_metric_version(
         "change_reason": change_reason,
     }
 
-    await storage._meta_store.save_entity_version(
+    await service.save_entity_version(
         f"metric.{metric_id}",
         "MetricCard",
         next_version,
@@ -802,13 +804,13 @@ async def diff_metric_versions(
     to_version: int = Query(..., description="Target version"),
 ):
     """Compare two versions of a metric card."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found")
 
-    from_data = await storage._meta_store.get_entity_version(f"metric.{metric_id}", from_version)
-    to_data = await storage._meta_store.get_entity_version(f"metric.{metric_id}", to_version)
+    from_data = await service.get_entity_version(f"metric.{metric_id}", from_version)
+    to_data = await service.get_entity_version(f"metric.{metric_id}", to_version)
 
     if not from_data:
         return error_response(code="NOT_FOUND", message=f"Version {from_version} not found for metric {metric_id}")
@@ -845,8 +847,8 @@ async def list_entities(
     concept: str | None = Query(default=None, description="Filter by concept"),
 ):
     """List entities in a space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -861,8 +863,8 @@ async def list_entities(
 @router.post("/{space_id}/instances/entities", response_model=dict, summary="Create entity", description="Add a new entity to the space.")
 async def create_entity(space_id: str, entity: dict):
     """Create a new entity."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -872,7 +874,7 @@ async def create_entity(space_id: str, entity: dict):
         return error_response(code="VALIDATION_ERROR", message="entity_id and _fact_object (or _concept) are required")
 
     space.instances.entities.append(entity)
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=entity)
 
@@ -880,8 +882,8 @@ async def create_entity(space_id: str, entity: dict):
 @router.get("/{space_id}/instances/relations", response_model=dict, summary="List relations", description="List all relations in the space.")
 async def list_relations(space_id: str):
     """List relations in a space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -892,8 +894,8 @@ async def list_relations(space_id: str):
 @router.post("/{space_id}/instances/relations", response_model=dict, summary="Create relation", description="Add a new relation to the space.")
 async def create_relation(space_id: str, relation: dict):
     """Create a new relation."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -906,7 +908,7 @@ async def create_relation(space_id: str, relation: dict):
             return error_response(code="VALIDATION_ERROR", message="relation_name (or relation_type), from_entity_id, and to_entity_id are required")
 
     space.instances.relations.append(relation)
-    await storage.save(space)
+    await service.save_space(space)
 
     return success_response(data=relation)
 
@@ -938,8 +940,8 @@ async def get_schema_graph(
     layer_filter: str | None = Query(default=None, description="Comma-separated layers: L1,L2,L3,L4"),
 ):
     """Get schema visualization graph data for a semantic space."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -1083,8 +1085,8 @@ async def get_schema_graph(
 @router.get("/{space_id}/execute/rule-chain/{dimension}", response_model=dict, summary="Get rule chain", description="Get the rule execution chain for a specific analysis dimension.")
 async def get_rule_chain_graph(space_id: str, dimension: str):
     """Get rule chain visualization DAG for a specific dimension."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -1172,8 +1174,8 @@ async def get_rule_chain_graph(space_id: str, dimension: str):
 @router.post("/{space_id}/execute/analyze", response_model=dict, summary="Execute analysis", description="Execute rule analysis on an entity. Runs L2 categorization, L3 metric computation, and L4 rule execution.")
 async def execute_analyze(space_id: str, request: ExecuteAnalyzeRequest):
     """Execute rules on an entity and return analysis results."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -1309,8 +1311,8 @@ async def execute_analyze(space_id: str, request: ExecuteAnalyzeRequest):
 @router.post("/{space_id}/execute/simulate", response_model=dict, summary="Simulate analysis", description="Simulate rule execution with hypothetical data overrides. Returns baseline vs simulated comparison.")
 async def execute_simulate(space_id: str, request: ExecuteSimulateRequest):
     """Execute what-if simulation with variable overrides."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(code="NOT_FOUND", message=f"Space {space_id} not found", suggestion="Use GET /v1/spaces to list available spaces")
@@ -1445,8 +1447,8 @@ async def analyze_schema_impact(
     request: SchemaImpactAnalysisRequest,
 ):
     """Analyze the downstream impact of a proposed schema change."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(
@@ -1522,8 +1524,8 @@ async def list_entity_versions(
     entity_id: str,
 ):
     """List version history for a specific entity."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(
@@ -1545,7 +1547,7 @@ async def list_entity_versions(
 
     entity_versions = []
     for v in space.versions:
-        v_space = await storage.load_version(space_id, v.version, space=space)
+        v_space = await service.load_version(space_id, v.version, space=space)
         if v_space:
             v_entity = next(
                 (e for e in v_space.instances.entities if e.get("entity_id") == entity_id),
@@ -1578,8 +1580,8 @@ async def list_rule_versions(
     rule_id: str,
 ):
     """List version history for a specific rule definition."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(
@@ -1601,7 +1603,7 @@ async def list_rule_versions(
     versions = space.versions
     rule_versions = []
     for v in versions:
-        v_space = await storage.load_version(space_id, v.version, space=space)
+        v_space = await service.load_version(space_id, v.version, space=space)
         if v_space:
             v_rule = next(
                 (rd for rd in v_space.layers.L4_business_logic.rule_definitions if rd.get("id") == rule_id),
@@ -1631,8 +1633,8 @@ async def list_rule_versions(
 )
 async def get_space_etag(space_id: str):
     """Get ETag for optimistic concurrency control."""
-    storage = _get_storage()
-    space = await storage.load(space_id)
+    service = get_space_service()
+    space = await service.get_space(space_id)
 
     if not space:
         return error_response(

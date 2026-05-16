@@ -368,7 +368,7 @@ Rules:
                 metadata={
                     "belief_status": n.belief_status,
                     "confidence": n.confidence,
-                    "tags": n.tags or [],
+                    "tags": n.tags or {},
                     "entity_name": n.entity_name or "",
                 },
             )
@@ -577,8 +577,12 @@ Rules:
 
         tag_groups: dict[str, list] = {}
         for n in nodes:
-            for tag in n.tags:
-                tag_groups.setdefault(tag, []).append(n)
+            for tag_val in n.tags.values():
+                if isinstance(tag_val, list):
+                    for v in tag_val:
+                        tag_groups.setdefault(str(v), []).append(n)
+                else:
+                    tag_groups.setdefault(str(tag_val), []).append(n)
             if n.entity_name:
                 tag_groups.setdefault(f"__entity__:{n.entity_name}", []).append(n)
             if not n.tags and not n.entity_name:

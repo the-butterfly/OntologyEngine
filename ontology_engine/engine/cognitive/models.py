@@ -77,7 +77,7 @@ class CognitiveNode:
     valid_from: str | None = None
     valid_to: str | None = None
     recorded_at: str | None = None
-    tags: list[str] = field(default_factory=list)
+    tags: dict[str, str | list[str]] = field(default_factory=dict)
     attributes: dict[str, str] = field(default_factory=dict)
     confirmation_count: int = 0
     strength: float = 1.0
@@ -87,7 +87,6 @@ class CognitiveNode:
     last_confirmed_at: str | None = None
     consolidation_reasoning: str | None = None
     compiled_at: str | None = None
-    model_domain: str | None = None
     source_trust_tier: str | None = None
     scope: str | None = None
     source_pipeline: str | None = None
@@ -95,8 +94,34 @@ class CognitiveNode:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CognitiveNode":
-        """Create a CognitiveNode from a dictionary."""
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        """Create a CognitiveNode from a dictionary.
+
+        Handles backward compatibility:
+        - tags as ``list[str]`` (old format) → converted to ``dict``
+        - ``model_domain`` (removed field) → converted to ``tags["model"]``
+        """
+        filtered = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+
+        # Backward compat: migrate list[str] tags → dict
+        tags = filtered.get("tags")
+        if isinstance(tags, list):
+            migrated: dict[str, str | list[str]] = {}
+            for t in tags:
+                if ":" in t:
+                    k, v = t.split(":", 1)
+                    migrated[k] = v
+                else:
+                    migrated.setdefault("_legacy", []).append(t)  # type: ignore[union-attr]
+            filtered["tags"] = migrated
+
+        # Backward compat: migrate model_domain → tags["model"]
+        model_domain = data.get("model_domain")
+        if model_domain and "model" not in (filtered.get("tags") or {}):
+            tags = filtered.setdefault("tags", {})
+            assert isinstance(tags, dict)
+            tags["model"] = model_domain
+
+        return cls(**filtered)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -139,7 +164,6 @@ class CognitiveNode:
             "last_confirmed_at": self.last_confirmed_at,
             "consolidation_reasoning": self.consolidation_reasoning,
             "compiled_at": self.compiled_at,
-            "model_domain": self.model_domain,
             "source_trust_tier": self.source_trust_tier,
             "scope": self.scope,
             "source_pipeline": self.source_pipeline,
@@ -152,13 +176,10 @@ class CognitiveNode:
         return new_status in allowed
 
 
-VALID_MODEL_DOMAINS = {"world", "task", "self"}
 VALID_TRUST_TIERS = {"high", "normal", "low"}
 
 
 def validate_node_fields(node: CognitiveNode) -> None:
-    if node.model_domain is not None and node.model_domain not in VALID_MODEL_DOMAINS:
-        raise ValueError(f"Invalid model_domain: {node.model_domain}, must be one of {VALID_MODEL_DOMAINS}")
     if node.source_trust_tier is not None and node.source_trust_tier not in VALID_TRUST_TIERS:
         raise ValueError(f"Invalid source_trust_tier: {node.source_trust_tier}, must be one of {VALID_TRUST_TIERS}")
     if node.strength < 0 or node.strength > 1.0:

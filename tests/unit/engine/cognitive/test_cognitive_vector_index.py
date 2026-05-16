@@ -27,7 +27,7 @@ class TestEmbeddingDegradation:
                 node_id="test-node-1",
                 content="test content for BM25 indexing",
                 memory_type="observation",
-                tags=["test"],
+                tags={"model": "observation"},
                 space_id="test-space",
             )
 
@@ -50,7 +50,7 @@ class TestEmbeddingDegradation:
                 node_id="node-bm25",
                 content="华为是技术公司",
                 memory_type="entity",
-                tags=["华为"],
+                tags={"model": "entity"},
                 space_id="test-space",
             )
 

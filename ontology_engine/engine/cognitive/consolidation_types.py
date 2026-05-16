@@ -20,7 +20,7 @@ class Fragment:
     """
     id: str
     content: str
-    tags: list[str] = field(default_factory=list)
+    tags: dict[str, str | list[str]] = field(default_factory=dict)
     space_id: str = "default"
     version: int = 0
     created_at: str | None = None
@@ -41,7 +41,7 @@ class CreateAction:
     text: str
     memory_type: str = "observation"
     cognitive_layer: str = "semantic"
-    tags: list[str] = field(default_factory=list)
+    tags: dict[str, str | list[str]] = field(default_factory=dict)
     source_fragments: list[Fragment] = field(default_factory=list)
     confidence: float = 0.5
 
@@ -59,7 +59,7 @@ class UpdateAction:
     """
     target_id: str
     updated_text: str
-    updated_tags: list[str] = field(default_factory=list)
+    updated_tags: dict[str, str | list[str]] = field(default_factory=dict)
     new_source_fragments: list[Fragment] = field(default_factory=list)
     confidence: float = 0.5
 

@@ -55,7 +55,6 @@ class FTS5Manager:
                     entity_name,
                     tags,
                     cognitive_layer,
-                    model_domain,
                     tokenize='porter unicode61'
                 )
         """)
@@ -75,18 +74,24 @@ class FTS5Manager:
     async def on_node_created(self, node: CognitiveNode) -> None:
         self.ensure_tables()
         tokenized_content = self._tokenize_for_fts5(node.content)
-        tokenized_tags = " ".join(node.tags) if node.tags else ""
+        tag_parts = []
+        for k, v in (node.tags or {}).items():
+            if isinstance(v, list):
+                tag_parts.extend(f"{k}:{item}" for item in v)
+            else:
+                tag_parts.append(f"{k}:{v}")
+        tokenized_tags = " ".join(tag_parts)
         try:
             conn = self._get_conn()
             conn.execute("""
                 INSERT INTO cognitive_node_fts(
                     node_id, content, space_id, memory_type,
-                    entity_name, tags, cognitive_layer, model_domain
-                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                    entity_name, tags, cognitive_layer
+                ) VALUES(?, ?, ?, ?, ?, ?, ?)
             """, (
                 node.id, tokenized_content, node.space_id, node.memory_type,
                 getattr(node, 'entity_name', None), tokenized_tags,
-                node.cognitive_layer, getattr(node, 'model_domain', None),
+                node.cognitive_layer,
             ))
             conn.commit()
         except Exception as e:

@@ -1,6 +1,8 @@
 # ontology_engine/api/routes/entities.py
 """Entity management endpoints."""
+from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -13,6 +15,13 @@ from ontology_engine.services.entity_service import EntityService
 from ontology_engine.services.dto import (
     EntityCreateRequest,
     ConceptNotDefinedError,
+)
+
+warnings.warn(
+    "ontology_engine.api.routes.entities is deprecated. "
+    "Use ontology_engine.api.routes.instances instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 router = APIRouter(prefix="/v1/entities", tags=["Entities"])

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -12,6 +13,13 @@ from ontology_engine.api.dependencies import (
     get_query_service,
 )
 from ontology_engine.api.dto.responses import error_response, success_response
+
+warnings.warn(
+    "ontology_engine.api.routes.actions is deprecated. "
+    "Use ontology_engine.api.routes.rules instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 router = APIRouter(prefix="/v1/spaces/{space_id}/actions", tags=["actions"])
 

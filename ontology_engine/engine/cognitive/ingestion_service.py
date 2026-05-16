@@ -71,13 +71,16 @@ class CognitiveExtractionPipeline:
 
 class CognitiveIngestionService:
 
-    DOMAIN_MAPPING = {
-        "entity": "world", "rule": "world", "constraint": "world",
-        "observation": "world",
-        "mental_model": "self", "opinion": "self",
-        "commitment": "task", "task_state": "task", "procedure": "task", "episode": "task",
-        "self_experience": "self", "fragment": "world",
-    }
+    @staticmethod
+    def _infer_tags(memory_type: str) -> dict[str, str]:
+        mapping = {
+            "entity": "world", "rule": "world", "constraint": "world",
+            "observation": "world",
+            "mental_model": "self", "opinion": "self",
+            "commitment": "task", "task_state": "task", "procedure": "task", "episode": "task",
+            "self_experience": "self", "fragment": "world",
+        }
+        return {"model": mapping.get(memory_type, "world")}
 
     def __init__(
         self,
@@ -96,7 +99,7 @@ class CognitiveIngestionService:
         content: str,
         space_id: str,
         memory_type: str = "fragment",
-        tags: list[str] | None = None,
+        tags: dict[str, str | list[str]] | None = None,
         metadata: dict[str, str] | None = None,
         source_trust_tier: str = "normal",
         scope: str = "",
@@ -107,7 +110,8 @@ class CognitiveIngestionService:
         belief_status: str = "accepted",
     ) -> dict[str, Any]:
         source_content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
-        model_domain = self.DOMAIN_MAPPING.get(memory_type)
+        initial_tags = self._infer_tags(memory_type)
+        merged_tags = {**initial_tags, **(tags or {})}
 
         fragment_id = f"frag:{space_id}:{uuid.uuid4().hex[:12]}"
         fragment = _make_fragment_node(
@@ -116,7 +120,7 @@ class CognitiveIngestionService:
             space_id=space_id,
             domain_id=space_id,
             memory_type="fragment",
-            tags=tags or [],
+            tags=merged_tags,
             source_content_hash=source_content_hash,
             source_trust_tier=source_trust_tier,
             source_pipeline=source_pipeline,
@@ -139,7 +143,7 @@ class CognitiveIngestionService:
                     node_id=fragment_id,
                     content=content,
                     memory_type="fragment",
-                    tags=tags or [],
+                    tags=merged_tags,
                     space_id=space_id,
                 )
             except Exception as e:
@@ -183,13 +187,12 @@ class CognitiveIngestionService:
                 space_id=space_id,
                 domain_id=space_id,
                 memory_type=memory_type,
-                model_domain=model_domain,
                 source_fragment_ids=[fragment_id],
                 source_content_hash=source_content_hash,
                 source_trust_tier=source_trust_tier,
                 scope=scope,
                 source_pipeline=source_pipeline,
-                tags=tags or [],
+                tags=merged_tags,
                 created_by=user_id,
                 visibility=visibility,
                 confidence=confidence,
@@ -254,7 +257,7 @@ class CognitiveIngestionService:
                         node_id=node.id,
                         content=node.content,
                         memory_type=node.memory_type,
-                        tags=node.tags or [],
+                        tags=node.tags or {},
                         space_id=node.space_id,
                     )
                     attrs = dict(node.attributes or {})
@@ -306,7 +309,7 @@ class CognitiveIngestionService:
             entity_type=entity.entity_type,
             confidence=confidence,
             visibility=visibility,
-            model_domain="world",
+            tags={"model": "world"},
             source_pipeline=source_pipeline,
             created_by=user_id,
         )

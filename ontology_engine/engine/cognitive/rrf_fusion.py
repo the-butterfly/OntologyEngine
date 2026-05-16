@@ -425,7 +425,7 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
-                model_domain=n.model_domain,
+
                 confidence=n.confidence,
                 metadata={
                     "valid_from": getattr(n, "valid_from", None),
@@ -459,7 +459,7 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
-                model_domain=n.model_domain,
+
                 confidence=n.confidence,
                 metadata={
                     "valid_from": getattr(n, "valid_from", None),
@@ -519,7 +519,7 @@ class RRFFusionEngine:
                         cognitive_layer=n.cognitive_layer,
                         occurred_at=n.occurred_at,
                         created_at=n.created_at,
-                        model_domain=n.model_domain,
+        
                         confidence=n.confidence,
                         metadata={
                             "valid_from": getattr(n, "valid_from", None),
@@ -541,7 +541,7 @@ class RRFFusionEngine:
                             cognitive_layer=n.cognitive_layer,
                             occurred_at=n.occurred_at,
                             created_at=n.created_at,
-                            model_domain=n.model_domain,
+            
                             confidence=n.confidence,
                             metadata={
                                 "valid_from": getattr(n, "valid_from", None),
@@ -641,7 +641,6 @@ class RRFFusionEngine:
                         cognitive_layer=node.cognitive_layer,
                         occurred_at=node.occurred_at,
                         created_at=node.created_at,
-                        model_domain=node.model_domain,
                         confidence=node.confidence,
                     ))
                 except Exception:
@@ -688,7 +687,7 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
-                model_domain=n.model_domain,
+
                 confidence=n.confidence,
                 metadata={
                     "valid_from": getattr(n, "valid_from", None),
@@ -725,7 +724,7 @@ class RRFFusionEngine:
                 cognitive_layer=n.cognitive_layer,
                 occurred_at=n.occurred_at,
                 created_at=n.created_at,
-                model_domain=n.model_domain,
+
                 confidence=n.confidence,
                 metadata={
                     "valid_from": getattr(n, "valid_from", None),
@@ -769,7 +768,7 @@ class RRFFusionEngine:
                         cognitive_layer=n.cognitive_layer,
                         occurred_at=n.occurred_at,
                         created_at=n.created_at,
-                        model_domain=n.model_domain,
+        
                         confidence=n.confidence,
                         metadata={
                             "valid_from": getattr(n, "valid_from", None),

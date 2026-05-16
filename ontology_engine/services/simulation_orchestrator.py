@@ -5,10 +5,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage
 from ontology_engine.engine.rule.dependency_analyzer import DependencyAnalyzer
 from ontology_engine.services.rule_locator import RuleLocator
 from ontology_engine.services.simulation_tree_builder import RuleTreeBuilder
+from ontology_engine.services.space_service import SpaceService
 
 
 class SimulationOrchestrator:
@@ -20,17 +20,11 @@ class SimulationOrchestrator:
     - DependencyAnalyzer: for dependency analysis
     """
 
-    def __init__(self, semantic_space_storage: SemanticSpaceStorage | None = None):
-        """Initialize SimulationOrchestrator.
-
-        Args:
-            semantic_space_storage: Storage instance for semantic spaces.
-                                   If None, creates a new SemanticSpaceStorage.
-        """
-        self._storage = semantic_space_storage or SemanticSpaceStorage()
-        self._rule_locator = RuleLocator(self._storage)
+    def __init__(self, space_service: SpaceService | None = None):
+        self._space_service = space_service or SpaceService()
+        self._rule_locator = RuleLocator(self._space_service)
         self._tree_builder = RuleTreeBuilder(
-            semantic_space_storage=self._storage,
+            space_service=self._space_service,
             rule_locator=self._rule_locator,
         )
         self._dependency_analyzer = DependencyAnalyzer()

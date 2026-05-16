@@ -1,6 +1,8 @@
 # ontology_engine/api/routes/analysis.py
 """Analysis endpoints."""
+from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -12,6 +14,13 @@ from ontology_engine.services.analysis_service import AnalysisService
 from ontology_engine.services.dto import (
     EntityNotFoundError,
     AnalysisError,
+)
+
+warnings.warn(
+    "ontology_engine.api.routes.analysis is deprecated. "
+    "Use ontology_engine.api.routes.views instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 router = APIRouter(prefix="/v1/analysis", tags=["Analysis"])

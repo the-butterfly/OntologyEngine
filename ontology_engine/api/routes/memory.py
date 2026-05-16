@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body
 
+from ontology_engine.api.dependencies import get_memory_service
 from ontology_engine.api.dto.responses import error_response, success_response
 
 router = APIRouter(prefix="/v1/spaces/{space_id}/memory", tags=["memory"])
@@ -24,11 +25,6 @@ def _handle_error(exc: Exception, code: str) -> Any:
             suggestion="Another process is using the database. If using uvicorn --reload, wait a moment and retry.",
         )
     return error_response(code=code, message=str(exc))
-
-
-async def _get_memory_api():
-    from ontology_engine.engine.cognitive.factory import MemoryAPISingleton
-    return await MemoryAPISingleton.get_or_create()
 
 
 @router.post("/remember")
@@ -55,8 +51,8 @@ async def remember(
         occurred_at = request.get("occurred_at")
         source_pipeline = request.get("source_pipeline")
 
-        api = await _get_memory_api()
-        result = await api.remember(
+        service = get_memory_service()
+        result = await service.remember(
             content=content,
             space_id=space_id,
             tags=tags,
@@ -105,8 +101,8 @@ async def recall(
         cognitive_layer = request.get("cognitive_layer")
         include_superseded = request.get("include_superseded", False)
 
-        api = await _get_memory_api()
-        result = await api.recall(
+        service = get_memory_service()
+        result = await service.recall(
             query=query,
             space_id=space_id,
             memory_type=memory_type,
@@ -146,8 +142,8 @@ async def reflect(
         cascade_depth = request.get("cascade_depth", 3)
         skip_correction_propagation = request.get("skip_correction_propagation", False)
 
-        api = await _get_memory_api()
-        result = await api.reflect(
+        service = get_memory_service()
+        result = await service.reflect(
             query=query,
             space_id=space_id,
             max_iterations=max_iterations,
@@ -177,8 +173,8 @@ async def approve(
         modifier_id = request.get("modifier_id", "user")
         comment = request.get("comment", "")
 
-        api = await _get_memory_api()
-        result = await api.approve_memory(
+        service = get_memory_service()
+        result = await service.approve_memory(
             node_id=node_id,
             action=action,
             modifier_id=modifier_id,
@@ -198,8 +194,8 @@ async def consolidate(
     request: dict[str, Any],
 ) -> dict[str, Any] | Any:
     try:
-        api = await _get_memory_api()
-        result = await api.run_consolidation(space_id)
+        service = get_memory_service()
+        result = await service.run_consolidation(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "CONSOLIDATE_ERROR")
@@ -211,9 +207,9 @@ async def force_forget(
     request: dict[str, Any] = Body({}),
 ) -> dict[str, Any] | Any:
     try:
-        api = await _get_memory_api()
+        service = get_memory_service()
         days_elapsed = request.get("days_elapsed", 1)
-        result = await api.run_forgetting(space_id, days_elapsed=days_elapsed)
+        result = await service.run_forgetting(space_id, days_elapsed=days_elapsed)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "FORGET_ERROR")
@@ -224,8 +220,8 @@ async def dream(
     space_id: str,
 ) -> dict[str, Any] | Any:
     try:
-        api = await _get_memory_api()
-        result = await api.dream(space_id)
+        service = get_memory_service()
+        result = await service.dream(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "DREAM_ERROR")
@@ -236,8 +232,8 @@ async def stats(
     space_id: str,
 ) -> dict[str, Any] | Any:
     try:
-        api = await _get_memory_api()
-        result = await api.get_stats(space_id)
+        service = get_memory_service()
+        result = await service.get_stats(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "STATS_ERROR")
@@ -248,8 +244,8 @@ async def types_list(
     space_id: str,
 ) -> dict[str, Any] | Any:
     try:
-        api = await _get_memory_api()
-        result = await api.get_types(space_id)
+        service = get_memory_service()
+        result = await service.get_types(space_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "TYPES_ERROR")
@@ -261,8 +257,8 @@ async def audit(
     limit: int = 50,
 ) -> dict[str, Any] | Any:
     try:
-        api = await _get_memory_api()
-        result = await api.get_audit_trail(space_id, limit=limit)
+        service = get_memory_service()
+        result = await service.get_audit_trail(space_id, limit=limit)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "AUDIT_ERROR")
@@ -276,8 +272,8 @@ async def contradictions(
 ) -> dict[str, Any] | Any:
     """Get contradictions for a space."""
     try:
-        api = await _get_memory_api()
-        result = await api.list_nodes(
+        service = get_memory_service()
+        result = await service.list_nodes(
             space_id,
             belief_status="contradicted",
             limit=limit,
@@ -294,8 +290,8 @@ async def corrections(
 ) -> dict[str, Any] | Any:
     """Get corrections for a space."""
     try:
-        api = await _get_memory_api()
-        result = await api.list_nodes(
+        service = get_memory_service()
+        result = await service.list_nodes(
             space_id,
             belief_status="superseded",
             limit=limit,
@@ -314,8 +310,8 @@ async def list_nodes(
 ) -> dict[str, Any] | Any:
     """List cognitive nodes for a space."""
     try:
-        api = await _get_memory_api()
-        result = await api.list_nodes(
+        service = get_memory_service()
+        result = await service.list_nodes(
             space_id,
             memory_type=memory_type,
             belief_status=belief_status,
@@ -333,11 +329,11 @@ async def get_node(
 ) -> dict[str, Any] | Any:
     """Get a cognitive node by ID."""
     try:
-        api = await _get_memory_api()
-        result = await api.get_node(space_id, node_id)
+        service = get_memory_service()
+        result = await service.get_node(space_id, node_id)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
-        from ontology_engine.engine.cognitive.errors import CognitiveNodeNotFoundError
-        if isinstance(e, CognitiveNodeNotFoundError):
+        service = get_memory_service()
+        if service.is_node_not_found_error(e):
             return error_response(code="NODE_NOT_FOUND", message=str(e))
         return error_response(code="GET_NODE_ERROR", message=str(e))

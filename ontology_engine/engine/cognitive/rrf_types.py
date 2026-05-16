@@ -34,7 +34,6 @@ class RetrievalResult:
     contribution: float = 0.5
     occurred_at: str | None = None
     created_at: str | None = None
-    model_domain: str | None = None
 
 
 @dataclass
@@ -153,17 +152,21 @@ QUERY_TYPE_WEIGHTS = {
 }
 
 BASE_TYPE_WEIGHTS = {
+    # NOTE: 设计决策 D-1 已将 commitment/constraint/self_experience/task_state
+    # 降级为 sub_type（通过父类型 episode/rule/observation 的权重继承）。
+    # 当前代码仍保留为独立类型，待 Phase 2c sub_type 重构后对齐。
+    # 届时以下 4 行将被移除。
     "mental_model": 3.0,
     "opinion": 2.5,
-    "commitment": 1.9,
     "entity": 2.0,
     "rule": 2.0,
-    "constraint": 1.8,
-    "observation": 1.5,
+    "commitment": 1.9,      # D-1: 降级为 sub_type → 继承 episode 权重 (1.2)
+    "constraint": 1.8,      # D-1: 降级为 sub_type → 继承 rule 权重 (2.0)
     "procedure": 1.8,
-    "task_state": 1.6,
+    "task_state": 1.6,      # D-1: 降级为 sub_type → 继承 observation 权重 (1.5)
+    "observation": 1.5,
     "episode": 1.2,
-    "self_experience": 1.1,
+    "self_experience": 1.1, # D-1: 降级为 sub_type → 继承 episode 权重 (1.2)
     "fragment": 1.0,
 }
 

@@ -1,6 +1,8 @@
 # ontology_engine/api/routes/relations.py
 """Relation management endpoints."""
+from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -9,6 +11,13 @@ from pydantic import BaseModel
 from ontology_engine.api.dependencies import get_entity_service
 from ontology_engine.api.dto.responses import success_response, error_response
 from ontology_engine.services.entity_service import EntityService
+
+warnings.warn(
+    "ontology_engine.api.routes.relations is deprecated. "
+    "Use ontology_engine.api.routes.instances instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 router = APIRouter(prefix="/v1/relations", tags=["Relations"])
 

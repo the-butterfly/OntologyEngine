@@ -20,7 +20,6 @@ from ontology_engine.core.schema.models import (
     MetricDefinition,
     RuleWhen,
     RuleThen,
-    # V2 models
     FactObjects,
     FactObjectEntity,
     Categorizations,
@@ -36,7 +35,6 @@ from ontology_engine.core.schema.models import (
     RuleStep,
     MetricSource,
     MetricComponent,
-    # Enhanced models
     CategoryValueDefinition,
     CategoryValueDomain,
     DimensionApplicability,
@@ -44,6 +42,11 @@ from ontology_engine.core.schema.models import (
     RuleApplicabilityMapping,
     CategorizationRuleset,
     ValueDomain,
+    SchemaV2,
+    L1FactObject,
+    L2Categorization,
+    L3AnalyticalElement,
+    L4RuleDefinition,
 )
 
 
@@ -81,21 +84,82 @@ class SchemaLoader:
         return self._parse(raw)
 
     def load_from_dict(self, data: dict[str, Any]) -> KGMLSchema:
-        """Load KGML schema from a dict.
-
-        Args:
-            data: Schema definition as a dict (e.g. parsed from API request)
-
-        Returns:
-            KGMLSchema object
-
-        Raises:
-            SchemaValidationError: If schema is invalid
-        """
         if not data:
             raise SchemaValidationError("Schema data is empty")
 
         return self._parse(data)
+
+    def load_v2(self, path: str | Path) -> SchemaV2:
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Schema file not found: {path}")
+
+        with open(path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+
+        if not raw:
+            raise SchemaValidationError("Schema file is empty")
+
+        return self._parse_v2_schema(raw)
+
+    def _parse_v2_schema(self, raw: dict[str, Any]) -> SchemaV2:
+        metadata = self._parse_metadata(
+            raw.get("metadata", raw.get("semantic_space", {}))
+        )
+
+        fact_objects_raw = raw.get("fact_objects", {})
+        l1 = self._parse_l1(fact_objects_raw)
+
+        categorizations_raw = raw.get("categorizations", [])
+        l2 = self._parse_l2(categorizations_raw)
+
+        analytical_elements_raw = raw.get("analytical_elements", {})
+        l3 = self._parse_l3(analytical_elements_raw)
+
+        business_logic_raw = raw.get("business_logic", {})
+        l4 = self._parse_l4(business_logic_raw)
+
+        return SchemaV2(
+            metadata=metadata,
+            l1=l1,
+            l2=l2,
+            l3=l3,
+            l4=l4,
+        )
+
+    def _parse_l1(self, raw: dict[str, Any]) -> L1FactObject:
+        fact_objects = self._parse_fact_objects(raw)
+        if fact_objects is None:
+            return L1FactObject()
+        return L1FactObject(
+            entity_defs=fact_objects.entities,
+            edge_defs=fact_objects.relations,
+        )
+
+    def _parse_l2(self, raw: list[dict[str, Any]]) -> L2Categorization:
+        categorizations = self._parse_categorizations(raw)
+        if categorizations is None:
+            return L2Categorization()
+        return L2Categorization(dimensions=categorizations.dimensions)
+
+    def _parse_l3(self, raw: dict[str, Any]) -> L3AnalyticalElement:
+        analytical_elements = self._parse_analytical_elements(raw)
+        if analytical_elements is None:
+            return L3AnalyticalElement()
+        return L3AnalyticalElement(
+            metrics=analytical_elements.metrics,
+            indicators=analytical_elements.indicators,
+            scorecards=analytical_elements.scorecards,
+        )
+
+    def _parse_l4(self, raw: dict[str, Any]) -> L4RuleDefinition:
+        business_logic = self._parse_business_logic(raw)
+        if business_logic is None:
+            return L4RuleDefinition()
+        return L4RuleDefinition(
+            rule_definitions=business_logic.rule_definitions,
+            rule_logics=business_logic.rule_logics,
+        )
 
     def _parse(self, raw: dict[str, Any]) -> KGMLSchema:
         """Parse raw YAML dict into KGMLSchema.

@@ -284,9 +284,72 @@ class SpaceService:
         }
 
     async def delete_space(self, space_id: str) -> bool:
-        """Delete a space and all its snapshots.
-
-        Returns:
-            True if deleted, False if not found.
-        """
         return await self._storage.delete(space_id)
+
+    async def save_space(self, space: SemanticSpace) -> None:
+        await self._storage.save(space)
+
+    async def list_metadata(self) -> list[Any]:
+        return await self._storage.list()
+
+    async def load_version(
+        self, space_id: str, version: int, space: SemanticSpace
+    ) -> SemanticSpace | None:
+        return await self._storage.load_version(space_id, version, space=space)
+
+    async def rollback_to_version(
+        self, space_id: str, version: int, space: SemanticSpace
+    ) -> SemanticSpace | None:
+        return await self._storage.rollback_to_version(
+            space_id, version, space=space
+        )
+
+    async def create_snapshot_with_space(
+        self,
+        space: SemanticSpace,
+        description: str | None = None,
+    ) -> Any:
+        return await self._storage.create_snapshot(space, description=description)
+
+    def load_space_from_file(self, path: str) -> SemanticSpace:
+        from ontology_engine.core.semantic_space import SpaceLoader
+        loader = SpaceLoader()
+        return loader.load(path)
+
+    def load_schema_from_file(self, path: str) -> Any:
+        from ontology_engine.core.schema import SchemaLoader
+        loader = SchemaLoader()
+        return loader.load(path)
+
+    def load_instances_from_file(
+        self, path: str
+    ) -> tuple[list[Any], list[Any]]:
+        from ontology_engine.core.instances import InstanceLoader
+        loader = InstanceLoader()
+        return loader.load(path)
+
+    async def list_entity_versions(
+        self, entity_key: str
+    ) -> list[dict[str, Any]]:
+        return await self._storage._meta_store.list_entity_versions(
+            entity_key
+        )
+
+    async def get_entity_version(
+        self, entity_key: str, version: int
+    ) -> dict[str, Any] | None:
+        return await self._storage._meta_store.get_entity_version(
+            entity_key, version
+        )
+
+    async def save_entity_version(
+        self,
+        entity_key: str,
+        entity_type: str,
+        version: int,
+        data: dict[str, Any],
+        updated_by: str = "api",
+    ) -> None:
+        await self._storage._meta_store.save_entity_version(
+            entity_key, entity_type, version, data, updated_by=updated_by
+        )
