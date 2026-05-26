@@ -58,6 +58,136 @@ class SchemaValidationError(Exception):
 class SchemaLoader:
     """KGML Schema loader from YAML files."""
 
+    # =========================================================================
+    # 辅助解析方法
+    # =========================================================================
+
+    def _parse_optional_nested_object(
+        self,
+        raw: dict,
+        field_name: str,
+        parser_func: callable,
+        default: Any = None,
+    ) -> Any:
+        """解析可选的嵌套对象字段。
+
+        如果字段存在且非空，使用指定的解析函数；
+        否则返回默认值。
+        """
+        if field_name in raw and raw[field_name]:
+            return parser_func(raw[field_name])
+        return default
+
+    def _parse_value_domain(self, vd_raw: dict) -> CategoryValueDomain | None:
+        """解析值域配置（支持嵌套的children结构）。"""
+        if not vd_raw:
+            return None
+
+        vd_type = vd_raw.get("type", "discrete")
+        values = []
+        for v in vd_raw.get("values", []):
+            children = [
+                CategoryValueDefinition(
+                    id=child.get("id", ""),
+                    label=child.get("label", ""),
+                    description=child.get("description"),
+                    synonyms=child.get("synonyms", []),
+                    sort_order=child.get("sort_order", 0),
+                    color=child.get("color"),
+                    metadata=child.get("metadata", {}),
+                    level=child.get("level"),
+                    parent_id=child.get("parent_id"),
+                )
+                for child in v.get("children", [])
+            ]
+            values.append(CategoryValueDefinition(
+                id=v.get("id", ""),
+                label=v.get("label", ""),
+                description=v.get("description"),
+                synonyms=v.get("synonyms", []),
+                sort_order=v.get("sort_order", 0),
+                color=v.get("color"),
+                metadata=v.get("metadata", {}),
+                level=v.get("level"),
+                parent_id=v.get("parent_id"),
+                children=children,
+            ))
+
+        return CategoryValueDomain(
+            type=vd_type,
+            values=values,
+            enum_ref=vd_raw.get("enum_ref"),
+        )
+
+    def _parse_metric_source(self, src: dict) -> MetricSource:
+        """解析指标源配置。"""
+        return MetricSource(
+            type=src.get("type", ""),
+            entity=src.get("entity"),
+            attribute=src.get("attribute"),
+            traversal=src.get("traversal"),
+            aggregate=src.get("aggregate"),
+            filter=src.get("filter"),
+            provider=src.get("provider"),
+        )
+
+    def _parse_applicable_to(self, raw: list) -> list[DimensionApplicability | str]:
+        """解析适用性配置（支持字符串或对象列表）。"""
+        return [
+            item if isinstance(item, str) else DimensionApplicability(
+                object_type=item.get("object_type", ""),
+                required=item.get("required", False),
+                auto_categorize=item.get("auto_categorize", True),
+                auto_dimension=item.get("auto_dimension"),
+            )
+            for item in raw
+        ]
+
+    def _parse_ruleset(self, rs_raw: dict) -> CategorizationRuleset:
+        """解析规则集配置。"""
+        return CategorizationRuleset(
+            id=rs_raw.get("id", ""),
+            name=rs_raw.get("name"),
+            rules=rs_raw.get("rules", []),
+        )
+
+    def _parse_rule_override(self, ro: dict) -> RuleOverride:
+        """解析规则覆盖配置。"""
+        return RuleOverride(
+            rule_id=ro.get("rule_id", ""),
+            override_field=ro.get("override_field", ""),
+            override_value=ro.get("override_value"),
+        )
+
+    def _parse_rule_applicability(self, ra: dict) -> RuleApplicabilityMapping:
+        """解析规则适用性映射。"""
+        overrides = [
+            self._parse_rule_override(ro)
+            for ro in ra.get("rule_overrides", [])
+        ]
+        return RuleApplicabilityMapping(
+            dimension_value=ra.get("dimension_value", ""),
+            applicable_rule_groups=ra.get("applicable_rule_groups", []),
+            excluded_rule_groups=ra.get("excluded_rule_groups", []),
+            rule_overrides=overrides,
+        )
+
+    def _parse_rule_when(self, when_raw: dict) -> RuleWhen:
+        """解析RuleWhen条件。"""
+        return RuleWhen(
+            expression=when_raw.get("expression"),
+            allOf=when_raw.get("allOf"),
+            anyOf=when_raw.get("anyOf"),
+        )
+
+    def _parse_rule_action(self, action_raw: dict) -> RuleAction:
+        """解析RuleAction动作。"""
+        return RuleAction(
+            action_type=action_raw.get("action_type"),
+            output=action_raw.get("output"),
+            computation=action_raw.get("computation"),
+        )
+
     def load(self, path: str | Path) -> KGMLSchema:
         """Load KGML schema from YAML file.
 
@@ -294,99 +424,32 @@ class SchemaLoader:
         if not raw:
             return None
 
-        dimensions = []
-        for d in raw:
-            # Parse value_domain if present
-            value_domain = None
-            if "value_domain" in d and d["value_domain"]:
-                vd_raw = d["value_domain"]
-                vd_type = vd_raw.get("type", "discrete")
-                values = []
-                for v in vd_raw.get("values", []):
-                    children = []
-                    for child in v.get("children", []):
-                        children.append(CategoryValueDefinition(
-                            id=child.get("id", ""),
-                            label=child.get("label", ""),
-                            description=child.get("description"),
-                            synonyms=child.get("synonyms", []),
-                            sort_order=child.get("sort_order", 0),
-                            color=child.get("color"),
-                            metadata=child.get("metadata", {}),
-                            level=child.get("level"),
-                            parent_id=child.get("parent_id"),
-                        ))
-                    values.append(CategoryValueDefinition(
-                        id=v.get("id", ""),
-                        label=v.get("label", ""),
-                        description=v.get("description"),
-                        synonyms=v.get("synonyms", []),
-                        sort_order=v.get("sort_order", 0),
-                        color=v.get("color"),
-                        metadata=v.get("metadata", {}),
-                        level=v.get("level"),
-                        parent_id=v.get("parent_id"),
-                        children=children,
-                    ))
-                value_domain = CategoryValueDomain(
-                    type=vd_type,
-                    values=values,
-                    enum_ref=vd_raw.get("enum_ref"),
-                )
-
-            # Parse applicable_to (can be string list or object list)
-            applicable_to_raw = d.get("applicable_to", [])
-            applicable_to: list[DimensionApplicability | str] = []
-            for item in applicable_to_raw:
-                if isinstance(item, str):
-                    applicable_to.append(item)
-                elif isinstance(item, dict):
-                    applicable_to.append(DimensionApplicability(
-                        object_type=item.get("object_type", ""),
-                        required=item.get("required", False),
-                        auto_categorize=item.get("auto_categorize", True),
-                        auto_dimension=item.get("auto_dimension"),
-                    ))
-
-            # Parse ruleset if present
-            ruleset = None
-            if "ruleset" in d and d["ruleset"]:
-                rs_raw = d["ruleset"]
-                ruleset = CategorizationRuleset(
-                    id=rs_raw.get("id", ""),
-                    name=rs_raw.get("name"),
-                    rules=rs_raw.get("rules", []),
-                )
-
-            # Parse rule_applicability if present
-            rule_applicability = []
-            for ra in d.get("rule_applicability", []):
-                overrides = []
-                for ro in ra.get("rule_overrides", []):
-                    overrides.append(RuleOverride(
-                        rule_id=ro.get("rule_id", ""),
-                        override_field=ro.get("override_field", ""),
-                        override_value=ro.get("override_value"),
-                    ))
-                rule_applicability.append(RuleApplicabilityMapping(
-                    dimension_value=ra.get("dimension_value", ""),
-                    applicable_rule_groups=ra.get("applicable_rule_groups", []),
-                    excluded_rule_groups=ra.get("excluded_rule_groups", []),
-                    rule_overrides=overrides,
-                ))
-
-            dimensions.append(CategorizationDimension(
+        dimensions = [
+            CategorizationDimension(
                 id=d["id"],
                 name=d.get("name"),
                 description=d.get("description"),
                 type=d.get("type", "flat"),
-                value_domain=value_domain,
+                value_domain=self._parse_optional_nested_object(
+                    d, "value_domain", self._parse_value_domain
+                ),
                 multi_select=d.get("multi_select", False),
-                applicable_to=applicable_to if applicable_to else d.get("applicable_to", []),
-                ruleset=ruleset,
-                rule_applicability=rule_applicability,
+                applicable_to=(
+                    self._parse_applicable_to(d.get("applicable_to", []))
+                    if d.get("applicable_to")
+                    else d.get("applicable_to", [])
+                ),
+                ruleset=self._parse_optional_nested_object(
+                    d, "ruleset", self._parse_ruleset
+                ),
+                rule_applicability=[
+                    self._parse_rule_applicability(ra)
+                    for ra in d.get("rule_applicability", [])
+                ],
                 triggers=d.get("triggers", []),
-            ))
+            )
+            for d in raw
+        ]
 
         return Categorizations(dimensions=dimensions)
 
@@ -395,98 +458,112 @@ class SchemaLoader:
         if not raw:
             return None
 
-        # Parse metrics
-        metrics = []
-        for m in raw.get("metrics", []):
-            source = None
-            if "source" in m:
-                src = m["source"]
-                source = MetricSource(
-                    type=src.get("type", ""),
-                    entity=src.get("entity"),
-                    attribute=src.get("attribute"),
-                    traversal=src.get("traversal"),
-                    aggregate=src.get("aggregate"),
-                    filter=src.get("filter"),
-                    provider=src.get("provider"),
-                )
+        metrics = [
+            self._parse_metric(m)
+            for m in raw.get("metrics", [])
+        ]
 
-            components = None
-            if "components" in m:
-                components = [
-                    MetricComponent(
-                        metric=c["metric"],
-                        weight=c.get("weight", 1.0),
-                        transform=c.get("transform"),
-                    )
-                    for c in m["components"]
-                ]
+        indicators = [
+            self._parse_indicator(i)
+            for i in raw.get("indicators", [])
+        ]
 
-            metrics.append(MetricDefinitionV2(
-                id=m["id"],
-                name=m.get("name"),
-                description=m.get("description"),
-                type=m.get("type", m.get("element_type", "atomic")),
-                source=source,
-                dependencies=m.get("dependencies", []),
-                formula=m.get("formula"),
-                unit=m.get("unit"),
-                range=m.get("range"),
-                default=m.get("default"),
-                thresholds=m.get("thresholds"),
-                overridable=m.get("overridable", False),
-                components=components,
-                algorithm=m.get("algorithm"),
-                traversal=m.get("traversal"),
-                neighbor_filter=m.get("neighbor_filter"),
-                value_domain=ValueDomain(**m["value_domain"]) if m.get("value_domain") else None,
-                expression_domain=m.get("expression_domain", []),
-            ))
-
-        # Parse indicators
-        indicators = []
-        for i in raw.get("indicators", []):
-            source = None
-            if "source" in i:
-                src = i["source"]
-                source = MetricSource(
-                    type=src.get("type", ""),
-                    entity=src.get("entity"),
-                    attribute=src.get("attribute"),
-                )
-
-            indicators.append(IndicatorDefinition(
-                id=i["id"],
-                name=i.get("name"),
-                description=i.get("description"),
-                type=i.get("element_type", "atomic"),
-                source=source,
-                dependencies=i.get("dependencies", []),
-                formula=i.get("formula"),
-                output_type=i.get("output_type", "boolean"),
-                overridable=i.get("overridable", False),
-                value_domain=ValueDomain(**i["value_domain"]) if i.get("value_domain") else None,
-            ))
-
-        # Parse scorecards
-        scorecards = []
-        for s in raw.get("scorecards", []):
-            scorecards.append(ScorecardDefinition(
-                id=s["id"],
-                name=s.get("name"),
-                description=s.get("description"),
-                type=s.get("element_type", "derived"),
-                dependencies=s.get("dependencies", []),
-                formula=s.get("formula"),
-                output_type=s.get("output_type", "string"),
-                overridable=s.get("overridable", False),
-                value_domain=ValueDomain(**s["value_domain"]) if s.get("value_domain") else None,
-            ))
+        scorecards = [
+            self._parse_scorecard(s)
+            for s in raw.get("scorecards", [])
+        ]
 
         return AnalyticalElements(
             metrics=metrics,
             indicators=indicators,
             scorecards=scorecards,
+        )
+
+    def _parse_metric(self, m: dict) -> MetricDefinitionV2:
+        """解析单个指标定义。"""
+        source = (
+            self._parse_metric_source(m["source"])
+            if "source" in m and m["source"]
+            else None
+        )
+
+        components = None
+        if "components" in m and m["components"]:
+            components = [
+                MetricComponent(
+                    metric=c["metric"],
+                    weight=c.get("weight", 1.0),
+                    transform=c.get("transform"),
+                )
+                for c in m["components"]
+            ]
+
+        return MetricDefinitionV2(
+            id=m["id"],
+            name=m.get("name"),
+            description=m.get("description"),
+            type=m.get("type", m.get("element_type", "atomic")),
+            source=source,
+            dependencies=m.get("dependencies", []),
+            formula=m.get("formula"),
+            unit=m.get("unit"),
+            range=m.get("range"),
+            default=m.get("default"),
+            thresholds=m.get("thresholds"),
+            overridable=m.get("overridable", False),
+            components=components,
+            algorithm=m.get("algorithm"),
+            traversal=m.get("traversal"),
+            neighbor_filter=m.get("neighbor_filter"),
+            value_domain=(
+                ValueDomain(**m["value_domain"])
+                if m.get("value_domain")
+                else None
+            ),
+            expression_domain=m.get("expression_domain", []),
+        )
+
+    def _parse_indicator(self, i: dict) -> IndicatorDefinition:
+        """解析单个指标定义。"""
+        source = (
+            self._parse_metric_source(i["source"])
+            if "source" in i and i["source"]
+            else None
+        )
+
+        return IndicatorDefinition(
+            id=i["id"],
+            name=i.get("name"),
+            description=i.get("description"),
+            type=i.get("element_type", "atomic"),
+            source=source,
+            dependencies=i.get("dependencies", []),
+            formula=i.get("formula"),
+            output_type=i.get("output_type", "boolean"),
+            overridable=i.get("overridable", False),
+            value_domain=(
+                ValueDomain(**i["value_domain"])
+                if i.get("value_domain")
+                else None
+            ),
+        )
+
+    def _parse_scorecard(self, s: dict) -> ScorecardDefinition:
+        """解析单个记分卡定义。"""
+        return ScorecardDefinition(
+            id=s["id"],
+            name=s.get("name"),
+            description=s.get("description"),
+            type=s.get("element_type", "derived"),
+            dependencies=s.get("dependencies", []),
+            formula=s.get("formula"),
+            output_type=s.get("output_type", "string"),
+            overridable=s.get("overridable", False),
+            value_domain=(
+                ValueDomain(**s["value_domain"])
+                if s.get("value_domain")
+                else None
+            ),
         )
 
     def _parse_business_logic(self, raw: dict) -> BusinessLogic | None:
@@ -500,10 +577,8 @@ class SchemaLoader:
         if not raw:
             return None
 
-        # Parse rule definitions
-        rule_definitions = []
-        for rd in raw.get("rule_definitions", []):
-            rule_definitions.append(RuleDefinitionV2(
+        rule_definitions = [
+            RuleDefinitionV2(
                 id=rd["id"],
                 name=rd.get("name"),
                 description=rd.get("description"),
@@ -516,80 +591,82 @@ class SchemaLoader:
                 preconditions=rd.get("preconditions", []),
                 enabled=rd.get("enabled", True),
                 logic_ids=rd.get("logic_ids", []),
-            ))
+            )
+            for rd in raw.get("rule_definitions", [])
+        ]
 
-        # Parse rule logics
-        rule_logics = []
-        for rl in raw.get("rule_logics", []):
-            when = None
-            if "when" in rl:
-                when_raw = rl["when"]
-                when = RuleWhen(
-                    expression=when_raw.get("expression"),
-                    allOf=when_raw.get("allOf"),
-                    anyOf=when_raw.get("anyOf"),
-                )
-
-            then_action = None
-            if "then_action" in rl:
-                ta = rl["then_action"]
-                then_action = RuleAction(
-                    action_type=ta.get("action_type"),
-                    output=ta.get("output"),
-                    computation=ta.get("computation"),
-                )
-
-            else_action = None
-            if "else_action" in rl:
-                ea = rl["else_action"]
-                else_action = RuleAction(
-                    action_type=ea.get("action_type"),
-                    output=ea.get("output"),
-                    computation=ea.get("computation"),
-                )
-
-            # Parse canonical DAG steps[]
-            steps = []
-            for s in rl.get("steps", []):
-                condition = None
-                if "condition" in s and s["condition"]:
-                    cond_raw = s["condition"]
-                    condition = RuleWhen(
-                        expression=cond_raw.get("expression"),
-                        allOf=cond_raw.get("allOf"),
-                        anyOf=cond_raw.get("anyOf"),
-                    )
-                steps.append(RuleStep(
-                    id=s["id"],
-                    name=s.get("name"),
-                    description=s.get("description"),
-                    priority=s.get("priority", 100),
-                    depends_on=s.get("depends_on", []),
-                    condition=condition,
-                    action=s.get("action"),
-                    operator=s.get("operator"),
-                    computation=s.get("computation"),
-                    output_field=s.get("output_field"),
-                    enabled=s.get("enabled", True),
-                ))
-
-            rule_logics.append(RuleLogic(
-                id=rl["id"],
-                name=rl.get("name"),
-                definition_id=rl["definition_id"],
-                applicable_conditions=rl.get("applicable_conditions", []),
-                when=when,
-                then_action=then_action,
-                else_action=else_action,
-                steps=steps,
-                priority=rl.get("priority", 100),
-                version=rl.get("version", 1),
-                environment=rl.get("environment", "default"),
-            ))
+        rule_logics = [
+            self._parse_rule_logic(rl)
+            for rl in raw.get("rule_logics", [])
+        ]
 
         return BusinessLogic(
             rule_definitions=rule_definitions,
             rule_logics=rule_logics,
+        )
+
+    def _parse_rule_logic(self, rl: dict) -> RuleLogic:
+        """解析单个规则逻辑定义。"""
+        when = (
+            self._parse_rule_when(rl["when"])
+            if "when" in rl and rl["when"]
+            else None
+        )
+
+        then_action = (
+            self._parse_rule_action(rl["then_action"])
+            if "then_action" in rl and rl["then_action"]
+            else None
+        )
+
+        else_action = (
+            self._parse_rule_action(rl["else_action"])
+            if "else_action" in rl and rl["else_action"]
+            else None
+        )
+
+        steps = [
+            self._parse_rule_step(s)
+            for s in rl.get("steps", [])
+        ]
+
+        return RuleLogic(
+            id=rl["id"],
+            name=rl.get("name"),
+            definition_id=rl["definition_id"],
+            applicable_conditions=rl.get("applicable_conditions", []),
+            when=when,
+            then_action=then_action,
+            else_action=else_action,
+            steps=steps,
+            priority=rl.get("priority", 100),
+            version=rl.get("version", 1),
+            environment=rl.get("environment", "default"),
+        )
+
+    def _parse_rule_step(self, s: dict) -> RuleStep:
+        """解析单个规则步骤。"""
+        condition = None
+        if "condition" in s and s["condition"]:
+            cond_raw = s["condition"]
+            condition = RuleWhen(
+                expression=cond_raw.get("expression"),
+                allOf=cond_raw.get("allOf"),
+                anyOf=cond_raw.get("anyOf"),
+            )
+
+        return RuleStep(
+            id=s["id"],
+            name=s.get("name"),
+            description=s.get("description"),
+            priority=s.get("priority", 100),
+            depends_on=s.get("depends_on", []),
+            condition=condition,
+            action=s.get("action"),
+            operator=s.get("operator"),
+            computation=s.get("computation"),
+            output_field=s.get("output_field"),
+            enabled=s.get("enabled", True),
         )
 
     def _entities_to_concepts(self, entities: list[FactObjectEntity]) -> list[ConceptDefinition]:
@@ -722,42 +799,45 @@ class SchemaLoader:
             for d in raw.get("rule_dimensions", {}).get("dimensions", [])
         ]
 
-        rules = []
-        for r in raw.get("ruleset", []):
-            when_raw = r.get("when", {})
-            when = None
-            if when_raw:
-                when = RuleWhen(
-                    expression=when_raw.get("expression"),
-                    allOf=when_raw.get("allOf"),
-                    anyOf=when_raw.get("anyOf"),
-                )
-
-            then_raw = r.get("then", {})
-            then = None
-            if then_raw:
-                then = RuleThen(
-                    action=then_raw.get("action"),
-                    output=then_raw.get("output"),
-                    computation=then_raw.get("computation"),
-                )
-
-            rules.append(RuleDefinition(
-                id=r["id"],
-                name=r.get("name"),
-                description=r.get("description"),
-                type=r.get("type", "constraint"),
-                priority=r.get("priority", 100),
-                enabled=r.get("enabled", True),
-                scope=r.get("scope"),
-                when=when,
-                then=then,
-                **{"else": r.get("else")},
-            ))
+        rules = [
+            self._parse_rule(r)
+            for r in raw.get("ruleset", [])
+        ]
 
         return RulesDefinition(
             rule_dimensions=dimensions,
             ruleset=rules,
+        )
+
+    def _parse_rule(self, r: dict) -> RuleDefinition:
+        """解析单个规则定义。"""
+        when_raw = r.get("when", {})
+        when = (
+            self._parse_rule_when(when_raw)
+            if when_raw
+            else None
+        )
+
+        then_raw = r.get("then", {})
+        then = None
+        if then_raw:
+            then = RuleThen(
+                action=then_raw.get("action"),
+                output=then_raw.get("output"),
+                computation=then_raw.get("computation"),
+            )
+
+        return RuleDefinition(
+            id=r["id"],
+            name=r.get("name"),
+            description=r.get("description"),
+            type=r.get("type", "constraint"),
+            priority=r.get("priority", 100),
+            enabled=r.get("enabled", True),
+            scope=r.get("scope"),
+            when=when,
+            then=then,
+            **{"else": r.get("else")},
         )
 
     def validate(self, schema: KGMLSchema) -> list[str]:

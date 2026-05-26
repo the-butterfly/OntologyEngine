@@ -13,7 +13,7 @@ from ontology_engine.mcp.tools.space import oe_create_space, oe_load_schema, oe_
 from ontology_engine.mcp.tools.dataset import oe_register_dataset, oe_trigger_sync
 from ontology_engine.mcp.tools.execution import oe_execute_rule, oe_simulate
 from ontology_engine.mcp.tools.query import oe_query
-from ontology_engine.mcp.tools.management import oe_create_entity, oe_define_rule, oe_activate_space
+from ontology_engine.mcp.tools.management import oe_create_entity, oe_define_rule, oe_activate_space, oe_update_relation
 from ontology_engine.mcp.tools.versioning import oe_snapshot, oe_rollback
 from ontology_engine.mcp.tools.memory import (
     oe_remember,
@@ -281,6 +281,23 @@ async def list_tools() -> list[Tool]:
                     "space_id": {"type": "string", "description": "Space ID to activate"},
                 },
                 "required": ["space_id"],
+            },
+        ),
+        Tool(
+            name="oe_update_relation",
+            description=(
+                "Update a relation's attributes in a semantic space. "
+                "For cognitive nodes, uses MemoryAPI.correct_memory."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "space_id": {"type": "string", "description": "Space ID"},
+                    "relation_id": {"type": "string", "description": "Relation ID to update"},
+                    "attributes": {"type": "object", "description": "Attributes to update"},
+                    "reason": {"type": "string", "description": "Reason for update"},
+                },
+                "required": ["space_id", "relation_id"],
             },
         ),
         Tool(
@@ -704,6 +721,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         "oe_create_entity": oe_create_entity,
         "oe_define_rule": oe_define_rule,
         "oe_activate_space": oe_activate_space,
+        "oe_update_relation": oe_update_relation,
         "oe_snapshot": oe_snapshot,
         "oe_rollback": oe_rollback,
         "oe_remember": oe_remember,

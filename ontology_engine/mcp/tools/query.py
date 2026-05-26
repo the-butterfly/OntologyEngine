@@ -27,6 +27,7 @@ async def oe_query(
     """
     try:
         service = get_service("query")
+        fallback_used = False
 
         if match_mode == "pattern":
             results = await service.pattern_match(
@@ -60,6 +61,7 @@ async def oe_query(
                     else:
                         results = []
             except NotImplementedError:
+                fallback_used = True
                 results = await service.pattern_match(
                     concept="",
                     patterns={"text": query},
@@ -95,6 +97,8 @@ async def oe_query(
                 "match_mode": match_mode,
                 "query": query,
                 "total_count": len(serialized),
+                "fallback_used": fallback_used,
+                "fallback_mode": "pattern_match" if fallback_used else None,
             },
         )
     except RuntimeError as e:

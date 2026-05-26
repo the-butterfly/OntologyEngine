@@ -599,7 +599,7 @@ class ConsolidationEngine:
         nodes = await self._repo.query_nodes(
             memory_type="observation",
             domain_id=space_id,
-            limit=200,
+            limit=5000,
         )
         if not tag_fingerprint:
             return nodes

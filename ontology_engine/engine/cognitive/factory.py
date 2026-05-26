@@ -244,6 +244,7 @@ async def create_memory_api(
     db_path: str | None = None,
     daily_token_budget: int = 20000,
     llm_config: dict[str, Any] | None = None,
+    embedding_config: dict[str, Any] | None = None,
 ) -> tuple[MemoryAPI, CognitiveStorageBackend]:
     """Create a fully-initialized MemoryAPI with all dependencies wired.
 
@@ -252,6 +253,9 @@ async def create_memory_api(
         daily_token_budget: Token budget for CompilationScheduler.
         llm_config: Optional LLM configuration dict. When provided, overrides
             environment variables and config.yaml. Keys: base_url, api_key, model.
+        embedding_config: Optional embedding config overrides. When provided,
+            overrides env vars and config.yaml for embedding. Keys: provider,
+            base_url, model, dimension, api_key.
 
     Returns:
         Tuple of (initialized MemoryAPI, CognitiveStorageBackend) so the caller
@@ -274,9 +278,12 @@ async def create_memory_api(
     cognitive_store = CognitiveStore(graph_store)
     repo = CognitiveRepository(cognitive_store)
 
+    embedding_cfg = EmbeddingConfig.from_yaml()
+    if embedding_config:
+        embedding_cfg = embedding_cfg.with_overrides(**embedding_config)
     vector_index = CognitiveVectorIndex(
         repository=repo,
-        config=EmbeddingConfig.from_yaml(),
+        config=embedding_cfg,
     )
     await vector_index.initialize()
 
@@ -340,14 +347,18 @@ class MemoryAPISingleton:
     _db_path: str | None = None
     _storage: CognitiveStorageBackend | None = None
     _lock: asyncio.Lock = asyncio.Lock()
+    _embedding_config: dict[str, Any] | None = None
 
     @classmethod
-    async def get_or_create(cls, db_path: str | None = None) -> MemoryAPI:
+    async def get_or_create(cls, db_path: str | None = None, embedding_config: dict[str, Any] | None = None) -> MemoryAPI:
         async with cls._lock:
             if cls._instance is None or cls._db_path != db_path:
                 if cls._storage is not None:
                     await cls._storage.close()
-                cls._instance, cls._storage = await create_memory_api(db_path)
+                cls._embedding_config = embedding_config
+                cls._instance, cls._storage = await create_memory_api(
+                    db_path, embedding_config=embedding_config,
+                )
                 cls._db_path = db_path
             return cls._instance
 

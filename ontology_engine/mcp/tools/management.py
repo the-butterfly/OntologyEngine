@@ -1,4 +1,6 @@
-"""P2 MCP tools — oe_define_rule, oe_create_entity, oe_activate_space."""
+"""P2 MCP tools — oe_define_rule, oe_create_entity, oe_activate_space, oe_update_relation."""
+
+from typing import Any
 
 from ontology_engine.mcp import mcp_response, get_service
 
@@ -39,6 +41,81 @@ async def oe_create_entity(
                     "code": "SPACE_NOT_FOUND",
                     "message": f"Space '{space_id}' not found or entity '{entity_id}' already exists",
                     "suggestion": "Use oe_list_spaces to find available spaces",
+                },
+            )
+        return mcp_response(success=True, data=result)
+    except RuntimeError as e:
+        return mcp_response(
+            success=False,
+            error={"code": "DEPS_NOT_INITIALIZED", "message": str(e)},
+        )
+    except Exception as e:
+        return mcp_response(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)},
+        )
+
+
+async def oe_update_relation(
+    space_id: str,
+    relation_id: str,
+    attributes: dict[str, Any] | None = None,
+    reason: str = "",
+) -> dict:
+    try:
+        space_service = get_service("space")
+        space = await space_service.get_space(space_id)
+        if not space:
+            return mcp_response(
+                success=False,
+                error={
+                    "code": "SPACE_NOT_FOUND",
+                    "message": f"Space '{space_id}' not found",
+                },
+            )
+        target_rel: dict[str, Any] | None = None
+        for rel in space.instances.relations:
+            if rel.get("id") == relation_id:
+                target_rel = rel
+                break
+        if not target_rel:
+            return mcp_response(
+                success=False,
+                error={
+                    "code": "RELATION_NOT_FOUND",
+                    "message": f"Relation '{relation_id}' not found in space '{space_id}'",
+                },
+            )
+        if target_rel.get("_cognitive_node_id"):
+            try:
+                memory_service = get_service("memory")
+            except (RuntimeError, KeyError):
+                memory_service = None
+            if memory_service:
+                result = await memory_service.correct_node(
+                    space_id=space_id,
+                    node_id=target_rel["_cognitive_node_id"],
+                    corrected_text=str(attributes or ""),
+                    reason=reason or "MCP oe_update_relation",
+                )
+                return mcp_response(
+                    success=True,
+                    data={
+                        "relation_id": relation_id,
+                        "cognitive_node_updated": True,
+                        "result": result,
+                    },
+                )
+        attrs = attributes or {}
+        result = await space_service.update_relation_in_space(
+            space_id, relation_id, attrs, reason=reason
+        )
+        if not result or result.get("not_found"):
+            return mcp_response(
+                success=False,
+                error={
+                    "code": "UPDATE_FAILED",
+                    "message": f"Failed to update relation '{relation_id}'",
                 },
             )
         return mcp_response(success=True, data=result)

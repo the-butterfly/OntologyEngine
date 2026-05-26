@@ -625,6 +625,11 @@ class MemoryAPI:
                         "belief_status": node_data.belief_status,
                         "score": r.score,
                         "source": r.source,
+                        "score_debug": {
+                            "source": r.source,
+                            "cognitive_layer": r.cognitive_layer,
+                            "memory_type": r.memory_type,
+                        },
                         "visibility": node_data.visibility,
                         "created_by": node_data.created_by,
                         "confidence": node_data.confidence,
@@ -640,6 +645,11 @@ class MemoryAPI:
                         "belief_status": "accepted",
                         "score": r.score,
                         "source": r.source,
+                        "score_debug": {
+                            "source": r.source,
+                            "cognitive_layer": r.cognitive_layer,
+                            "memory_type": r.memory_type,
+                        },
                         "visibility": None,
                         "created_by": None,
                         "confidence": 1.0,
@@ -1098,6 +1108,37 @@ class MemoryAPI:
             await self._disposition_store.save(space_id, disposition)
         return self._make_response(
             data={"space_id": space_id, "updated": True},
+            space_id=space_id,
+        )
+
+    async def get_evidence(
+        self,
+        space_id: str,
+        node_id: str,
+        depth: int = 1,
+    ) -> dict[str, Any]:
+        evidence = await self._router.expand_evidence(node_id, space_id, depth=depth)
+        node = await self._repo.get_node(node_id)
+        source_fragment_ids = node.source_fragment_ids if node else []
+        evidence_data = []
+        for ev in evidence:
+            evidence_data.append({
+                "doc_id": ev.doc_id,
+                "content": ev.content,
+                "source": ev.source,
+                "memory_type": ev.memory_type,
+                "cognitive_layer": ev.cognitive_layer,
+                "edge_type": ev.edge_type,
+                "confidence": ev.confidence,
+                "contribution": ev.contribution,
+            })
+        return self._make_response(
+            data={
+                "node_id": node_id,
+                "source_fragment_ids": source_fragment_ids or [],
+                "proof_count": len(evidence_data),
+                "related_edges": evidence_data,
+            },
             space_id=space_id,
         )
 

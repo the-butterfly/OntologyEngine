@@ -168,6 +168,10 @@ class KuzuGraphStore(GraphStoreBackend):
         retries with exponential backoff so the new process can acquire the
         lock once the old one releases it.
 
+        If all retries fail due to a stale lock (process crash without cleanup),
+        this method attempts to detect and remove the stale lock file and retry
+        once before raising.
+
         Args:
             db_path: Database path. Defaults to
                 ``~/.ontology_engine/data/{space_id}/graph.kuzu``.
@@ -213,19 +217,91 @@ class KuzuGraphStore(GraphStoreBackend):
                     )
                     await asyncio.sleep(delay)
         else:
-            raise GraphQueryError(
-                f"Could not acquire KuzuDB lock on {path} after "
-                f"{_LOCK_RETRY_ATTEMPTS} attempts. Another process is likely "
-                f"using the database. If using uvicorn --reload, the old "
-                f"worker should release the lock shortly. Original error: "
-                f"{last_error}"
-            ) from last_error
+            # All retries exhausted — attempt stale lock recovery
+            recovered = await self._recover_stale_lock(path, last_error)
+            if recovered:
+                try:
+                    self._db = kuzu.Database(path)
+                    logger.info("KuzuDB lock recovered after stale lock cleanup on %s", path)
+                except RuntimeError as exc:
+                    raise GraphQueryError(
+                        f"Could not acquire KuzuDB lock on {path} after "
+                        f"{_LOCK_RETRY_ATTEMPTS} retries and stale lock recovery. "
+                        f"Another process is actively using the database. "
+                        f"Original error: {exc}"
+                    ) from exc
+            else:
+                raise GraphQueryError(
+                    f"Could not acquire KuzuDB lock on {path} after "
+                    f"{_LOCK_RETRY_ATTEMPTS} attempts. Another process is likely "
+                    f"using the database. If using uvicorn --reload, the old "
+                    f"worker should release the lock shortly. Original error: "
+                    f"{last_error}"
+                ) from last_error
 
         self._pool = KuzuConnectionPool(self._db, pool_size=self._pool_size)
         await self._pool.initialize()
         self._initialized = True
         await self._ensure_schema()
         logger.info("Kuzu graph store initialized at %s (pool_size=%d)", path, self._pool_size)
+
+    async def _recover_stale_lock(self, path: str, last_error: Exception | None) -> bool:
+        """Attempt to detect and remove a stale KuzuDB lock file.
+
+        After all retries are exhausted, this method:
+        1. Scans the database directory for lock files
+        2. Checks if the lock is stale (no other process holds it)
+        3. Removes stale lock files and retries
+
+        Returns True if recovery succeeded (lock removed), False otherwise.
+        """
+        import glob
+        import subprocess
+
+        potential_locks: list[str] = []
+        if os.path.isdir(path):
+            potential_locks.extend(glob.glob(os.path.join(path, "*.lock")))
+            potential_locks.extend(glob.glob(os.path.join(path, ".lock")))
+        if os.path.isdir(os.path.dirname(path)):
+            base = os.path.basename(path)
+            potential_locks.extend(glob.glob(os.path.join(os.path.dirname(path), base + "*.lock")))
+
+        if not potential_locks:
+            logger.warning("No KuzuDB lock files found at %s — cannot recover", path)
+            return False
+
+        for lock_path in potential_locks:
+            if not os.path.exists(lock_path):
+                continue
+
+            try:
+                result = subprocess.run(
+                    ["lsof", "-F", "p", lock_path],
+                    capture_output=True, text=True, timeout=5.0,
+                )
+                lock_held = result.returncode == 0 and bool(result.stdout.strip())
+            except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+                lock_held = True
+
+            if lock_held:
+                logger.warning(
+                    "KuzuDB lock file %s is held by another process — "
+                    "cannot remove, another process is actively using the database",
+                    lock_path,
+                )
+                return False
+
+            try:
+                os.remove(lock_path)
+                logger.warning(
+                    "Removed stale KuzuDB lock file %s (process crash recovery)",
+                    lock_path,
+                )
+            except OSError as exc:
+                logger.warning("Failed to remove stale lock file %s: %s", lock_path, exc)
+                return False
+
+        return True
 
     async def _ensure_schema(self) -> None:
         """Create node/rel tables if they don't exist.

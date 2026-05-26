@@ -319,17 +319,13 @@ class CognitiveIngestionService:
 
 def _make_fragment_node(**kwargs: Any) -> Any:
     from ontology_engine.engine.cognitive.models import CognitiveNode
-    return CognitiveNode(
-        cognitive_layer="perception",
-        belief_status="accepted",
-        **kwargs,
-    )
+    kwargs.setdefault("cognitive_layer", "perception")
+    kwargs.setdefault("belief_status", "accepted")
+    return CognitiveNode(**kwargs)
 
 
 def _make_cognitive_node(**kwargs: Any) -> Any:
     from ontology_engine.engine.cognitive.models import CognitiveNode
     kwargs.setdefault("cognitive_layer", "semantic")
-    return CognitiveNode(
-        belief_status="accepted",
-        **kwargs,
-    )
+    kwargs.setdefault("belief_status", "accepted")
+    return CognitiveNode(**kwargs)

@@ -183,14 +183,34 @@ class SpaceService:
             "space_id": space_id,
         }
 
-    async def activate_space(self, space_id: str) -> dict[str, Any] | None:
-        """Transition a space from DRAFT to ACTIVE.
+    async def update_relation_in_space(
+        self,
+        space_id: str,
+        relation_id: str,
+        attributes: dict[str, Any],
+        reason: str = "",
+    ) -> dict[str, Any] | None:
+        space = await self._storage.load(space_id)
+        if not space:
+            return None
+        for rel in space.instances.relations:
+            if rel.get("id") == relation_id:
+                rel.update(attributes)
+                await self._storage.save(space)
+                return {
+                    "space_id": space_id,
+                    "relation_id": relation_id,
+                    "updated_attributes": attributes,
+                    "cognitive_node_updated": False,
+                }
+        return {"space_id": space_id, "error": "Relation not found", "not_found": True}
 
-        Returns:
-            Dict with space_id, status, active_version, or None if space not found.
-            Dict with 'already_active' key if space was already active.
-            Dict with 'no_rules' key if space has no rule definitions.
-        """
+    async def activate_space(self, space_id: str) -> dict[str, Any] | None:
+        from ontology_engine.core.semantic_space.state_machine import (
+            transition_space,
+            InvalidTransitionError,
+        )
+
         space = await self._storage.load(space_id)
         if not space:
             return None
@@ -203,19 +223,50 @@ class SpaceService:
                 "already_active": True,
             }
 
-        has_l4 = len(space.layers.L4_business_logic.rule_definitions) > 0
-        if not has_l4:
-            return {"space_id": space_id, "no_rules": True}
+        try:
+            action = "reactivate" if space.metadata.status == SpaceStatus.ARCHIVED else "activate"
+            space = await transition_space(space, action)
+            space.active_version = space.active_version + 1 if space.active_version else 1
+            await self._storage.save(space)
+            return {
+                "space_id": space_id,
+                "status": "ACTIVE",
+                "active_version": space.active_version,
+            }
+        except InvalidTransitionError as e:
+            return {"space_id": space_id, "error": str(e), "invalid_transition": True}
 
-        space.metadata.status = SpaceStatus.ACTIVE
-        space.active_version = space.active_version + 1 if space.active_version else 1
-        await self._storage.save(space)
+    async def deactivate_space(self, space_id: str) -> dict[str, Any] | None:
+        from ontology_engine.core.semantic_space.state_machine import (
+            transition_space,
+            InvalidTransitionError,
+        )
 
-        return {
-            "space_id": space_id,
-            "status": "ACTIVE",
-            "active_version": space.active_version,
-        }
+        space = await self._storage.load(space_id)
+        if not space:
+            return None
+        try:
+            space = await transition_space(space, "deactivate")
+            await self._storage.save(space)
+            return {"space_id": space_id, "status": space.metadata.status.value}
+        except InvalidTransitionError as e:
+            return {"space_id": space_id, "error": str(e), "invalid_transition": True}
+
+    async def archive_space(self, space_id: str) -> dict[str, Any] | None:
+        from ontology_engine.core.semantic_space.state_machine import (
+            transition_space,
+            InvalidTransitionError,
+        )
+
+        space = await self._storage.load(space_id)
+        if not space:
+            return None
+        try:
+            space = await transition_space(space, "archive")
+            await self._storage.save(space)
+            return {"space_id": space_id, "status": space.metadata.status.value}
+        except InvalidTransitionError as e:
+            return {"space_id": space_id, "error": str(e), "invalid_transition": True}
 
     async def create_snapshot(
         self,

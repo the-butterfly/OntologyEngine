@@ -69,6 +69,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_ST_MODEL = "all-MiniLM-L6-v2"
 DEFAULT_ST_DIMENSION = 384
+DEFAULT_BM25_SEARCH_LIMIT = 5000
 COGNITIVE_COLLECTION = "cognitive_node"
 
 
@@ -93,6 +94,26 @@ class EmbeddingConfig:
     @property
     def model_signature(self) -> str:
         return f"{self.provider}:{self.model or 'none'}:{self.dimension}"
+
+    def with_overrides(self, **kwargs: Any) -> "EmbeddingConfig":
+        """Return a copy with given field overrides.
+
+        Only non-None values in kwargs override current config.
+        This lets API/CLI callers override specific fields without
+        modifying env vars or config.yaml.
+        """
+        return EmbeddingConfig(
+            provider=kwargs.get("provider") or self.provider,
+            base_url=kwargs.get("base_url") or self.base_url,
+            api_key=kwargs.get("api_key") or self.api_key,
+            model=kwargs.get("model") or self.model,
+            dimension=kwargs.get("dimension") or self.dimension,
+            persist_dir=kwargs.get("persist_dir") or self.persist_dir,
+            llm_api_key=kwargs.get("llm_api_key") or self.llm_api_key,
+            llm_base_url=kwargs.get("llm_base_url") or self.llm_base_url,
+            llm_model=kwargs.get("llm_model") or self.llm_model,
+            enable_llm_enhancement=kwargs.get("enable_llm_enhancement", self.enable_llm_enhancement),
+        )
 
     @classmethod
     def from_yaml(cls, config_path: str | Path | None = None) -> "EmbeddingConfig":
@@ -136,9 +157,9 @@ class EmbeddingConfig:
             model=raw.get("model") or os.environ.get("OE_EMBEDDING_MODEL"),
             dimension=int(raw.get("dimension") or os.environ.get("OE_EMBEDDING_DIMENSION", DEFAULT_ST_DIMENSION)),
             persist_dir=raw.get("persist_dir") or os.environ.get("OE_EMBEDDING_PERSIST_DIR"),
-            llm_api_key=raw.get("llm_api_key") or os.environ.get("OE_EMBEDDING_LLM_API_KEY", "xx"),
-            llm_base_url=raw.get("llm_base_url") or os.environ.get("OE_EMBEDDING_LLM_BASE_URL", "http://localhost:9528/v1"),
-            llm_model=raw.get("llm_model") or os.environ.get("OE_EMBEDDING_LLM_MODEL", "sensenova/sensenova-6.7-flash-lite"),
+            llm_api_key=raw.get("llm_api_key") or os.environ.get("OE_EMBEDDING_LLM_API_KEY"),
+            llm_base_url=raw.get("llm_base_url") or os.environ.get("OE_EMBEDDING_LLM_BASE_URL"),
+            llm_model=raw.get("llm_model") or os.environ.get("OE_EMBEDDING_LLM_MODEL"),
             enable_llm_enhancement=bool(
                 raw.get("enable_llm_enhancement", False)
                 or os.environ.get("OE_EMBEDDING_ENABLE_LLM_ENHANCEMENT", "")
@@ -221,12 +242,29 @@ class CognitiveVectorIndex:
     async def initialize(self) -> None:
         provider = self._config.provider
 
+        VALID_PROVIDERS = {"openai_compatible", "sentence_transformers", "bm25"}
+        if provider not in VALID_PROVIDERS:
+            logger.warning(
+                "Unknown embedding provider '%s' — falling back to BM25-only search. "
+                "Valid providers: openai_compatible (LM Studio / OpenAI API), "
+                "sentence_transformers (local models), bm25 (keyword only).",
+                provider,
+            )
+
         if provider == "openai_compatible":
             self._init_openai_compatible()
+            # Use configured dimension if available; auto-detect on first API call otherwise.
+            configured_dim = self._config.dimension
+            self._effective_dimension = configured_dim if configured_dim and configured_dim > 0 else 0
         elif provider == "sentence_transformers":
             self._init_sentence_transformers()
         else:
-            logger.info("Using BM25-only search (no embedding model)")
+            logger.info(
+                "Using BM25-only search (provider=%s) — no semantic embedding model configured. "
+                "Set OE_EMBEDDING_PROVIDER=openai_compatible for LM Studio or "
+                "OE_EMBEDDING_PROVIDER=sentence_transformers for local models.",
+                provider,
+            )
 
         self._init_llm_client()
 
@@ -259,15 +297,10 @@ class CognitiveVectorIndex:
                 name=COGNITIVE_COLLECTION,
                 metadata={"hnsw:space": "cosine"},
             )
-            self._use_chroma = True
-            self._check_signature()
-            logger.info("ChromaDB cognitive_node collection initialized at %s", expanded)
+            logger.info("ChromaDB collection initialized at %s", expanded)
             return True
-        except ImportError:
-            logger.info("chromadb not installed, using in-memory vector store")
-            return False
-        except Exception as e:
-            logger.warning("ChromaDB init failed: %s, using in-memory store", e)
+        except Exception as exc:
+            logger.warning("ChromaDB initialization failed at %s: %s — falling back to LocalVectorStore", persist_dir, exc)
             return False
 
     def _check_signature(self) -> None:
@@ -340,7 +373,7 @@ class CognitiveVectorIndex:
                 timeout=httpx.Timeout(60.0, connect=5.0),
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self._config.llm_api_key or 'xx'}",
+                    **({"Authorization": f"Bearer {self._config.llm_api_key}"} if self._config.llm_api_key else {}),
                 },
             )
             logger.info(
@@ -355,16 +388,25 @@ class CognitiveVectorIndex:
 
     def _init_sentence_transformers(self) -> None:
         model = self._config.model or DEFAULT_ST_MODEL
+        import concurrent.futures
+
         try:
             from sentence_transformers import SentenceTransformer
-            import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(SentenceTransformer, model)
                 self._embedding_fn = future.result(timeout=30)
 
-            self._effective_dimension = self._config.dimension or DEFAULT_ST_DIMENSION
-            logger.info("Loaded sentence-transformers model: %s", model)
+            # Auto-detect dimension from loaded model
+            try:
+                model_dim = self._embedding_fn.get_sentence_embedding_dimension()
+                if model_dim and model_dim > 0:
+                    self._effective_dimension = model_dim
+                else:
+                    self._effective_dimension = self._config.dimension or DEFAULT_ST_DIMENSION
+            except Exception:
+                self._effective_dimension = self._config.dimension or DEFAULT_ST_DIMENSION
+            logger.info("Loaded sentence-transformers model: %s (dim=%d)", model, self._effective_dimension)
         except ImportError:
             logger.info("sentence-transformers not installed, using BM25 fallback")
         except concurrent.futures.TimeoutError:
@@ -381,8 +423,11 @@ class CognitiveVectorIndex:
             resp.raise_for_status()
             data = resp.json()
             embedding = data["data"][0]["embedding"]
-            if self._effective_dimension == 0:
+            if self._effective_dimension <= 0:
                 self._effective_dimension = len(embedding)
+                # Re-initialize LocalVectorStore if it was created with dim=0
+                if self._vector_store is not None and hasattr(self._vector_store, "initialize"):
+                    await self._vector_store.initialize(self._effective_dimension)
             return embedding
         except Exception as e:
             logger.warning("Embedding API call failed: %s", e)
@@ -724,7 +769,7 @@ class CognitiveVectorIndex:
         if self._total_docs == 0:
             await self._rebuild_bm25_stats(space_id)
 
-        nodes = await self._repo.query_nodes(domain_id=space_id, limit=200)
+        nodes = await self._repo.query_nodes(domain_id=space_id, limit=DEFAULT_BM25_SEARCH_LIMIT)
         query_tokens = _simple_tokenize(query)
         if not query_tokens:
             return []
@@ -756,7 +801,7 @@ class CognitiveVectorIndex:
             RetrievalResult(
                 doc_id=node.id,
                 content=node.content,
-                source="layer_r",
+                source="bm25",
                 memory_type=node.memory_type,
                 cognitive_layer=node.cognitive_layer,
                 occurred_at=node.occurred_at,
@@ -781,7 +826,7 @@ class CognitiveVectorIndex:
         BM25 search works even after restart.
         """
         try:
-            nodes = await self._repo.query_nodes(domain_id=space_id, limit=5000)
+            nodes = await self._repo.query_nodes(domain_id=space_id, limit=DEFAULT_BM25_SEARCH_LIMIT)
             self._doc_freq.clear()
             self._total_docs = 0
             for node in nodes:

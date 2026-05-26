@@ -277,6 +277,9 @@ class RRFFusionEngine:
         """
         doc_scores: dict[str, float] = {}
         doc_data: dict[str, RetrievalResult] = {}
+        doc_sources: dict[str, str] = {}
+
+        SOURCE_PRIORITY = {"layer_r": 0, "bm25": 1, "layer_s": 2, "temporal": 3}
 
         path_mapping = {
             "layer_r": "w_layer_r",
@@ -295,8 +298,18 @@ class RRFFusionEngine:
                 if result.doc_id not in doc_scores:
                     doc_scores[result.doc_id] = 0.0
                     doc_data[result.doc_id] = result
+                    doc_sources[result.doc_id] = result.source
+                else:
+                    existing_priority = SOURCE_PRIORITY.get(doc_sources[result.doc_id], 99)
+                    current_priority = SOURCE_PRIORITY.get(result.source, 99)
+                    if current_priority < existing_priority:
+                        doc_sources[result.doc_id] = result.source
 
                 doc_scores[result.doc_id] += rrf_contribution
+
+        for doc_id, best_source in doc_sources.items():
+            if doc_id in doc_data:
+                doc_data[doc_id].source = best_source
 
         for doc_id, base_score in doc_scores.items():
             result = doc_data[doc_id]
@@ -414,7 +427,7 @@ class RRFFusionEngine:
 
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
-            limit=top_k,
+            limit=5000,
         )
         return [
             RetrievalResult(
@@ -495,7 +508,7 @@ class RRFFusionEngine:
 
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
-            limit=200,
+            limit=5000,
         )
 
         from ontology_engine.engine.cognitive.bm25_tokenizer import (
@@ -753,7 +766,7 @@ class RRFFusionEngine:
 
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
-            limit=100,
+            limit=5000,
         )
 
         results = []

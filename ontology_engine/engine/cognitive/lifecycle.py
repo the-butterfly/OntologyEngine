@@ -631,7 +631,7 @@ class DreamCycle:
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
             memory_type="entity",
-            limit=200,
+            limit=5000,
         )
         edges_created = 0
 
@@ -698,7 +698,7 @@ class DreamCycle:
         nodes = await self._repo.query_nodes(
             domain_id=space_id,
             memory_type="observation",
-            limit=200,
+            limit=5000,
         )
         created_edges = 0
 
