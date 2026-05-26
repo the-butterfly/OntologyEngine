@@ -21,7 +21,7 @@ warnings.warn(
     stacklevel=2,
 )
 
-router = APIRouter(prefix="/v1/spaces/{space_id}/actions", tags=["actions"])
+router = APIRouter(prefix="/spaces/{space_id}/actions", tags=["actions"])
 
 
 @router.post("/ingest")

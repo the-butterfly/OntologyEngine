@@ -26,6 +26,7 @@ from ontology_engine.services.simulation_service import SimulationService
 from ontology_engine.services.category_service import CategoryService
 from ontology_engine.services.consumption_service import ConsumptionService
 from ontology_engine.services.memory_service import MemoryService
+import os
 from ontology_engine.services.space_service import SpaceService
 from ontology_engine.storage.config import create_meta_store  # LAYER-EXCEPTION: lifespan initialization
 from ontology_engine.api import dependencies
@@ -98,14 +99,24 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     services["simulation"] = SimulationService()
     services["category"] = CategoryService(storage=storage)
     services["consumption"] = ConsumptionService()
-    services["memory"] = MemoryService()
+    # Build embedding config from environment for use at API level
+    embedding_config = {
+        k: v for k, v in {
+            "provider": os.environ.get("OE_EMBEDDING_PROVIDER"),
+            "base_url": os.environ.get("OE_EMBEDDING_BASE_URL"),
+            "model": os.environ.get("OE_EMBEDDING_MODEL"),
+            "api_key": os.environ.get("OE_EMBEDDING_API_KEY"),
+        }.items() if v is not None
+    }
+    services["memory"] = MemoryService(embedding_config=embedding_config or None)
     services["space"] = space_svc
 
     dependencies.init_dependencies(storage, services)
 
     yield
 
-    await MemoryService().close()
+    from ontology_engine.engine.cognitive.factory import MemoryAPISingleton
+    await MemoryAPISingleton.close()
 
     if storage:
         await storage.close()

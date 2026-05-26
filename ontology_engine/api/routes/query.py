@@ -178,7 +178,7 @@ async def graph_query(
 
 
 # Keep GET endpoints for backward compatibility
-@router.get("/pattern-match/{concept}")
+@router.get("/pattern-match/{concept}", deprecated=True)
 async def pattern_match_get(
     concept: str,
     patterns: dict[str, Any] | None = None,
@@ -222,7 +222,7 @@ async def pattern_match_post(
         return error_response(code="QUERY_ERROR", message=str(e))
 
 
-@router.get("/traverse/{entity_id}")
+@router.get("/traverse/{entity_id}", deprecated=True)
 async def graph_traverse_get(
     entity_id: str,
     relation_name: str = Query(default="", alias="relation_type"),
@@ -314,7 +314,7 @@ async def trace_rule(
         return error_response(code="QUERY_ERROR", message=str(e))
 
 
-@router.get("/path/{from_entity_id}/{to_entity_id}")
+@router.get("/path/{from_entity_id}/{to_entity_id}", deprecated=True)
 async def find_path(
     from_entity_id: str,
     to_entity_id: str,

@@ -18,6 +18,8 @@ DEPRECATION_MAP: dict[str, tuple[str, str]] = {
     "/v1/schema": ("/v1/spaces/default/schema", "301"),
 }
 
+SUNSET_HTTP_DATE = "Tue, 30 Jun 2026 00:00:00 GMT"
+
 
 class DeprecationMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, mode: str = "header"):
@@ -40,6 +42,8 @@ class DeprecationMiddleware(BaseHTTPMiddleware):
                 return RedirectResponse(url=new_path, status_code=301)
 
             response = await call_next(request)
+            response.headers["Deprecation"] = "true"
+            response.headers["Sunset"] = SUNSET_HTTP_DATE
             response.headers["X-Deprecation-Warning"] = (
                 f"Deprecated endpoint. Use {new_path} instead."
             )

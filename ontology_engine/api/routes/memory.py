@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter
+from pydantic import BaseModel
 
 from ontology_engine.api.dependencies import get_memory_service
 from ontology_engine.api.dto.responses import error_response, success_response
@@ -27,50 +28,101 @@ def _handle_error(exc: Exception, code: str) -> Any:
     return error_response(code=code, message=str(exc))
 
 
+class CorrectNodeRequest(BaseModel):
+    corrected_text: str
+    reason: str = ""
+    user_id: str = "system"
+
+
+class RememberRequest(BaseModel):
+    content: str = ""
+    tags: Any = None
+    memory_type: str = "fragment"
+    visibility: Any = None
+    auto_consolidate: bool = False
+    metadata: Any = None
+    created_by: Any = None
+    confidence: float = 1.0
+    schema_ref: Any = None
+    supersede_target: Any = None
+    supersede_reason: Any = None
+    belief_status: str = "accepted"
+    valid_from: Any = None
+    valid_to: Any = None
+    recorded_at: Any = None
+    occurred_at: Any = None
+    source_pipeline: Any = None
+
+
+class RecallRequest(BaseModel):
+    query: str = ""
+    memory_type: Any = None
+    max_results: int = 10
+    include_evidence: bool = True
+    evidence_depth: int = 1
+    as_of: Any = None
+    token_budget: Any = None
+    belief_status_filter: Any = None
+    audit_trail: bool = False
+    user_id: Any = None
+    min_confidence: float = 0.5
+    disposition_override: Any = None
+    cognitive_layer: Any = None
+    include_superseded: bool = False
+
+
+class ReflectRequest(BaseModel):
+    query: str = ""
+    max_iterations: int = 10
+    focus_types: Any = None
+    async_mode: bool = True
+    skip_consolidation: bool = False
+    skip_forgetting: bool = False
+    cascade_depth: int = 3
+    skip_correction_propagation: bool = False
+
+
+class ApproveRequest(BaseModel):
+    node_id: str = ""
+    action: str = "approve"
+    modifier_id: str = "user"
+    comment: str = ""
+
+
+class ConsolidateRequest(BaseModel):
+    pass
+
+
+class ForgetRequest(BaseModel):
+    days_elapsed: int = 1
+
+
 @router.post("/remember")
 async def remember(
     space_id: str,
-    request: dict[str, Any],
+    request: RememberRequest,
 ) -> dict[str, Any] | Any:
     try:
-        content = request.get("content", "")
-        tags = request.get("tags")
-        memory_type = request.get("memory_type", "fragment")
-        visibility = request.get("visibility")
-        auto_consolidate = request.get("auto_consolidate", False)
-        metadata = request.get("metadata")
-        created_by = request.get("created_by")
-        confidence = request.get("confidence", 1.0)
-        schema_ref = request.get("schema_ref")
-        supersede_target = request.get("supersede_target")
-        supersede_reason = request.get("supersede_reason")
-        belief_status = request.get("belief_status", "accepted")
-        valid_from = request.get("valid_from")
-        valid_to = request.get("valid_to")
-        recorded_at = request.get("recorded_at")
-        occurred_at = request.get("occurred_at")
-        source_pipeline = request.get("source_pipeline")
-
         service = get_memory_service()
         result = await service.remember(
-            content=content,
+            content=request.content,
             space_id=space_id,
-            tags=tags,
-            memory_type=memory_type,
-            visibility=visibility,
-            auto_consolidate=auto_consolidate,
-            metadata=metadata,
-            created_by=created_by,
-            confidence=confidence,
-            schema_ref=schema_ref,
-            supersede_target=supersede_target,
-            supersede_reason=supersede_reason,
-            belief_status=belief_status,
-            valid_from=valid_from,
-            valid_to=valid_to,
-            recorded_at=recorded_at,
-            occurred_at=occurred_at,
-            source_pipeline=source_pipeline,
+            tags=request.tags,
+            memory_type=request.memory_type,
+            visibility=request.visibility,
+            auto_consolidate=request.auto_consolidate,
+            metadata=request.metadata,
+            created_by=request.created_by,
+            confidence=request.confidence,
+            schema_ref=request.schema_ref,
+            supersede_target=request.supersede_target,
+            supersede_reason=request.supersede_reason,
+            belief_status=request.belief_status,
+            valid_from=request.valid_from,
+            valid_to=request.valid_to,
+            recorded_at=request.recorded_at,
+            occurred_at=request.occurred_at,
+            source_pipeline=request.source_pipeline,
         )
         return success_response(
             data=result.get("data", result),
@@ -83,41 +135,26 @@ async def remember(
 @router.post("/recall")
 async def recall(
     space_id: str,
-    request: dict[str, Any],
+    request: RecallRequest,
 ) -> dict[str, Any] | Any:
     try:
-        query = request.get("query", "")
-        memory_type = request.get("memory_type")
-        max_results = request.get("max_results", 10)
-        include_evidence = request.get("include_evidence", True)
-        evidence_depth = request.get("evidence_depth", 1)
-        as_of = request.get("as_of")
-        token_budget = request.get("token_budget")
-        belief_status_filter = request.get("belief_status_filter")
-        audit_trail = request.get("audit_trail", False)
-        user_id = request.get("user_id")
-        min_confidence = request.get("min_confidence", 0.5)
-        disposition_override = request.get("disposition_override")
-        cognitive_layer = request.get("cognitive_layer")
-        include_superseded = request.get("include_superseded", False)
-
         service = get_memory_service()
         result = await service.recall(
-            query=query,
+            query=request.query,
             space_id=space_id,
-            memory_type=memory_type,
-            max_results=max_results,
-            include_evidence=include_evidence,
-            evidence_depth=evidence_depth,
-            as_of=as_of,
-            token_budget=token_budget,
-            belief_status_filter=belief_status_filter,
-            audit_trail=audit_trail,
-            user_id=user_id,
-            min_confidence=min_confidence,
-            disposition_override=disposition_override,
-            cognitive_layer=cognitive_layer,
-            include_superseded=include_superseded,
+            memory_type=request.memory_type,
+            max_results=request.max_results,
+            include_evidence=request.include_evidence,
+            evidence_depth=request.evidence_depth,
+            as_of=request.as_of,
+            token_budget=request.token_budget,
+            belief_status_filter=request.belief_status_filter,
+            audit_trail=request.audit_trail,
+            user_id=request.user_id,
+            min_confidence=request.min_confidence,
+            disposition_override=request.disposition_override,
+            cognitive_layer=request.cognitive_layer,
+            include_superseded=request.include_superseded,
         )
         return success_response(
             data=result.get("data", result),
@@ -130,29 +167,20 @@ async def recall(
 @router.post("/reflect")
 async def reflect(
     space_id: str,
-    request: dict[str, Any],
+    request: ReflectRequest,
 ) -> dict[str, Any] | Any:
     try:
-        query = request.get("query", "")
-        max_iterations = request.get("max_iterations", 10)
-        focus_types = request.get("focus_types")
-        async_mode = request.get("async_mode", True)
-        skip_consolidation = request.get("skip_consolidation", False)
-        skip_forgetting = request.get("skip_forgetting", False)
-        cascade_depth = request.get("cascade_depth", 3)
-        skip_correction_propagation = request.get("skip_correction_propagation", False)
-
         service = get_memory_service()
         result = await service.reflect(
-            query=query,
+            query=request.query,
             space_id=space_id,
-            max_iterations=max_iterations,
-            focus_types=focus_types,
-            async_mode=async_mode,
-            skip_consolidation=skip_consolidation,
-            skip_forgetting=skip_forgetting,
-            cascade_depth=cascade_depth,
-            skip_correction_propagation=skip_correction_propagation,
+            max_iterations=request.max_iterations,
+            focus_types=request.focus_types,
+            async_mode=request.async_mode,
+            skip_consolidation=request.skip_consolidation,
+            skip_forgetting=request.skip_forgetting,
+            cascade_depth=request.cascade_depth,
+            skip_correction_propagation=request.skip_correction_propagation,
         )
         return success_response(
             data=result.get("data", result),
@@ -165,20 +193,15 @@ async def reflect(
 @router.post("/approve")
 async def approve(
     space_id: str,
-    request: dict[str, Any],
+    request: ApproveRequest,
 ) -> dict[str, Any] | Any:
     try:
-        node_id = request.get("node_id", "")
-        action = request.get("action", "approve")
-        modifier_id = request.get("modifier_id", "user")
-        comment = request.get("comment", "")
-
         service = get_memory_service()
         result = await service.approve_memory(
-            node_id=node_id,
-            action=action,
-            modifier_id=modifier_id,
-            comment=comment,
+            node_id=request.node_id,
+            action=request.action,
+            modifier_id=request.modifier_id,
+            comment=request.comment,
         )
         return success_response(
             data=result.get("data", result),
@@ -191,7 +214,7 @@ async def approve(
 @router.post("/consolidate")
 async def consolidate(
     space_id: str,
-    request: dict[str, Any],
+    request: ConsolidateRequest,
 ) -> dict[str, Any] | Any:
     try:
         service = get_memory_service()
@@ -204,12 +227,11 @@ async def consolidate(
 @router.post("/forget")
 async def force_forget(
     space_id: str,
-    request: dict[str, Any] = Body({}),
+    request: ForgetRequest,
 ) -> dict[str, Any] | Any:
     try:
         service = get_memory_service()
-        days_elapsed = request.get("days_elapsed", 1)
-        result = await service.run_forgetting(space_id, days_elapsed=days_elapsed)
+        result = await service.run_forgetting(space_id, days_elapsed=request.days_elapsed)
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "FORGET_ERROR")
@@ -262,6 +284,19 @@ async def audit(
         return success_response(data=result, meta={"space_id": space_id})
     except Exception as e:
         return _handle_error(e, "AUDIT_ERROR")
+
+
+@router.get("/reflect-status")
+async def reflect_status(
+    space_id: str,
+    reflection_id: str,
+) -> dict[str, Any] | Any:
+    try:
+        service = get_memory_service()
+        result = await service.get_reflection_status(reflection_id)
+        return success_response(data=result, meta={"space_id": space_id})
+    except Exception as e:
+        return _handle_error(e, "REFLECT_STATUS_ERROR")
 
 
 @router.get("/contradictions")
@@ -337,3 +372,43 @@ async def get_node(
         if service.is_node_not_found_error(e):
             return error_response(code="NODE_NOT_FOUND", message=str(e))
         return error_response(code="GET_NODE_ERROR", message=str(e))
+
+
+@router.get("/{node_id}/evidence")
+async def get_evidence(
+    space_id: str,
+    node_id: str,
+    depth: int = 1,
+) -> dict[str, Any] | Any:
+    try:
+        service = get_memory_service()
+        result = await service.get_evidence(space_id, node_id, depth=depth)
+        return success_response(data=result.get("data", result), meta={"space_id": space_id})
+    except Exception as e:
+        service = get_memory_service()
+        if service.is_node_not_found_error(e):
+            return error_response(code="NODE_NOT_FOUND", message=str(e))
+        return _handle_error(e, "EVIDENCE_ERROR")
+
+
+@router.patch("/{node_id}/correct")
+async def correct_node(
+    space_id: str,
+    node_id: str,
+    request: CorrectNodeRequest,
+) -> dict[str, Any] | Any:
+    try:
+        service = get_memory_service()
+        result = await service.correct_node(
+            space_id=space_id,
+            node_id=node_id,
+            corrected_text=request.corrected_text,
+            reason=request.reason,
+            user_id=request.user_id,
+        )
+        return success_response(data=result.get("data", result), meta={"space_id": space_id})
+    except Exception as e:
+        service = get_memory_service()
+        if service.is_node_not_found_error(e):
+            return error_response(code="NODE_NOT_FOUND", message=str(e))
+        return _handle_error(e, "CORRECT_ERROR")

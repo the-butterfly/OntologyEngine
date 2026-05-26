@@ -52,6 +52,13 @@ class RelationCreateRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class RelationUpdateRequest(BaseModel):
+    """Request to update a relation's attributes."""
+
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    reason: str = ""
+
+
 class RuleExecuteRequest(BaseModel):
     """Request to execute rules."""
 

@@ -42,12 +42,15 @@ class SemanticSpaceStateMachine:
         SpaceStatus.ACTIVE: {
             "publish": SpaceStatus.PUBLISHED,
             "archive": SpaceStatus.ARCHIVED,
+            "deactivate": SpaceStatus.DRAFT,
         },
         SpaceStatus.PUBLISHED: {
-            "activate": SpaceStatus.ACTIVE,  # New branch from snapshot
-            "rollback": SpaceStatus.ACTIVE,  # Restore to snapshot
+            "activate": SpaceStatus.ACTIVE,
+            "rollback": SpaceStatus.ACTIVE,
         },
-        SpaceStatus.ARCHIVED: {},  # Terminal state - no transitions
+        SpaceStatus.ARCHIVED: {
+            "reactivate": SpaceStatus.ACTIVE,
+        },
     }
 
     # Preconditions for each transition

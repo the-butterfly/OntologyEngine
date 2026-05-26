@@ -18,7 +18,7 @@ warnings.warn(
     stacklevel=2,
 )
 
-router = APIRouter(prefix="/v1/categories", tags=["Categories"])
+router = APIRouter(prefix="/categories", tags=["Categories"])
 
 
 @router.post("/dimensions/applicability")
