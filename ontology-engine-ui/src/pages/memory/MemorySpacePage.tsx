@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, List, Typography, Spin, Tag, Button, Space, message, Empty, Badge, Divider } from 'antd';
 import { BulbOutlined, EyeOutlined, HistoryOutlined, WarningOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { spaceApi, SpaceResponse } from '../../api/spaceApi';
-import { memoryApi } from '../../services/memoryApi';
+import { memoryApi } from '../../api/memoryApi';
 import type { MemoryStats } from '../../types/api';
 
 const { Title, Text, Paragraph } = Typography;

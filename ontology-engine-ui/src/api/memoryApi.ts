@@ -1,4 +1,4 @@
-// services/memoryApi.ts
+// api/memoryApi.ts
 // Real API service for cognitive memory system — matches backend endpoints exactly
 
 import type {
@@ -19,7 +19,7 @@ import type {
   DashboardData,
   HeatmapData,
 } from '../types/api';
-import { createApiService, ApiError } from './createApiService';
+import { createApiService, ApiError } from '../services/createApiService';
 
 const memoryService = createApiService<unknown>({ basePath: '' });
 
@@ -221,10 +221,10 @@ export const memoryApi = {
     return entries.map((entry: any) => snakeToCamel(entry));
   },
 
-  /** GET /spaces/{space_id}/memory/reflect_status */
-  async getReflectStatus(reflectionId: string): Promise<{ status: string; progress?: number }> {
+  /** GET /spaces/{space_id}/memory/reflect-status */
+  async getReflectStatus(spaceId: string, reflectionId: string): Promise<{ status: string; progress?: number }> {
     return memoryService.get<{ status: string; progress?: number }>(
-      `/memory/reflect_status`,
+      spacePath(spaceId, '/reflect-status'),
       { reflection_id: reflectionId }
     );
   },

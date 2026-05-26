@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Input, Button, Form, App, Typography, List, Tag, Progress, Collapse, Descriptions, Space, Alert } from 'antd';
 import { SyncOutlined, WarningOutlined, BulbOutlined, FileTextOutlined } from '@ant-design/icons';
-import { memoryApi } from '../../../services/memoryApi';
+import { memoryApi } from '../../../api/memoryApi';
 import type { ReflectResponse } from '../../../types/api';
 
 const { Title, Text } = Typography;

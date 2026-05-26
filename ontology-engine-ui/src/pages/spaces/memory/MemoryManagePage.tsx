@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, Button, Tag, Statistic, Row, Col, App, Typography, List, Timeline, Tabs, Empty, Badge } from 'antd';
 import { SyncOutlined, HistoryOutlined, BuildOutlined, SearchOutlined, ThunderboltOutlined, WarningOutlined, CheckCircleOutlined, ExclamationCircleOutlined, EyeOutlined, CloudOutlined } from '@ant-design/icons';
-import { memoryApi } from '../../../services/memoryApi';
+import { memoryApi } from '../../../api/memoryApi';
 import type { MemoryStats } from '../../../types/api';
 import type { Contradiction, CognitiveNode } from '../../../types/memory';
 

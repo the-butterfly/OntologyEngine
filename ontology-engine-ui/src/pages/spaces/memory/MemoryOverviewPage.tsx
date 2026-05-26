@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Card, Tabs, Statistic, Row, Col, Spin, Alert, List, Tag, Typography, Table, Button, Space, Steps, Progress, Select, Empty } from 'antd';
 import { DatabaseOutlined, FileTextOutlined, ExperimentOutlined, EyeOutlined, PlayCircleOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { memoryApi } from '../../../services/memoryApi';
+import { memoryApi } from '../../../api/memoryApi';
 import type { MemoryStats, DashboardData, AgentActivity } from '../../../types/api';
 import type { CognitiveNode } from '../../../types/memory';
 import { MemoryDetailDrawer, MemoryGraphView } from '../../../components/memory';

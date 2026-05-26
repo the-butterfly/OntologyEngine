@@ -217,6 +217,74 @@ export interface MetricSnapshot {
 }
 
 // ============================================================================
+// Instance Graph Visualization Types
+// ============================================================================
+
+export interface InstanceGraphNode {
+  id: string;
+  type: 'entity_instance';
+  data: {
+    label: string;
+    concept: string;
+    entity_id: string;
+    credit_score?: number | string;
+    status?: string;
+    result_group?: 'approved' | 'rejected' | 'pending' | 'unknown';
+    component_id?: number;
+    hop?: number;
+    properties: Record<string, unknown>;
+  };
+  style: {
+    fill: string;
+    size: number;
+  };
+}
+
+export interface InstanceGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  data: {
+    label: string;
+    relation_type: string;
+    is_guarantee: boolean;
+    is_cycle_edge: boolean;
+    properties: Record<string, unknown>;
+  };
+  style: {
+    stroke: string;
+    line_width: number;
+  };
+}
+
+export interface InstanceGraphData {
+  space_id: string;
+  graph_type: 'instance_graph';
+  nodes: InstanceGraphNode[];
+  edges: InstanceGraphEdge[];
+  grouping: {
+    concept_groups: Record<string, string[]>;
+    component_groups: string[][];
+    hop_groups: Record<string, string[]>;
+    result_groups: Record<string, string[]>;
+  };
+  layout_config: {
+    type: 'hybrid';
+    primary: 'dagre';
+    secondary: 'force';
+    seed_entity_id?: string;
+  };
+  metadata: {
+    entity_count: number;
+    relation_count: number;
+    cycle_count: number;
+    concept_counts: Record<string, number>;
+    component_count: number;
+  };
+}
+
+// ============================================================================
 // Existing Interfaces (kept for reference)
 // ============================================================================
 
@@ -574,6 +642,25 @@ class SpaceApi {
   async getMetricSnapshot(viewId: string, entityId: string, dimension?: string): Promise<MetricSnapshot> {
     const params = dimension ? { dimension } : {};
     const response = await axios.get(`/v1/views/${viewId}/metrics/${entityId}/snapshot`, { params });
+    return response.data.data;
+  }
+
+  // Instance Graph Visualization
+  async getInstanceGraph(
+    spaceId: string,
+    params?: {
+      seed_entity_id?: string;
+      max_hops?: number;
+      concept_filter?: string;
+      group_by?: string;
+    },
+  ): Promise<InstanceGraphData> {
+    const queryParams: Record<string, string | number> = {};
+    if (params?.seed_entity_id) queryParams.seed_entity_id = params.seed_entity_id;
+    if (params?.max_hops) queryParams.max_hops = params.max_hops;
+    if (params?.concept_filter) queryParams.concept_filter = params.concept_filter;
+    if (params?.group_by) queryParams.group_by = params.group_by;
+    const response = await axios.get(`${BASE_URL}/spaces/${spaceId}/instances/graph`, { params: queryParams });
     return response.data.data;
   }
 

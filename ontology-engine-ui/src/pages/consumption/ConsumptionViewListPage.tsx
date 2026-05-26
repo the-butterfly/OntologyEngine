@@ -6,29 +6,19 @@ import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Space, Card, Typography, Spin, Empty, Button } from 'antd';
 import { RocketOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-
-interface ViewInfo {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-  created_at: string;
-}
+import { spaceApi, type ViewDetails } from '../../api/spaceApi';
 
 const { Title } = Typography;
 
 export default function ConsumptionViewListPage() {
   const navigate = useNavigate();
-  const [views, setViews] = useState<ViewInfo[]>([]);
+  const [views, setViews] = useState<ViewDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/v1/views')
-      .then(res => res.json())
+    spaceApi.listViews()
       .then(data => {
-        if (data.success) {
-          setViews(data.data);
-        }
+        setViews(data);
         setLoading(false);
       })
       .catch(() => {
@@ -40,7 +30,7 @@ export default function ConsumptionViewListPage() {
     navigate(`/consumption/${viewId}`);
   };
 
-  const columns: ColumnsType<ViewInfo> = [
+  const columns: ColumnsType<ViewDetails> = [
     {
       title: '名称',
       dataIndex: 'name',

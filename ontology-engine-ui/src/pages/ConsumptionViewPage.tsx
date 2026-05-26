@@ -50,12 +50,9 @@ export default function ConsumptionViewPage() {
   useEffect(() => {
     if (viewId) {
       // Load view info
-      fetch(`/v1/views/${viewId}`)
-        .then(res => res.json())
+      spaceApi.getView(viewId)
         .then(data => {
-          if (data.success) {
-            setViewInfo(data.data);
-          }
+          setViewInfo(data);
           setLoading(false);
         })
         .catch(() => {
@@ -71,7 +68,7 @@ export default function ConsumptionViewPage() {
         .then(([entities, graph]) => {
           setViewStats({
             entity_count: entities.length,
-            relation_count: graph.dependency_edges?.length || 0,
+            relation_count: graph.edges?.length || 0,
             rule_definition_count: graph.nodes?.length || 0,
             rule_logic_count: graph.execution_order?.length || 0,
           });

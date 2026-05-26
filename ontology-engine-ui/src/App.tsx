@@ -14,6 +14,7 @@ import SpaceListPage from './pages/spaces/SpaceListPage';
 import SpaceDetailPage from './pages/spaces/SpaceDetailPage';
 import SchemaDeclarationPage from './pages/spaces/SchemaDeclarationPage';
 import InstanceDataPage from './pages/spaces/InstanceDataPage';
+import InstanceGraphPage from './pages/spaces/InstanceGraphPage';
 import VersionHistoryPage from './pages/spaces/VersionHistoryPage';
 
 // Agent Memory Pages
@@ -82,6 +83,7 @@ function App() {
               <Route index element={<Navigate to="schema" replace />} />
               <Route path="schema" element={<SchemaDeclarationPage />} />
               <Route path="instances" element={<InstanceDataPage />} />
+              <Route path="instance-graph" element={<InstanceGraphPage />} />
               <Route path="versions" element={<VersionHistoryPage />} />
               <Route path="visualize" element={<SchemaVisualizationPage />} />
               <Route path="execute" element={<RuleExecutionPage />} />

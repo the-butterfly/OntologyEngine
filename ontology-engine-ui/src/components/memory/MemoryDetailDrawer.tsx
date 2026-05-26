@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Drawer, Descriptions, Tag, Button, Space, App, Popconfirm, Input, Form, Modal } from 'antd';
 import type { CognitiveNode } from '../../types/memory';
-import { memoryApi } from '../../services/memoryApi';
+import { memoryApi } from '../../api/memoryApi';
 
 interface MemoryDetailDrawerProps {
   nodeId: string | null;

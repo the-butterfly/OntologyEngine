@@ -18,6 +18,7 @@ import {
   ToolOutlined,
   SearchOutlined,
   SyncOutlined,
+  NodeIndexOutlined,
 } from '@ant-design/icons';
 import { useSpaceStore } from '../../store/spaceStore';
 
@@ -28,6 +29,7 @@ const kmMenuItems = [
   { key: 'schema', icon: <ApartmentOutlined />, label: 'Schema 声明' },
   { key: 'rules', icon: <BranchesOutlined />, label: '规则管理' },
   { key: 'instances', icon: <DatabaseOutlined />, label: '数据实例' },
+  { key: 'instance-graph', icon: <NodeIndexOutlined />, label: '实例图谱' },
   { key: 'versions', icon: <HistoryOutlined />, label: '版本历史' },
   { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化' },
   { key: 'execute', icon: <BranchesOutlined />, label: '规则执行' },
@@ -90,6 +92,7 @@ export default function SpaceDetailPage() {
     if (path.includes('/rules')) return 'rules';
     if (path.endsWith('/schema')) return 'schema';
     if (path.endsWith('/instances')) return 'instances';
+    if (path.endsWith('/instance-graph')) return 'instance-graph';
     if (path.endsWith('/versions')) return 'versions';
     if (path.endsWith('/visualize')) return 'visualize';
     if (path.endsWith('/execute')) return 'execute';

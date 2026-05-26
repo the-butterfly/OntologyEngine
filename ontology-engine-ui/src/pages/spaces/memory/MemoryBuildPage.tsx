@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Input, Select, Button, Form, App, Typography, List, Tag, Space, Popconfirm } from 'antd';
 import { BuildOutlined, CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons';
-import { memoryApi } from '../../../services/memoryApi';
+import { memoryApi } from '../../../api/memoryApi';
 import type { CognitiveNode } from '../../../types/memory';
 import { MemoryDetailDrawer } from '../../../components/memory';
 
