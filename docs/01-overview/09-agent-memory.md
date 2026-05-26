@@ -1,6 +1,6 @@
 # Agent 记忆架构
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-30
+> **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-25
 > **[待扩展]**: 本文档定义 Agent 记忆系统的概念框架，详细设计见 `docs/02-design/agent-memory/`
 
 ---

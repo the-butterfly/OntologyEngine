@@ -1,6 +1,6 @@
 # 核心概念
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档（术语定义） | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档（术语定义） | **last_verified**: 2026-05-25
 > **[关键设计点]**: 本文档基于 Schema v2 四层架构定义核心术语，作为项目唯一术语规范入口
 > **[单一事实源]**: 术语定义与 Schema v2 规范保持一致，详见 `docs/02-design/schema/01-schema-spec.md`
 

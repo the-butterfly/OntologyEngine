@@ -1,6 +1,6 @@
 # 项目目标
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-25
 > **[关键设计点]**: 本文档定义 OntologyEngine 的阶段性目标，是项目阶段判断的唯一入口
 
 ---

@@ -1,6 +1,6 @@
 # 为什么需要 OntologyEngine
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-17
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-25
 
 ## 三层知识资产断裂：企业知识管理的核心矛盾
 

@@ -1,7 +1,7 @@
 # OntologyEngine 文档地图
 
 > **当前阶段**: 重写阶段，从 overview 出发逐一审视重写详细设计
-> **最后更新**: 2026-04-19
+> **最后更新**: 2026-05-25
 > **维护原则**: 01-overview 是唯一事实源，02-design 是详细设计唯一入口，docs-baseline 仅供参考
 
 ## 从哪里开始读
@@ -21,7 +21,7 @@
 | Backlog 层 | [`TODO.md`](./TODO.md) | 进行中 / 未完成事项 | 是 | 只保留未完成事项，不记录完成项历史 |
 | 认知层 | [`01-overview/`](./01-overview/) | 为什么做、做什么、不做什么 | **唯一事实源** | 只放概览与术语，不放实现细节 |
 | 设计层 | [`02-design/`](./02-design/) | 详细设计 | 主题级 SoT | 审视重写后的版本，与 overview 对齐 |
-| 提案层 | [`03-rfc/`](./03-rfc/) | RFC 提案 | 是 | 需求提议→功能实施 |
+| 提案层 | [`docs-dev/03-rfc/`](../docs-dev/03-rfc/) | RFC 提案（开发版本） | 是 | 需求提议→功能实施 |
 | 决策层 | [`04-adr/`](./04-adr/) | 架构决策记录 | 是 | 冻结关键取舍 |
 
 ## 单一事实源（Source of Truth）
@@ -56,7 +56,10 @@
 | [`extraction-pipeline/`](./02-design/extraction-pipeline/) | 提取管线设计 | 审视重写完成（draft） |
 | [`services/`](./02-design/services/) | 服务层设计 | 审视重写完成（draft） |
 | [`api/`](./02-design/api/) | API 设计 | 审视重写完成（draft） |
+| [`agent-memory/`](./02-design/agent-memory/) | Agent 记忆设计 | 审视重写完成（accepted） |
+| [`ingestion/`](./02-design/ingestion/) | 知识摄入全链路 | 新增（draft） |
 | [`formula/`](./02-design/formula/) | Formula 规范 | 审视重写完成（draft） |
+| [`deployment.md`](./02-design/deployment.md) | 部署指南 | 新增（draft） |
 
 ### `03-rfc/`
 

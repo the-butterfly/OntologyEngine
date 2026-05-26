@@ -1,6 +1,6 @@
 # 项目结构（目标架构）
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-25
 > **[关键设计点]**: 本文档描述 OntologyEngine 的目标框架结构，非文件级实现细节
 
 ---

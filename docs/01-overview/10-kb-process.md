@@ -1,6 +1,6 @@
 # 知识库构建-管理-消费流程与关键决策
 
-> **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-28
+> **status**: draft | **phase**: phase2 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-25
 > **[关键设计点]**: 本文档定义OntologyEngine知识库的全生命周期流程——从原始数据摄入到Agent消费的全链路，以及流程中的关键架构决策点
 > **[待扩展]**: 部分流程细节待与代码逐项核验
 > **[待核对代码]**: 编译层、梦境循环、双轨治理等模块尚未与当前代码完全对齐
@@ -183,57 +183,6 @@ Contradiction Log（矛盾日志）
 ### 2.3 Schema作为编译的提取模板
 
 > **[关键设计点]** Schema 不是"数据校验规则"，而是**认知提取的导航图**。
-
-Schema在构建流程中发挥**事前引导**作用，而非事后约束：
-
-```yaml
-# L1 EntityDeclaration自动转化为提取模板
-L1_EntityDeclaration:
-  name: "Counterparty"
-  attributes:
-    - name: "debt_ratio"
-      type: "decimal"
-      required: true
-      extraction_hint: "资产负债率|debt ratio|负债率"
-    - name: "registered_capital"
-      type: "Money"
-      required: true
-      extraction_hint: "注册资本|registered capital"
-    - name: "risk_grade"
-      type: "enum"
-      enum_type: "RiskGrade"
-      required: false   # 可由L4规则推导
-  
-  # 自动生成的提取模板（由SchemaLoader构建）
-  extraction_template:
-    entity_name: "交易对手|企业|公司"
-    required_fields: ["debt_ratio", "registered_capital"]
-    confidence_threshold: 0.7
-```
-
-**Schema感知提取的工作流程**：
-
-```
-LLM提取时注入Schema模板
-    |
-    v
-输出结构化字段（debt_ratio=0.45, revenue=7000亿）
-    |
-    v
-计算schema_alignment_score
-    - 所有required字段存在 -> +0.3
-    - 字段类型匹配 -> +0.2
-    - 数值在合理范围 -> +0.2
-    - 有source_fragment支撑 -> +0.2
-    - 与其他entity关系一致 -> +0.1
-    |
-    v
-alignment_score > 0.8 -> 绑定到L1 Schema，升级为entity
-alignment_score 0.5-0.8 -> 存储为observation，待进一步验证
-alignment_score < 0.5 -> 降级为fragment，不进入结构化层
-```
-
-**Schema的意义**：Schema不是"数据校验规则"，而是**认知提取的导航图**。它告诉LLM"应该提取什么"、"提取的质量标准是什么"、"提取结果应该如何分类"。没有Schema，LLM提取是盲目的；有了Schema，提取是结构化的、可量化的、可自动分级的。
 
 Schema在构建流程中发挥**事前引导**作用，而非事后约束：
 

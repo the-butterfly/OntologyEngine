@@ -1,6 +1,6 @@
 # 技术选型
 
-> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-04-19
+> **status**: accepted | **phase**: mvp+phase1 | **source_of_truth**: 本文档 | **last_verified**: 2026-05-25
 > **[关键设计点]**: 本文档定义 OntologyEngine 的目标技术架构，非当前实现
 
 ---

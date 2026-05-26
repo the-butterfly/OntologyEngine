@@ -1,7 +1,7 @@
 # 实施 Backlog
 
 > **作用**: `docs/` 下唯一开放事项列表
-> **最后更新**: 2026-05-06
+> **最后更新**: 2026-05-25
 > **说明**: 本文件只保留进行中 / 未完成事项；文档状态看 [`STATUS.md`](./STATUS.md)，阶段路线看 [`ROADMAP.md`](./ROADMAP.md)
 
 ## Now
@@ -16,12 +16,9 @@
 | P1  | 按 Rule Engine 设计实现 DAG 执行             | `02-design/rule-engine/`                        | DAGBuilder + 并行执行 + 回滚                            |
 | P1  | 按 Query Engine 设计实现 Layer-R/S 检索      | `02-design/query-engine/`                       | Bundle Search + RRF 融合                            |
 | P1  | 按 Extraction Pipeline 设计实现三通道提取       | `02-design/extraction-pipeline/`                | AST + LLM + SHA256 缓存                             |
-| P1  | Agent 记忆治理层设计（外部批判框架）              | `discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` | DeduplicationGate + ArbitrationEngine + QueryUnderstandingLayer + PermissionService |
+| P1  | Agent 记忆治理层设计（外部批判框架）              | `docs-dev/discuss/2026-04-28-agent-memory-design-vs-lencx-critique.md` | DeduplicationGate + ArbitrationEngine + QueryUnderstandingLayer + PermissionService |
 | P1  | CognitiveNode Schema 扩展（新增 5 字段 + 4 记忆类型） | `docs/02-design/agent-memory/memory-hierarchy.md` | model_domain, source_trust_tier, scope, last_confirmed_at, consolidation_reasoning + commitment/constraint/self_experience/task_state |
-| P1  | Agent Memory QUL 约束类型扩展（剩余 5/8） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md` | ✅ temporal+user_preference+decision 已完成，剩余 task_status/entity_type/numeric/negation/scope |
-| P0  | Agent Memory recall 通配符/空查询返回空 | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md §8.2` | ✅ 已修复：query="*" → _recall_wildcard 直接查询所有节点 |
-| P1  | Agent Memory audit 字段扩展（agent_name/activity_type等） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md §8.3 P1-1` | ✅ 已实现：ActivityLog 模型+后台线程+独立存储 + audit 端点扩展 |
-| P1  | Agent Memory 新增 heatmap/disposition/dashboard/reflect-tasks/reflection-status/validation 端点 | `docs-dev/review-reports/frontend-memory-ui-consistency-report.md §5.2` | ✅ 已实现：6 个端点全部添加 |
+| P1  | Agent Memory QUL 约束类型扩展（剩余 5/8） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md` | 3/8 已完成（temporal+user_preference+decision），剩余 task_status/entity_type/numeric/negation/scope |
 | P2  | Agent Memory 证据链扩展（source_fragment_ids/proof_count/related_edges） | `docs-dev/discuss/2026-05-06-agent-memory-implementation-gap-analysis.md §8.4` | evidence 端点返回简化结构 |
 
 ## Next
@@ -43,4 +40,3 @@
 3. 若事项属于"判断文档是否过期"，请更新 [`STATUS.md`](./STATUS.md)
 4. 若事项属于"阶段目标变化"，请更新 [`ROADMAP.md`](./ROADMAP.md)
 5. 若事项属于"当前态与目标态不一致"，先记录到 `docs-dev/04-migration-and-gap/`
-
