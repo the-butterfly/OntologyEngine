@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 import pytest_asyncio
 
@@ -228,3 +230,105 @@ class TestRetrievalResult:
             metadata={"rank": 1},
         )
         assert result.metadata["rank"] == 1
+
+
+class TestSourcePreservation:
+    """Test source tag preservation and priority in _compute_rrf.
+
+    SOURCE_PRIORITY = {"layer_r": 0, "bm25": 1, "layer_s": 2, "temporal": 3}
+    Lower number = higher priority.
+    """
+
+    def test_source_preserved_from_single_path(self):
+        engine = RRFFusionEngine.__new__(RRFFusionEngine)
+        all_results = {
+            "layer_r": [RetrievalResult(doc_id="a", content="a", source="layer_r")],
+            "layer_s": [],
+            "bm25": [],
+            "temporal": [],
+        }
+        weights = QUERY_TYPE_WEIGHTS["factual"]
+        fused = engine._compute_rrf(all_results, weights, BASE_TYPE_WEIGHTS)
+        assert len(fused) == 1
+        assert fused[0].source == "layer_r"
+
+    def test_source_priority_layer_r_over_bm25(self):
+        engine = RRFFusionEngine.__new__(RRFFusionEngine)
+        all_results = {
+            "layer_r": [RetrievalResult(doc_id="a", content="a", source="layer_r")],
+            "bm25": [RetrievalResult(doc_id="a", content="a", source="bm25")],
+            "layer_s": [],
+            "temporal": [],
+        }
+        weights = QUERY_TYPE_WEIGHTS["factual"]
+        fused = engine._compute_rrf(all_results, weights, BASE_TYPE_WEIGHTS)
+        assert fused[0].source == "layer_r"
+
+    def test_source_priority_bm25_over_layer_s(self):
+        engine = RRFFusionEngine.__new__(RRFFusionEngine)
+        all_results = {
+            "bm25": [RetrievalResult(doc_id="a", content="a", source="bm25")],
+            "layer_s": [RetrievalResult(doc_id="a", content="a", source="layer_s")],
+            "layer_r": [],
+            "temporal": [],
+        }
+        weights = QUERY_TYPE_WEIGHTS["factual"]
+        fused = engine._compute_rrf(all_results, weights, BASE_TYPE_WEIGHTS)
+        assert fused[0].source == "bm25"
+
+    def test_source_priority_layer_s_over_temporal(self):
+        engine = RRFFusionEngine.__new__(RRFFusionEngine)
+        all_results = {
+            "layer_s": [RetrievalResult(doc_id="a", content="a", source="layer_s")],
+            "temporal": [RetrievalResult(doc_id="a", content="a", source="temporal")],
+            "layer_r": [],
+            "bm25": [],
+        }
+        weights = QUERY_TYPE_WEIGHTS["factual"]
+        fused = engine._compute_rrf(all_results, weights, BASE_TYPE_WEIGHTS)
+        assert fused[0].source == "layer_s"
+
+    def test_source_preserved_independent_per_doc(self):
+        engine = RRFFusionEngine.__new__(RRFFusionEngine)
+        all_results = {
+            "layer_r": [RetrievalResult(doc_id="a", content="a", source="layer_r")],
+            "bm25": [RetrievalResult(doc_id="b", content="b", source="bm25")],
+            "layer_s": [],
+            "temporal": [],
+        }
+        weights = QUERY_TYPE_WEIGHTS["factual"]
+        fused = engine._compute_rrf(all_results, weights, BASE_TYPE_WEIGHTS)
+        result_map = {r.doc_id: r.source for r in fused}
+        assert result_map["a"] == "layer_r"
+        assert result_map["b"] == "bm25"
+
+
+class TestSearchLimits:
+    """Test that search methods use correct limits."""
+
+    @pytest_asyncio.fixture
+    async def engine(self, tmp_path):
+        db_path = str(tmp_path / "test_limits.kuzu")
+        store = KuzuGraphStore()
+        await store.initialize(db_path)
+        repo = CognitiveRepository(store)
+        engine = RRFFusionEngine(repository=repo)
+        yield engine
+        await store.close()
+
+    @pytest.mark.asyncio
+    async def test_search_layer_r_uses_limit_5000(self, engine):
+        repo_query = AsyncMock(return_value=[])
+        engine._repo.query_nodes = repo_query
+        engine._vector_search = None
+
+        await engine._search_layer_r("test", "test_space", 10)
+
+        repo_query.assert_awaited_once()
+        assert repo_query.await_args.kwargs["limit"] == 5000
+
+    @pytest.mark.asyncio
+    async def test_search_temporal_uses_limit_5000(self, engine):
+        with patch.object(engine._repo, "query_nodes", new=AsyncMock(return_value=[])) as mock_qn:
+            await engine._search_temporal("What happened in 2024?", "test_space", 10)
+            assert mock_qn.await_args.kwargs["limit"] == 5000
