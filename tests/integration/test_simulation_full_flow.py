@@ -28,6 +28,7 @@ from ontology_engine.core.semantic_space import (
 )
 from ontology_engine.services.simulation_orchestrator import SimulationOrchestrator
 from ontology_engine.services.rule_locator import RuleLocator
+from ontology_engine.services.space_service import SpaceService
 from ontology_engine.api.routes import consumption as consumption_module
 
 
@@ -247,7 +248,8 @@ class TestSharedServiceUsage:
         final_decision is produced by RD006_final_decision.
         """
         storage = SemanticSpaceStorage()
-        locator = RuleLocator(storage)
+        service = SpaceService(storage)
+        locator = RuleLocator(service)
 
         # final_decision is produced by RD006_final_decision
         results = await locator.locate_by_output("final_decision", "space_supply_chain_finance")

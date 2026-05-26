@@ -6,10 +6,11 @@ from unittest.mock import MagicMock
 
 from ontology_engine.services.rule_locator import RuleLocator
 from ontology_engine.core.semantic_space.storage import SemanticSpaceStorage
+from ontology_engine.services.space_service import SpaceService
 
 
-def _make_mock_storage():
-    """Create a SemanticSpaceStorage with mocked load method."""
+def _make_mock_service():
+    """Create a SpaceService with a mocked underlying storage."""
     storage = SemanticSpaceStorage()
 
     async def mock_load(space_id):
@@ -34,17 +35,17 @@ def _make_mock_storage():
         return None
 
     storage.load = mock_load
-    return storage
+    return SpaceService(storage=storage)
 
 
 @pytest.fixture
-def storage():
-    return _make_mock_storage()
+def service():
+    return _make_mock_service()
 
 
 @pytest.fixture
-def locator(storage):
-    return RuleLocator(storage)
+def locator(service):
+    return RuleLocator(service)
 
 
 @pytest.mark.asyncio
