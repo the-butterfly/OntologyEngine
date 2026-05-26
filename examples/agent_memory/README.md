@@ -16,6 +16,12 @@ agent_memory/
   06_full_agent_eval/          ← 全量 Agent 评估（含真实 LLM）
   07_modeling_objects/         ← 建模对象与权限治理
   08_qul_lifecycle/            ← QUL 约束驱动与生命周期集成
+  09_sota_optimization_eval/   ← SOTA 优化评估
+  10_contradiction_fix_eval/   ← 矛盾修复评估
+  11_acpt_retrieval/           ← ACPT 检索验证
+  12_acpt_management/          ← ACPT 管理验证
+  13_acpt_e2e/                 ← ACPT 端到端验证
+  14_locomo_benchmark/         ← LOCOMO-10 真实数据集：OE vs Mem0 公平对比
   _deprecated/                 ← 废弃案例归档
 ```
 
@@ -154,6 +160,39 @@ python -m examples.agent_memory.07_modeling_objects.run_eval
 
 ```bash
 python -m examples.agent_memory.08_qul_lifecycle.run_eval
+```
+
+### 14 — LOCOMO-10 真实数据集基准对比
+
+**验证点**: 在真实 LOCOMO-10 长对话数据集上，使用统一 LLM（sensenova/sensenova-6.7-flash-lite）对 OE 与 Mem0 进行公平对比。
+
+| 维度 | 说明 |
+|------|------|
+| 数据集 | LOCOMO-10（Snap Research, ACL 2024） |
+| LLM | sensenova/sensenova-6.7-flash-lite（answerer + judge） |
+| Cutoffs | top-10 / top-20 / top-50 / top-200 |
+| 指标 | 按 short-term / medium-term / long-term / cross-dialogue 分类的 accuracy |
+
+```bash
+# OE backend
+python -m examples.agent_memory.14_locomo_benchmark.run_eval \
+    --backend oe --project-name oe_sensenova \
+    --answerer-model sensenova/sensenova-6.7-flash-lite \
+    --judge-model sensenova/sensenova-6.7-flash-lite \
+    --llm-base-url http://localhost:9528/v1
+
+# Mem0 backend（需先启动 mem0oss）
+python -m examples.agent_memory.14_locomo_benchmark.run_eval \
+    --backend mem0 --project-name mem0_sensenova \
+    --answerer-model sensenova/sensenova-6.7-flash-lite \
+    --judge-model sensenova/sensenova-6.7-flash-lite \
+    --llm-base-url http://localhost:9528/v1
+
+# 生成对比报告
+python -m examples.agent_memory.14_locomo_benchmark.run_eval \
+    --compare \
+    --oe-results results/locomo_oe/predicted_oe_sensenova/results.json \
+    --mem0-results results/locomo_mem0/predicted_mem0_sensenova/results.json
 ```
 
 ## 设计文档索引
