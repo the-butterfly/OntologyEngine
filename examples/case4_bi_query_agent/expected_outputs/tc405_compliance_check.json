@@ -1,0 +1,14 @@
+{
+  "query": "绿色融资有没有达到监管要求",
+  "expected_parsed": {
+    "metric": "M_GREEN_FINANCING_RATIO",
+    "time_range": "current",
+    "aggregation": "compliance_check",
+    "regulation_reference": "证监发〔2026〕15号"
+  },
+  "expected_response_type": "compliance_status",
+  "expected_metrics_count": 1,
+  "expected_metric_ids": ["M_GREEN_FINANCING_RATIO"],
+  "requires_version": "1.5",
+  "compliance_threshold": 0.10
+}

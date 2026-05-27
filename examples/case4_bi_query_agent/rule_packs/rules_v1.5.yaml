@@ -1,0 +1,89 @@
+# BI查询规则包 v1.5 — 新增ESG指标规则
+# 版本: 1.5
+# 更新日期: 2026-04-10
+# 变更说明: 新增ESG指标映射规则
+
+rule_packs:
+  version: "1.5"
+  updated_date: "2026-04-10"
+  scope: "bi_query_agent"
+  change_reason: "ESG指标上线，需支持自然语言查询"
+
+  rules:
+    - rule_id: R_NL_TO_METRIC_001
+      rule_type: nl_to_metric
+      description: 将"收入"、"营收"映射到M_REVENUE
+      pattern: "(收入|营收|营业收入)"
+      target_metric: M_REVENUE
+      confidence: 0.95
+
+    - rule_id: R_NL_TO_METRIC_002
+      rule_type: nl_to_metric
+      description: 将"毛利率"、"利润"映射到M_GROSS_MARGIN
+      pattern: "(毛利率|利润率|利润)"
+      target_metric: M_GROSS_MARGIN
+      confidence: 0.90
+
+    - rule_id: R_NL_TO_METRIC_003
+      rule_type: nl_to_metric
+      description: 将"周转率"、"应收"映射到M_AR_TURNOVER
+      pattern: "(周转率|应收|应收账款)"
+      target_metric: M_AR_TURNOVER
+      confidence: 0.85
+
+    - rule_id: R_NL_TO_METRIC_004
+      rule_type: nl_to_metric
+      description: 将"集中度"、"供应商"映射到M_SUPPLIER_CONCENTRATION
+      pattern: "(集中度|供应商集中度|前五大供应商)"
+      target_metric: M_SUPPLIER_CONCENTRATION
+      confidence: 0.88
+
+    - rule_id: R_NL_TO_METRIC_005
+      rule_type: nl_to_metric
+      description: 将"融资成本"、"利息"映射到M_FINANCING_COST
+      pattern: "(融资成本|利息|利息支出)"
+      target_metric: M_FINANCING_COST
+      confidence: 0.92
+
+    - rule_id: R_NL_TO_METRIC_006
+      rule_type: nl_to_metric
+      description: 将"碳排放"、"碳强度"映射到M_CARBON_INTENSITY
+      pattern: "(碳排放|碳强度|碳排放强度)"
+      target_metric: M_CARBON_INTENSITY
+      confidence: 0.90
+      regulatory_requirement: true
+
+    - rule_id: R_NL_TO_METRIC_007
+      rule_type: nl_to_metric
+      description: 将"绿色融资"、"绿色金融"映射到M_GREEN_FINANCING_RATIO
+      pattern: "(绿色融资|绿色金融|绿色融资占比)"
+      target_metric: M_GREEN_FINANCING_RATIO
+      confidence: 0.90
+      regulatory_requirement: true
+
+    - rule_id: R_TIME_FILTER_001
+      rule_type: time_filter
+      description: 识别时间范围表达
+      pattern: "(去年|今年|上月|本月|Q[1-4]|202[0-9]年)"
+      action: extract_time_range
+      confidence: 0.90
+
+    - rule_id: R_AGGREGATION_001
+      rule_type: aggregation
+      description: 识别聚合方式
+      pattern: "(总计|合计|平均|最大|最小|趋势)"
+      action: set_aggregation
+      confidence: 0.85
+
+  metadata:
+    total_rules: 9
+    last_updated: "2026-04-10T14:00:00Z"
+    updated_by: rule_admin
+    review_cycle: monthly
+    changes_from_previous:
+      - type: ITEM_ADDED
+        rule_id: R_NL_TO_METRIC_006
+        reason: "ESG碳排放指标映射"
+      - type: ITEM_ADDED
+        rule_id: R_NL_TO_METRIC_007
+        reason: "ESG绿色融资指标映射"

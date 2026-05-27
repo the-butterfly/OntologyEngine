@@ -1,0 +1,18 @@
+{
+  "scenario": "SC_MULTI_AGENT",
+  "agents": [
+    {"name": "alice", "private_memory": "alice的数据库密钥sk-abc123"},
+    {"name": "bob", "shared_memory": "公开API文档地址/wiki/api"}
+  ],
+  "expected_isolation": {
+    "alice_sees_bob_shared": true,
+    "alice_cannot_see_bob_private": true,
+    "bob_cannot_see_alice_private": true,
+    "cross_user_leak": false
+  },
+  "acceptance_criteria": {
+    "private_isolation": true,
+    "shared_visibility": true,
+    "no_cross_leak": true
+  }
+}

@@ -1,0 +1,50 @@
+# ESG监管要求碎片
+# 来源: 证监发〔2026〕15号
+
+evidence_fragments:
+  - fragment_id: frag.esg.requirement.001
+    fragment_type: regulatory_requirement
+    title: "ESG指标披露要求"
+    content: |
+      根据证监发〔2026〕15号《上市公司ESG信息披露指引》，
+      供应链金融业务需披露以下ESG指标：
+      1. 碳排放强度（吨CO2e/万元营业收入）
+      2. 绿色融资占比（绿色融资额/总融资额）
+      披露频率：季度
+      首次执行日期：2026-04-01
+    metadata:
+      regulation: "证监发〔2026〕15号"
+      effective_date: "2026-04-01"
+      required_metrics: [M_CARBON_INTENSITY, M_GREEN_FINANCING_RATIO]
+      disclosure_frequency: quarterly
+
+  - fragment_id: frag.bi.query.example.001
+    fragment_type: query_example
+    title: "BI查询示例 — 营收趋势"
+    content: |
+      用户查询: "去年各季度营业收入趋势"
+      解析结果:
+        - metric: M_REVENUE
+        - time_range: 2025-Q1 to 2025-Q4
+        - aggregation: trend
+        - group_by: quarter
+      预期响应: 2025年Q1-Q4营业收入折线图数据
+    metadata:
+      query_type: trend
+      metric: M_REVENUE
+      time_granularity: quarterly
+
+  - fragment_id: frag.bi.query.example.002
+    fragment_type: query_example
+    title: "BI查询示例 — ESG指标"
+    content: |
+      用户查询: "今年碳排放强度是多少"
+      解析结果:
+        - metric: M_CARBON_INTENSITY
+        - time_range: 2026-YTD
+        - aggregation: current_value
+      预期响应: 2026年至今碳排放强度数值
+    metadata:
+      query_type: current_value
+      metric: M_CARBON_INTENSITY
+      time_granularity: ytd

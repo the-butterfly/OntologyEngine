@@ -1,0 +1,106 @@
+# 指标卡 v1.5 — 供应链金融核心指标（新增ESG指标）
+# 版本: 1.5
+# 更新日期: 2026-04-10
+# 变更说明: 新增碳排放强度、绿色融资占比2个ESG指标
+# 变更依据: frag.esg.requirement.001
+
+metric_cards:
+  version: "1.5"
+  updated_date: "2026-04-10"
+  scope: "supply_chain_finance"
+  change_reason: "监管要求新增ESG指标披露"
+
+  cards:
+    - metric_id: M_REVENUE
+      metric_name: 营业收入
+      description: 企业在特定期间内的总收入
+      unit: 万元
+      aggregation: SUM
+      data_source: financial_statement
+      calculation_formula: SUM(revenue_amount)
+      refresh_frequency: monthly
+      owner: finance_team
+      tags: [financial, revenue, core]
+
+    - metric_id: M_GROSS_MARGIN
+      metric_name: 毛利率
+      description: 毛利润占营业收入的比例
+      unit: 百分比
+      aggregation: RATIO
+      data_source: financial_statement
+      calculation_formula: (revenue - cost_of_goods_sold) / revenue * 100
+      refresh_frequency: monthly
+      owner: finance_team
+      tags: [financial, margin, profitability]
+
+    - metric_id: M_AR_TURNOVER
+      metric_name: 应收账款周转率
+      description: 营业收入与平均应收账款的比值
+      unit: 次
+      aggregation: RATIO
+      data_source: financial_statement
+      calculation_formula: revenue / average_accounts_receivable
+      refresh_frequency: quarterly
+      owner: finance_team
+      tags: [financial, efficiency, receivables]
+
+    - metric_id: M_SUPPLIER_CONCENTRATION
+      metric_name: 供应商集中度
+      description: 前五大供应商采购额占总采购额的比例
+      unit: 百分比
+      aggregation: RATIO
+      data_source: procurement_system
+      calculation_formula: SUM(top5_supplier_amount) / total_procurement_amount * 100
+      refresh_frequency: monthly
+      owner: procurement_team
+      tags: [supply_chain, risk, concentration]
+
+    - metric_id: M_FINANCING_COST
+      metric_name: 融资成本率
+      description: 融资利息支出占融资总额的比例
+      unit: 百分比
+      aggregation: RATIO
+      data_source: financing_system
+      calculation_formula: total_interest_expense / total_financing_amount * 100
+      refresh_frequency: monthly
+      owner: finance_team
+      tags: [financing, cost, risk]
+
+    - metric_id: M_CARBON_INTENSITY
+      metric_name: 碳排放强度
+      description: 单位营业收入的碳排放量
+      unit: 吨CO2e/万元
+      aggregation: RATIO
+      data_source: esg_reporting_system
+      calculation_formula: total_carbon_emissions / revenue
+      refresh_frequency: quarterly
+      owner: esg_team
+      tags: [esg, carbon, environment]
+      regulatory_requirement: true
+      regulation_reference: "证监发〔2026〕15号"
+
+    - metric_id: M_GREEN_FINANCING_RATIO
+      metric_name: 绿色融资占比
+      description: 绿色融资额占总融资额的比例
+      unit: 百分比
+      aggregation: RATIO
+      data_source: financing_system
+      calculation_formula: green_financing_amount / total_financing_amount * 100
+      refresh_frequency: quarterly
+      owner: esg_team
+      tags: [esg, green_financing, environment]
+      regulatory_requirement: true
+      regulation_reference: "证监发〔2026〕15号"
+
+  metadata:
+    total_metrics: 7
+    last_updated: "2026-04-10T14:00:00Z"
+    updated_by: metric_admin
+    review_cycle: quarterly
+    changes_from_previous:
+      - type: ITEM_ADDED
+        metric_id: M_CARBON_INTENSITY
+        reason: "ESG监管要求新增"
+      - type: ITEM_ADDED
+        metric_id: M_GREEN_FINANCING_RATIO
+        reason: "ESG监管要求新增"

@@ -1,0 +1,47 @@
+{
+  "query": "银发〔2026〕23号 第八条 核心企业白名单",
+  "expected_top5": [
+    {
+      "rank": 1,
+      "fragment_id": "frag.whitelist.memo.001",
+      "fragment_type": "approval_memo",
+      "title": "试点核心企业白名单审批备忘录",
+      "relevance": "直接包含白名单审批依据和试点企业信息",
+      "expected_score": 0.92
+    },
+    {
+      "rank": 2,
+      "fragment_id": "whitelist_v2026.04.2",
+      "fragment_type": "whitelist",
+      "title": "核心企业白名单 v2026.04.2",
+      "relevance": "包含银发〔2026〕23号引用和CE_RETAIL_PILOT_001条目",
+      "expected_score": 0.88
+    },
+    {
+      "rank": 3,
+      "fragment_id": "whitelist_v2026.04",
+      "fragment_type": "whitelist",
+      "title": "核心企业白名单 v2026.04",
+      "relevance": "包含银发〔2026〕23号引用的初始版本",
+      "expected_score": 0.82
+    },
+    {
+      "rank": 4,
+      "fragment_id": "frag.invoice.ocr.sup_c3",
+      "fragment_type": "invoice_ocr",
+      "title": "SUP_C3 发票OCR验真记录",
+      "relevance": "间接相关，涉及合规检查的发票核验环节",
+      "expected_score": 0.35
+    },
+    {
+      "rank": 5,
+      "fragment_id": "frag.guarantee.contract.sup_c4",
+      "fragment_type": "guarantee_contract",
+      "title": "SUP_C4 担保合同摘要",
+      "relevance": "间接相关，涉及合规检查的担保限制环节",
+      "expected_score": 0.28
+    }
+  ],
+  "precision_at_3": 0.85,
+  "recall_at_5": 1.0
+}

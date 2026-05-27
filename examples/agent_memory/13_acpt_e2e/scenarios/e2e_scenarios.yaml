@@ -1,0 +1,90 @@
+# Case 5: Agent Memory End-to-End — Full Lifecycle Scenarios
+# 8 scenarios covering the complete memory lifecycle
+
+scenarios:
+  - scenario_id: SC_ZERO_PARAM
+    name: "零参数模式"
+    description: "用户仅提供原始文本，系统自动推断类型、置信度、可见性"
+    input: "TechNova公司CEO张明于2025年3月宣布AI战略转型"
+    expected_inference:
+      memory_type: entity
+      tags: ["company", "leadership", "strategy"]
+      confidence: 0.85
+      visibility: shared
+
+  - scenario_id: SC_CONTRADICTION
+    name: "矛盾检测与信念修订"
+    description: "新记忆与已有记忆矛盾，系统自动检测并标记"
+    seed_memory: "TechNova总部在深圳"
+    contradictory_memory: "TechNova总部在上海"
+    expected_detection:
+      contradiction_found: true
+      resolution: supersede
+
+  - scenario_id: SC_CONSOLIDATION
+    name: "巩固与编译"
+    description: "多个碎片记忆巩固为结构化实体"
+    fragments:
+      - "王芳是TechNova技术负责人"
+      - "王芳主导架构迁移到CloudGroup平台"
+      - "王芳团队有50人"
+    expected_compilation:
+      entity_name: "王芳"
+      attributes: ["role", "project", "team_size"]
+
+  - scenario_id: SC_DREAM_CYCLE
+    name: "DreamCycle维护周期"
+    description: "系统定期维护，遗忘低价值记忆，强化高价值记忆"
+    memories:
+      - text: "2023年Q1 API限流1000次/分钟"
+        value: low
+        expected: forgotten
+      - text: "TechNova核心架构使用微服务"
+        value: high
+        expected: strengthened
+
+  - scenario_id: SC_REFLECT
+    name: "Reflect深度分析"
+    description: "对记忆集合进行深度分析，生成洞察报告"
+    query: "TechNova技术架构演进"
+    expected_reflection:
+      has_findings: true
+      has_recommendations: true
+      risk_level: medium
+
+  - scenario_id: SC_LIFECYCLE
+    name: "生命周期治理"
+    description: "记忆的创建、更新、版本、回滚全流程"
+    operations:
+      - create: "TechNova营收100亿"
+      - update: "TechNova营收120亿"
+      - version_diff: true
+      - rollback: true
+
+  - scenario_id: SC_MULTI_AGENT
+    name: "多Agent协作"
+    description: "多个Agent共享和隔离记忆"
+    agents:
+      - name: alice
+        private_memory: "alice的数据库密钥sk-abc123"
+      - name: bob
+        shared_memory: "公开API文档地址/wiki/api"
+    expected_isolation:
+      alice_cannot_see: "bob的private记忆"
+      bob_cannot_see: "alice的private记忆"
+
+  - scenario_id: SC_E2E_FLOW
+    name: "端到端完整流程"
+    description: "从摄入到检索到分析到维护的完整闭环"
+    flow:
+      - step: remember
+        input: "TechNova完成B轮融资5亿元"
+      - step: recall
+        query: "TechNova融资情况"
+      - step: reflect
+        query: "TechNova融资历程分析"
+      - step: consolidate
+      - step: dream
+      - step: recall
+        query: "TechNova融资"
+        expected: consolidated_result

@@ -1,0 +1,17 @@
+{
+  "scenario": "SC_E2E_FLOW",
+  "flow_steps": ["remember", "recall", "reflect", "consolidate", "dream", "recall"],
+  "expected_e2e_result": {
+    "remember_success": true,
+    "recall_finds_memory": true,
+    "reflect_produces_insights": true,
+    "consolidate_creates_entity": true,
+    "dream_completes_cycle": true,
+    "final_recall_returns_consolidated": true
+  },
+  "acceptance_criteria": {
+    "all_steps_completed": true,
+    "data_flows_correctly": true,
+    "consolidated_result_better_than_initial": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "scenario": "SC_DREAM_CYCLE",
+  "memories": [
+    {"text": "2023年Q1 API限流1000次/分钟", "value": "low", "expected": "forgotten"},
+    {"text": "TechNova核心架构使用微服务", "value": "high", "expected": "strengthened"}
+  ],
+  "expected_dream_result": {
+    "low_value_forgotten": true,
+    "high_value_strengthened": true,
+    "cycle_phases_completed": ["sleep", "dream", "consolidate", "wake"],
+    "memory_count_before": 2,
+    "memory_count_after_min": 1,
+    "memory_count_after_max": 2
+  },
+  "acceptance_criteria": {
+    "selective_forgetting": true,
+    "value_preservation": true
+  }
+}

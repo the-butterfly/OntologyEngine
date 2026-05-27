@@ -1,0 +1,19 @@
+{
+  "from_version": "1.4",
+  "to_version": "1.5",
+  "diff_summary": {
+    "metrics_added": ["M_CARBON_INTENSITY", "M_GREEN_FINANCING_RATIO"],
+    "rules_added": ["R_NL_TO_METRIC_006", "R_NL_TO_METRIC_007"],
+    "metrics_modified": [],
+    "metrics_removed": []
+  },
+  "impact_analysis": {
+    "new_queries_supported": [
+      "碳排放强度",
+      "绿色融资占比",
+      "ESG指标"
+    ],
+    "regulatory_compliance": "证监发〔2026〕15号要求现已满足",
+    "risk_assessment": "LOW — 仅新增指标，不影响现有查询"
+  }
+}

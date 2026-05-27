@@ -1,0 +1,79 @@
+{
+  "version": "Circular23_rule_pack@v2026.04.2",
+  "space_id": "space.supply_chain_finance",
+  "analysis_timestamp": "2026-04-20T14:30:00Z",
+  "summary": {
+    "total": 5,
+    "passed": 2,
+    "failed": 3,
+    "pass_rate": "40%",
+    "average_score": 68
+  },
+  "changes_from_previous": {
+    "prev_version": "Circular23_rule_pack@v2026.04.1",
+    "diff_summary": "白名单v2026.04.2新增CE_RETAIL_PILOT_001，SUP_C5从FAILED变为PASSED",
+    "entities_changed": [
+      {
+        "entity_id": "SUP_C5",
+        "prev_status": "FAILED",
+        "new_status": "PASSED",
+        "reason": "白名单v2026.04.2新增试点核心企业CE_RETAIL_PILOT_001"
+      }
+    ]
+  },
+  "results": [
+    {
+      "entity_id": "SUP_C1",
+      "company_name": "深圳恒通科技有限公司",
+      "compliance_status": "PASSED",
+      "compliance_score": 95,
+      "failed_checks": []
+    },
+    {
+      "entity_id": "SUP_C2",
+      "company_name": "上海睿商贸易有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 60,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-1-whitelist",
+          "article": "Article 8",
+          "reason": "核心企业'某地产集团有限公司'不在监管白名单中"
+        }
+      ]
+    },
+    {
+      "entity_id": "SUP_C3",
+      "company_name": "广州誉成制造有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 35,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-2-invoice-auth",
+          "article": "Article 12",
+          "reason": "发票真实性核验通过率60%，低于95%阈值"
+        }
+      ]
+    },
+    {
+      "entity_id": "SUP_C4",
+      "company_name": "北京鼎实担保有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 65,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-3-guarantee-limit",
+          "article": "Article 15",
+          "reason": "最大单笔担保占比15%，超过10%上限"
+        }
+      ]
+    },
+    {
+      "entity_id": "SUP_C5",
+      "company_name": "成都链城供应链有限公司",
+      "compliance_status": "PASSED",
+      "compliance_score": 85,
+      "failed_checks": []
+    }
+  ]
+}

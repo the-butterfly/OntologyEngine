@@ -1,0 +1,13 @@
+{
+  "query": "今年碳排放强度是多少",
+  "expected_parsed": {
+    "metric": "M_CARBON_INTENSITY",
+    "time_range": "2026-YTD",
+    "aggregation": "current_value"
+  },
+  "expected_response_type": "single_value",
+  "expected_metrics_count": 1,
+  "expected_metric_ids": ["M_CARBON_INTENSITY"],
+  "requires_version": "1.5",
+  "regulatory_context": "证监发〔2026〕15号"
+}

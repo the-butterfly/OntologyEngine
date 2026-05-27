@@ -1,0 +1,16 @@
+{
+  "scenario": "SC_LIFECYCLE",
+  "operations": ["create", "update", "version_diff", "rollback"],
+  "expected_lifecycle": {
+    "create_success": true,
+    "update_creates_supersedes_edge": true,
+    "version_history_count_min": 2,
+    "rollback_restores_previous": true,
+    "audit_trail_complete": true
+  },
+  "acceptance_criteria": {
+    "full_cycle_completed": true,
+    "version_tracking": true,
+    "rollback_works": true
+  }
+}

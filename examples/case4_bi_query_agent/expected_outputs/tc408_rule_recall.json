@@ -1,0 +1,25 @@
+{
+  "query": "营收",
+  "expected_top3": [
+    {
+      "rank": 1,
+      "target": "M_REVENUE",
+      "rule_id": "R_NL_TO_METRIC_001",
+      "expected_confidence": 0.95
+    },
+    {
+      "rank": 2,
+      "target": "M_GROSS_MARGIN",
+      "rule_id": "R_NL_TO_METRIC_002",
+      "expected_confidence": 0.90
+    },
+    {
+      "rank": 3,
+      "target": "M_AR_TURNOVER",
+      "rule_id": "R_NL_TO_METRIC_003",
+      "expected_confidence": 0.85
+    }
+  ],
+  "precision_at_1": 1.0,
+  "precision_at_3": 1.0
+}

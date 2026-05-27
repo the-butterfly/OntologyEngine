@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphRAG Demo — 知识图谱混合检索</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+/* Header */
+.header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+.header h1{font-size:18px;font-weight:600;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .subtitle{font-size:12px;color:#94a3b8}
+.header .stats{display:flex;gap:20px;margin-left:auto}
+.header .stat{text-align:center}
+.header .stat-num{font-size:18px;font-weight:700;color:#60a5fa}
+.header .stat-label{font-size:10px;color:#64748b;text-transform:uppercase}
+/* Main layout */
+.main{display:flex;flex:1;overflow:hidden}
+/* Left: Graph */
+.graph-panel{flex:1;position:relative;background:#0f172a;overflow:hidden}
+.graph-panel svg{width:100%;height:100%}
+.graph-legend{position:absolute;bottom:16px;left:16px;background:rgba(30,41,59,0.92);border:1px solid #334155;border-radius:8px;padding:10px 14px;font-size:11px;display:flex;gap:12px;flex-wrap:wrap}
+.graph-legend .legend-item{display:flex;align-items:center;gap:6px}
+.graph-legend .legend-dot{width:10px;height:10px;border-radius:50%}
+/* Right: Search & Results */
+.sidebar{width:420px;background:#1e293b;border-left:1px solid #334155;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.search-box{padding:16px;border-bottom:1px solid #334155}
+.search-box .input-row{display:flex;gap:8px}
+.search-box input{flex:1;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 14px;color:#e2e8f0;font-size:14px;outline:none}
+.search-box input:focus{border-color:#60a5fa}
+.search-box button{background:#3b82f6;border:none;border-radius:6px;padding:10px 18px;color:#fff;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s}
+.search-box button:hover{background:#2563eb}
+.search-box button:disabled{background:#475569;cursor:not-allowed}
+.search-box .meta{display:flex;gap:12px;margin-top:8px;font-size:11px;color:#64748b}
+.search-box .meta span{display:flex;align-items:center;gap:4px}
+/* Results */
+.results{flex:1;overflow-y:auto;padding:12px 16px}
+.results .section-title{font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.result-card{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:10px;transition:border-color .15s;cursor:pointer}
+.result-card:hover{border-color:#60a5fa}
+.result-card .badge{display:inline-flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.result-card .badge span{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500}
+.badge-domain{background:rgba(59,130,246,.2);color:#93c5fd}
+.badge-source{background:rgba(139,92,246,.2);color:#c4b5fd}
+.badge-entity{background:rgba(16,185,129,.2);color:#6ee7b7}
+.result-card .text{font-size:13px;line-height:1.6;color:#cbd5e1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.result-card .entities{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.result-card .entities .tag{font-size:10px;background:rgba(30,41,59,.8);color:#94a3b8;padding:2px 6px;border-radius:4px}
+/* Answer */
+.answer-section{background:linear-gradient(135deg,#1e293b,#1e293b);border-bottom:1px solid #334155;padding:0;max-height:0;overflow:hidden;transition:all .3s ease}
+.answer-section.open{max-height:500px;padding:16px}
+.answer-section .answer-label{font-size:11px;font-weight:600;color:#60a5fa;text-transform:uppercase;margin-bottom:8px}
+.answer-section .answer-text{font-size:14px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap}
+.answer-section .evidence-link{display:inline-block;font-size:11px;color:#60a5fa;margin-top:8px;cursor:pointer}
+/* Node tooltip */
+.tooltip{position:absolute;background:rgba(15,23,42,.95);border:1px solid #334155;border-radius:8px;padding:10px 14px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .15s;max-width:280px;z-index:100}
+.tooltip.show{opacity:1}
+.tooltip .tt-title{font-weight:600;color:#f1f5f9;margin-bottom:4px}
+.tooltip .tt-meta{color:#94a3b8;font-size:11px}
+/* Domain overview */
+.domain-overview{display:flex;gap:8px;padding:0 16px 12px;flex-wrap:wrap}
+.domain-card{flex:1;min-width:120px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center;cursor:pointer;transition:all .15s}
+.domain-card:hover{border-color:#60a5fa;transform:translateY(-1px)}
+.domain-card .d-name{font-size:11px;font-weight:600;color:#e2e8f0;margin-bottom:4px}
+.domain-card .d-stat{font-size:10px;color:#64748b}
+/* Loading */
+.loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.loading .spinner{width:40px;height:40px;border:3px solid #334155;border-top-color:#60a5fa;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{font-size:13px;color:#94a3b8}
+/* Empty state */
+.empty-state{text-align:center;padding:40px 20px;color:#64748b}
+.empty-state svg{width:48px;height:48px;margin-bottom:12px;opacity:.5}
+.empty-state p{font-size:13px}
+/* Node labels */
+.graph-node-label{font-size:10px;pointer-events:none;fill:#94a3b8;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+/* Toggle */
+.mode-toggle{display:flex;gap:4px;margin-top:8px}
+.mode-toggle button{flex:1;font-size:11px;padding:6px;border:1px solid #334155;background:transparent;color:#94a3b8;border-radius:4px;cursor:pointer;transition:all .15s}
+.mode-toggle button.active{background:#3b82f6;border-color:#3b82f6;color:#fff}
+/* Scrollbar */
+.results::-webkit-scrollbar{width:4px}
+.results::-webkit-scrollbar-track{background:transparent}
+.results::-webkit-scrollbar-thumb{background:#475569;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>GraphRAG</h1>
+  <span class="subtitle">Knowledge Graph + Vector Hybrid Retrieval</span>
+    <div class="stats">
+      <div class="stat"><div class="stat-num" id="stat-nodes">-</div><div class="stat-label">Nodes</div></div>
+      <div class="stat"><div class="stat-num" id="stat-edges">-</div><div class="stat-label">Edges</div></div>
+      <div class="stat"><div class="stat-num" id="stat-entities">-</div><div class="stat-label">Entities</div></div>
+      <div class="stat"><div class="stat-num" id="stat-chunks">-</div><div class="stat-label">Chunks</div></div>
+      <div class="stat"><div class="stat-num" id="stat-doms">-</div><div class="stat-label">Domains</div></div>
+    </div>
+</div>
+
+<div class="main">
+  <div class="graph-panel" id="graph-panel">
+    <svg id="graph-svg"></svg>
+    <div class="loading" id="graph-loading">
+      <div class="spinner"></div>
+      <p>Loading knowledge graph...</p>
+    </div>
+    <div class="graph-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Domain</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Document</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Entity</div>
+      <div class="legend-item" style="border-left:2px solid #475569;padding-left:8px">
+        <span style="color:#64748b">—</span> <span style="color:#94a3b8">belongs_to</span>
+        <span style="color:#64748b">—</span> <span style="color:#a78bfa">related_to</span>
+        <span style="color:#64748b">—</span> <span style="color:#34d399">entity→domain</span>
+      </div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="search-box">
+      <div class="input-row">
+        <input id="search-input" type="text" placeholder="Ask a question... (e.g., 什么是XSS? 航天动力营收)" onkeydown="if(event.key==='Enter')doSearch()">
+        <button id="search-btn" onclick="doSearch()">Search</button>
+      </div>
+      <div class="mode-toggle">
+        <button class="active" data-mode="hybrid" onclick="setMode(this)">Hybrid (V+G+P)</button>
+        <button data-mode="vector" onclick="setMode(this)">Vector Only</button>
+      </div>
+      <div class="meta" id="search-meta"></div>
+    </div>
+
+    <div class="domain-overview" id="domain-overview"></div>
+
+    <div class="answer-section" id="answer-section">
+      <div class="answer-label">Answer</div>
+      <div class="answer-text" id="answer-text"></div>
+    </div>
+
+    <div class="results" id="results">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <p>Ask a question to search across 4 knowledge domains</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let graphData = { nodes: [], edges: [] };
+let searchMode = 'hybrid';
+const API = 'http://localhost:8765';
+
+// ── Init ───────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [graph, health, domains] = await Promise.all([
+      fetch(`${API}/api/graph`).then(r=>r.json()),
+      fetch(`${API}/api/health`).then(r=>r.json()),
+      fetch(`${API}/api/domains`).then(r=>r.json()),
+    ]);
+    document.getElementById('graph-loading').style.display = 'none';
+
+    document.getElementById('stat-nodes').textContent = health.nodes || '-';
+    document.getElementById('stat-edges').textContent = health.edges || '-';
+    document.getElementById('stat-chunks').textContent = health.chunks || '-';
+    document.getElementById('stat-doms').textContent = Object.keys(domains).length || '-';
+
+    // Count unique entities
+    const entitySet = new Set();
+    graph.nodes.forEach(n => { if (n.type === 'entity') entitySet.add(n.id); });
+    document.getElementById('stat-entities').textContent = entitySet.size || '-';
+
+    graphData = graph;
+    renderGraph(graph);
+    loadDomains();
+  } catch(e) {
+    document.getElementById('graph-loading').innerHTML =
+      `<p style="color:#ef4444">Cannot connect to backend at ${API}<br><small>${e.message}</small></p>`;
+  }
+}
+
+// ── Domains ────────────────────────────────────────────────────────────
+async function loadDomains() {
+  try {
+    const data = await fetch(`${API}/api/domains`).then(r=>r.json());
+    const container = document.getElementById('domain-overview');
+    const colors = ['#f59e0b','#3b82f6','#10b981','#8b5cf6'];
+    let i = 0;
+    container.innerHTML = Object.entries(data).map(([name, stats]) =>
+      `<div class="domain-card" onclick="document.getElementById('search-input').value='${name}';doSearch()"
+            style="border-left:3px solid ${colors[i++ % colors.length]}">
+        <div class="d-name">${name}</div>
+        <div class="d-stat">${stats.chunks} chunks · ${stats.entities} entities</div>
+      </div>`
+    ).join('');
+  } catch(e) {}
+}
+
+// ── D3 Graph ───────────────────────────────────────────────────────────
+const NODE_COLORS = { domain: '#f59e0b', document: '#3b82f6', entity: '#10b981', chunk: '#8b5cf6' };
+const NODE_SIZES  = { domain: 22, document: 14, entity: 10, chunk: 6 };
+
+function renderGraph(data) {
+  const el = document.getElementById('graph-svg');
+  const rect = document.getElementById('graph-panel').getBoundingClientRect();
+  const W = rect.width || 900, H = rect.height || 600;
+
+  // Show: domain, document, entity. Skip chunks for clarity.
+  // Filter edges to only show meaningful relationships (skip references between chunks)
+  const nodeMap = {};
+  const filteredNodes = data.nodes.filter(n => {
+    if (n.type === 'chunk') return false;
+    nodeMap[n.id] = n;
+    return true;
+  });
+  const nodeIds = new Set(filteredNodes.map(n => n.id));
+  const filteredEdges = data.edges.filter(e =>
+    nodeIds.has(e.source) && nodeIds.has(e.target) &&
+    ['belongs_to','entity_belongs_to','related_to'].includes(e.relation)
+  );
+
+  const svg = d3.select(el).attr('viewBox', [0, 0, W, H]);
+  svg.selectAll('*').remove();
+
+  const g = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.2, 8]).on('zoom', (event) => {
+    g.attr('transform', event.transform);
+  }));
+
+  const EDGE_COLORS = {
+    belongs_to: '#475569',
+    entity_belongs_to: '#34d399',
+    related_to: '#a78bfa',
+  };
+
+  // Simulation
+  const simulation = d3.forceSimulation(filteredNodes)
+    .force('link', d3.forceLink(filteredEdges).id(d => d.id).distance(d => {
+      if (d.relation === 'entity_belongs_to') return 100;
+      if (d.relation === 'related_to') return 60;
+      return 120;
+    }))
+    .force('charge', d3.forceManyBody().strength(-150))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide().radius(d => NODE_SIZES[d.type] * 2));
+
+  // Edges
+  const link = g.append('g').selectAll('line').data(filteredEdges).join('line')
+    .attr('stroke', d => EDGE_COLORS[d.relation] || '#334155')
+    .attr('stroke-width', d => (d.weight || 0.5) * 1.5)
+    .attr('stroke-opacity', d => d.relation === 'belongs_to' ? 0.3 : 0.5)
+    .attr('stroke-dasharray', d => d.relation === 'entity_belongs_to' ? '4,3' : null);
+
+  // Node groups
+  const node = g.append('g').selectAll('g').data(filteredNodes).join('g')
+    .call(d3.drag()
+      .on('start', (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on('end', (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  // Circles
+  node.append('circle')
+    .attr('r', d => NODE_SIZES[d.type] || 6)
+    .attr('fill', d => NODE_COLORS[d.type] || '#64748b')
+    .attr('stroke', '#1e293b')
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0.85)
+    .attr('pointer-events', 'none');
+
+  // Labels
+  node.append('text')
+    .text(d => {
+      if (d.type === 'domain') return d.label;
+      if (d.type === 'entity') return d.label;
+      if (d.type === 'document') return d.label.length > 12 ? d.label.slice(0,12)+'…' : d.label;
+      return '';
+    })
+    .attr('dx', d => d.type === 'entity' ? 12 : 0)
+    .attr('dy', d => d.type === 'domain' ? -18 : (d.type === 'entity' ? 4 : -12))
+    .attr('text-anchor', d => d.type === 'entity' ? 'start' : 'middle')
+    .attr('class', 'graph-node-label')
+    .attr('font-weight', d => d.type === 'domain' ? 700 : (d.type === 'entity' ? 400 : 500))
+    .attr('fill', d => d.type === 'domain' ? '#fbbf24' : '#94a3b8');
+
+  // Tooltip
+  const tooltip = document.getElementById('tooltip');
+  node.on('mouseenter', (event, d) => {
+    const edges = data.edges.filter(e => e.source === d.id || e.target === d.id);
+    const connCount = edges.length;
+    const relTypes = [...new Set(edges.map(e => e.relation))].join(', ');
+    tooltip.innerHTML = `
+      <div class="tt-title">${d.label}</div>
+      <div class="tt-meta">Type: ${d.type} · ${connCount} connections</div>
+      <div class="tt-meta">Relations: ${relTypes}</div>
+      ${d.metadata?.domain ? `<div class="tt-meta">Domain: ${d.metadata.domain}</div>` : ''}
+    `;
+    tooltip.style.left = (event.offsetX + 12) + 'px';
+    tooltip.style.top = (event.offsetY - 10) + 'px';
+    tooltip.classList.add('show');
+  }).on('mouseleave', () => tooltip.classList.remove('show'))
+    .on('click', (event, d) => {
+      if (d.type === 'domain') {
+        document.getElementById('search-input').value = d.label;
+        doSearch();
+      }
+    });
+
+  simulation.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  setTimeout(() => {
+    simulation.alpha(0.1).restart();
+    setTimeout(() => simulation.stop(), 2000);
+  }, 500);
+}
+
+// ── Search ─────────────────────────────────────────────────────────────
+function setMode(btn) {
+  document.querySelectorAll('.mode-toggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  searchMode = btn.dataset.mode;
+}
+
+async function doSearch() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  document.getElementById('answer-section').classList.remove('open');
+
+  try {
+    // Choose endpoint based on mode
+    const isHybrid = searchMode === 'hybrid';
+    const resp = await fetch(`${API}/api/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, use_llm: true }),
+    });
+    const data = await resp.json();
+
+    // Meta
+    const m = data.meta || {};
+    document.getElementById('search-meta').innerHTML =
+      `<span>V:${m.vector_results||0}</span><span>G:${m.graph_results||0}</span><span>P:${m.path_results||0}</span>`;
+
+    // Answer
+    if (data.answer) {
+      const ans = document.getElementById('answer-section');
+      ans.classList.add('open');
+      document.getElementById('answer-text').textContent = data.answer;
+    }
+
+    // Results
+    const results = data.evidence || [];
+    const container = document.getElementById('results');
+    if (results.length === 0) {
+      container.innerHTML = `<div class="empty-state"><p>No results found</p></div>`;
+      return;
+    }
+
+    container.innerHTML =
+      `<div class="section-title">Evidence (${results.length})</div>` +
+      results.map((r, i) => `
+        <div class="result-card" onclick="expandCard(this)">
+          <div class="badge">
+            <span class="badge-domain">${r.domain||'?'}</span>
+            ${(r.sources||[]).map(s => `<span class="badge-source">${s}</span>`).join('')}
+          </div>
+          <div class="text">${r.text||''}</div>
+          <div class="entities">
+            ${(r.entities||[]).map(e => `<span class="tag">${e}</span>`).join('')}
+          </div>
+        </div>
+      `).join('');
+
+    // Highlight matching entities on graph
+    highlightEntities(results);
+  } catch(e) {
+    document.getElementById('results').innerHTML =
+      `<div class="empty-state"><p style="color:#ef4444">Error: ${e.message}</p></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Search';
+  }
+}
+
+function expandCard(el) {
+  const text = el.querySelector('.text');
+  if (text) text.style.webkitLineClamp = text.style.webkitLineClamp === 'unset' ? '3' : 'unset';
+}
+
+function highlightEntities(results) {
+  const entityNames = new Set();
+  results.forEach(r => (r.entities||[]).forEach(e => entityNames.add(e)));
+  const svg = document.getElementById('graph-svg');
+  svg.querySelectorAll('g g circle').forEach((c, i) => {
+    // reset all
+    c.setAttribute('opacity', '0.4');
+  });
+  // Highlight entities that appear in results
+  svg.querySelectorAll('g g text').forEach(t => {
+    if (entityNames.has(t.textContent)) {
+      const circle = t.parentElement.querySelector('circle');
+      if (circle) {
+        circle.setAttribute('opacity', '1');
+        circle.setAttribute('stroke', '#60a5fa');
+        circle.setAttribute('stroke-width', '3');
+      }
+    }
+  });
+}
+
+// ── Resize ─────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  // Re-render is optional; D3 viewBox handles it
+});
+
+// ── Start ──────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

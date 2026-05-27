@@ -1,0 +1,12 @@
+{
+  "query": "去年营业收入趋势",
+  "expected_parsed": {
+    "metric": "M_REVENUE",
+    "time_range": "2025-Q1 to 2025-Q4",
+    "aggregation": "trend",
+    "group_by": "quarter"
+  },
+  "expected_response_type": "trend_chart",
+  "expected_metrics_count": 4,
+  "expected_metric_ids": ["M_REVENUE"]
+}

@@ -1,0 +1,32 @@
+{
+  "from_version": "Circular23_rule_pack@v2026.04.1",
+  "to_version": "Circular23_rule_pack@v2026.04.2",
+  "diff_summary": {
+    "whitelist_changes": [
+      {
+        "type": "ITEM_ADDED",
+        "enterprise_id": "CE_RETAIL_PILOT_001",
+        "details": "试点核心企业，信用评级A+，试点期限至2026-09-30"
+      }
+    ],
+    "rule_changes": [],
+    "evidence_changes": []
+  },
+  "impact_analysis": {
+    "entities_affected": [
+      {
+        "entity_id": "SUP_C5",
+        "company_name": "成都链城供应链有限公司",
+        "prev_status": "FAILED",
+        "new_status": "PASSED",
+        "prev_score": 55,
+        "new_score": 85,
+        "changed_check": "c23-step-1-whitelist",
+        "reason": "关联核心企业CE_RETAIL_PILOT_001新增至白名单"
+      }
+    ],
+    "entities_unaffected": ["SUP_C1", "SUP_C2", "SUP_C3", "SUP_C4"],
+    "total_entities_changed": 1,
+    "risk_assessment": "MEDIUM — 试点企业纳入导致SUP_C5误判通过，需人工复核"
+  }
+}

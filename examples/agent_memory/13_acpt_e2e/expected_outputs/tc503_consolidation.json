@@ -1,0 +1,19 @@
+{
+  "scenario": "SC_CONSOLIDATION",
+  "fragments": [
+    "王芳是TechNova技术负责人",
+    "王芳主导架构迁移到CloudGroup平台",
+    "王芳团队有50人"
+  ],
+  "expected_compilation": {
+    "entity_name": "王芳",
+    "attributes_count_min": 3,
+    "has_compound_entity": true,
+    "consolidation_edges_created": true
+  },
+  "acceptance_criteria": {
+    "fragments_consolidated": true,
+    "entity_created": true,
+    "attributes_extracted": true
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "query": "毛利率和融资成本率对比",
+  "expected_parsed": {
+    "metrics": ["M_GROSS_MARGIN", "M_FINANCING_COST"],
+    "time_range": "current",
+    "aggregation": "comparison",
+    "visualization": "bar_chart"
+  },
+  "expected_response_type": "comparison_chart",
+  "expected_metrics_count": 2,
+  "expected_metric_ids": ["M_GROSS_MARGIN", "M_FINANCING_COST"]
+}

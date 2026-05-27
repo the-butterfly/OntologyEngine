@@ -1,0 +1,13 @@
+{
+  "query": "供应链金融所有核心指标",
+  "expected_parsed": {
+    "scope": "supply_chain_finance",
+    "metrics": ["M_REVENUE", "M_GROSS_MARGIN", "M_AR_TURNOVER", "M_SUPPLIER_CONCENTRATION", "M_FINANCING_COST"],
+    "aggregation": "list_all",
+    "visualization": "dashboard"
+  },
+  "expected_response_type": "dashboard",
+  "expected_metrics_count": 5,
+  "expected_metric_ids": ["M_REVENUE", "M_GROSS_MARGIN", "M_AR_TURNOVER", "M_SUPPLIER_CONCENTRATION", "M_FINANCING_COST"],
+  "version": "1.4"
+}

@@ -1,0 +1,69 @@
+# 核心企业白名单 v2026.04.2
+# 发布日期: 2026-04-15
+# 生效日期: 2026-04-20
+# 发布单位: 风险管理部
+# 变更说明: 新增试点零售核心企业 CE_RETAIL_PILOT_001
+# 审批依据: frag.whitelist.memo.001
+
+whitelist:
+  version: "v2026.04.2"
+  effective_date: "2026-04-20"
+  expiry_date: "2026-06-30"
+  regulation_reference: "银发〔2026〕23号"
+  issuing_authority: "中国人民银行"
+  change_reason: "补充合作资方确认的试点核心企业白名单"
+
+  entries:
+    - enterprise_id: CE_HW
+      company_name: 华为技术有限公司
+      unified_credit_code: "91440300MA5D5C1CXN"
+      credit_rating: AAA
+      industry: 信息通信技术
+      whitelist_category: 战略核心企业
+      added_date: "2025-01-15"
+      added_by: risk_control_manager
+      approval_memo: frag.whitelist.memo.hw.001
+
+    - enterprise_id: CE_BYD
+      company_name: 比亚迪股份有限公司
+      unified_credit_code: "91440300192376288T"
+      credit_rating: AA+
+      industry: 新能源汽车
+      whitelist_category: 战略核心企业
+      added_date: "2025-03-20"
+      added_by: risk_control_manager
+      approval_memo: frag.whitelist.memo.byd.001
+
+    - enterprise_id: CE_ALI
+      company_name: 阿里巴巴集团控股有限公司
+      unified_credit_code: "91330100799660461X"
+      credit_rating: AAA
+      industry: 电子商务/云计算
+      whitelist_category: 战略核心企业
+      added_date: "2025-06-10"
+      added_by: risk_control_manager
+      approval_memo: frag.whitelist.memo.ali.001
+
+    - enterprise_id: CE_RETAIL_PILOT_001
+      company_name: 某零售集团试点公司
+      unified_credit_code: "91310000MA1FL8XXXX"
+      credit_rating: A+
+      industry: 零售/供应链
+      whitelist_category: 试点核心企业
+      added_date: "2026-04-15"
+      added_by: risk_control_manager
+      approval_memo: frag.whitelist.memo.001
+      pilot_program: true
+      pilot_expiry: "2026-09-30"
+
+  metadata:
+    total_entries: 4
+    last_updated: "2026-04-15T14:30:00Z"
+    updated_by: risk_control_manager
+    review_cycle: quarterly
+    next_review_date: "2026-07-01"
+    changes_from_previous:
+      - type: ITEM_ADDED
+        enterprise_id: CE_RETAIL_PILOT_001
+        reason: "合作资方确认的试点核心企业"
+        evidence: "frag.whitelist.memo.001"

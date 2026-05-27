@@ -1,0 +1,79 @@
+{
+  "version": "Circular23_rule_pack@v2026.04.1 (rolled back)",
+  "space_id": "space.supply_chain_finance",
+  "analysis_timestamp": "2026-04-20T16:00:00Z",
+  "summary": {
+    "total": 5,
+    "passed": 1,
+    "failed": 4,
+    "pass_rate": "20%",
+    "average_score": 53
+  },
+  "rollback_info": {
+    "from_version": "Circular23_rule_pack@v2026.04.2",
+    "to_version": "Circular23_rule_pack@v2026.04.1",
+    "rollback_timestamp": "2026-04-20T15:55:00Z",
+    "reason": "SUP_C5误判为PASSED，试点企业CE_RETAIL_PILOT_001不应纳入白名单"
+  },
+  "results": [
+    {
+      "entity_id": "SUP_C1",
+      "company_name": "深圳恒通科技有限公司",
+      "compliance_status": "PASSED",
+      "compliance_score": 95,
+      "failed_checks": []
+    },
+    {
+      "entity_id": "SUP_C2",
+      "company_name": "上海睿商贸易有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 60,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-1-whitelist",
+          "article": "Article 8",
+          "reason": "核心企业'某地产集团有限公司'不在监管白名单中"
+        }
+      ]
+    },
+    {
+      "entity_id": "SUP_C3",
+      "company_name": "广州誉成制造有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 35,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-2-invoice-auth",
+          "article": "Article 12",
+          "reason": "发票真实性核验通过率60%，低于95%阈值"
+        }
+      ]
+    },
+    {
+      "entity_id": "SUP_C4",
+      "company_name": "北京鼎实担保有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 65,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-3-guarantee-limit",
+          "article": "Article 15",
+          "reason": "最大单笔担保占比15%，超过10%上限"
+        }
+      ]
+    },
+    {
+      "entity_id": "SUP_C5",
+      "company_name": "成都链城供应链有限公司",
+      "compliance_status": "FAILED",
+      "compliance_score": 55,
+      "failed_checks": [
+        {
+          "check_id": "c23-step-4-risk-concentration",
+          "article": "Article 18",
+          "reason": "风险集中度65%，超过50%阈值"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "scenario": "SC_ZERO_PARAM",
+  "input": "TechNova公司CEO张明于2025年3月宣布AI战略转型",
+  "expected_inference": {
+    "memory_type": "entity",
+    "tags": ["company", "leadership", "strategy", "ai"],
+    "confidence_min": 0.80,
+    "visibility": "shared",
+    "has_node_id": true,
+    "has_stats": true
+  },
+  "acceptance_criteria": {
+    "type_inferred": true,
+    "tags_non_empty": true,
+    "confidence_above_threshold": true,
+    "visibility_not_private": true
+  }
+}

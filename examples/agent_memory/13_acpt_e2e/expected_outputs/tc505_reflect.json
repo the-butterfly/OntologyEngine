@@ -1,0 +1,16 @@
+{
+  "scenario": "SC_REFLECT",
+  "query": "TechNova技术架构演进",
+  "expected_reflection": {
+    "has_findings": true,
+    "findings_count_min": 1,
+    "has_recommendations": true,
+    "risk_level": "medium",
+    "evidence_chain_present": true
+  },
+  "acceptance_criteria": {
+    "reflection_non_empty": true,
+    "findings_present": true,
+    "recommendations_present": true
+  }
+}

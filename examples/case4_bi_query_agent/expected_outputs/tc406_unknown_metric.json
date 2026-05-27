@@ -1,0 +1,7 @@
+{
+  "query": "未知指标xyz123",
+  "expected_response_type": "error",
+  "expected_error": "METRIC_NOT_FOUND",
+  "expected_suggestions": ["M_REVENUE", "M_GROSS_MARGIN", "M_FINANCING_COST"],
+  "expected_fallback": true
+}

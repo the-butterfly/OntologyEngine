@@ -1,0 +1,13 @@
+{
+  "query": "2025年Q3和Q4的营业收入对比",
+  "expected_parsed": {
+    "metric": "M_REVENUE",
+    "time_ranges": ["2025-Q3", "2025-Q4"],
+    "aggregation": "comparison",
+    "visualization": "bar_chart"
+  },
+  "expected_response_type": "comparison_chart",
+  "expected_metrics_count": 2,
+  "expected_metric_ids": ["M_REVENUE"],
+  "time_filter_accuracy": 0.95
+}

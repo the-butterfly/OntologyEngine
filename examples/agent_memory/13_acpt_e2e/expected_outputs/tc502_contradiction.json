@@ -1,0 +1,16 @@
+{
+  "scenario": "SC_CONTRADICTION",
+  "seed_memory": "TechNova总部在深圳",
+  "contradictory_memory": "TechNova总部在上海",
+  "expected_detection": {
+    "contradiction_found": true,
+    "resolution_type": "supersede",
+    "has_evidence_chain": true,
+    "audit_trail_created": true
+  },
+  "acceptance_criteria": {
+    "contradiction_detected": true,
+    "old_value_preserved": true,
+    "new_value_marked_pending": true
+  }
+}

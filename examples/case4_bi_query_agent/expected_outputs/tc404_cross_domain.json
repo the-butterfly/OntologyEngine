@@ -1,0 +1,12 @@
+{
+  "query": "供应商集中度和应收账款周转率",
+  "expected_parsed": {
+    "metrics": ["M_SUPPLIER_CONCENTRATION", "M_AR_TURNOVER"],
+    "time_range": "current",
+    "aggregation": "current_value",
+    "visualization": "table"
+  },
+  "expected_response_type": "table",
+  "expected_metrics_count": 2,
+  "expected_metric_ids": ["M_SUPPLIER_CONCENTRATION", "M_AR_TURNOVER"]
+}

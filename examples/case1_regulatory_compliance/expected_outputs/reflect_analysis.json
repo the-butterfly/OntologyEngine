@@ -1,0 +1,51 @@
+{
+  "analysis_type": "reflect",
+  "space_id": "case1_circular23",
+  "analysis_timestamp": "2026-04-20T17:00:00Z",
+  "input_query": "Circular 23合规分析结果汇总",
+  "expected_reflection": {
+    "summary": "Circular 23（银发〔2026〕23号）合规分析覆盖5家供应商，仅1家通过全部4项检查。主要失败原因包括：核心企业不在白名单（SUP_C2）、发票验真通过率不足（SUP_C3）、担保比例超限（SUP_C4）、风险集中度过高（SUP_C5）。",
+    "key_findings": [
+      {
+        "finding_id": "F-001",
+        "title": "白名单覆盖不足",
+        "severity": "HIGH",
+        "affected_entities": ["SUP_C2"],
+        "description": "核心企业'某地产集团有限公司'未被纳入监管白名单，导致SUP_C3无法通过Article 8检查",
+        "recommendation": "扩展白名单覆盖范围或要求供应商更换核心企业"
+      },
+      {
+        "finding_id": "F-002",
+        "title": "发票验真合规风险",
+        "severity": "CRITICAL",
+        "affected_entities": ["SUP_C3"],
+        "description": "发票真实性核验通过率仅60%，远低于95%阈值要求",
+        "recommendation": "暂停SUP_C3融资申请，要求重新提供合规发票"
+      },
+      {
+        "finding_id": "F-003",
+        "title": "担保比例超限",
+        "severity": "HIGH",
+        "affected_entities": ["SUP_C4"],
+        "description": "最大单笔担保占比15%，超过Article 15规定的10%上限",
+        "recommendation": "要求SUP_C4降低担保比例或提供额外增信措施"
+      },
+      {
+        "finding_id": "F-004",
+        "title": "风险集中度过高",
+        "severity": "MEDIUM",
+        "affected_entities": ["SUP_C5"],
+        "description": "风险集中度65%，超过Article 18规定的50%阈值",
+        "recommendation": "分散风险敞口或要求追加抵押物"
+      }
+    ],
+    "overall_risk_level": "HIGH",
+    "compliance_rate": "20%",
+    "recommended_actions": [
+      "暂停SUP_C3融资申请",
+      "要求SUP_C4降低担保比例",
+      "对SUP_C5进行风险分散评估",
+      "对SUP_C2的核心企业资格进行重新审查"
+    ]
+  }
+}
