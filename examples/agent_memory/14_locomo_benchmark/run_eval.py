@@ -368,7 +368,7 @@ def parse_args() -> argparse.Namespace:
                         help="Pass evidence to judge")
 
     # OE-specific
-    parser.add_argument("--oe-db-path", default=None, help="OE KuzuDB path")
+    parser.add_argument("--oe-db-path", default=None, help="OE Ladybug path")
     parser.add_argument("--oe-llm-model", default=None,
                         help="OE internal LLM model (for consolidation / entity resolution)")
     parser.add_argument("--oe-llm-base-url", default=None, help="OE internal LLM base URL")

@@ -25,6 +25,7 @@ class TestDefaultRetrievalBackend:
     def graph_store(self):
         g = AsyncMock()
         g.get_neighbors = AsyncMock(return_value=[])
+        g.get_k_hop_neighbors = AsyncMock(return_value={})
         g.execute_cypher = AsyncMock(return_value=[])
         return g
 
@@ -97,10 +98,10 @@ class TestDefaultRetrievalBackend:
             VectorSearchResult(id="e1", score=1.0, metadata={}),
             VectorSearchResult(id="e2", score=0.5, metadata={}),
         ]
-        graph_store.get_neighbors.return_value = [
-            {"neighbor_id": "e2"},
-            {"neighbor_id": "e3"},
-        ]
+        graph_store.get_k_hop_neighbors.return_value = {
+            "e2": 1.0,
+            "e3": 0.5,
+        }
         r = DefaultRetrievalBackend(
             storage=storage,
             graph_store=graph_store,
@@ -129,10 +130,10 @@ class TestDefaultRetrievalBackend:
             VectorSearchResult(id="e1", score=1.0, metadata={}),
             VectorSearchResult(id="e2", score=0.5, metadata={}),
         ]
-        graph_store.get_neighbors.return_value = [
-            {"neighbor_id": "e2"},
-            {"neighbor_id": "e3"},
-        ]
+        graph_store.get_k_hop_neighbors.return_value = {
+            "e2": 1.0,
+            "e3": 0.5,
+        }
         r = DefaultRetrievalBackend(
             storage=storage,
             graph_store=graph_store,
@@ -170,9 +171,9 @@ class TestDefaultRetrievalBackend:
         vector_store.search.return_value = [
             VectorSearchResult(id="e1", score=1.0, metadata={}),
         ]
-        graph_store.get_neighbors.return_value = [
-            {"neighbor_id": "e2", "properties": {"weight": 0.8}},
-        ]
+        graph_store.get_k_hop_neighbors.return_value = {
+            "e2": 1.0,
+        }
         r = DefaultRetrievalBackend(
             storage=storage,
             graph_store=graph_store,

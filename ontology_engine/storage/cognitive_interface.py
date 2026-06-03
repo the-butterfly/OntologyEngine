@@ -5,6 +5,10 @@ CognitiveStorageBackend pattern with a single unified interface that
 automatically routes by memory_type to the correct storage engine.
 
 Boundary: engine/cognitive/ -> storage/cognitive_interface.py
+
+DEPRECATED: Use CognitiveStorageBackend from ontology_engine.storage.base instead.
+StorageInterface is kept for backward compatibility and will be removed in a future version.
+CognitiveStorageBackend in base.py is the canonical interface for cognitive storage operations.
 """
 
 from __future__ import annotations
@@ -160,6 +164,11 @@ class StorageRouting:
 class StorageInterface(ABC):
     """Unified CognitiveNode storage interface.
 
+    .. deprecated::
+        Use ``CognitiveStorageBackend`` from ``ontology_engine.storage.base``
+        instead.  ``StorageInterface`` is kept for backward compatibility and
+        will be removed in a future version.
+
     Replaces the current multi-interface CognitiveStorageBackend pattern.
     Exposes consistent storage operations to MemoryService and
     CognitiveRepository, internally routing by memory_type to the correct
@@ -252,7 +261,7 @@ class StorageInterface(ABC):
     ) -> list[Any]:  # Any = CognitiveNode
         """Graph traversal from a starting node.
 
-        Delegates to the graph engine (Kuzu). Falls back to SQLite
+        Delegates to the graph engine (Ladybug). Falls back to SQLite
         association queries if graph engine is unavailable.
 
         Args:

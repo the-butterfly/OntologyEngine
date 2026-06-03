@@ -5,7 +5,7 @@ This is the default graph store implementation that uses NetworkX
 for graph algorithms. It operates entirely in-memory and is suitable
 for small to medium graphs.
 
-For larger graphs or production use, consider KuzuGraphStore.
+For larger graphs or production use, consider LadybugGraphStore.
 """
 
 from __future__ import annotations
@@ -147,26 +147,17 @@ class NetworkXGraphStore(GraphStoreBackend):
 
     # --- Graph Queries ---
 
-    async def get_neighbors(
+    async def get_neighbors_basic(
         self,
         node_id: str,
         edge_type: str | None = None,
         direction: str = "outgoing",
         limit: int = 100,
         filter_props: dict[str, Any] | None = None,
-        node_concept: str | None = None,
-        as_of: str | None = None,
-        include_history: bool = False,
     ) -> list[dict[str, Any]]:
-        """Get 1-hop neighbors of a node.
+        """Get 1-hop neighbors of a node (generic graph parameters only).
 
-        Note: ``node_concept`` is accepted for interface compatibility but
-        not enforced by NetworkX since concept is not stored in the graph.
-        Use kuzu for concept-filtered queries.
-
-        Note: ``as_of`` and ``include_history`` are accepted for interface
-        compatibility but temporal filtering is not supported by NetworkX.
-        Use kuzu for temporal queries.
+        Pure graph-topology query — no concept or temporal filtering.
         """
         self._ensure_initialized()
         if node_id not in self._graph:
@@ -201,6 +192,104 @@ class NetworkXGraphStore(GraphStoreBackend):
                 })
 
         return neighbors[:limit]
+
+    async def get_neighbors(
+        self,
+        node_id: str,
+        edge_type: str | None = None,
+        direction: str = "outgoing",
+        limit: int = 100,
+        filter_props: dict[str, Any] | None = None,
+        node_concept: str | None = None,
+        as_of: str | None = None,
+        include_history: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Get 1-hop neighbors of a node.
+
+        Delegates to ``get_neighbors_basic()`` for graph topology, then
+        applies cognitive-layer filters (node_concept, as_of,
+        include_history) in-memory.  NetworkX does not store concept or
+        temporal metadata natively, so these filters are best-effort.
+
+        Note: ``node_concept`` filtering checks node properties for a
+        ``_labels`` match.  ``as_of`` / ``include_history`` are not
+        supported by NetworkX — use Ladybug for temporal queries.
+        """
+        neighbors = await self.get_neighbors_basic(
+            node_id=node_id,
+            edge_type=edge_type,
+            direction=direction,
+            limit=limit,
+            filter_props=filter_props,
+        )
+
+        # Apply node_concept filter in-memory
+        if node_concept and neighbors:
+            filtered = []
+            for n in neighbors:
+                nid = n["neighbor_id"]
+                props = self._node_properties.get(nid, {})
+                labels = props.get("_labels", [])
+                if node_concept in labels:
+                    filtered.append(n)
+            neighbors = filtered
+
+        # as_of and include_history are not supported by NetworkX
+        # (no temporal metadata stored) — return as-is
+
+        return neighbors
+
+    async def get_k_hop_neighbors(
+        self,
+        node_id: str,
+        k: int = 2,
+        edge_type: str | None = None,
+        direction: str = "both",
+        limit_per_hop: int = 100,
+    ) -> dict[str, float]:
+        """Get all neighbors within k hops using NetworkX BFS.
+
+        Args:
+            node_id: Starting node ID.
+            k: Number of hops (depth). Defaults to 2.
+            edge_type: Optional edge type filter.
+            direction: Traversal direction ("outgoing", "incoming", "both").
+            limit_per_hop: Max neighbors per node per hop.
+
+        Returns:
+            Dict mapping neighbor_id → proximity score (1/(1+depth)).
+        """
+        self._ensure_initialized()
+        if node_id not in self._graph:
+            return {}
+
+        visited: set[str] = {node_id}
+        scores: dict[str, float] = {}
+        current_level: list[str] = [node_id]
+
+        for depth in range(k):
+            next_level: list[str] = []
+            for nid in current_level:
+                neighbors_raw = await self.get_neighbors(
+                    node_id=nid,
+                    edge_type=edge_type,
+                    direction=direction,
+                    limit=limit_per_hop,
+                )
+                for n in neighbors_raw:
+                    neighbor_id = n["neighbor_id"]
+                    if neighbor_id not in visited:
+                        visited.add(neighbor_id)
+                        next_level.append(neighbor_id)
+                        scores[neighbor_id] = max(
+                            scores.get(neighbor_id, 0.0),
+                            1.0 / (1.0 + depth),
+                        )
+            current_level = next_level
+            if not current_level:
+                break
+
+        return scores
 
     async def find_paths(
         self,

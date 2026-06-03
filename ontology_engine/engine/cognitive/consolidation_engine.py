@@ -4,7 +4,7 @@ Converts fragment memories into persistent knowledge (observation/entity/mental_
 maintains evidence chains and change history.
 
 Design decisions (from consolidation-engine.md):
-- D-CON-1: OCC via version field (KuzuDB has no row-level locks)
+- D-CON-1: OCC via version field (Ladybug has no row-level locks)
 - D-CON-2: source_fragment_ids as strong-typed field (fast traceability)
 - D-CON-3: history inline storage (avoids SUPERSEDES edge traversal)
 - D-CON-4: Tags strict grouping isolation (prevents cross-tenant leaks)

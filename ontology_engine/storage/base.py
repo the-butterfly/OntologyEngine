@@ -141,6 +141,12 @@ class CategoryTag:
 
 
 class EntityStorage(ABC):
+    """Internal mixin — entity and relation CRUD operations.
+
+    Not intended to be used directly. Use ``CoreStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def save_entity(self, entity: EntityInstance) -> str: ...
 
@@ -182,6 +188,12 @@ class EntityStorage(ABC):
 
 
 class MetricStorage(ABC):
+    """Internal mixin — metric read/write operations.
+
+    Not intended to be used directly. Use ``CoreStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def save_metric(self, entity_id: str, metric_name: str, value: Any) -> None: ...
 
@@ -190,6 +202,12 @@ class MetricStorage(ABC):
 
 
 class CategoryStorage(ABC):
+    """Internal mixin — category tag operations.
+
+    Not intended to be used directly. Use ``CoreStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def save_category_tag(self, tag: CategoryTag) -> None: ...
 
@@ -211,6 +229,12 @@ class CategoryStorage(ABC):
 
 
 class DatasetStorage(ABC):
+    """Internal mixin — dataset and snapshot operations.
+
+    Not intended to be used directly. Use ``AdminStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def create_dataset(
         self,
@@ -274,6 +298,12 @@ class DatasetStorage(ABC):
 
 
 class VersionStorage(ABC):
+    """Internal mixin — entity versioning and temporal queries.
+
+    Not intended to be used directly. Use ``AdminStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def save_entity_version(
         self,
@@ -312,6 +342,12 @@ class VersionStorage(ABC):
 
 
 class AuditStorage(ABC):
+    """Internal mixin — audit, feedback, and knowledge fragment operations.
+
+    Not intended to be used directly. Use ``AdminStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def log_rule_execution(self, entity_id: str, rule_id: str, result: str) -> None: ...
 
@@ -347,6 +383,12 @@ class AuditStorage(ABC):
 
 
 class DimensionStorage(ABC):
+    """Internal mixin — dimension applicability and category rule mapping.
+
+    Not intended to be used directly. Use ``AdminStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def save_dimension_applicability(
         self,
@@ -396,6 +438,12 @@ class DimensionStorage(ABC):
 
 
 class ChangeStorage(ABC):
+    """Internal mixin — change batch and entity change tracking.
+
+    Not intended to be used directly. Use ``AdminStorage`` or
+    ``StorageBackend`` instead.
+    """
+
     @abstractmethod
     async def create_change_batch(
         self,
@@ -440,18 +488,43 @@ class ChangeStorage(ABC):
     async def get_entity_changes(self, batch_id: str) -> list[dict[str, Any]]: ...
 
 
+class CoreStorage(EntityStorage, MetricStorage, CategoryStorage, ABC):
+    """Core data operations — entity, metric, and category storage.
+
+    Groups the most frequently used storage operations for data access
+    layers that only need to read/write entities, metrics, and categories
+    without depending on administrative concerns.
+
+    Someone who only needs core data ops can depend on ``CoreStorage``
+    instead of the full ``StorageBackend``, following the Interface
+    Segregation Principle.
+    """
+
+
+class AdminStorage(DatasetStorage, VersionStorage, AuditStorage, DimensionStorage, ChangeStorage, ABC):
+    """Administrative operations — dataset, version, audit, dimension, and change management.
+
+    Groups storage operations that support governance, traceability, and
+    lifecycle management.  These are typically used by admin/pipeline
+    layers rather than by core data-access code.
+
+    Future implementations can choose to implement only ``CoreStorage``
+    for lightweight deployments and add ``AdminStorage`` as needed.
+    """
+
+
 class StorageBackend(
-    EntityStorage,
-    MetricStorage,
-    CategoryStorage,
-    DatasetStorage,
-    VersionStorage,
-    AuditStorage,
-    DimensionStorage,
-    ChangeStorage,
+    CoreStorage,
+    AdminStorage,
     ABC,
 ):
-    """Abstract storage contract for analysis and visualization layers."""
+    """Abstract storage contract for analysis and visualization layers.
+
+    Inherits from ``CoreStorage`` and ``AdminStorage``, which in turn
+    compose the 7 internal mixin ABCs (EntityStorage, MetricStorage,
+    CategoryStorage, DatasetStorage, VersionStorage, AuditStorage,
+    DimensionStorage, ChangeStorage).
+    """
 
     @abstractmethod
     async def initialize(self) -> None: ...
@@ -530,6 +603,33 @@ class GraphStoreBackend(ABC):
 
     # --- Graph Queries ---
     @abstractmethod
+    async def get_neighbors_basic(
+        self,
+        node_id: str,
+        edge_type: str | None = None,
+        direction: str = "outgoing",
+        limit: int = 100,
+        filter_props: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get 1-hop neighbors of a node (generic graph parameters only).
+
+        This is the pure graph-topology query without any domain-specific
+        filtering.  Implementations should only consider graph structure
+        (edge type, direction, property filters).
+
+        Args:
+            node_id: The node to find neighbors for.
+            edge_type: Optional edge type filter.
+            direction: "outgoing", "incoming", or "both".
+            limit: Maximum number of results.
+            filter_props: Optional edge property exact-match filters.
+
+        Returns:
+            List of neighbor dicts with at least: neighbor_id, edge_id,
+            edge_type, direction.
+        """
+
+    @abstractmethod
     async def get_neighbors(
         self,
         node_id: str,
@@ -541,14 +641,70 @@ class GraphStoreBackend(ABC):
         as_of: str | None = None,
         include_history: bool = False,
     ) -> list[dict[str, Any]]:
-        """Get 1-hop neighbors of a node.
+        """Get 1-hop neighbors of a node with optional cognitive filtering.
+
+        By default, this method delegates to ``get_neighbors_basic()`` and
+        then applies cognitive-layer filters (node_concept, as_of,
+        include_history) on top.  Subclasses that can push these filters
+        down to the storage layer (e.g. Ladybug) should override this
+        method directly for better performance.
 
         Args:
             node_concept: Optional concept filter applied at the storage layer
-                         (e.g. kuzu WHERE n.concept = ...). Ignored if not supported.
+                         (e.g. ladybug WHERE n.concept = ...). Ignored if not supported.
             as_of: Optional point-in-time timestamp for temporal filtering.
             include_history: If true, include all historical versions.
         """
+
+    async def get_k_hop_neighbors(
+        self,
+        node_id: str,
+        k: int = 2,
+        edge_type: str | None = None,
+        direction: str = "both",
+        limit_per_hop: int = 100,
+    ) -> dict[str, float]:
+        """Get all neighbors within k hops of the given node.
+
+        Default implementation uses BFS with ``get_neighbors()`` calls.
+        Subclasses may override for more efficient native traversal.
+
+        Args:
+            node_id: Starting node ID.
+            k: Number of hops (depth). Defaults to 2.
+            edge_type: Optional edge type filter.
+            direction: Traversal direction ("outgoing", "incoming", "both").
+            limit_per_hop: Max neighbors per node per hop.
+
+        Returns:
+            Dict mapping neighbor_id → proximity score (1/(1+depth)).
+            The seed node itself is NOT included.
+        """
+        visited: set[str] = {node_id}
+        scores: dict[str, float] = {}
+        queue = [node_id]
+        depth = 0
+        while queue and depth < k:
+            next_queue: list[str] = []
+            for nid in queue:
+                neighbors = await self.get_neighbors(
+                    node_id=nid,
+                    edge_type=edge_type,
+                    direction=direction,
+                    limit=limit_per_hop,
+                )
+                for n in neighbors:
+                    neighbor_id = n["neighbor_id"]
+                    if neighbor_id not in visited:
+                        visited.add(neighbor_id)
+                        next_queue.append(neighbor_id)
+                        scores[neighbor_id] = max(
+                            scores.get(neighbor_id, 0.0),
+                            1.0 / (1.0 + depth),
+                        )
+            queue = next_queue
+            depth += 1
+        return scores
 
     @abstractmethod
     async def find_paths(
@@ -691,6 +847,48 @@ class VectorStoreBackend(ABC):
     @abstractmethod
     async def delete_vectors(self, ids: list[str]) -> None:
         """Remove vectors by identifier."""
+
+    async def sync_entity(self, entity_id: str, entity_data: dict[str, Any], **kwargs: Any) -> None:
+        """Sync an entity to the vector index.
+
+        Default implementation: upsert with generic content and metadata.
+        Subclasses (e.g. ChromaVectorStore) can override for custom
+        collection routing and metadata mapping.
+
+        Args:
+            entity_id: Unique entity identifier.
+            entity_data: Entity fields (name, summary, _fact_object, etc.).
+            **kwargs: Subclass-specific parameters.
+        """
+        content = entity_data.get("content", entity_data.get("name", ""))
+        metadata = entity_data.get("metadata", {})
+        if content:
+            await self.add_vectors(
+                ids=[entity_id],
+                vectors=[kwargs.get("vector", [])],
+                metadata=[metadata] if metadata else None,
+            )
+
+    async def sync_relation(self, relation_id: str, relation_data: dict[str, Any], **kwargs: Any) -> None:
+        """Sync a relation to the vector index.
+
+        Default implementation: upsert with generic content and metadata.
+        Subclasses (e.g. ChromaVectorStore) can override for custom
+        collection routing and edge categorization.
+
+        Args:
+            relation_id: Unique relation identifier.
+            relation_data: Relation fields (relation_name, edge_text, etc.).
+            **kwargs: Subclass-specific parameters.
+        """
+        content = relation_data.get("content", relation_data.get("relation_name", ""))
+        metadata = relation_data.get("metadata", {})
+        if content:
+            await self.add_vectors(
+                ids=[relation_id],
+                vectors=[kwargs.get("vector", [])],
+                metadata=[metadata] if metadata else None,
+            )
 
 
 # ============================================================================
@@ -1020,4 +1218,47 @@ class CognitiveStorageBackend(ABC):
 
         Returns:
             List of matching node records with relevance scores.
+        """
+
+
+# ============================================================================
+# Compensation Store
+# ============================================================================
+
+class CompensationStore(ABC):
+    """Abstract interface for compensation log persistence.
+
+    Used by ``DualWriteCoordinator`` to persist compensation records
+    when graph or vector writes fail, enabling recovery on restart.
+    """
+
+    @abstractmethod
+    async def save_compensation(self, entry: dict[str, Any]) -> None:
+        """Persist a compensation entry.
+
+        Args:
+            entry: Dict with keys: operation, target_type, target_id,
+                   timestamp, status, retry_count, details (optional).
+        """
+
+    @abstractmethod
+    async def get_pending_compensations(self) -> list[dict[str, Any]]:
+        """Return all pending compensation entries ordered by timestamp."""
+
+    @abstractmethod
+    async def mark_compensation_done(self, target_id: str, operation: str) -> None:
+        """Mark a compensation entry as completed.
+
+        Args:
+            target_id: The target identifier of the compensation.
+            operation: The operation that was compensated.
+        """
+
+    @abstractmethod
+    async def increment_retry_count(self, target_id: str, operation: str) -> None:
+        """Increment the retry count for a pending compensation.
+
+        Args:
+            target_id: The target identifier of the compensation.
+            operation: The operation that was compensated.
         """

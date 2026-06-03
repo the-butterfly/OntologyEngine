@@ -7,7 +7,7 @@ OntologyEngine (OE) or Mem0 without code changes.
   client.search(query, user_id, top_k=...)
   client.delete_user(user_id)
 
-OE uses KuzuDB (embedded) — serialise writes to avoid file-lock errors.
+OE uses Ladybug (embedded) — serialise writes to avoid file-lock errors.
 Mem0 uses REST (OSS server on localhost:8888 by default).
 """
 

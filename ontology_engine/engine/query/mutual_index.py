@@ -10,7 +10,7 @@ Key improvements over v1:
   in parallel (N = config.max_parallel_entity_expansion), then merges and
   deduplicates the Layer-S results via RRF-style fusion.
 - _build_evidence_chain: reads confidence, edge_text, offset values from
-  the actual KuzuDB edge rather than hardcoding them; all limits/defaults
+  the actual Ladybug edge rather than hardcoding them; all limits/defaults
   come from MutualIndexConfig.
 """
 
@@ -47,7 +47,7 @@ class MutualIndexConfig:
             include in the evidence chain per collaborative_search call.
             Default: 10.
         evidence_chain_default_confidence: Fallback confidence used when
-            the KuzuDB edge does not carry a confidence property.
+            the Ladybug edge does not carry a confidence property.
             Default: 0.5.
         supported_by_neighbor_limit: ``limit`` passed to
             ``get_neighbors`` when expanding fragment → entity via
@@ -158,7 +158,7 @@ class MutualIndexCollaborative:
        run ``retrieve_neighbors`` concurrently, then merge results via
        simple score-max dedup.
     4. Evidence chain construction: read edge properties (confidence,
-       edge_text, offsets) directly from KuzuDB rather than hardcoding.
+       edge_text, offsets) directly from Ladybug rather than hardcoding.
     """
 
     def __init__(
@@ -193,7 +193,7 @@ class MutualIndexCollaborative:
 
         Returns:
             CollaborativeResult containing fragments, entities, edges and
-            a populated evidence_chain from real KuzuDB edge properties.
+            a populated evidence_chain from real Ladybug edge properties.
         """
         # Step 1 — Layer-R vector search
         fragments = await self._layer_r.search_knowledge_fragments(
@@ -338,12 +338,12 @@ class MutualIndexCollaborative:
         entity_ids: list[str],
         edge_props_by_fragment: dict[str, list[dict[str, Any]]],
     ) -> tuple[list[EvidenceLink], list[str]]:
-        """Build evidence chain from real KuzuDB edge properties.
+        """Build evidence chain from real Ladybug edge properties.
 
         For each fragment that has edge props, create one EvidenceLink per
         (fragment, entity) pair found during SUPPORTED_BY expansion.
         All values (confidence, edge_text, offsets) come from the actual
-        edge returned by KuzuDB; config.evidence_chain_default_confidence
+        edge returned by Ladybug; config.evidence_chain_default_confidence
         is only used as a fallback when the edge carries no confidence.
 
         The total number of links is capped at

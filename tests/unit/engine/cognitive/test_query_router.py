@@ -12,7 +12,7 @@ from ontology_engine.engine.cognitive.query_router_types import (
 )
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestDetectQueryType:
@@ -72,7 +72,7 @@ class TestRetrievalParams:
 
     def test_multi_hop_preset(self):
         params = PARAM_PRESETS["multi_hop"]
-        assert params.kuzu_max_depth == 3
+        assert params.ladybug_max_depth == 3
         assert params.edge_weights.get("CAUSAL") == 2.0
 
     def test_temporal_preset(self):
@@ -95,8 +95,8 @@ class TestQueryRouter:
     @pytest_asyncio.fixture
     async def router(self, tmp_path):
         """Create an initialized router for testing."""
-        db_path = str(tmp_path / "test_router.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_router.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         rrf = RRFFusionEngine(repository=repo)

@@ -1,4 +1,4 @@
-"""Tests for KuzuGraphStore.
+"""Tests for LadybugGraphStore.
 
 These tests require ladybug to be installed. They will be skipped if ladybug
 is not available: pip install ladybug
@@ -11,20 +11,20 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-pytest.importorskip("ladybug", reason="ladybug not installed - install with: pip install ontology-engine[kuzu]")
+pytest.importorskip("ladybug", reason="ladybug not installed - install with: pip install ontology-engine[ladybug]")
 import pytest_asyncio
 
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
-class TestKuzuGraphStore:
-    """Test KuzuGraphStore implementation."""
+class TestLadybugGraphStore:
+    """Test LadybugGraphStore implementation."""
 
     @pytest.fixture
     def store(self, tmp_path):
-        """Create an in-memory KuzuGraphStore for testing."""
-        db_path = str(tmp_path / "test_graph.kuzu")
-        store = KuzuGraphStore()
+        """Create an in-memory LadybugGraphStore for testing."""
+        db_path = str(tmp_path / "test_graph.ladybug")
+        store = LadybugGraphStore()
         return store
 
     @pytest.fixture
@@ -32,7 +32,7 @@ class TestKuzuGraphStore:
         """Create an initialized store with test data."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmp_dir:
-            db_path = f"{tmp_dir}/test_init.kuzu"
+            db_path = f"{tmp_dir}/test_init.ladybug"
             await store.initialize(db_path)
             yield store
             await store.close()
@@ -40,7 +40,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_initialize(self, store, tmp_path):
         """Test initialization creates database and schema."""
-        db_path = str(tmp_path / "test_init.kuzu")
+        db_path = str(tmp_path / "test_init.ladybug")
         await store.initialize(db_path)
         assert store._initialized
         assert store._pool is not None
@@ -49,7 +49,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_initialize_twice(self, store, tmp_path):
         """Test double initialization raises error."""
-        db_path = str(tmp_path / "test_init2.kuzu")
+        db_path = str(tmp_path / "test_init2.ladybug")
         await store.initialize(db_path)
         with pytest.raises(Exception):
             await store.initialize(db_path)
@@ -58,7 +58,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_upsert_and_get_node(self, store, tmp_path):
         """Test node upsert and retrieval."""
-        db_path = str(tmp_path / "test_node.kuzu")
+        db_path = str(tmp_path / "test_node.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node(
@@ -78,7 +78,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_get_node_not_found(self, store, tmp_path):
         """Test get_node returns None for non-existent node."""
-        db_path = str(tmp_path / "test_notfound.kuzu")
+        db_path = str(tmp_path / "test_notfound.ladybug")
         await store.initialize(db_path)
 
         node = await store.get_node("nonexistent")
@@ -89,7 +89,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_upsert_and_get_edge(self, store, tmp_path):
         """Test edge upsert and retrieval."""
-        db_path = str(tmp_path / "test_edge.kuzu")
+        db_path = str(tmp_path / "test_edge.ladybug")
         await store.initialize(db_path)
 
         # Create two nodes first
@@ -115,8 +115,8 @@ class TestKuzuGraphStore:
 
     @pytest.mark.asyncio
     async def test_get_neighbors_with_node_concept_filter(self, store, tmp_path):
-        """Test get_neighbors with node_concept filter pushes to kuzu."""
-        db_path = str(tmp_path / "test_neighbors.kuzu")
+        """Test get_neighbors with node_concept filter pushes to ladybug."""
+        db_path = str(tmp_path / "test_neighbors.ladybug")
         await store.initialize(db_path)
 
         # Create nodes
@@ -153,7 +153,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_get_neighbors_bidirectional(self, store, tmp_path):
         """Test get_neighbors with direction='both'."""
-        db_path = str(tmp_path / "test_bidi.kuzu")
+        db_path = str(tmp_path / "test_bidi.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node("a", ["A"], {})
@@ -168,7 +168,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_execute_cypher_simple(self, store, tmp_path):
         """Test execute_cypher with a simple MATCH query."""
-        db_path = str(tmp_path / "test_cypher.kuzu")
+        db_path = str(tmp_path / "test_cypher.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node("c1", ["Company"], {"name": "A"})
@@ -190,7 +190,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_execute_cypher_complex_pattern(self, store, tmp_path):
         """Test execute_cypher with multi-hop MATCH pattern."""
-        db_path = str(tmp_path / "test_complex_cypher.kuzu")
+        db_path = str(tmp_path / "test_complex_cypher.ladybug")
         await store.initialize(db_path)
 
         # Create chain: C1 -guarantees-> C2 -supplies-> CE1
@@ -214,7 +214,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_batch_upsert(self, store, tmp_path):
         """Test batch_upsert for nodes and edges."""
-        db_path = str(tmp_path / "test_batch.kuzu")
+        db_path = str(tmp_path / "test_batch.ladybug")
         await store.initialize(db_path)
 
         result = await store.batch_upsert(
@@ -243,7 +243,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_delete_node(self, store, tmp_path):
         """Test node deletion."""
-        db_path = str(tmp_path / "test_delete.kuzu")
+        db_path = str(tmp_path / "test_delete.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node("delete_me", ["Test"], {})
@@ -259,7 +259,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_delete_edge(self, store, tmp_path):
         """Test edge deletion."""
-        db_path = str(tmp_path / "test_delete_edge.kuzu")
+        db_path = str(tmp_path / "test_delete_edge.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node("a", ["A"], {})
@@ -278,7 +278,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_find_paths(self, store, tmp_path):
         """Test find_paths returns paths between nodes."""
-        db_path = str(tmp_path / "test_paths.kuzu")
+        db_path = str(tmp_path / "test_paths.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node("s", ["S"], {})
@@ -296,7 +296,7 @@ class TestKuzuGraphStore:
     @pytest.mark.asyncio
     async def test_compute_graph_metric_degree(self, store, tmp_path):
         """Test compute_graph_metric with degree centrality."""
-        db_path = str(tmp_path / "test_metric.kuzu")
+        db_path = str(tmp_path / "test_metric.ladybug")
         await store.initialize(db_path)
 
         await store.upsert_node("a", ["A"], {})
@@ -317,9 +317,9 @@ class TestCognitiveNode:
 
     @pytest_asyncio.fixture
     async def store(self, tmp_path):
-        """Create an initialized KuzuGraphStore for testing."""
-        db_path = str(tmp_path / "test_cognitive.kuzu")
-        store = KuzuGraphStore()
+        """Create an initialized LadybugGraphStore for testing."""
+        db_path = str(tmp_path / "test_cognitive.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         yield store
         await store.close()
@@ -458,9 +458,9 @@ class TestDispositionProfile:
 
     @pytest_asyncio.fixture
     async def store(self, tmp_path):
-        """Create an initialized KuzuGraphStore for testing."""
-        db_path = str(tmp_path / "test_disposition.kuzu")
-        store = KuzuGraphStore()
+        """Create an initialized LadybugGraphStore for testing."""
+        db_path = str(tmp_path / "test_disposition.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         yield store
         await store.close()

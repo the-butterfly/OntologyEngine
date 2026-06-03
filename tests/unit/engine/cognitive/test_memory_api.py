@@ -23,14 +23,14 @@ from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
 from ontology_engine.engine.cognitive.reflect_types import ReflectionPhase, ReflectionStatus
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 @pytest_asyncio.fixture
 async def api(tmp_path):
     """Create an initialized MemoryAPI for testing."""
-    db_path = str(tmp_path / "test_memory_api.kuzu")
-    store = KuzuGraphStore()
+    db_path = str(tmp_path / "test_memory_api.ladybug")
+    store = LadybugGraphStore()
     await store.initialize(db_path)
     repo = CognitiveRepository(store)
     consolidation = ConsolidationEngine(repository=repo)

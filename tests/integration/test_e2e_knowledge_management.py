@@ -41,11 +41,11 @@ from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
 from ontology_engine.engine.cognitive.rrf_types import BASE_TYPE_WEIGHTS
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 async def _create_api(db_path: str) -> MemoryAPI:
-    store = KuzuGraphStore()
+    store = LadybugGraphStore()
     await store.initialize(db_path)
     repo = CognitiveRepository(store)
     consolidation = ConsolidationEngine(repository=repo)

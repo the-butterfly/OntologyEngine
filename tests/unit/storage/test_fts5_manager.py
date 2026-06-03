@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 import pytest_asyncio
 
-from ontology_engine.storage.base import SearchResult
+from ontology_engine.storage.cognitive_interface import SearchResult
 from ontology_engine.storage.local.fts5_manager import FTS5Manager
 
 

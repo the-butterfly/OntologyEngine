@@ -20,13 +20,13 @@ from ontology_engine.engine.cognitive.query_router import QueryRouter
 from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 @pytest_asyncio.fixture
 async def api(tmp_path):
     db_path = str(tmp_path / "test_pipeline.db")
-    store = KuzuGraphStore()
+    store = LadybugGraphStore()
     await store.initialize(db_path)
     repo = CognitiveRepository(store)
     consolidation = ConsolidationEngine(repository=repo)

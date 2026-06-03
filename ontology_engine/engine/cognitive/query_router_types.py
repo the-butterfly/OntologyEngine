@@ -14,7 +14,7 @@ class RetrievalParams:
         cognitive_layers: Ordered list of cognitive layers to search.
         memory_types: Memory types to include.
         chroma_top_k: Top-K for vector retrieval.
-        kuzu_max_depth: Max graph traversal depth.
+        ladybug_max_depth: Max graph traversal depth.
         edge_weights: Edge type weights.
         temporal_filter: Whether to apply temporal filtering.
         cog_extracted_from_expansion: Whether to expand via COG_EXTRACTED_FROM.
@@ -29,7 +29,7 @@ class RetrievalParams:
     cognitive_layers: list[str] = field(default_factory=lambda: ["opinion", "semantic", "procedure", "perception"])
     memory_types: list[str] = field(default_factory=lambda: ["mental_model", "entity", "observation", "fragment"])
     chroma_top_k: int = 10
-    kuzu_max_depth: int = 1
+    ladybug_max_depth: int = 1
     edge_weights: dict[str, float] = field(default_factory=dict)
     temporal_filter: bool = False
     cog_extracted_from_expansion: bool = True
@@ -74,7 +74,7 @@ PARAM_PRESETS = {
     "factual": RetrievalParams(
         query_type="factual",
         chroma_top_k=10,
-        kuzu_max_depth=1,
+        ladybug_max_depth=1,
         edge_weights={"TEMPORAL": 1.0, "CAUSAL": 1.0, "COGNITIVE_RELATES_TO": 1.0},
         temporal_filter=False,
         cog_extracted_from_expansion=True,
@@ -86,7 +86,7 @@ PARAM_PRESETS = {
     "multi_hop": RetrievalParams(
         query_type="multi_hop",
         chroma_top_k=5,
-        kuzu_max_depth=3,
+        ladybug_max_depth=3,
         edge_weights={"TEMPORAL": 1.0, "CAUSAL": 2.0, "COGNITIVE_RELATES_TO": 1.5},
         temporal_filter=False,
         cog_extracted_from_expansion=False,
@@ -98,7 +98,7 @@ PARAM_PRESETS = {
     "temporal": RetrievalParams(
         query_type="temporal",
         chroma_top_k=5,
-        kuzu_max_depth=2,
+        ladybug_max_depth=2,
         edge_weights={"TEMPORAL": 3.0, "CAUSAL": 1.0, "COGNITIVE_RELATES_TO": 1.0},
         temporal_filter=True,
         cog_extracted_from_expansion=True,
@@ -110,7 +110,7 @@ PARAM_PRESETS = {
     "analytical": RetrievalParams(
         query_type="analytical",
         chroma_top_k=0,
-        kuzu_max_depth=0,
+        ladybug_max_depth=0,
         edge_weights={},
         temporal_filter=False,
         cog_supported_by_backtrack=True,
@@ -121,7 +121,7 @@ PARAM_PRESETS = {
     "mixed": RetrievalParams(
         query_type="mixed",
         chroma_top_k=10,
-        kuzu_max_depth=3,
+        ladybug_max_depth=3,
         edge_weights={"TEMPORAL": 2.0, "CAUSAL": 1.5, "COGNITIVE_RELATES_TO": 1.2},
         temporal_filter=False,
         cog_extracted_from_expansion=True,
@@ -133,7 +133,7 @@ PARAM_PRESETS = {
     "user_preference": RetrievalParams(
         query_type="user_preference",
         chroma_top_k=5,
-        kuzu_max_depth=3,
+        ladybug_max_depth=3,
         edge_weights={"COGNITIVE_RELATES_TO": 2.0, "COG_EXTRACTED_FROM": 1.5},
         temporal_filter=False,
         cog_extracted_from_expansion=True,
@@ -146,7 +146,7 @@ PARAM_PRESETS = {
     "decision": RetrievalParams(
         query_type="decision",
         chroma_top_k=5,
-        kuzu_max_depth=3,
+        ladybug_max_depth=3,
         edge_weights={"TEMPORAL": 1.0, "CAUSAL": 2.0, "COGNITIVE_RELATES_TO": 1.5},
         temporal_filter=False,
         cog_extracted_from_expansion=True,

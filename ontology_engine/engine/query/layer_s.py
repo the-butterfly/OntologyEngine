@@ -59,7 +59,7 @@ QUERY_TYPE_MULTIPLIERS: dict[str, dict[str, float]] = {
 
 
 class LayerSRetriever:
-    """Layer-S: Graph traversal retrieval via KuzuDB."""
+    """Layer-S: Graph traversal retrieval via Ladybug."""
 
     def __init__(self, graph_store: GraphStoreBackend, meta_store: StorageBackend) -> None:
         self._graph_store = graph_store

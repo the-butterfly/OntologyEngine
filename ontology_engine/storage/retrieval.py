@@ -14,6 +14,101 @@ from ontology_engine.storage.base import (
 )
 
 
+def _fuse_results(
+    semantic_scores: dict[str, float],
+    graph_scores: dict[str, float],
+    path_match_scores: dict[str, float],
+    weights: dict[str, float],
+    top_k: int,
+    strategy: str,
+) -> list[str]:
+    """Fuse multi-signal scores into a ranked result list.
+
+    Core fusion logic (shared across all strategies):
+        normalize weights → weighted sum → sort descending → truncate.
+
+    Args:
+        semantic_scores: Per-entity semantic similarity scores.
+        graph_scores: Per-entity graph proximity scores.
+        path_match_scores: Per-entity path pattern match scores.
+        weights: Dict with keys "semantic", "graph", "path".
+        top_k: Maximum number of results to return.
+        strategy: One of "filter_then_fuse", "independent_then_fuse",
+                  "fuse_then_filter".
+
+    Returns:
+        Ordered list of entity IDs (highest score first).
+    """
+    path_candidates = set(path_match_scores.keys())
+
+    if strategy == "filter_then_fuse":
+        # Pre-filter: only consider candidates that match the path pattern
+        if path_candidates:
+            candidate_ids = path_candidates
+        else:
+            candidate_ids = set(semantic_scores) | set(graph_scores)
+        fused = _compute_fused_scores(
+            candidate_ids, semantic_scores, graph_scores,
+            path_match_scores, weights,
+        )
+        return _sort_and_truncate(fused, top_k)
+
+    if strategy == "fuse_then_filter":
+        # Fuse all signals first, then filter to path candidates
+        all_ids = set(semantic_scores) | set(graph_scores)
+        fused = _compute_fused_scores(
+            all_ids, semantic_scores, graph_scores,
+            path_match_scores, weights,
+        )
+        sorted_ids = sorted(fused, key=lambda k: fused[k], reverse=True)
+        if path_candidates:
+            filtered = [vid for vid in sorted_ids if vid in path_candidates and path_match_scores.get(vid, 0.0) > 0]
+            return filtered[:top_k]
+        return sorted_ids[:top_k]
+
+    # independent_then_fuse: no filtering, fuse all
+    all_ids = set(semantic_scores) | set(graph_scores) | set(path_match_scores)
+    fused = _compute_fused_scores(
+        all_ids, semantic_scores, graph_scores,
+        path_match_scores, weights,
+    )
+    return _sort_and_truncate(fused, top_k)
+
+
+def _compute_fused_scores(
+    candidate_ids: set[str],
+    semantic_scores: dict[str, float],
+    graph_scores: dict[str, float],
+    path_match_scores: dict[str, float],
+    weights: dict[str, float],
+) -> dict[str, float]:
+    """Compute normalized weighted-sum fusion scores for given candidates."""
+    sem_w = weights.get("semantic", 0.0)
+    gra_w = weights.get("graph", 0.0)
+    pat_w = weights.get("path", 0.0)
+    total_weight = sem_w + gra_w + pat_w
+    if total_weight <= 0:
+        return {vid: 0.0 for vid in candidate_ids}
+
+    norm_sem = sem_w / total_weight
+    norm_gra = gra_w / total_weight
+    norm_pat = pat_w / total_weight
+
+    fused: dict[str, float] = {}
+    for vid in candidate_ids:
+        sem = semantic_scores.get(vid, 0.0)
+        gra = graph_scores.get(vid, 0.0)
+        pat = path_match_scores.get(vid, 0.0)
+        fused[vid] = norm_sem * sem + norm_gra * gra + norm_pat * pat
+    return fused
+
+
+def _sort_and_truncate(scores: dict[str, float], top_k: int) -> list[str]:
+    """Sort by score descending and return top-k IDs."""
+    sorted_ids = sorted(scores, key=lambda k: scores[k], reverse=True)
+    return sorted_ids[:top_k]
+
+
 class DefaultRetrievalBackend(RetrievalBackend):
     """Coordinates MetaStore + GraphStore + VectorStore for unified retrieval.
 
@@ -22,7 +117,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
 
     Write flow:
         1. Attributes -> StorageBackend (MetaStore)
-        2. Topology  -> GraphStoreBackend (NetworkX / kuzu)
+        2. Topology  -> GraphStoreBackend (NetworkX / ladybug)
         3. Vectors   -> VectorStoreBackend (ChromaDB / LocalVectorStore)
 
     Read flow:
@@ -122,68 +217,38 @@ class DefaultRetrievalBackend(RetrievalBackend):
             for r in semantic_results:
                 semantic_scores[r.id] = r.score
 
-        # --- Graph leg ---
+        # --- Graph leg (via get_k_hop_neighbors) ---
         graph_scores: dict[str, float] = {}
         if self.graph is not None and graph_seed_id is not None:
-            visited = {graph_seed_id}
-            queue = [graph_seed_id]
-            depth = 0
-            max_depth = 2
-            while queue and depth <= max_depth:
-                next_queue = []
-                for node_id in queue:
-                    neighbors = await self.graph.get_neighbors(
-                        node_id,
-                        edge_type=None,
-                        direction="both",
-                        limit=100,
-                    )
-                    for n in neighbors:
-                        nid = n["neighbor_id"]
-                        if nid not in visited:
-                            visited.add(nid)
-                            next_queue.append(nid)
-                            graph_scores[nid] = max(
-                                graph_scores.get(nid, 0.0),
-                                1.0 / (1.0 + depth),
-                            )
-                queue = next_queue
-                depth += 1
+            graph_scores = await self.graph.get_k_hop_neighbors(
+                node_id=graph_seed_id, k=2, direction="both", limit_per_hop=100,
+            )
 
         # --- Path pattern leg ---
         path_match_scores: dict[str, float] = {}
         if path_pattern and self.graph is not None and graph_seed_id is not None:
             path_length = len(path_pattern)
             if path_length <= 2:
-                # Short path: use get_neighbors multi-hop for path scoring
                 path_match_scores = await self._score_short_path_pattern(
                     graph_seed_id, path_pattern
                 )
             else:
-                # Long path: use Cypher native MATCH
                 path_match_scores = await self._score_long_path_pattern(
                     graph_seed_id, path_pattern
                 )
 
         # --- Fusion ---
-        if fusion_strategy == "filter_then_fuse":
-            final_ids, used_path_ids = self._fuse_filter_then_fuse(
-                semantic_scores, graph_scores, path_match_scores,
-                semantic_weight, graph_weight, path_weight, top_k,
-            )
-        elif fusion_strategy == "fuse_then_filter":
-            final_ids = self._fuse_then_filter(
-                semantic_scores, graph_scores, path_match_scores,
-                semantic_weight, graph_weight, path_weight, top_k, path_pattern,
-            )
-            used_path_ids = set(path_match_scores.keys())
-        else:  # independent_then_fuse
-            final_ids, used_path_ids = self._fuse_independent_then_fuse(
-                semantic_scores, graph_scores, path_match_scores,
-                semantic_weight, graph_weight, path_weight, top_k,
-            )
+        weights = {
+            "semantic": semantic_weight,
+            "graph": graph_weight,
+            "path": path_weight,
+        }
+        final_ids = _fuse_results(
+            semantic_scores, graph_scores, path_match_scores,
+            weights, top_k, fusion_strategy,
+        )
 
-        # Build results
+        # --- Backfill metadata ---
         semantic_meta: dict[str, dict[str, Any]] = {
             r.id: r.metadata for r in semantic_results
         }
@@ -308,102 +373,6 @@ class DefaultRetrievalBackend(RetrievalBackend):
         except Exception:
             return {}
 
-    def _fuse_filter_then_fuse(
-        self,
-        semantic_scores: dict[str, float],
-        graph_scores: dict[str, float],
-        path_match_scores: dict[str, float],
-        semantic_weight: float,
-        graph_weight: float,
-        path_weight: float,
-        top_k: int,
-    ) -> tuple[list[str], set[str]]:
-        """Filter by path first, then fuse with other signals."""
-        # Filter candidates to those matching the path pattern
-        if path_match_scores:
-            candidates = set(path_match_scores.keys())
-        else:
-            candidates = set(semantic_scores) | set(graph_scores)
-
-        used_path_ids = set(path_match_scores.keys())
-        fused_scores: dict[str, float] = {}
-        for vid in candidates:
-            sem = semantic_scores.get(vid, 0.0)
-            gra = graph_scores.get(vid, 0.0)
-            pat = path_match_scores.get(vid, 0.0)
-            total_weight = semantic_weight + graph_weight + path_weight
-            norm_sem = semantic_weight / total_weight if total_weight > 0 else 0
-            norm_gra = graph_weight / total_weight if total_weight > 0 else 0
-            norm_pat = path_weight / total_weight if total_weight > 0 else 0
-            fused_scores[vid] = norm_sem * sem + norm_gra * gra + norm_pat * pat
-
-        sorted_ids = sorted(fused_scores, key=lambda k: fused_scores[k], reverse=True)
-        return sorted_ids[:top_k], used_path_ids
-
-    def _fuse_independent_then_fuse(
-        self,
-        semantic_scores: dict[str, float],
-        graph_scores: dict[str, float],
-        path_match_scores: dict[str, float],
-        semantic_weight: float,
-        graph_weight: float,
-        path_weight: float,
-        top_k: int,
-    ) -> tuple[list[str], set[str]]:
-        """Score each leg independently, then fuse with weights."""
-        all_ids = set(semantic_scores) | set(graph_scores) | set(path_match_scores)
-        fused_scores: dict[str, float] = {}
-
-        for vid in all_ids:
-            sem = semantic_scores.get(vid, 0.0)
-            gra = graph_scores.get(vid, 0.0)
-            pat = path_match_scores.get(vid, 0.0)
-            total_weight = semantic_weight + graph_weight + path_weight
-            norm_sem = semantic_weight / total_weight if total_weight > 0 else 0
-            norm_gra = graph_weight / total_weight if total_weight > 0 else 0
-            norm_pat = path_weight / total_weight if total_weight > 0 else 0
-            fused_scores[vid] = norm_sem * sem + norm_gra * gra + norm_pat * pat
-
-        sorted_ids = sorted(fused_scores, key=lambda k: fused_scores[k], reverse=True)
-        used_path_ids = set(path_match_scores.keys())
-        return sorted_ids[:top_k], used_path_ids
-
-    def _fuse_then_filter(
-        self,
-        semantic_scores: dict[str, float],
-        graph_scores: dict[str, float],
-        path_match_scores: dict[str, float],
-        semantic_weight: float,
-        graph_weight: float,
-        path_weight: float,
-        top_k: int,
-        path_pattern: list[tuple[str, str]] | None,
-    ) -> list[str]:
-        """Fuse all signals first, then apply path pattern as final filter."""
-        all_ids = set(semantic_scores) | set(graph_scores)
-        fused_scores: dict[str, float] = {}
-
-        for vid in all_ids:
-            sem = semantic_scores.get(vid, 0.0)
-            gra = graph_scores.get(vid, 0.0)
-            total_weight = semantic_weight + graph_weight
-            norm_sem = semantic_weight / total_weight if total_weight > 0 else 0
-            norm_gra = graph_weight / total_weight if total_weight > 0 else 0
-            fused_scores[vid] = norm_sem * sem + norm_gra * gra
-
-        sorted_ids = sorted(fused_scores, key=lambda k: fused_scores[k], reverse=True)
-
-        # Filter by path pattern if provided
-        if path_pattern:
-            filtered: list[str] = []
-            for vid in sorted_ids:
-                if vid in path_match_scores and path_match_scores[vid] > 0:
-                    filtered.append(vid)
-                if len(filtered) >= top_k:
-                    break
-            return filtered
-        return sorted_ids[:top_k]
-
     async def graph_pattern_match(
         self,
         start_concept: str,
@@ -415,7 +384,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
 
         Strategy:
         - Short paths (<=2 hops): get_neighbors multi-hop (lower latency)
-        - Long paths (>2 hops): Cypher native MATCH (kuzu optimizer global optimization)
+        - Long paths (>2 hops): Cypher native MATCH (ladybug optimizer global optimization)
         - No graph store: MetaStore fallback
         """
         if not path_pattern:
@@ -510,7 +479,7 @@ class DefaultRetrievalBackend(RetrievalBackend):
         current_id = start_id
 
         for rel_type, target_concept in path_pattern:
-            # Use node_concept filter - kuzu will filter at storage layer
+            # Use node_concept filter - ladybug will filter at storage layer
             graph_neighbors = await self.graph.get_neighbors(
                 node_id=current_id,
                 edge_type=rel_type,

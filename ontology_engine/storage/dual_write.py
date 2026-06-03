@@ -3,7 +3,7 @@
 
 Write flow:
 1. Write to MetaStore (SQLite) first (strong consistency)
-2. Async write to GraphStore (KuzuDB) (eventual consistency, failure logged)
+2. Async write to GraphStore (Ladybug) (eventual consistency, failure logged)
 3. Async write to VectorStore (ChromaDB) (eventual consistency, failure logged)
 4. Compensating transaction on failure
 
@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Any
 
 from ontology_engine.storage.base import (
+    CompensationStore,
     EntityInstance,
     GraphStoreBackend,
     RelationInstance,
@@ -38,11 +39,13 @@ class DualWriteCoordinator:
     1. Write to MetaStore (strong consistency) - always succeeds or raises
     2. Write to GraphStore (eventual consistency) - failures logged
     3. Write to VectorStore (eventual consistency) - failures logged
-    4. On GraphStore/VectorStore failure: write compensation record to MetaStore
+    4. On GraphStore/VectorStore failure: write compensation record
 
     Compensating transaction strategy:
-    - If GraphStore write fails: MetaStore writes compensation record -> async retry
-    - If VectorStore write fails: MetaStore writes compensation record -> async retry
+    - If GraphStore write fails: compensation record -> async retry
+    - If VectorStore write fails: compensation record -> async retry
+    - If a CompensationStore is provided, records are persisted there;
+      otherwise they are kept in-memory (``_compensation_log``).
     """
 
     def __init__(
@@ -50,10 +53,12 @@ class DualWriteCoordinator:
         storage: StorageBackend,
         graph_store: GraphStoreBackend | None = None,
         vector_store: VectorStoreBackend | None = None,
+        compensation_store: CompensationStore | None = None,
     ):
         self.storage = storage
         self.graph = graph_store
         self.vector = vector_store
+        self._compensation_store = compensation_store
         self._sync_failures: list[dict[str, Any]] = []
         self._compensation_log: list[dict[str, Any]] = []
 
@@ -101,7 +106,7 @@ class DualWriteCoordinator:
         # Step 3: Write to VectorStore (eventual consistency)
         if self.vector:
             try:
-                await self._sync_entity_to_vector(entity)
+                await self.vector.sync_entity(entity_id, self._entity_to_vector_data(entity))
             except Exception as e:
                 self._log_sync_failure("vector_upsert", entity_id, e)
                 logger.warning(f"Vector sync failed for entity {entity_id}: {e}")
@@ -125,7 +130,10 @@ class DualWriteCoordinator:
 
                 if self.vector:
                     try:
-                        await self._sync_relation_to_vector(rel)
+                        await self.vector.sync_relation(
+                            self._relation_edge_id(rel),
+                            self._relation_to_vector_data(rel),
+                        )
                     except Exception as e:
                         self._log_sync_failure("vector_edge_upsert", f"{rel.from_entity_id}:{rel.to_entity_id}", e)
                         logger.warning(f"Vector sync failed for edge: {e}")
@@ -154,7 +162,7 @@ class DualWriteCoordinator:
 
         if self.vector:
             try:
-                await self._sync_entity_to_vector(entity)
+                await self.vector.sync_entity(entity_id, self._entity_to_vector_data(entity))
             except Exception as e:
                 self._log_sync_failure("vector_upsert", entity_id, e)
                 logger.warning(f"Vector sync failed for entity {entity_id}: {e}")
@@ -186,7 +194,10 @@ class DualWriteCoordinator:
 
         if self.vector:
             try:
-                await self._sync_relation_to_vector(relation)
+                await self.vector.sync_relation(
+                    self._relation_edge_id(relation),
+                    self._relation_to_vector_data(relation),
+                )
             except Exception as e:
                 self._log_sync_failure("vector_edge_upsert", f"{relation.from_entity_id}:{relation.to_entity_id}", e)
                 logger.warning(f"Vector sync failed for edge: {e}")
@@ -235,100 +246,36 @@ class DualWriteCoordinator:
             logger.warning(f"Graph sync failed for node {entity_id}: {e}")
             await self._write_compensation("entity", entity_id, "graph_upsert")
 
-    async def _sync_entity_to_vector(self, entity: EntityInstance) -> None:
-        """Sync entity data to VectorStore collections.
+    # --- Data conversion helpers ---
 
-        Writes to entity_name and entity_summary collections.
-        Handles KnowledgeFragment entities specially.
-        """
-        if self.vector is None:
-            return
-
-        if entity._fact_object == "KnowledgeFragment":
-            text = entity.data.get("text", "")
-            if not text:
-                return
-            metadata_base = {
-                "_fact_object": entity._fact_object,
-                "entity_id": entity.entity_id,
-                "dataset_id": entity.data.get("dataset_id", ""),
-                "document_id": entity.data.get("document_id", ""),
-                "extraction_status": entity.data.get("extraction_status", "pending"),
-            }
-            if hasattr(self.vector, "upsert_to_collection"):
-                await self.vector.upsert_to_collection(
-                    collection_name="knowledge_fragment",
-                    ids=[entity.entity_id],
-                    documents=[text],
-                    metadatas=[metadata_base],
-                )
-            return
-
-        name = entity.data.get("name", entity.entity_id)
-        summary = entity.data.get("summary", "")
-        if not summary:
-            attr_parts = [f"{k}={v}" for k, v in sorted(entity.data.items()) if k != "name"]
-            summary = f"{name}: " + "; ".join(attr_parts) if attr_parts else name
-
-        metadata_base = {
+    @staticmethod
+    def _entity_to_vector_data(entity: EntityInstance) -> dict[str, Any]:
+        """Convert EntityInstance to dict for VectorStoreBackend.sync_entity()."""
+        data: dict[str, Any] = {
             "_fact_object": entity._fact_object,
             "entity_id": entity.entity_id,
+            **entity.data,
         }
+        return data
 
-        if hasattr(self.vector, "upsert_to_collection"):
-            await self.vector.upsert_to_collection(
-                collection_name="entity_name",
-                ids=[entity.entity_id],
-                documents=[name],
-                metadatas=[{**metadata_base, "domain_id": entity.data.get("domain_id", "")}],
-            )
-            await self.vector.upsert_to_collection(
-                collection_name="entity_summary",
-                ids=[f"{entity.entity_id}:summary"],
-                documents=[summary],
-                metadatas=[{
-                    **metadata_base,
-                    "entity_id": entity.entity_id,
-                    "feedback_weight": entity.data.get("feedback_weight", 0.5),
-                }],
-            )
+    @staticmethod
+    def _relation_edge_id(rel: RelationInstance) -> str:
+        """Build the canonical edge ID for a relation."""
+        return f"{rel.from_entity_id}:{rel.to_entity_id}:{rel.relation_name}"
 
-    async def _sync_relation_to_vector(self, rel: RelationInstance) -> None:
-        """Sync relation data to VectorStore collections.
-
-        Writes to edge_relationship_name and edge_text collections.
-        """
-        if self.vector is None:
-            return
-
-        edge_id = f"{rel.from_entity_id}:{rel.to_entity_id}:{rel.relation_name}"
-        edge_text = rel.data.get("edge_text", rel.relation_name)
-
-        metadata_base = {
-            "edge_id": edge_id,
+    @staticmethod
+    def _relation_to_vector_data(rel: RelationInstance) -> dict[str, Any]:
+        """Convert RelationInstance to dict for VectorStoreBackend.sync_relation()."""
+        return {
+            "relation_name": rel.relation_name,
             "from_id": rel.from_entity_id,
             "to_id": rel.to_entity_id,
-            "relation_name": rel.relation_name,
             "confidence": rel.data.get("confidence", 1.0),
+            "edge_text": rel.data.get("edge_text", rel.relation_name),
+            "edge_type": rel.data.get("edge_type", "business"),
         }
 
-        if rel.relation_name in ("EXTRACTED_FROM", "SUPPORTED_BY", "DEFINED_IN", "TRACE_TO"):
-            metadata_base["edge_category"] = "mutual_index"
-
-        if hasattr(self.vector, "upsert_to_collection"):
-            await self.vector.upsert_to_collection(
-                collection_name="edge_relationship_name",
-                ids=[f"{edge_id}:rel"],
-                documents=[rel.relation_name],
-                metadatas=[{**metadata_base, "edge_type": "business"}],
-            )
-            if edge_text:
-                await self.vector.upsert_to_collection(
-                    collection_name="edge_text",
-                    ids=[f"{edge_id}:text"],
-                    documents=[edge_text],
-                    metadatas=[{**metadata_base, "edge_type": rel.data.get("edge_type", "business")}],
-                )
+    # --- Hybrid query ---
 
     async def get_neighbor_details(
         self,
@@ -366,6 +313,8 @@ class DualWriteCoordinator:
                 })
 
         return results
+
+    # --- Batch sync ---
 
     async def batch_sync_from_storage(self) -> dict[str, int]:
         """Full sync: load all entities/relations from MetaStore into GraphStore + VectorStore."""
@@ -405,7 +354,7 @@ class DualWriteCoordinator:
             all_entities = await self.storage.query_entities(fact_object=None)
             for entity in all_entities:
                 try:
-                    await self._sync_entity_to_vector(entity)
+                    await self.vector.sync_entity(entity.entity_id, self._entity_to_vector_data(entity))
                     vectors_written += 1
                 except Exception as e:
                     self._log_sync_failure("vector_batch_sync", entity.entity_id, e)
@@ -417,21 +366,116 @@ class DualWriteCoordinator:
             "vectors_written": vectors_written,
         }
 
+    # --- Compensation ---
+
     async def _write_compensation(
         self,
         target_type: str,
         target_id: str,
         operation: str,
     ) -> None:
-        self._compensation_log.append({
+        entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "target_type": target_type,
             "target_id": target_id,
             "operation": operation,
             "status": "pending",
             "retry_count": 0,
-        })
+        }
+        if self._compensation_store is not None:
+            await self._compensation_store.save_compensation(entry)
+        else:
+            self._compensation_log.append(entry)
         logger.info(f"Compensation record written: {target_type} {target_id} {operation}")
+
+    async def recover_pending_compensations(self) -> int:
+        """Recover pending compensation records by retrying the failed operations.
+
+        Returns:
+            Number of successfully recovered operations.
+        """
+        if self._compensation_store is None:
+            return 0
+
+        pending = await self._compensation_store.get_pending_compensations()
+        executed = 0
+
+        for entry in pending:
+            target_type = entry.get("target_type", "")
+            target_id = entry.get("target_id", "")
+            operation = entry.get("operation", "")
+
+            try:
+                if operation == "graph_upsert" and target_type == "entity":
+                    entity = await self.storage.get_entity_by_id(entity_id=target_id)
+                    if entity and self.graph:
+                        await self.graph.upsert_node(
+                            node_id=target_id,
+                            labels=[entity._fact_object],
+                            properties=entity.data,
+                        )
+                        executed += 1
+
+                elif operation == "vector_upsert" and target_type == "entity":
+                    entity = await self.storage.get_entity_by_id(entity_id=target_id)
+                    if entity and self.vector:
+                        await self.vector.sync_entity(target_id, self._entity_to_vector_data(entity))
+                        executed += 1
+
+                elif operation == "graph_upsert" and target_type == "relation":
+                    relations = await self.storage.get_relations(target_id.split(":")[0])
+                    for rel in relations:
+                        edge_id = self._relation_edge_id(rel)
+                        if edge_id == target_id and self.graph:
+                            await self.graph.upsert_edge(
+                                edge_id=edge_id,
+                                from_node_id=rel.from_entity_id,
+                                to_node_id=rel.to_entity_id,
+                                edge_type=rel.relation_name,
+                                properties=rel.data or {},
+                            )
+                            executed += 1
+                            break
+
+                elif operation == "delete_node":
+                    if self.graph:
+                        await self.graph.delete_node(node_id=target_id)
+                        executed += 1
+
+                elif operation == "vector_delete":
+                    if self.vector:
+                        await self.vector.delete_vectors([target_id])
+                        executed += 1
+
+                elif operation == "delete_relation_graph":
+                    if self.graph:
+                        await self.graph.delete_edge(edge_id=target_id)
+                        executed += 1
+
+                elif operation == "update_relation_graph":
+                    parts = target_id.split(":")
+                    if len(parts) >= 2 and self.graph:
+                        relations = await self.storage.get_relations(parts[0])
+                        for rel in relations:
+                            edge_id = self._relation_edge_id(rel)
+                            if edge_id == target_id:
+                                await self.graph.upsert_edge(
+                                    edge_id=edge_id,
+                                    from_node_id=rel.from_entity_id,
+                                    to_node_id=rel.to_entity_id,
+                                    edge_type=rel.relation_name,
+                                    properties=rel.data or {},
+                                )
+                                executed += 1
+                                break
+
+                await self._compensation_store.mark_compensation_done(target_id, operation)
+
+            except Exception as e:
+                logger.warning(f"Recovery failed for {target_id} {operation}: {e}")
+                await self._compensation_store.increment_retry_count(target_id, operation)
+
+        return executed
 
     def get_sync_failures(self) -> list[dict[str, Any]]:
         """Get list of sync failures for debugging."""

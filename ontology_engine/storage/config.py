@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ontology_engine.storage.base import GraphStoreBackend, StorageBackend, VectorStoreBackend
+    from ontology_engine.storage.base import CognitiveStorageBackend, GraphStoreBackend, StorageBackend, VectorStoreBackend
 
 
 @dataclass
@@ -25,11 +25,11 @@ class StorageConfig:
 
     Attributes:
         mode: "local" or "cloud".
-        graph_backend: Graph engine name ("kuzu"/"ladybug" or "networkx").
+        graph_backend: Graph engine name ("ladybug" or "networkx").
         vector_backend: Vector engine name ("chroma" or "local").
         meta_backend: Meta engine name ("sqlite").
         data_dir: Base data directory.
-        kuzu_db_path: KuzuDB database file path.
+        ladybug_db_path: Ladybug database file path.
         chroma_persist_dir: ChromaDB persistence directory.
         chroma_embedding_model: Embedding model name.
         chroma_embedding_dimension: Embedding vector dimension.
@@ -41,13 +41,13 @@ class StorageConfig:
 
     mode: str = "local"
 
-    graph_backend: str = "kuzu"
+    graph_backend: str = "ladybug"
     vector_backend: str = "local"
     meta_backend: str = "sqlite"
 
     data_dir: str = os.path.join(os.path.expanduser("~/.ontology_engine"), "data")
 
-    kuzu_db_path: str = ""
+    ladybug_db_path: str = ""
     chroma_persist_dir: str = ""
     chroma_embedding_model: str = ""
     chroma_embedding_dimension: int = 1536
@@ -65,8 +65,8 @@ class StorageConfig:
     enable_dual_write: bool = True
 
     def __post_init__(self) -> None:
-        if not self.kuzu_db_path:
-            self.kuzu_db_path = os.path.join(self.data_dir, "ontology.kuzu")
+        if not self.ladybug_db_path:
+            self.ladybug_db_path = os.path.join(self.data_dir, "ontology.ladybug")
         if not self.chroma_persist_dir:
             self.chroma_persist_dir = os.path.join(self.data_dir, "vectors")
         if not self.sqlite_db_path:
@@ -81,7 +81,7 @@ class StorageConfig:
         """Create config from environment variables."""
         return cls(
             mode=os.environ.get("OE_STORAGE_MODE", "local"),
-            graph_backend=os.environ.get("OE_STORAGE_GRAPH_BACKEND", "kuzu"),
+            graph_backend=os.environ.get("OE_STORAGE_GRAPH_BACKEND", "ladybug"),
             vector_backend=os.environ.get("OE_STORAGE_VECTOR_BACKEND", "local"),
             meta_backend=os.environ.get("OE_STORAGE_META_BACKEND", "sqlite"),
             data_dir=os.environ.get(
@@ -133,10 +133,10 @@ def create_graph_store(config: StorageConfig | None = None) -> GraphStoreBackend
     from ontology_engine.storage.graph.networkx_store import NetworkXGraphStore
 
     cfg = config or StorageConfig()
-    if cfg.graph_backend in ("kuzu", "ladybug"):
-        from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+    if cfg.graph_backend == "ladybug":
+        from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
-        return KuzuGraphStore()
+        return LadybugGraphStore()
     elif cfg.graph_backend == "networkx":
         return NetworkXGraphStore()
     raise ValueError(f"Unsupported graph backend: {cfg.graph_backend}")
@@ -167,4 +167,30 @@ def create_vector_store(config: StorageConfig | None = None) -> VectorStoreBacke
             pass
     elif cfg.vector_backend == "local":
         return LocalVectorStore()
-    return LocalVectorStore()
+
+
+def create_cognitive_store(config: StorageConfig | None = None) -> CognitiveStorageBackend:
+    """Create a CognitiveStorageBackend instance.
+
+    When the graph backend is ladybug, the returned LadybugGraphStore
+    implements CognitiveStorageBackend directly.  For other backends,
+    raises ValueError since they do not support cognitive storage.
+
+    Args:
+        config: Storage configuration. Uses defaults if None.
+
+    Returns:
+        CognitiveStorageBackend instance.
+
+    Raises:
+        ValueError: If the graph backend does not support cognitive storage.
+    """
+    cfg = config or StorageConfig()
+    if cfg.graph_backend == "ladybug":
+        from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
+
+        return LadybugGraphStore()
+    raise ValueError(
+        f"Graph backend {cfg.graph_backend!r} does not support cognitive storage. "
+        "Only 'ladybug' is supported."
+    )

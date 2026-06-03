@@ -45,7 +45,7 @@ from ontology_engine.engine.cognitive.reflect_types import (
 )
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class VerificationResult:
@@ -594,8 +594,8 @@ async def runtime_verification():
     import tempfile
     import os
 
-    db_path = os.path.join(tempfile.mkdtemp(), "verify.kuzu")
-    store = KuzuGraphStore()
+    db_path = os.path.join(tempfile.mkdtemp(), "verify.ladybug")
+    store = LadybugGraphStore()
     await store.initialize(db_path)
     repo = CognitiveRepository(store)
     consolidation = ConsolidationEngine(repository=repo)

@@ -29,7 +29,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0",
 ]
-kuzu = [
+ladybug = [
     "ladybug>=0.15.0",
 ]
 chroma = [

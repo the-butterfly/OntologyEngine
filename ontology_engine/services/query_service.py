@@ -222,7 +222,7 @@ class QueryService:
         return paths
 
     # -------------------------------------------------------------------------
-    # Phase 2 retrieval interfaces (placeholders until Faiss/kuzu integration)
+    # Phase 2 retrieval interfaces (placeholders until Faiss/ladybug integration)
     # -------------------------------------------------------------------------
 
     async def semantic_search(

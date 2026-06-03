@@ -39,7 +39,7 @@ ANALYTICAL_PATTERNS: dict[str, list[str]] = {
 class RetrievalParams:
     query_type: QueryType
     chroma_top_k: int = 10
-    kuzu_max_depth: int = 2
+    ladybug_max_depth: int = 2
     edge_weights: dict[str, float] = field(default_factory=dict)
     temporal_filter: bool = False
     extracted_from_expansion: bool = True
@@ -94,18 +94,18 @@ def build_retrieval_params(query_type: QueryType) -> RetrievalParams:
     params.rrf_weights = RRF_WEIGHT_MAP.get(query_type, RRF_WEIGHT_MAP[QueryType.FACTUAL]).copy()
 
     if query_type == QueryType.MULTI_HOP:
-        params.kuzu_max_depth = 3
+        params.ladybug_max_depth = 3
         params.bundle_search_enabled = True
         params.extracted_from_expansion = True
     elif query_type == QueryType.TEMPORAL:
         params.temporal_filter = True
-        params.kuzu_max_depth = 2
+        params.ladybug_max_depth = 2
     elif query_type == QueryType.ANALYTICAL:
         params.trace_to_backtrack = True
     elif query_type == QueryType.MIXED:
         params.bundle_search_enabled = True
         params.extracted_from_expansion = True
         params.trace_to_backtrack = True
-        params.kuzu_max_depth = 3
+        params.ladybug_max_depth = 3
 
     return params

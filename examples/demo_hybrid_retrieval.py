@@ -7,7 +7,7 @@ This script demonstrates:
 3. Graph pattern match - find guarantee chains
 
 Run with: python examples/demo_hybrid_retrieval.py
-Requires: pip install ontology-engine[kuzu] (optional - falls back to NetworkX)
+Requires: pip install ontology-engine[ladybug] (optional - falls back to NetworkX)
 """
 
 from __future__ import annotations

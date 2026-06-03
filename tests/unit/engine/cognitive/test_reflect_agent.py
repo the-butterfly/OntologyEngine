@@ -16,7 +16,7 @@ from ontology_engine.engine.cognitive.reflect_types import (
 )
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestReflectTypes:
@@ -51,8 +51,8 @@ class TestReflectAgent:
     @pytest_asyncio.fixture
     async def agent(self, tmp_path):
         """Create an initialized reflect agent for testing."""
-        db_path = str(tmp_path / "test_reflect.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_reflect.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         rrf = RRFFusionEngine(repository=repo)

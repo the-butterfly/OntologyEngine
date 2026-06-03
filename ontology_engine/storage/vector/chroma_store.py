@@ -216,6 +216,117 @@ class ChromaVectorStore(VectorStoreBackend):
         )
         await asyncio.to_thread(collection.delete, ids=ids)
 
+    async def sync_entity(self, entity_id: str, entity_data: dict[str, Any], **kwargs: Any) -> None:
+        """Sync entity data to vector collections.
+
+        Handles KnowledgeFragment entities specially (single collection),
+        and regular entities with dual collection upsert (entity_name +
+        entity_summary).
+
+        Args:
+            entity_id: Unique entity identifier.
+            entity_data: Dict with keys: _fact_object, name, summary,
+                         domain_id, feedback_weight, etc.
+        """
+        self._ensure_initialized()
+
+        fact_object = entity_data.get("_fact_object", "")
+
+        # KnowledgeFragment: single collection upsert
+        if fact_object == "KnowledgeFragment":
+            text = entity_data.get("text", "")
+            if not text:
+                return
+            metadata_base = {
+                "_fact_object": fact_object,
+                "entity_id": entity_id,
+                "dataset_id": entity_data.get("dataset_id", ""),
+                "document_id": entity_data.get("document_id", ""),
+                "extraction_status": entity_data.get("extraction_status", "pending"),
+            }
+            await self.upsert_to_collection(
+                collection_name="knowledge_fragment",
+                ids=[entity_id],
+                documents=[text],
+                metadatas=[metadata_base],
+            )
+            return
+
+        # Regular entity: dual collection upsert
+        name = entity_data.get("name", entity_id)
+        summary = entity_data.get("summary", "")
+        if not summary:
+            attr_parts = [
+                f"{k}={v}"
+                for k, v in sorted(entity_data.items())
+                if k not in ("name", "_fact_object", "entity_id")
+            ]
+            summary = f"{name}: " + "; ".join(attr_parts) if attr_parts else name
+
+        metadata_base = {
+            "_fact_object": fact_object,
+            "entity_id": entity_id,
+        }
+
+        await self.upsert_to_collection(
+            collection_name="entity_name",
+            ids=[entity_id],
+            documents=[name],
+            metadatas=[{**metadata_base, "domain_id": entity_data.get("domain_id", "")}],
+        )
+        await self.upsert_to_collection(
+            collection_name="entity_summary",
+            ids=[f"{entity_id}:summary"],
+            documents=[summary],
+            metadatas=[{
+                **metadata_base,
+                "entity_id": entity_id,
+                "feedback_weight": entity_data.get("feedback_weight", 0.5),
+            }],
+        )
+
+    async def sync_relation(self, relation_id: str, relation_data: dict[str, Any], **kwargs: Any) -> None:
+        """Sync relation data to vector collections.
+
+        Writes to edge_relationship_name and edge_text collections.
+        Categorizes mutual-index edges (EXTRACTED_FROM, SUPPORTED_BY,
+        DEFINED_IN, TRACE_TO).
+
+        Args:
+            relation_id: Unique relation identifier.
+            relation_data: Dict with keys: relation_name, from_id, to_id,
+                           confidence, edge_text, edge_type, etc.
+        """
+        self._ensure_initialized()
+
+        relation_name = relation_data.get("relation_name", "")
+        edge_text = relation_data.get("edge_text", relation_name)
+
+        metadata_base = {
+            "edge_id": relation_id,
+            "from_id": relation_data.get("from_id", ""),
+            "to_id": relation_data.get("to_id", ""),
+            "relation_name": relation_name,
+            "confidence": relation_data.get("confidence", 1.0),
+        }
+
+        if relation_name in ("EXTRACTED_FROM", "SUPPORTED_BY", "DEFINED_IN", "TRACE_TO"):
+            metadata_base["edge_category"] = "mutual_index"
+
+        await self.upsert_to_collection(
+            collection_name="edge_relationship_name",
+            ids=[f"{relation_id}:rel"],
+            documents=[relation_name],
+            metadatas=[{**metadata_base, "edge_type": "business"}],
+        )
+        if edge_text:
+            await self.upsert_to_collection(
+                collection_name="edge_text",
+                ids=[f"{relation_id}:text"],
+                documents=[edge_text],
+                metadatas=[{**metadata_base, "edge_type": relation_data.get("edge_type", "business")}],
+            )
+
     async def upsert_to_collection(
         self,
         collection_name: str,

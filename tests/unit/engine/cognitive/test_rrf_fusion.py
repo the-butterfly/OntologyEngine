@@ -20,7 +20,7 @@ from ontology_engine.engine.cognitive.rrf_types import (
     RRF_K,
     RetrievalResult,
 )
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestTemporalConstraint:
@@ -92,8 +92,8 @@ class TestRRFFusionEngine:
     @pytest_asyncio.fixture
     async def engine(self, tmp_path):
         """Create an initialized RRF fusion engine for testing."""
-        db_path = str(tmp_path / "test_rrf.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_rrf.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         engine = RRFFusionEngine(repository=repo)
@@ -308,8 +308,8 @@ class TestSearchLimits:
 
     @pytest_asyncio.fixture
     async def engine(self, tmp_path):
-        db_path = str(tmp_path / "test_limits.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_limits.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         engine = RRFFusionEngine(repository=repo)

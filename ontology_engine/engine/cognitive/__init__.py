@@ -5,7 +5,7 @@ Provides high-level memory management operations for the Agent Memory system.
 Modules:
     models: CognitiveNode, DispositionProfile, CognitiveEdge dataclasses
     errors: Cognitive engine error types
-    repository: High-level CRUD operations wrapping KuzuGraphStore
+    repository: High-level CRUD operations wrapping LadybugGraphStore
     consolidation_engine: Fragment-to-knowledge consolidation
     consolidation_types: Consolidation action types and constants
     entity_resolver: Entity disambiguation with dual-strategy

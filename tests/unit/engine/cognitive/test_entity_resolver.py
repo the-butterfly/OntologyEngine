@@ -15,7 +15,7 @@ from ontology_engine.engine.cognitive.entity_resolver_types import (
 )
 from ontology_engine.engine.cognitive.models import CognitiveNode
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestNameSimilarity:
@@ -65,8 +65,8 @@ class TestEntityResolver:
     @pytest_asyncio.fixture
     async def resolver(self, tmp_path):
         """Create an initialized resolver for testing."""
-        db_path = str(tmp_path / "test_resolver.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_resolver.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         resolver = EntityResolver(repository=repo, strategy="full")
@@ -150,8 +150,8 @@ class TestEntityResolver:
     @pytest.mark.asyncio
     async def test_trigram_strategy(self, tmp_path):
         """Test trigram strategy."""
-        db_path = str(tmp_path / "test_trigram.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_trigram.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         resolver = EntityResolver(repository=repo, strategy="trigram")

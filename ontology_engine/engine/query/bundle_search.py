@@ -1,7 +1,7 @@
 """Bundle Search four-phase algorithm.
 
 Phase 1 — Wide Search: query all 7 ChromaDB collections in parallel.
-Phase 2 — Graph Projection: project hit IDs onto KuzuDB, expand neighbors by
+Phase 2 — Graph Projection: project hit IDs onto Ladybug, expand neighbors by
            node-type priority to build a coherent subgraph.
 Phase 3 — Path Cost: propagate path cost through the subgraph using
            semantic distance + hop penalties + mutual-index miss penalties.
@@ -87,7 +87,7 @@ class BundleSearchEngine:
 
     Phase 2 change from v1:
       The old implementation simply deduped vector candidates (pure vector layer).
-      The new Phase 2 projects hit IDs onto KuzuDB, fetches each node's direct
+      The new Phase 2 projects hit IDs onto Ladybug, fetches each node's direct
       neighbors, and expands the candidate set following TYPE_PRIORITY, so that
       Phase 3 path-cost is computed over a true subgraph rather than isolated
       vector hits.
@@ -151,12 +151,12 @@ class BundleSearchEngine:
         self,
         collection_results: dict[str, list[BundleCandidate]],
     ) -> dict[str, BundleCandidate]:
-        """Project vector hits onto KuzuDB and expand neighbor subgraph.
+        """Project vector hits onto Ladybug and expand neighbor subgraph.
 
         Algorithm:
         1. Collect all hit IDs from Phase 1, deduplicate keeping best score.
         2. Sort seeds by TYPE_PRIORITY (Entity first, KnowledgeFragment last).
-        3. For each seed, query KuzuDB for direct neighbors (both directions).
+        3. For each seed, query Ladybug for direct neighbors (both directions).
         4. Add discovered neighbors to the candidate pool if not already present,
            assigning a penalty-adjusted score so they rank below direct hits.
         5. Return the merged candidate dict for Phase 3 cost propagation.
@@ -177,11 +177,11 @@ class BundleSearchEngine:
             key=lambda c: TYPE_PRIORITY.get(c.node_type, 99),
         )
 
-        # Step 3 & 4 — expand neighbors from KuzuDB in parallel
+        # Step 3 & 4 — expand neighbors from Ladybug in parallel
         expanded: dict[str, BundleCandidate] = dict(seed_map)
 
         async def _expand_node(seed: BundleCandidate) -> list[BundleCandidate]:
-            """Fetch neighbors from KuzuDB and return new BundleCandidate entries."""
+            """Fetch neighbors from Ladybug and return new BundleCandidate entries."""
             try:
                 neighbors = await self._graph_store.get_neighbors(
                     node_id=seed.id,

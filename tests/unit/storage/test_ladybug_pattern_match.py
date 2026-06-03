@@ -9,37 +9,38 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+import pytest_asyncio
 
 # Skip if ladybug not installed
-pytest.importorskip("ladybug", reason="ladybug not installed - install with: pip install ontology-engine[kuzu]")
+pytest.importorskip("ladybug", reason="ladybug not installed - install with: pip install ontology-engine[ladybug]")
 
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 from ontology_engine.storage.retrieval import DefaultRetrievalBackend
 
 
-class TestKuzuPatternMatch:
-    """Integration tests for pattern matching with kuzu."""
+class TestLadybugPatternMatch:
+    """Integration tests for pattern matching with ladybug."""
 
     @pytest.fixture
-    def kuzu_store(self, tmp_path):
-        """Create an in-memory KuzuGraphStore."""
-        db_path = str(tmp_path / "pattern_test.kuzu")
-        store = KuzuGraphStore()
+    def ladybug_store(self, tmp_path):
+        """Create an in-memory LadybugGraphStore."""
+        db_path = str(tmp_path / "pattern_test.ladybug")
+        store = LadybugGraphStore()
         return store
 
     @pytest_asyncio.fixture
-    async def initialized_retrieval(self, kuzu_store, tmp_path):
+    async def initialized_retrieval(self, ladybug_store, tmp_path):
         """Create initialized retrieval backend with test data."""
-        db_path = str(tmp_path / "pattern_retrieval.kuzu")
-        await kuzu_store.initialize(db_path)
+        db_path = str(tmp_path / "pattern_retrieval.ladybug")
+        await ladybug_store.initialize(db_path)
 
         # Create test graph: C1 -guarantees-> C2 -supplies-> CE1
-        await kuzu_store.upsert_node("c1", ["Company"], {"region": "华东"})
-        await kuzu_store.upsert_node("c2", ["Company"], {"region": "华南"})
-        await kuzu_store.upsert_node("ce1", ["CoreEnterprise"], {"name": "CE1"})
+        await ladybug_store.upsert_node("c1", ["Company"], {"region": "华东"})
+        await ladybug_store.upsert_node("c2", ["Company"], {"region": "华南"})
+        await ladybug_store.upsert_node("ce1", ["CoreEnterprise"], {"name": "CE1"})
 
-        await kuzu_store.upsert_edge("e1", "c1", "c2", "guarantees")
-        await kuzu_store.upsert_edge("e2", "c2", "ce1", "supplies")
+        await ladybug_store.upsert_edge("e1", "c1", "c2", "guarantees")
+        await ladybug_store.upsert_edge("e2", "c2", "ce1", "supplies")
 
         # Use storage mock for entity queries
         from unittest.mock import AsyncMock
@@ -50,12 +51,12 @@ class TestKuzuPatternMatch:
 
         retrieval = DefaultRetrievalBackend(
             storage=mock_storage,
-            graph_store=kuzu_store,
+            graph_store=ladybug_store,
         )
 
         yield retrieval
 
-        await kuzu_store.close()
+        await ladybug_store.close()
 
     @pytest.mark.asyncio
     async def test_pattern_match_2hop(self, initialized_retrieval):

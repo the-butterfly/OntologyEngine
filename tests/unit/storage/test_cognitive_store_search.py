@@ -42,7 +42,8 @@ class TestSearchCognitiveDelegation:
             fusion_metadata={"strategy": "rrf", "k": 60},
         )
 
-        store = CognitiveStore(graph_store=graph_store, storage=storage)
+        with pytest.warns(DeprecationWarning):
+            store = CognitiveStore(graph_store=graph_store, storage=storage)
         results = await store.search_cognitive(
             query="apple",
             space_id="default",
@@ -68,12 +69,13 @@ class TestSearchCognitiveDelegation:
     @pytest.mark.asyncio
     async def test_fallback_when_no_storage(self):
         graph_store = AsyncMock()
-        graph_store.query_cognitive_nodes.return_value = [
-            {"id": "n1", "content": "apple fruit"},
-            {"id": "n2", "content": "banana"},
+        graph_store.search_cognitive.return_value = [
+            {"id": "n1", "content": "apple fruit", "score": 1.0},
+            {"id": "n2", "content": "banana", "score": 0.0},
         ]
 
-        store = CognitiveStore(graph_store=graph_store, storage=None)
+        with pytest.warns(DeprecationWarning):
+            store = CognitiveStore(graph_store=graph_store, storage=None)
         results = await store.search_cognitive(
             query="apple",
             space_id="default",
@@ -95,7 +97,8 @@ class TestSearchCognitiveDelegation:
             scores={"n1": 0.02},
         )
 
-        store = CognitiveStore(graph_store=graph_store, storage=storage)
+        with pytest.warns(DeprecationWarning):
+            store = CognitiveStore(graph_store=graph_store, storage=storage)
         results = await store.search_cognitive(query="test", space_id="default")
 
         assert len(results) == 1
@@ -123,7 +126,8 @@ class TestSearchCognitiveDelegation:
             scores={"n1": 0.03},
         )
 
-        store = CognitiveStore(graph_store=graph_store, storage=storage)
+        with pytest.warns(DeprecationWarning):
+            store = CognitiveStore(graph_store=graph_store, storage=storage)
         results = await store.search_cognitive(query="test", space_id="space-1")
 
         assert results[0]["memory_type"] == "entity"

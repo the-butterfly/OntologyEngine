@@ -19,7 +19,7 @@ from ontology_engine.engine.cognitive.consolidation_types import (
 )
 from ontology_engine.engine.cognitive.models import CognitiveNode
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestGroupByTags:
@@ -67,8 +67,8 @@ class TestConsolidationEngine:
     @pytest_asyncio.fixture
     async def engine(self, tmp_path):
         """Create an initialized consolidation engine for testing."""
-        db_path = str(tmp_path / "test_consolidation.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_consolidation.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         engine = ConsolidationEngine(repository=repo)

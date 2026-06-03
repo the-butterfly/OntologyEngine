@@ -78,7 +78,7 @@ async def test_compensation_written_on_graph_failure(
 async def test_compensation_written_on_vector_failure(
     storage, graph_store, vector_store, entity
 ):
-    vector_store.upsert_to_collection = AsyncMock(side_effect=Exception("Vector error"))
+    vector_store.sync_entity = AsyncMock(side_effect=Exception("Vector error"))
     coordinator = DualWriteCoordinator(
         storage=storage,
         graph_store=graph_store,

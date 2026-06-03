@@ -28,7 +28,7 @@ from ontology_engine.storage.config import (
 )
 from ontology_engine.storage.sqlite import SQLiteStorage
 from ontology_engine.storage.dual_write import DualWriteCoordinator
-from ontology_engine.storage.graph import KuzuGraphStore, NetworkXGraphStore
+from ontology_engine.storage.graph import LadybugGraphStore, NetworkXGraphStore
 from ontology_engine.storage.retrieval import DefaultRetrievalBackend
 from ontology_engine.storage.vector import LocalVectorStore
 
@@ -46,7 +46,7 @@ __all__ = [
     "GraphQueryError",
     "GraphStoreBackend",
     "HybridSearchResult",
-    "KuzuGraphStore",
+    "LadybugGraphStore",
     "LocalVectorStore",
     "MetricStorage",
     "NetworkXGraphStore",

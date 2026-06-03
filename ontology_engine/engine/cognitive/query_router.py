@@ -269,7 +269,7 @@ class QueryRouter:
             cognitive_layers=list(params.cognitive_layers),
             memory_types=list(params.memory_types),
             chroma_top_k=params.chroma_top_k,
-            kuzu_max_depth=params.kuzu_max_depth,
+            ladybug_max_depth=params.ladybug_max_depth,
             edge_weights=dict(params.edge_weights),
             temporal_filter=params.temporal_filter,
             cog_extracted_from_expansion=params.cog_extracted_from_expansion,

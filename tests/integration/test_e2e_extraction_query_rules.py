@@ -4,7 +4,7 @@ Covers the changes from Phase 7D/7B/7G and S-2/S-4 fixes:
 - Phase 7D: ExpressionEngine L0/L1 auto-selection + 43 functions
 - Phase 7B: QueryRouter, LayerRRetriever, LayerSRetriever, RRFFusion
 - Phase 7G: ASTExtractor, LLMExtractor, DedupStrategy, IncrementalCache
-- S-2 fix: DEFINED_IN_FROM_METRIC edge in KuzuGraphStore
+- S-2 fix: DEFINED_IN_FROM_METRIC edge in LadybugGraphStore
 - S-4 fix: as_of/include_history temporal parameters in query traverse
 """
 
@@ -303,7 +303,7 @@ class TestQueryRouter:
 
     def test_retrieval_params_multi_hop(self):
         params = build_retrieval_params(QueryType.MULTI_HOP)
-        assert params.kuzu_max_depth == 3
+        assert params.ladybug_max_depth == 3
         assert params.bundle_search_enabled is True
         assert params.rrf_weights["layer_s"] == 0.5
 

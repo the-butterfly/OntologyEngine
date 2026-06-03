@@ -18,7 +18,7 @@ from ontology_engine.engine.cognitive.models import (
     DispositionProfile,
 )
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestCognitiveRepository:
@@ -27,8 +27,8 @@ class TestCognitiveRepository:
     @pytest_asyncio.fixture
     async def repo(self, tmp_path):
         """Create an initialized repository for testing."""
-        db_path = str(tmp_path / "test_cognitive_repo.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_cognitive_repo.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         yield repo
@@ -230,8 +230,8 @@ class TestDispositionProfileRepository:
     @pytest_asyncio.fixture
     async def repo(self, tmp_path):
         """Create an initialized repository for testing."""
-        db_path = str(tmp_path / "test_dispo_repo.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_dispo_repo.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         yield repo

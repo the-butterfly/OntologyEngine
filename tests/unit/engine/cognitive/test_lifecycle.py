@@ -16,7 +16,7 @@ from ontology_engine.engine.cognitive.lifecycle import (
 )
 from ontology_engine.engine.cognitive.models import CognitiveNode
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 class TestMemoryStrength:
@@ -125,8 +125,8 @@ class TestForgettingEngine:
     @pytest_asyncio.fixture
     async def engine(self, tmp_path):
         """Create an initialized forgetting engine for testing."""
-        db_path = str(tmp_path / "test_forgetting.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_forgetting.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         engine = ForgettingEngine(repository=repo)
@@ -178,8 +178,8 @@ class TestDreamCycle:
     @pytest_asyncio.fixture
     async def cycle(self, tmp_path):
         """Create an initialized dream cycle for testing."""
-        db_path = str(tmp_path / "test_dream.kuzu")
-        store = KuzuGraphStore()
+        db_path = str(tmp_path / "test_dream.ladybug")
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
         forgetting = ForgettingEngine(repository=repo)

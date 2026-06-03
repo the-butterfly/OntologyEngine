@@ -14,7 +14,7 @@ import re
 from contextlib import asynccontextmanager
 from typing import Any
 
-from ontology_engine.storage.base import GraphQueryError, GraphStoreBackend
+from ontology_engine.storage.base import CognitiveStorageBackend, GraphQueryError, GraphStoreBackend
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,10 @@ _LOCK_RETRY_BASE_DELAY = 0.5
 _LOCK_RETRY_MAX_DELAY = 8.0
 
 
-class KuzuConnectionPool:
-    """Pool of ``kuzu.Connection`` objects sharing one ``kuzu.Database``.
+class LadybugConnectionPool:
+    """Pool of ``ladybug.Connection`` objects sharing one ``ladybug.Database``.
 
-    KuzuDB's Python binding is not thread-safe: concurrent ``execute()`` on the
+    Ladybug's Python binding is not thread-safe: concurrent ``execute()`` on the
     same ``Connection`` causes data corruption or segfaults.  However, multiple
     ``Connection`` objects attached to the same ``Database`` *are* safe to use
     concurrently as long as each connection is used by at most one coroutine at
@@ -38,7 +38,7 @@ class KuzuConnectionPool:
     two coroutines share the same connection.
 
     Args:
-        db: An already-opened ``kuzu.Database`` instance.
+        db: An already-opened ``ladybug.Database`` instance.
         pool_size: Number of connections in the pool.  Defaults to 3 which
             is sufficient for typical async workloads while keeping resource
             usage modest.
@@ -63,7 +63,7 @@ class KuzuConnectionPool:
     @asynccontextmanager
     async def acquire(self):  # type: ignore[no-untyped-def]
         if self._closed:
-            raise GraphQueryError("KuzuConnectionPool is closed")
+            raise GraphQueryError("LadybugConnectionPool is closed")
         await self._semaphore.acquire()
         conn = await self._available.get()
         try:
@@ -210,8 +210,8 @@ def _fix_ladybug_json(s: str) -> Any:
     return json.loads(''.join(result))
 
 
-class KuzuGraphStore(GraphStoreBackend):
-    """Kuzu-based graph store.
+class LadybugGraphStore(GraphStoreBackend, CognitiveStorageBackend):
+    """Ladybug-based graph store.
 
     Data model:
     - Nodes: Entity, KnowledgeFragment, ExecutionStepSnapshot, MetricDeclaration,
@@ -226,10 +226,10 @@ class KuzuGraphStore(GraphStoreBackend):
     variant KnowledgeFragment → EntityInstance.  Both are queried by
     ``get_mutual_index_edges`` when edge_type="SUPPORTED_BY".
 
-    Default database path: ``~/.ontology_engine/data/{space_id}/graph.kuzu``
+    Default database path: ``~/.ontology_engine/data/{space_id}/graph.ladybug``
 
     Concurrency model:
-    - A ``KuzuConnectionPool`` manages multiple ``kuzu.Connection`` objects.
+    - A ``LadybugConnectionPool`` manages multiple ``ladybug.Connection`` objects.
     - Each query acquires a connection exclusively via ``pool.acquire()``,
       guaranteeing no two coroutines share the same connection.
     - ``initialize()`` retries with exponential backoff when the database file
@@ -240,7 +240,7 @@ class KuzuGraphStore(GraphStoreBackend):
 
     def __init__(self, pool_size: int = 3) -> None:
         self._db: Any | None = None
-        self._pool: KuzuConnectionPool | None = None
+        self._pool: LadybugConnectionPool | None = None
         self._initialized = False
         self._fragment_cache: dict[str, bool] = {}
         self._pool_size = pool_size
@@ -268,16 +268,16 @@ class KuzuGraphStore(GraphStoreBackend):
     }
 
     def _default_path(self) -> str:
-        """Return default kuzu database path."""
+        """Return default ladybug database path."""
         base = os.path.expanduser("~/.ontology_engine/data")
-        return os.path.join(base, "default", "graph.kuzu")
+        return os.path.join(base, "default", "graph.ladybug")
 
     async def _execute(self, query: str, parameters: dict[str, Any] | None = None) -> Any:
         """Execute a Cypher query via the connection pool.
 
         Acquires an exclusive connection from the pool, executes the query,
         and returns the connection.  This guarantees no two coroutines share
-        the same ``kuzu.Connection`` which the Kuzu Python binding does not
+        the same ``ladybug.Connection`` which the Ladybug Python binding does not
         support.
         """
         self._ensure_initialized()
@@ -286,7 +286,7 @@ class KuzuGraphStore(GraphStoreBackend):
             return conn.execute(query, parameters or {})
 
     async def initialize(self, db_path: str | None = None) -> None:
-        """Initialize kuzu database connection with retry on lock contention.
+        """Initialize ladybug database connection with retry on lock contention.
 
         When ``uvicorn --reload`` restarts the worker, the old process may
         still hold the database file lock for a brief moment.  This method
@@ -299,20 +299,20 @@ class KuzuGraphStore(GraphStoreBackend):
 
         Args:
             db_path: Database path. Defaults to
-                ``~/.ontology_engine/data/{space_id}/graph.kuzu``.
+                ``~/.ontology_engine/data/{space_id}/graph.ladybug``.
 
         Raises:
-            GraphQueryError: If already initialized, kuzu not installed, or
+            GraphQueryError: If already initialized, ladybug not installed, or
                 the database lock cannot be acquired after all retries.
         """
         if self._initialized:
-            raise GraphQueryError("KuzuGraphStore already initialized")
+            raise GraphQueryError("LadybugGraphStore already initialized")
 
         try:
             import ladybug as lb
         except ImportError as exc:
             raise GraphQueryError(
-                "ladybug is not installed. Install with: pip install ontology-engine[kuzu]"
+                "ladybug is not installed. Install with: pip install ontology-engine[ladybug]"
             ) from exc
 
         path = db_path or self._default_path()
@@ -328,7 +328,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 msg = str(exc).lower()
                 if "lock" not in msg and "could not set" not in msg:
                     raise GraphQueryError(
-                        f"Failed to open KuzuDB at {path}: {exc}"
+                        f"Failed to open Ladybug at {path}: {exc}"
                     ) from exc
                 if attempt < _LOCK_RETRY_ATTEMPTS:
                     delay = min(
@@ -336,7 +336,7 @@ class KuzuGraphStore(GraphStoreBackend):
                         _LOCK_RETRY_MAX_DELAY,
                     )
                     logger.warning(
-                        "KuzuDB lock contention on %s (attempt %d/%d), "
+                        "Ladybug lock contention on %s (attempt %d/%d), "
                         "retrying in %.1fs — another process likely holds the lock",
                         path, attempt, _LOCK_RETRY_ATTEMPTS, delay,
                     )
@@ -347,31 +347,31 @@ class KuzuGraphStore(GraphStoreBackend):
             if recovered:
                 try:
                     self._db = lb.Database(path)
-                    logger.info("KuzuDB lock recovered after stale lock cleanup on %s", path)
+                    logger.info("Ladybug lock recovered after stale lock cleanup on %s", path)
                 except RuntimeError as exc:
                     raise GraphQueryError(
-                        f"Could not acquire KuzuDB lock on {path} after "
+                        f"Could not acquire Ladybug lock on {path} after "
                         f"{_LOCK_RETRY_ATTEMPTS} retries and stale lock recovery. "
                         f"Another process is actively using the database. "
                         f"Original error: {exc}"
                     ) from exc
             else:
                 raise GraphQueryError(
-                    f"Could not acquire KuzuDB lock on {path} after "
+                    f"Could not acquire Ladybug lock on {path} after "
                     f"{_LOCK_RETRY_ATTEMPTS} attempts. Another process is likely "
                     f"using the database. If using uvicorn --reload, the old "
                     f"worker should release the lock shortly. Original error: "
                     f"{last_error}"
                 ) from last_error
 
-        self._pool = KuzuConnectionPool(self._db, pool_size=self._pool_size)
+        self._pool = LadybugConnectionPool(self._db, pool_size=self._pool_size)
         await self._pool.initialize()
         self._initialized = True
         await self._ensure_schema()
-        logger.info("Kuzu graph store initialized at %s (pool_size=%d)", path, self._pool_size)
+        logger.info("Ladybug graph store initialized at %s (pool_size=%d)", path, self._pool_size)
 
     async def _recover_stale_lock(self, path: str, last_error: Exception | None) -> bool:
-        """Attempt to detect and remove a stale KuzuDB lock file.
+        """Attempt to detect and remove a stale Ladybug lock file.
 
         After all retries are exhausted, this method:
         1. Scans the database directory for lock files
@@ -392,7 +392,7 @@ class KuzuGraphStore(GraphStoreBackend):
             potential_locks.extend(glob.glob(os.path.join(os.path.dirname(path), base + "*.lock")))
 
         if not potential_locks:
-            logger.warning("No KuzuDB lock files found at %s — cannot recover", path)
+            logger.warning("No Ladybug lock files found at %s — cannot recover", path)
             return False
 
         for lock_path in potential_locks:
@@ -410,7 +410,7 @@ class KuzuGraphStore(GraphStoreBackend):
 
             if lock_held:
                 logger.warning(
-                    "KuzuDB lock file %s is held by another process — "
+                    "Ladybug lock file %s is held by another process — "
                     "cannot remove, another process is actively using the database",
                     lock_path,
                 )
@@ -419,7 +419,7 @@ class KuzuGraphStore(GraphStoreBackend):
             try:
                 os.remove(lock_path)
                 logger.warning(
-                    "Removed stale KuzuDB lock file %s (process crash recovery)",
+                    "Removed stale Ladybug lock file %s (process crash recovery)",
                     lock_path,
                 )
             except OSError as exc:
@@ -885,10 +885,10 @@ class KuzuGraphStore(GraphStoreBackend):
         await self._migrate_cognitive_node_schema()
 
         # ── Agent Memory: Indexes ────────────────────────────────────────
-        # KuzuDB auto-creates indexes for PRIMARY KEY columns.
-        # KuzuDB does not support CREATE INDEX IF NOT EXISTS syntax.
-        # As of KuzuDB v0.x, CREATE INDEX is not supported at all.
-        # When KuzuDB adds index support, uncomment the following:
+        # Ladybug auto-creates indexes for PRIMARY KEY columns.
+        # Ladybug does not support CREATE INDEX IF NOT EXISTS syntax.
+        # As of Ladybug v0.x, CREATE INDEX is not supported at all.
+        # When Ladybug adds index support, uncomment the following:
         # for idx_stmt in [
         #     "CREATE INDEX idx_cognitive_type_layer ON CognitiveNode(memory_type)",
         #     "CREATE INDEX idx_cognitive_belief_status ON CognitiveNode(belief_status)",
@@ -937,7 +937,7 @@ class KuzuGraphStore(GraphStoreBackend):
     def _ensure_initialized(self) -> None:
         if not self._initialized or self._pool is None:
             raise GraphQueryError(
-                "KuzuGraphStore not initialized. Call initialize() first."
+                "LadybugGraphStore not initialized. Call initialize() first."
             )
 
     async def close(self) -> None:
@@ -1076,7 +1076,7 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> None:
         """Create or update an edge (idempotent).
 
-        Note: Kuzu Python binding is not thread-safe, so we keep
+        Note: Ladybug Python binding is not thread-safe, so we keep
         synchronous calls here.  See ADR-008 D3 for details.
         """
         self._ensure_initialized()
@@ -1172,6 +1172,84 @@ class KuzuGraphStore(GraphStoreBackend):
 
     # --- Graph Queries ---
 
+    async def get_neighbors_basic(
+        self,
+        node_id: str,
+        edge_type: str | None = None,
+        direction: str = "outgoing",
+        limit: int = 100,
+        filter_props: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get 1-hop neighbors of a node (generic graph parameters only).
+
+        Pure graph-topology query — no concept or temporal filtering.
+        Supports both Entity and KnowledgeFragment nodes.
+        """
+        self._ensure_initialized()
+
+        arrow_left = ""
+        arrow_right = ""
+        if direction == "outgoing":
+            arrow_left = "-"
+            arrow_right = "->"
+        elif direction == "incoming":
+            arrow_left = "<-"
+            arrow_right = "-"
+        else:
+            arrow_left = "-"
+            arrow_right = "-"
+
+        result_rows: list[dict[str, Any]] = []
+
+        # KnowledgeFragment nodes use SUPPORTED_BY_FRAGMENT
+        is_fragment = await self._is_knowledge_fragment(node_id)
+        if is_fragment:
+            result_rows.extend(
+                await self._get_fragment_neighbors(
+                    node_id, direction=direction, limit=limit
+                )
+            )
+            return result_rows
+
+        # Entity / other node — generic Relation table
+        rel_match = (
+            f"[r:Relation {{relation_type: '{edge_type}'}}]"
+            if edge_type
+            else "[r:Relation]"
+        )
+        where_parts: list[str] = []
+        if filter_props:
+            for k, v in filter_props.items():
+                where_parts.append(f"n.{k} = '{v}'")
+        where_clause = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+
+        cypher = f"""
+            MATCH (src:Entity {{entity_id: $src_id}}){arrow_left}{rel_match}{arrow_right}(n:Entity)
+            {where_clause}
+            RETURN n.entity_id AS neighbor_id, r.relation_type AS edge_type,
+                   r.relation_id AS edge_id, label(r) AS rel_table,
+                   r.properties AS edge_props
+            LIMIT {limit}
+        """
+        ladybug_result = await self._execute(cypher, {"src_id": node_id})
+        rows = _all_rows(ladybug_result)
+        if rows:
+            for row in rows:
+                edge_props_raw = row.get("edge_props")
+                edge_props = _safe_json_loads(edge_props_raw) if isinstance(edge_props_raw, str) else (edge_props_raw or {})
+                result_rows.append({
+                    "neighbor_id": row["neighbor_id"],
+                    "edge_id": row["edge_id"],
+                    "edge_type": row["edge_type"],
+                    "direction": direction if direction != "both" else "outgoing",
+                    "confidence": edge_props.get("confidence"),
+                    "edge_text": edge_props.get("edge_text", ""),
+                    "offset_start": edge_props.get("offset_start", 0),
+                    "offset_end": edge_props.get("offset_end", 0),
+                })
+
+        return result_rows
+
     async def get_neighbors(
         self,
         node_id: str,
@@ -1197,7 +1275,7 @@ class KuzuGraphStore(GraphStoreBackend):
             offset_start (optional), offset_end (optional)
 
         Args:
-            node_concept: When provided, kuzu pushes this filter into the WHERE
+            node_concept: When provided, ladybug pushes this filter into the WHERE
                 clause to avoid returning nodes that don't match the
                 fact_object.
             as_of: Optional point-in-time timestamp for temporal filtering.
@@ -1254,8 +1332,8 @@ class KuzuGraphStore(GraphStoreBackend):
                    r.properties AS edge_props, n.properties AS properties
             LIMIT {limit}
         """
-        kuzu_result = await self._execute(cypher, {"src_id": node_id})
-        rows = _all_rows(kuzu_result)
+        ladybug_result = await self._execute(cypher, {"src_id": node_id})
+        rows = _all_rows(ladybug_result)
         if rows:
             for row in rows:
                 if as_of and not include_history:
@@ -1298,6 +1376,53 @@ class KuzuGraphStore(GraphStoreBackend):
             is_frag = False
         self._fragment_cache[node_id] = is_frag
         return is_frag
+
+    async def get_k_hop_neighbors(
+        self,
+        node_id: str,
+        k: int = 2,
+        edge_type: str | None = None,
+        direction: str = "both",
+        limit_per_hop: int = 100,
+    ) -> dict[str, float]:
+        """Get all neighbors within k hops using BFS with get_neighbors().
+
+        Args:
+            node_id: Starting node ID.
+            k: Number of hops (depth). Defaults to 2.
+            edge_type: Optional edge type filter.
+            direction: Traversal direction ("outgoing", "incoming", "both").
+            limit_per_hop: Max neighbors per node per hop.
+
+        Returns:
+            Dict mapping neighbor_id → proximity score (1/(1+depth)).
+        """
+        self._ensure_initialized()
+        visited: set[str] = {node_id}
+        scores: dict[str, float] = {}
+        queue = [node_id]
+        depth = 0
+        while queue and depth < k:
+            next_queue: list[str] = []
+            for nid in queue:
+                neighbors = await self.get_neighbors(
+                    node_id=nid,
+                    edge_type=edge_type,
+                    direction=direction,
+                    limit=limit_per_hop,
+                )
+                for n in neighbors:
+                    neighbor_id = n["neighbor_id"]
+                    if neighbor_id not in visited:
+                        visited.add(neighbor_id)
+                        next_queue.append(neighbor_id)
+                        scores[neighbor_id] = max(
+                            scores.get(neighbor_id, 0.0),
+                            1.0 / (1.0 + depth),
+                        )
+            queue = next_queue
+            depth += 1
+        return scores
 
     async def _get_fragment_neighbors(
         self,
@@ -1461,10 +1586,10 @@ class KuzuGraphStore(GraphStoreBackend):
     ) -> dict[str, Any]:
         """Execute a graph algorithm (centrality, community, etc.).
 
-        Note: Kuzu does not have built-in graph algorithms. This method provides
+        Note: Ladybug does not have built-in graph algorithms. This method provides
         a thin wrapper around simple Cypher-based computations. For full
         algorithm support (PageRank, betweenness centrality, etc.), use
-        kuzu's Python bindings directly or a dedicated graph processing library.
+        ladybug's Python bindings directly or a dedicated graph processing library.
         """
         self._ensure_initialized()
         config = config or {}
@@ -2853,3 +2978,262 @@ class KuzuGraphStore(GraphStoreBackend):
                 adjusted[memory_type] = base_weight
 
         return adjusted
+
+    # --- CognitiveStorageBackend Adapter Methods ---
+    # These thin wrappers adapt the CognitiveStorageBackend dict-based interface
+    # to the existing LadybugGraphStore method signatures.
+
+    async def save_cognitive_node(self, node_data: dict[str, Any]) -> None:
+        """Create or update a CognitiveNode from a dict.
+
+        CognitiveStorageBackend interface adapter — extracts fields from
+        node_data and delegates to upsert_cognitive_node().
+        """
+        await self.upsert_cognitive_node(
+            node_id=node_data["id"],
+            memory_type=node_data.get("memory_type", "fragment"),
+            cognitive_layer=node_data.get("cognitive_layer", "perception"),
+            content=node_data.get("content", ""),
+            content_vector=node_data.get("content_vector"),
+            source_fragment_ids=node_data.get("source_fragment_ids"),
+            belief_status=node_data.get("belief_status", "accepted"),
+            ttl_seconds=node_data.get("ttl_seconds", 0),
+            occurred_at=node_data.get("occurred_at"),
+            extraction_hint=node_data.get("extraction_hint"),
+            domain_id=node_data.get("domain_id"),
+            space_id=node_data.get("space_id", "default"),
+            history=node_data.get("history"),
+            visibility=node_data.get("visibility", "shared"),
+            created_by=node_data.get("created_by"),
+            feedback_weight=node_data.get("feedback_weight", 0.5),
+            confidence=node_data.get("confidence", 1.0),
+            access_count=node_data.get("access_count", 0),
+            last_access_at=node_data.get("last_access_at"),
+            consolidated_at=node_data.get("consolidated_at"),
+            schema_ref=node_data.get("schema_ref"),
+            superseded_by=node_data.get("superseded_by"),
+            proof_count=node_data.get("proof_count", 1),
+            valid_from=node_data.get("valid_from"),
+            valid_to=node_data.get("valid_to"),
+            recorded_at=node_data.get("recorded_at"),
+            tags=node_data.get("tags"),
+            attributes=node_data.get("attributes"),
+            confirmation_count=node_data.get("confirmation_count", 0),
+            strength=node_data.get("strength", 1.0),
+            entity_name=node_data.get("entity_name"),
+            entity_type=node_data.get("entity_type"),
+            version=node_data.get("version", 1),
+            last_confirmed_at=node_data.get("last_confirmed_at"),
+            consolidation_reasoning=node_data.get("consolidation_reasoning"),
+            compiled_at=node_data.get("compiled_at"),
+            source_trust_tier=node_data.get("source_trust_tier"),
+            scope=node_data.get("scope"),
+            source_pipeline=node_data.get("source_pipeline"),
+            source_content_hash=node_data.get("source_content_hash"),
+        )
+
+    async def list_cognitive_nodes(
+        self,
+        memory_type: str | None = None,
+        cognitive_layer: str | None = None,
+        belief_status: str | None = None,
+        domain_id: str | None = None,
+        space_id: str | None = None,
+        limit: int = 100,
+        as_of: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query CognitiveNodes with filters.
+
+        CognitiveStorageBackend interface adapter — delegates to query_cognitive_nodes().
+        """
+        return await self.query_cognitive_nodes(
+            memory_type=memory_type,
+            cognitive_layer=cognitive_layer,
+            belief_status=belief_status,
+            domain_id=domain_id,
+            space_id=space_id,
+            limit=limit,
+            as_of=as_of,
+        )
+
+    async def update_cognitive_node_with_occ(
+        self,
+        node_id: str,
+        expected_version: int,
+        updates: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Update a CognitiveNode with optimistic concurrency control.
+
+        Moved from CognitiveStore — the Cypher logic was accessing _execute()
+        anyway, so it belongs here in the concrete store implementation.
+        """
+        current = await self.get_cognitive_node(node_id)
+        if current is None:
+            return None
+
+        current_version = current.get("version", 1)
+        if current_version != expected_version:
+            return None
+
+        set_clauses: list[str] = []
+        params: dict[str, Any] = {"id": node_id}
+
+        json_fields = {"source_fragment_ids", "tags", "attributes", "content_vector", "history"}
+        for key, value in updates.items():
+            if key in json_fields:
+                set_clauses.append(f"n.{key} = ${key}")
+                params[key] = json.dumps(value) if value is not None else None
+            else:
+                set_clauses.append(f"n.{key} = ${key}")
+                params[key] = value
+
+        set_clauses.append("n.version = n.version + 1")
+        set_clauses.append("n.updated_at = $updated_at")
+
+        from datetime import datetime, timezone
+        params["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        set_str = ", ".join(set_clauses)
+        cypher = f"MATCH (n:CognitiveNode {{id: $id}}) SET {set_str} RETURN n.id AS id"
+
+        try:
+            await self._execute(cypher, params)
+        except Exception as e:
+            logger.error("OCC update failed for %s: %s", node_id, e)
+            return None
+
+        return await self.get_cognitive_node(node_id)
+
+    async def save_cognitive_edge(
+        self,
+        edge_type: str,
+        from_id: str,
+        to_id: str,
+        properties: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create an edge between two CognitiveNodes.
+
+        CognitiveStorageBackend interface adapter — delegates to create_cognitive_edge().
+        """
+        return await self.create_cognitive_edge(
+            edge_type=edge_type,
+            from_id=from_id,
+            to_id=to_id,
+            properties=properties,
+        )
+
+    async def list_cognitive_edges(
+        self,
+        from_id: str | None = None,
+        to_id: str | None = None,
+        edge_type: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Query cognitive edges with optional filters.
+
+        CognitiveStorageBackend interface adapter — delegates to query_cognitive_edges().
+        """
+        return await self.query_cognitive_edges(
+            from_id=from_id,
+            to_id=to_id,
+            edge_type=edge_type,
+            limit=limit,
+        )
+
+    async def save_disposition(self, profile_data: dict[str, Any]) -> None:
+        """Create or update a DispositionProfile from a dict.
+
+        CognitiveStorageBackend interface adapter — extracts fields from
+        profile_data and delegates to upsert_disposition_profile().
+        """
+        await self.upsert_disposition_profile(
+            profile_id=profile_data["id"],
+            scene=profile_data.get("scene", "default"),
+            skepticism=profile_data.get("skepticism", 0.5),
+            evidence_demand=profile_data.get("evidence_demand", 0.5),
+            abstraction_preference=profile_data.get("abstraction_preference", 0.5),
+            thoroughness=profile_data.get("thoroughness", 0.5),
+            recency_bias=profile_data.get("recency_bias", 0.5),
+            empathy=profile_data.get("empathy", 0.5),
+            risk_tolerance=profile_data.get("risk_tolerance", 0.5),
+            domain_id=profile_data.get("domain_id"),
+            space_id=profile_data.get("space_id", "default"),
+        )
+
+    async def get_disposition(
+        self,
+        profile_id: str | None = None,
+        scene: str | None = None,
+        domain_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Get a DispositionProfile by ID or scene.
+
+        CognitiveStorageBackend interface adapter — delegates to get_disposition_profile().
+        """
+        return await self.get_disposition_profile(
+            profile_id=profile_id,
+            scene=scene,
+            domain_id=domain_id,
+        )
+
+    async def save_activity_log(
+        self, node_id: str, entry: dict[str, Any]
+    ) -> None:
+        """Append a history entry to a CognitiveNode.
+
+        CognitiveStorageBackend interface adapter — delegates to update_cognitive_node_history().
+        """
+        await self.update_cognitive_node_history(node_id, entry)
+
+    async def get_activity_log(
+        self, node_id: str
+    ) -> list[dict[str, Any]]:
+        """Get history entries for a CognitiveNode.
+
+        CognitiveStorageBackend interface adapter — reads from get_cognitive_node().
+        """
+        node = await self.get_cognitive_node(node_id)
+        if node is None:
+            return []
+        history = node.get("history")
+        if isinstance(history, list):
+            return history
+        if isinstance(history, str):
+            try:
+                parsed = json.loads(history)
+                if isinstance(parsed, list):
+                    return parsed
+                return []
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+
+    async def search_cognitive(
+        self,
+        query: str,
+        space_id: str,
+        top_k: int = 10,
+        memory_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Hybrid search for cognitive nodes.
+
+        Falls back to text matching against query_cognitive_nodes when no
+        vector search backend is available.
+        """
+        nodes = await self.query_cognitive_nodes(
+            domain_id=space_id,
+            space_id=space_id,
+            memory_type=memory_type,
+            limit=top_k,
+        )
+        results: list[dict[str, Any]] = []
+        query_lower = query.lower()
+        for node in nodes:
+            content = node.get("content", "")
+            if query_lower in content.lower():
+                node["score"] = 1.0
+            else:
+                node["score"] = 0.0
+            results.append(node)
+        results.sort(key=lambda n: n.get("score", 0.0), reverse=True)
+        return results

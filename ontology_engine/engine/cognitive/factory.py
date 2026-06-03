@@ -33,8 +33,7 @@ from ontology_engine.engine.cognitive.reflect_agent import ReflectAgent
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
 from ontology_engine.engine.cognitive.rrf_fusion import RRFFusionEngine
 from ontology_engine.storage.base import CognitiveStorageBackend
-from ontology_engine.storage.cognitive.store import CognitiveStore
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.config import create_cognitive_store
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +248,7 @@ async def create_memory_api(
     """Create a fully-initialized MemoryAPI with all dependencies wired.
 
     Args:
-        db_path: Kuzu database path. Defaults to ~/.ontology_engine/cognitive_db.
+        db_path: Ladybug database path. Defaults to ~/.ontology_engine/cognitive_db.
         daily_token_budget: Token budget for CompilationScheduler.
         llm_config: Optional LLM configuration dict. When provided, overrides
             environment variables and config.yaml. Keys: base_url, api_key, model.
@@ -273,9 +272,8 @@ async def create_memory_api(
     else:
         logger.info("LLM integration disabled: using rule-based fallbacks")
 
-    graph_store = KuzuGraphStore()
-    await graph_store.initialize(path)
-    cognitive_store = CognitiveStore(graph_store)
+    cognitive_store = create_cognitive_store()
+    await cognitive_store.initialize(path)
     repo = CognitiveRepository(cognitive_store)
 
     embedding_cfg = EmbeddingConfig.from_yaml()
@@ -339,8 +337,8 @@ class MemoryAPISingleton:
     Creates the MemoryAPI once on first access and reuses it.
     Thread-safe via asyncio.Lock — suitable for multi-coroutine ASGI apps.
     For multi-worker deployments (gunicorn -w N), each worker gets its own
-    process and thus its own singleton instance; KuzuDB file locking is
-    handled by retry with exponential backoff in KuzuGraphStore.initialize().
+    process and thus its own singleton instance; Ladybug file locking is
+    handled by retry with exponential backoff in LadybugGraphStore.initialize().
     """
 
     _instance: MemoryAPI | None = None
