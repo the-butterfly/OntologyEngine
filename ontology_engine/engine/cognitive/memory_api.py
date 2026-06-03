@@ -86,6 +86,8 @@ class RememberRequest:
     source_pipeline: str | None = None
     schema_ref: str | None = None
     source_fragment_ids: list[str] | None = None
+    source_trust_tier: str | None = None
+    auto_consolidate: bool = False
 
 
 @dataclass
@@ -245,6 +247,8 @@ class MemoryAPI:
         source_pipeline: str | None = None,
         schema_ref: str | None = None,
         source_fragment_ids: list[str] | None = None,
+        source_trust_tier: str | None = None,
+        auto_consolidate: bool = False,
     ) -> dict[str, Any]:
         req = RememberRequest(
             content=content,
@@ -265,6 +269,8 @@ class MemoryAPI:
             source_pipeline=source_pipeline,
             schema_ref=schema_ref,
             source_fragment_ids=source_fragment_ids,
+            source_trust_tier=source_trust_tier,
+            auto_consolidate=auto_consolidate,
         )
         return await self._remember(req)
 
@@ -337,7 +343,7 @@ class MemoryAPI:
                     memory_type=req.memory_type,
                     tags=merged_tags,
                     metadata=req.metadata,
-                    source_trust_tier="normal",
+                    source_trust_tier=req.source_trust_tier or "normal",
                     scope=merged_tags.get("model", "world"),
                     source_pipeline="api",
                     user_id=req.created_by or "system",
@@ -1594,6 +1600,116 @@ class MemoryAPI:
                 "strength_breakdown": strength_info["breakdown"],
             })
         return {"nodes": results, "total": len(results), "space_id": space_id}
+
+    async def list_edges(
+        self,
+        space_id: str,
+        edge_type: str | None = None,
+        from_id: str | None = None,
+        to_id: str | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        edges = await self._repo.query_cognitive_edges(
+            from_id=from_id,
+            to_id=to_id,
+            edge_type=edge_type,
+            limit=limit,
+        )
+        results = []
+        for e in edges:
+            results.append({
+                "edge_type": e.edge_type,
+                "from_id": e.from_id,
+                "to_id": e.to_id,
+                "properties": e.properties,
+                "created_at": e.created_at,
+            })
+        return {"edges": results, "total": len(results), "space_id": space_id}
+
+    async def get_memory_graph(
+        self,
+        space_id: str,
+        memory_type: str | None = None,
+        belief_status: str | None = None,
+        edge_type: str | None = None,
+        node_limit: int = 500,
+        edge_limit: int = 500,
+    ) -> dict[str, Any]:
+        nodes = await self._repo.query_nodes(
+            domain_id=space_id,
+            memory_type=memory_type,
+            belief_status=belief_status,
+            limit=node_limit,
+        )
+        node_results = []
+        node_ids = set()
+        for n in nodes:
+            node_ids.add(n.id)
+            strength_info = self._compute_strength(n)
+            node_results.append({
+                "id": n.id,
+                "memory_type": n.memory_type,
+                "text": n.content,
+                "cognitive_layer": n.cognitive_layer,
+                "belief_status": n.belief_status,
+                "confidence": n.confidence,
+                "visibility": n.visibility,
+                "created_by": n.created_by,
+                "tags": list(n.tags) if n.tags else [],
+                "strength": strength_info["value"],
+                "strength_breakdown": strength_info["breakdown"],
+            })
+
+        edges = await self._repo.query_cognitive_edges(
+            edge_type=edge_type,
+            limit=edge_limit,
+        )
+        edge_results = []
+        for e in edges:
+            if e.from_id in node_ids or e.to_id in node_ids:
+                edge_results.append({
+                    "edge_type": e.edge_type,
+                    "from_id": e.from_id,
+                    "to_id": e.to_id,
+                    "properties": e.properties,
+                    "created_at": e.created_at,
+                })
+
+        concept_groups: dict[str, list[str]] = {}
+        layer_groups: dict[str, list[str]] = {}
+        belief_groups: dict[str, list[str]] = {}
+        for n in node_results:
+            mt = n["memory_type"]
+            concept_groups.setdefault(mt, []).append(n["id"])
+            cl = n["cognitive_layer"]
+            layer_groups.setdefault(cl, []).append(n["id"])
+            bs = n["belief_status"]
+            belief_groups.setdefault(bs, []).append(n["id"])
+
+        edge_type_groups: dict[str, int] = {}
+        for e in edge_results:
+            edge_type_groups[e["edge_type"]] = edge_type_groups.get(e["edge_type"], 0) + 1
+
+        return {
+            "nodes": node_results,
+            "edges": edge_results,
+            "total_nodes": len(node_results),
+            "total_edges": len(edge_results),
+            "space_id": space_id,
+            "grouping": {
+                "concept_groups": concept_groups,
+                "layer_groups": layer_groups,
+                "belief_groups": belief_groups,
+            },
+            "metadata": {
+                "node_count": len(node_results),
+                "edge_count": len(edge_results),
+                "concept_counts": {k: len(v) for k, v in concept_groups.items()},
+                "layer_counts": {k: len(v) for k, v in layer_groups.items()},
+                "belief_counts": {k: len(v) for k, v in belief_groups.items()},
+                "edge_type_counts": edge_type_groups,
+            },
+        }
 
     async def list_my_memories(
         self,

@@ -36,6 +36,8 @@ class MemoryService:
         recorded_at: str | None = None,
         occurred_at: str | None = None,
         source_pipeline: str | None = None,
+        auto_consolidate: bool = False,
+        source_trust_tier: str | None = None,
     ) -> dict[str, Any]:
         api = await self.get_api()
         result = await api.remember(
@@ -56,6 +58,8 @@ class MemoryService:
             recorded_at=recorded_at,
             occurred_at=occurred_at,
             source_pipeline=source_pipeline,
+            auto_consolidate=auto_consolidate,
+            source_trust_tier=source_trust_tier,
         )
         return result
 
@@ -186,6 +190,44 @@ class MemoryService:
             memory_type=memory_type,
             belief_status=belief_status,
             limit=limit,
+        )
+        return result
+
+    async def list_edges(
+        self,
+        space_id: str,
+        edge_type: str | None = None,
+        from_id: str | None = None,
+        to_id: str | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        api = await self.get_api()
+        result = await api.list_edges(
+            space_id,
+            edge_type=edge_type,
+            from_id=from_id,
+            to_id=to_id,
+            limit=limit,
+        )
+        return result
+
+    async def get_memory_graph(
+        self,
+        space_id: str,
+        memory_type: str | None = None,
+        belief_status: str | None = None,
+        edge_type: str | None = None,
+        node_limit: int = 500,
+        edge_limit: int = 500,
+    ) -> dict[str, Any]:
+        api = await self.get_api()
+        result = await api.get_memory_graph(
+            space_id,
+            memory_type=memory_type,
+            belief_status=belief_status,
+            edge_type=edge_type,
+            node_limit=node_limit,
+            edge_limit=edge_limit,
         )
         return result
 

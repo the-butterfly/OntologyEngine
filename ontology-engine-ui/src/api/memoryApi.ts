@@ -244,6 +244,63 @@ export const memoryApi = {
     return { nodes, total: data.total || nodes.length };
   },
 
+  /** GET /spaces/{space_id}/memory/edges */
+  async listEdges(
+    spaceId: string,
+    options: { edgeType?: string; fromId?: string; toId?: string; limit?: number } = {}
+  ): Promise<{ edges: any[]; total: number }> {
+    const response = await memoryService.get<any>(spacePath(spaceId, '/edges'), {
+      edge_type: options.edgeType,
+      from_id: options.fromId,
+      to_id: options.toId,
+      limit: options.limit || 500,
+    });
+    const data = response.data || response;
+    const edges = (data.edges || []).map((e: any) => snakeToCamel(e));
+    return { edges, total: data.total || edges.length };
+  },
+
+  /** GET /spaces/{space_id}/memory/graph */
+  async getMemoryGraphFull(
+    spaceId: string,
+    options: { memoryType?: string; beliefStatus?: string; edgeType?: string; nodeLimit?: number; edgeLimit?: number } = {}
+  ): Promise<{
+    nodes: any[];
+    edges: any[];
+    totalNodes: number;
+    totalEdges: number;
+    grouping: {
+      conceptGroups: Record<string, string[]>;
+      layerGroups: Record<string, string[]>;
+      beliefGroups: Record<string, string[]>;
+    };
+    metadata: {
+      nodeCount: number;
+      edgeCount: number;
+      conceptCounts: Record<string, number>;
+      layerCounts: Record<string, number>;
+      beliefCounts: Record<string, number>;
+      edgeTypeCounts: Record<string, number>;
+    };
+  }> {
+    const response = await memoryService.get<any>(spacePath(spaceId, '/graph'), {
+      memory_type: options.memoryType,
+      belief_status: options.beliefStatus,
+      edge_type: options.edgeType,
+      node_limit: options.nodeLimit || 500,
+      edge_limit: options.edgeLimit || 500,
+    });
+    const data = response.data || response;
+    return {
+      nodes: (data.nodes || []).map((n: any) => snakeToCamel(n)),
+      edges: (data.edges || []).map((e: any) => snakeToCamel(e)),
+      totalNodes: data.totalNodes || data.total_nodes || 0,
+      totalEdges: data.totalEdges || data.total_edges || 0,
+      grouping: snakeToCamel(data.grouping || {}),
+      metadata: snakeToCamel(data.metadata || {}),
+    };
+  },
+
   // ===== Frontend-specific helpers (map to available endpoints) =====
 
   /** Get memory graph — uses listNodes to get all nodes */

@@ -4,7 +4,7 @@ import { Card, Tabs, Statistic, Row, Col, Spin, Alert, List, Tag, Typography, Ta
 import { DatabaseOutlined, FileTextOutlined, ExperimentOutlined, EyeOutlined, PlayCircleOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { memoryApi } from '../../../api/memoryApi';
 import type { MemoryStats, DashboardData, AgentActivity } from '../../../types/api';
-import type { CognitiveNode } from '../../../types/memory';
+import type { CognitiveNode, CognitiveEdge } from '../../../types/memory';
 import { MemoryDetailDrawer, MemoryGraphView } from '../../../components/memory';
 
 const { Title, Text } = Typography;
@@ -47,7 +47,7 @@ const MemoryOverviewPage: React.FC = () => {
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [nodes, setNodes] = useState<CognitiveNode[]>([]);
-  const [graphEdges, setGraphEdges] = useState<{ source: string; target: string; edgeType: string }[]>([]);
+  const [graphEdges, setGraphEdges] = useState<CognitiveEdge[]>([]);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [validationCase, setValidationCase] = useState<string>('');
@@ -71,13 +71,13 @@ const MemoryOverviewPage: React.FC = () => {
         memoryApi.getMemoryStats(spaceId).catch(() => null),
         memoryApi.getActivities(spaceId).catch(() => []),
         memoryApi.getDashboard(spaceId).catch(() => null),
-        memoryApi.getMemoryGraph(spaceId).catch(() => ({ nodes: [], edges: [] })),
+        memoryApi.getMemoryGraphFull(spaceId).catch(() => ({ nodes: [], edges: [], totalNodes: 0, totalEdges: 0, grouping: { conceptGroups: {}, layerGroups: {}, beliefGroups: {} }, metadata: { nodeCount: 0, edgeCount: 0, conceptCounts: {}, layerCounts: {}, beliefCounts: {}, edgeTypeCounts: {} } })),
       ]);
       setStats(statsData);
       setActivities(activitiesData);
       setDashboard(dashboardData);
-      setNodes(graphData.nodes.map((n) => n.data));
-      setGraphEdges(graphData.edges || []);
+      setNodes(graphData.nodes);
+      setGraphEdges(graphData.edges);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load data');
     } finally {

@@ -1,40 +1,29 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { Graph } from '@antv/g6';
-import type { CognitiveNode } from '../../types/memory';
-
-interface GraphEdge {
-  source: string;
-  target: string;
-  edgeType: string;
-}
+import type { CognitiveNode, CognitiveEdge } from '../../types/memory';
+import {
+  GraphToolbar,
+  GraphLegendPanel,
+  GraphTooltip,
+} from '../graph-shared';
+import type { LayoutMode } from '../graph-shared';
+import {
+  COGNITIVE_LAYER_COLORS,
+  EDGE_TYPE_COLORS,
+  EDGE_TYPE_LINE_DASH,
+  getNodeColor,
+  getEdgeColor,
+  getEdgeLineDash,
+  truncateLabel,
+  mapConfidenceToSize,
+} from '../graph-shared';
 
 interface MemoryGraphViewProps {
   nodes: CognitiveNode[];
-  edges?: GraphEdge[];
+  edges?: CognitiveEdge[];
   height?: number;
   onNodeClick?: (nodeId: string) => void;
 }
-
-const EDGE_COLORS: Record<string, string> = {
-  CONTRADICTS: '#ff4d4f',
-  SUPERSEDES: '#faad14',
-  CONSOLIDATED_INTO: '#1890ff',
-  COGNITIVE_RELATES_TO: '#52c41a',
-  COG_SUPPORTED_BY: '#13c2c2',
-  SUMMARIZED_AS: '#722ed1',
-  SUPPORTS: '#52c41a',
-  PART_OF: '#1890ff',
-  RELATES_TO: '#8c8c8c',
-  CO_OCCURS_WITH: '#8c8c8c',
-  LEARNED_INTO: '#eb2f96',
-};
-
-const LAYER_COLORS: Record<string, string> = {
-  opinion: '#722ed1',
-  semantic: '#1890ff',
-  procedure: '#52c41a',
-  perception: '#faad14',
-};
 
 export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
   nodes,
@@ -46,8 +35,69 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
   const graphRef = useRef<Graph | null>(null);
   const isDestroyedRef = useRef(false);
   const onNodeClickRef = useRef(onNodeClick);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('force');
+  const [tooltipState, setTooltipState] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    title?: string;
+    items?: Array<{ label: string; value: string | number }>;
+  }>({ visible: false, x: 0, y: 0 });
 
   onNodeClickRef.current = onNodeClick;
+
+  const legendItems = useMemo(() => {
+    const items: Array<{
+      color: string;
+      label: string;
+      count?: number;
+      type: 'node' | 'edge';
+      lineDash?: number[];
+    }> = [];
+
+    const layerCounts: Record<string, number> = {};
+    nodes.forEach((n) => {
+      const layer = n.cognitiveLayer;
+      if (layer) layerCounts[layer] = (layerCounts[layer] || 0) + 1;
+    });
+    Object.entries(COGNITIVE_LAYER_COLORS).forEach(([layer, color]) => {
+      if (layerCounts[layer]) {
+        items.push({ color, label: layer, count: layerCounts[layer], type: 'node' });
+      }
+    });
+
+    const edgeTypeCounts: Record<string, number> = {};
+    edges.forEach((e) => {
+      const et = e.edgeType;
+      if (et) edgeTypeCounts[et] = (edgeTypeCounts[et] || 0) + 1;
+    });
+    Object.entries(edgeTypeCounts).forEach(([et, count]) => {
+      const color = EDGE_TYPE_COLORS[et] || '#8c8c8c';
+      const lineDash = EDGE_TYPE_LINE_DASH[et];
+      items.push({ color, label: et, count, type: 'edge', lineDash });
+    });
+
+    return items;
+  }, [nodes, edges]);
+
+  const getLayoutConfig = useCallback((mode: LayoutMode) => {
+    switch (mode) {
+      case 'dagre':
+        return { type: 'dagre', rankdir: 'TB' };
+      case 'concentric':
+        return { type: 'concentric' };
+      default:
+        return {
+          type: 'force',
+          preventOverlap: true,
+          linkDistance: 100,
+          nodeStrength: -50,
+          edgeStrength: 0.5,
+        };
+    }
+  }, []);
 
   const renderGraph = useCallback(async () => {
     if (!containerRef.current) return;
@@ -79,32 +129,44 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
       nodes: nodes.map((node) => ({
         id: node.id,
         data: {
-          label: node.content ? node.content.substring(0, 20) + (node.content.length > 20 ? '...' : '') : node.id,
+          label: truncateLabel(node.content || node.id, 20),
           cognitiveLayer: node.cognitiveLayer,
           confidence: node.confidence,
           memoryType: node.memoryType,
+          beliefStatus: node.beliefStatus,
         },
         style: {
-          fill: LAYER_COLORS[node.cognitiveLayer] || '#999',
+          fill: getNodeColor({
+            cognitive_layer: node.cognitiveLayer,
+            memory_type: node.memoryType,
+          }),
           stroke: '#fff',
           lineWidth: 2,
-          size: Math.max(20, Math.min(60, (node.confidence || 0.5) * 60)),
-          labelText: node.content ? node.content.substring(0, 20) + (node.content.length > 20 ? '...' : '') : node.id,
+          size: mapConfidenceToSize(node.confidence || 0.5),
+          labelText: truncateLabel(node.content || node.id, 20),
           labelFill: '#333',
           labelFontSize: 10,
-          labelPlacement: 'bottom',
+          labelPlacement: 'bottom' as const,
         },
       })),
       edges: edges.map((edge, i) => ({
-        id: `edge-${i}`,
-        source: edge.source,
-        target: edge.target,
+        id: edge.id || `edge-${i}`,
+        source: edge.fromId,
+        target: edge.toId,
         data: { edgeType: edge.edgeType },
         style: {
-          stroke: EDGE_COLORS[edge.edgeType] || '#d9d9d9',
+          stroke: getEdgeColor(edge.edgeType),
           lineWidth: 1.5,
+          lineDash: getEdgeLineDash(edge.edgeType),
           endArrow: true,
           endArrowSize: 8,
+          labelText: edge.edgeType,
+          labelFill: '#8c8c8c',
+          labelFontSize: 9,
+          labelBackground: true,
+          labelBackgroundFill: 'rgba(255,255,255,0.85)',
+          labelBackgroundRadius: 2,
+          labelBackgroundPadding: [2, 4, 2, 4],
         },
       })),
     };
@@ -114,11 +176,11 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
         container,
         width,
         height: containerHeight,
-        autoFit: 'view',
-        padding: [20, 20, 20, 20],
         data: g6Data,
         node: {
-          type: 'circle',
+          style: {
+            halo: false,
+          },
           state: {
             hover: {
               lineWidth: 3,
@@ -128,16 +190,16 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
           },
         },
         edge: {
-          type: 'line',
+          style: {},
         },
-        layout: {
-          type: 'force',
-          preventOverlap: true,
-          linkDistance: 100,
-          nodeStrength: -50,
-          edgeStrength: 0.5,
-        },
-        behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
+        layout: getLayoutConfig(layoutMode),
+        behaviors: [
+          { type: 'drag-canvas', animation: false },
+          { type: 'zoom-canvas', animation: false, sensitivity: 0.5 },
+          { type: 'drag-element', animation: false },
+        ],
+        autoResize: true,
+        animation: false,
       });
 
       if (isDestroyedRef.current) {
@@ -146,13 +208,39 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
       }
 
       graph.on('node:click', (evt: any) => {
-        const nodeId = evt.target?.id || evt.nodeId;
+        const nodeId = evt.id || evt.target?.id;
         if (nodeId && !isDestroyedRef.current) {
           onNodeClickRef.current?.(nodeId);
         }
       });
 
+      graph.on('node:pointerenter', (evt: any) => {
+        const nodeId = evt.id || evt.target?.id;
+        const node = nodes.find((n) => n.id === nodeId);
+        if (node) {
+          setTooltipState({
+            visible: true,
+            x: evt.client?.x ?? evt.clientX ?? 0,
+            y: evt.client?.y ?? evt.clientY ?? 0,
+            title: truncateLabel(node.content, 40),
+            items: [
+              { label: '记忆类型', value: node.memoryType },
+              { label: '认知层', value: node.cognitiveLayer },
+              { label: '信念状态', value: node.beliefStatus },
+              { label: '置信度', value: node.confidence?.toFixed(2) ?? 'N/A' },
+            ],
+          });
+        }
+      });
+
+      graph.on('node:pointerleave', () => {
+        setTooltipState((prev) => ({ ...prev, visible: false }));
+      });
+
       await graph.render();
+
+      graph.zoomTo(1);
+      graph.fitView();
 
       if (!isDestroyedRef.current) {
         graphRef.current = graph;
@@ -164,7 +252,7 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
         console.error('Failed to render graph:', e);
       }
     }
-  }, [nodes, edges, height]);
+  }, [nodes, edges, height, layoutMode, getLayoutConfig]);
 
   useEffect(() => {
     isDestroyedRef.current = false;
@@ -205,6 +293,40 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const handleZoomIn = useCallback(() => {
+    const g = graphRef.current;
+    if (g) try { g.zoomTo((g as any).getZoom() * 1.2); } catch {}
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const g = graphRef.current;
+    if (g) try { g.zoomTo((g as any).getZoom() * 0.8); } catch {}
+  }, []);
+
+  const handleFitView = useCallback(() => {
+    try { graphRef.current?.fitView(); } catch {}
+  }, []);
+
+  const handleExportImage = useCallback(async () => {
+    if (!graphRef.current) return;
+    try {
+      const dataUrl = await (graphRef.current as any).toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = 'memory-graph.png';
+      link.href = dataUrl;
+      link.click();
+    } catch {}
+  }, []);
+
+  const handleFullscreen = useCallback(() => {
+    if (!wrapperRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      wrapperRef.current.requestFullscreen();
+    }
+  }, []);
+
   if (nodes.length === 0) {
     return (
       <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', borderRadius: 8 }}>
@@ -213,7 +335,35 @@ export const MemoryGraphView: React.FC<MemoryGraphViewProps> = ({
     );
   }
 
-  return <div ref={containerRef} style={{ width: '100%', height }} />;
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', height }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}>
+        <GraphToolbar
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onFitView={handleFitView}
+          onExportImage={handleExportImage}
+          onFullscreen={handleFullscreen}
+          layoutMode={layoutMode}
+          onLayoutChange={setLayoutMode}
+          showLayoutSwitch
+        />
+      </div>
+      {legendItems.length > 0 && (
+        <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10 }}>
+          <GraphLegendPanel title="图例" items={legendItems} />
+        </div>
+      )}
+      <GraphTooltip
+        x={tooltipState.x}
+        y={tooltipState.y}
+        visible={tooltipState.visible}
+        title={tooltipState.title}
+        items={tooltipState.items}
+      />
+    </div>
+  );
 };
 
 export default MemoryGraphView;

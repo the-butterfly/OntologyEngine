@@ -1,7 +1,7 @@
 // ontology-engine-ui/src/pages/spaces/SpaceDetailPage.tsx
 // Space detail layout - contains nested routes for space management
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Breadcrumb, Menu, Tag, Space, Typography, Card, Spin, message, Alert, Button, Tooltip } from 'antd';
 import {
@@ -19,6 +19,8 @@ import {
   SearchOutlined,
   SyncOutlined,
   NodeIndexOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { useSpaceStore } from '../../store/spaceStore';
 
@@ -34,6 +36,7 @@ const kmMenuItems = [
   { key: 'visualize', icon: <ApartmentOutlined />, label: 'Schema 可视化' },
   { key: 'execute', icon: <BranchesOutlined />, label: '规则执行' },
   { key: 'simulate', icon: <ExperimentOutlined />, label: 'What-If 模拟' },
+  { key: 'explorer', icon: <SearchOutlined />, label: '知识探索' },
 ];
 
 // Agent Memory menu items
@@ -43,12 +46,14 @@ const memoryMenuItems = [
   { key: 'memory/manage', icon: <ToolOutlined />, label: '记忆管理' },
   { key: 'memory/consume', icon: <SearchOutlined />, label: '记忆消费' },
   { key: 'memory/reflect', icon: <SyncOutlined />, label: '反思中心' },
+  { key: 'explorer', icon: <SearchOutlined />, label: '知识探索' },
 ];
 
 export default function SpaceDetailPage() {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [menuCollapsed, setMenuCollapsed] = useState(false);
   const {
     activeSpace,
     activeSpaceId,
@@ -97,6 +102,7 @@ export default function SpaceDetailPage() {
     if (path.endsWith('/visualize')) return 'visualize';
     if (path.endsWith('/execute')) return 'execute';
     if (path.endsWith('/simulate')) return 'simulate';
+    if (path.endsWith('/explorer')) return 'explorer';
     return 'schema';
   };
 
@@ -258,13 +264,24 @@ export default function SpaceDetailPage() {
 
       <Card>
         <div style={{ display: 'flex', gap: 24 }}>
-          <Menu
-            mode="inline"
-            selectedKeys={[getSelectedKey()]}
-            onClick={handleMenuClick}
-            style={{ width: 200, borderRight: '1px solid #f0f0f0' }}
-            items={getMenuItems()}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', width: menuCollapsed ? 56 : 200, flexShrink: 0 }}>
+            <Menu
+              mode="inline"
+              inlineCollapsed={menuCollapsed}
+              selectedKeys={[getSelectedKey()]}
+              onClick={handleMenuClick}
+              style={{ borderRight: '1px solid #f0f0f0', flex: 1 }}
+              items={getMenuItems()}
+            />
+            <div style={{ textAlign: 'center', padding: '8px 0', borderTop: '1px solid #f0f0f0' }}>
+              <Button
+                type="text"
+                icon={menuCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setMenuCollapsed(!menuCollapsed)}
+                style={{ fontSize: 14 }}
+              />
+            </div>
+          </div>
           <div style={{ flex: 1, overflow: 'auto' }}>
             <Outlet />
           </div>

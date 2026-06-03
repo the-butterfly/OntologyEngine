@@ -28,6 +28,7 @@ import {
 
 // Memory Landing Page (top-level "记忆空间" entry)
 import MemorySpacePage from './pages/memory/MemorySpacePage';
+import { KnowledgeExplorerPage } from './pages/explorer';
 
 // Rule Embed Pages（内嵌于 SpaceDetailPage 右侧内容区）
 import RulesEmbedPage from './pages/spaces/RulesEmbedPage';
@@ -115,6 +116,7 @@ function App() {
               <Route path="memory/manage" element={<MemoryManagePage />} />
               <Route path="memory/consume" element={<MemoryConsumePage />} />
               <Route path="memory/reflect" element={<ReflectCenterPage />} />
+              <Route path="explorer" element={<KnowledgeExplorerPage />} />
             </Route>
 
             {/* 记忆空间入口 — Agent Memory 空间选择页 */}

@@ -258,7 +258,7 @@ export default function InstanceDataPage() {
         <Table
           columns={relationColumns}
           dataSource={relations}
-          rowKey={(r, i) => `${r.relation_type}_${r.from_entity_id}_${r.to_entity_id}_${i}`}
+          rowKey={(r) => `${r.relation_type}_${r.from_entity_id}_${r.to_entity_id}`}
           pagination={{ pageSize: 10 }}
           size="small"
         />

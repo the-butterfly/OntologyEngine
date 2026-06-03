@@ -357,6 +357,54 @@ async def list_nodes(
         return _handle_error(e, "LIST_NODES_ERROR")
 
 
+@router.get("/edges")
+async def list_edges(
+    space_id: str,
+    edge_type: str | None = None,
+    from_id: str | None = None,
+    to_id: str | None = None,
+    limit: int = 500,
+) -> dict[str, Any] | Any:
+    """List cognitive edges for a space."""
+    try:
+        service = get_memory_service()
+        result = await service.list_edges(
+            space_id,
+            edge_type=edge_type,
+            from_id=from_id,
+            to_id=to_id,
+            limit=limit,
+        )
+        return success_response(data=result, meta={"space_id": space_id})
+    except Exception as e:
+        return _handle_error(e, "LIST_EDGES_ERROR")
+
+
+@router.get("/graph")
+async def get_memory_graph(
+    space_id: str,
+    memory_type: str | None = None,
+    belief_status: str | None = None,
+    edge_type: str | None = None,
+    node_limit: int = 500,
+    edge_limit: int = 500,
+) -> dict[str, Any] | Any:
+    """Get complete memory graph data (nodes + edges) for visualization."""
+    try:
+        service = get_memory_service()
+        result = await service.get_memory_graph(
+            space_id,
+            memory_type=memory_type,
+            belief_status=belief_status,
+            edge_type=edge_type,
+            node_limit=node_limit,
+            edge_limit=edge_limit,
+        )
+        return success_response(data=result, meta={"space_id": space_id})
+    except Exception as e:
+        return _handle_error(e, "MEMORY_GRAPH_ERROR")
+
+
 @router.get("/{node_id}")
 async def get_node(
     space_id: str,
