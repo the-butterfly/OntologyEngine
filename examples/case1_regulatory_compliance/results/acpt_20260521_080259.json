@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260521_080259",
+  "case": "case1_regulatory_compliance",
+  "total": 6,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 6,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-101: Schema + instance loading",
+      "score": 1.0,
+      "details": "created=4/4 total=21",
+      "latency_ms": 539.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-102: Baseline compliance analysis",
+      "score": 1.0,
+      "details": "suppliers_found=10",
+      "latency_ms": 445.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-103: Whitelist update + re-analysis",
+      "score": 1.0,
+      "details": "whitelist_update_found=True",
+      "latency_ms": 179.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-104: Version rollback",
+      "score": 1.0,
+      "details": "rollback_found=True",
+      "latency_ms": 104.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-105: Recall evidence fragments",
+      "score": 1.0,
+      "details": "regulation_found=True evidence_found=True",
+      "latency_ms": 294.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-106: Reflect analysis summary",
+      "score": 1.0,
+      "details": "report_found=True findings_found=True",
+      "latency_ms": 166.4,
+      "sub_scores": {}
+    }
+  ]
+}

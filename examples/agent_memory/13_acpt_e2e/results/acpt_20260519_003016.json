@@ -1,0 +1,88 @@
+{
+  "timestamp": "20260519_003016",
+  "case": "acpt_e2e",
+  "total": 8,
+  "mean_score": 0.65,
+  "min_score": 0.0,
+  "passed_count": 4,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-501 Zero-parameter mode",
+      "score": 0.5,
+      "details": "node_id=True stats=False",
+      "latency_ms": 381.2,
+      "sub_scores": {
+        "node_id": 1.0,
+        "stats": 0.0
+      }
+    },
+    {
+      "name": "TC-502 Contradiction detection",
+      "score": 0.8,
+      "details": "has_shenzhen=True has_shanghai=True has_both=True",
+      "latency_ms": 677.6,
+      "sub_scores": {
+        "has_both": 1.0
+      }
+    },
+    {
+      "name": "TC-503 Consolidation and entity compilation",
+      "score": 1.0,
+      "details": "consolidation=True role=True project=True team=True",
+      "latency_ms": 1488.2,
+      "sub_scores": {
+        "consolidation": 1.0
+      }
+    },
+    {
+      "name": "TC-504 DreamCycle maintenance",
+      "score": 0.8,
+      "details": "dream=True count_before=10 count_after=10",
+      "latency_ms": 1291.4,
+      "sub_scores": {
+        "dream": 1.0
+      }
+    },
+    {
+      "name": "TC-505 Reflect deep analysis",
+      "score": 0.5,
+      "details": "findings=False insights=True",
+      "latency_ms": 782.1,
+      "sub_scores": {
+        "findings": 0.0,
+        "insights": 1.0
+      }
+    },
+    {
+      "name": "TC-506 Lifecycle governance",
+      "score": 0.0,
+      "details": "audit=False has_100=False has_120=False",
+      "latency_ms": 675.0,
+      "sub_scores": {
+        "audit": 0.0,
+        "has_120": 0.0
+      }
+    },
+    {
+      "name": "TC-507 Multi-agent isolation",
+      "score": 1.0,
+      "details": "bob_leak=False bob_sees_public=True",
+      "latency_ms": 707.7,
+      "sub_scores": {
+        "bob_leak": 0.0,
+        "bob_sees_public": 1.0
+      }
+    },
+    {
+      "name": "TC-508 End-to-end full flow",
+      "score": 0.6,
+      "details": "initial_recall=5 final_recall=5 financing=True investor=False",
+      "latency_ms": 2040.6,
+      "sub_scores": {
+        "initial_recall": 5,
+        "final_recall": 5
+      }
+    }
+  ]
+}

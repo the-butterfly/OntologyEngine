@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260515_060637",
+  "case": "case15",
+  "total": 8,
+  "passed": 7,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "name": "T1: User Model",
+      "passed": true,
+      "score": 1.0,
+      "details": "ids=['mem:mental_model:modeling_eval:92eaa1bf572a', 'mem:mental_model:modeling_eval:9f183e946449', 'mem:mental_model:modeling_eval:c39a1cc98d09']",
+      "latency_ms": 536.0043048858643
+    },
+    {
+      "name": "T2: Task Model (commitment)",
+      "passed": true,
+      "score": 1.0,
+      "details": "commitment_id=mem:commitment:modeling_eval:6384c30276e6, pending=0",
+      "latency_ms": 12.71200180053711
+    },
+    {
+      "name": "T3: World Model (constraint)",
+      "passed": true,
+      "score": 1.0,
+      "details": "api_limit_id=mem:constraint:modeling_eval:be5937e8e299, reg_id=mem:constraint:modeling_eval:514194084ddf",
+      "latency_ms": 189.70012664794922
+    },
+    {
+      "name": "T4: Self Model (tool reliability)",
+      "passed": false,
+      "score": 0.0,
+      "details": "recall_hits=0",
+      "latency_ms": 321.7589855194092
+    },
+    {
+      "name": "T5: list-my-memories",
+      "passed": true,
+      "score": 0.5,
+      "details": "memories=0",
+      "latency_ms": 102.46920585632324
+    },
+    {
+      "name": "T6: Permission governance",
+      "passed": true,
+      "score": 1.0,
+      "details": "domains_created=4/4",
+      "latency_ms": 227.83803939819336
+    },
+    {
+      "name": "T7: Cross-model reference",
+      "passed": true,
+      "score": 1.0,
+      "details": "recall_hits=10",
+      "latency_ms": 338.3030891418457
+    },
+    {
+      "name": "T8: Commitment tracking",
+      "passed": true,
+      "score": 1.0,
+      "details": "pending=0, total=3",
+      "latency_ms": 23.1170654296875
+    }
+  ]
+}

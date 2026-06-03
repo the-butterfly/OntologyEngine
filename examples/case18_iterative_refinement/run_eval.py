@@ -35,25 +35,25 @@ async def run_i01_broad_to_targeted(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Entity: TechNova, cloud infrastructure, Shenzhen, founded 2019, revenue 500M",
-            tags=["company", "TechNova", "entity"],
+            tags={"tag": "company", "tag_2": "TechNova", "tag_3": "entity"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: TechNova Q3营收增长30%, 毛利率42%",
-            tags=["company", "TechNova", "financial"],
+            tags={"tag": "company", "tag_2": "TechNova", "tag_3": "financial"},
             memory_type="observation",
             confidence=0.85,
         )
         await cli.remember(
             "Rule: cloud行业供应商准入标准: 注册资本>=1000万, 成立>=3年",
-            tags=["rule", "cloud", "准入"],
+            tags={"tag": "rule", "tag_2": "cloud", "tag_3": "准入"},
             memory_type="rule",
             confidence=0.95,
         )
         await cli.remember(
             "Opinion: TechNova技术实力强, 但交付能力有待观察",
-            tags=["company", "TechNova", "opinion"],
+            tags={"tag": "company", "tag_2": "TechNova", "tag_3": "opinion"},
             memory_type="opinion",
             confidence=0.7,
         )
@@ -79,13 +79,13 @@ async def run_i02_gap_analysis(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Entity: 供应商B, 注册资本2000万, 成立5年",
-            tags=["supplier", "供应商B", "entity"],
+            tags={"tag": "supplier", "tag_2": "供应商B", "tag_3": "entity"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: 供应商B Q2交付准时率88%",
-            tags=["supplier", "供应商B", "delivery"],
+            tags={"tag": "supplier", "tag_2": "供应商B", "tag_3": "delivery"},
             memory_type="observation",
             confidence=0.8,
         )
@@ -116,25 +116,25 @@ async def run_i03_query_refinement(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Entity: 华为, credit_rating AAA, revenue 9000亿",
-            tags=["company", "华为", "entity"],
+            tags={"tag": "company", "tag_2": "华为", "tag_3": "entity"},
             memory_type="entity",
             confidence=0.95,
         )
         await cli.remember(
             "Rule: 核心企业白名单制度, 华为在名单内",
-            tags=["rule", "华为", "whitelist"],
+            tags={"tag": "rule", "tag_2": "华为", "tag_3": "whitelist"},
             memory_type="rule",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: 华为2025年供应链融资500亿",
-            tags=["observation", "华为", "financing"],
+            tags={"tag": "observation", "tag_2": "华为", "tag_3": "financing"},
             memory_type="observation",
             confidence=0.85,
         )
         await cli.remember(
             "Fragment: 听说华为在考虑新的供应商政策",
-            tags=["fragment", "华为", "rumor"],
+            tags={"tag": "fragment", "tag_2": "华为", "tag_3": "rumor"},
             memory_type="fragment",
             confidence=0.4,
         )
@@ -162,26 +162,26 @@ async def run_i04_evidence_chain(cli: CLIRunner, report: AcptReport):
     try:
         resp1 = await cli.remember(
             "Entity: 担保圈风险企业A, 担保链深度3层, 涉及B→C→D",
-            tags=["risk", "担保圈", "企业A"],
+            tags={"tag": "risk", "tag_2": "担保圈", "tag_3": "企业A"},
             memory_type="entity",
             confidence=0.9,
         )
         node_a_id = resp1.get("node_id")
         await cli.remember(
             "Observation: 企业B为企业A担保5000万",
-            tags=["risk", "担保圈", "企业B"],
+            tags={"tag": "risk", "tag_2": "担保圈", "tag_3": "企业B"},
             memory_type="observation",
             confidence=0.85,
         )
         await cli.remember(
             "Observation: 企业C为企业B担保3000万",
-            tags=["risk", "担保圈", "企业C"],
+            tags={"tag": "risk", "tag_2": "担保圈", "tag_3": "企业C"},
             memory_type="observation",
             confidence=0.8,
         )
         await cli.remember(
             "Rule: 担保圈深度超过3层需特别审查",
-            tags=["rule", "担保圈", "审查"],
+            tags={"tag": "rule", "tag_2": "担保圈", "tag_3": "审查"},
             memory_type="rule",
             confidence=0.95,
         )
@@ -209,13 +209,13 @@ async def run_i05_state_checkpoint(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Entity: 供应商C, 注册资本3000万, 主营电子元器件",
-            tags=["supplier", "供应商C", "entity"],
+            tags={"tag": "supplier", "tag_2": "供应商C", "tag_3": "entity"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: 供应商C 2024年交付准时率92%",
-            tags=["supplier", "供应商C", "delivery"],
+            tags={"tag": "supplier", "tag_2": "供应商C", "tag_3": "delivery"},
             memory_type="observation",
             confidence=0.85,
         )
@@ -224,13 +224,13 @@ async def run_i05_state_checkpoint(cli: CLIRunner, report: AcptReport):
         round1_ids = set(res.get("id", res.get("node_id", "")) for res in r1.get("results", []))
         await cli.remember(
             "Rule: 电子元器件供应商需通过ISO9001认证",
-            tags=["rule", "电子元器件", "ISO9001"],
+            tags={"tag": "rule", "tag_2": "电子元器件", "tag_3": "ISO9001"},
             memory_type="rule",
             confidence=0.95,
         )
         await cli.remember(
             "Observation: 供应商C已通过ISO9001认证",
-            tags=["supplier", "供应商C", "ISO9001"],
+            tags={"tag": "supplier", "tag_2": "供应商C", "tag_3": "ISO9001"},
             memory_type="observation",
             confidence=0.9,
         )
@@ -254,19 +254,19 @@ async def run_i06_convergence_detection(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Entity: 供应商D, 注册资本1000万, 主营物流服务",
-            tags=["supplier", "供应商D", "entity"],
+            tags={"tag": "supplier", "tag_2": "供应商D", "tag_3": "entity"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: 供应商D 2024年准时交付率95%",
-            tags=["supplier", "供应商D", "delivery"],
+            tags={"tag": "supplier", "tag_2": "供应商D", "tag_3": "delivery"},
             memory_type="observation",
             confidence=0.85,
         )
         await cli.remember(
             "Opinion: 供应商D服务态度好, 但价格偏高",
-            tags=["supplier", "供应商D", "opinion"],
+            tags={"tag": "supplier", "tag_2": "供应商D", "tag_3": "opinion"},
             memory_type="opinion",
             confidence=0.7,
         )

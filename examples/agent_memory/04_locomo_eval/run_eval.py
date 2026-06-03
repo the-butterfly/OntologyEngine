@@ -69,10 +69,10 @@ async def run_t1_single_hop_recall(cli: CLIRunner, report: EvalReport):
 async def run_t2_multi_hop_reasoning(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("TechNova使用微服务架构", memory_type="observation", tags=["arch", "technova"])
-        await cli.remember("TechNova的微服务部署在CloudGroup云平台", memory_type="observation", tags=["arch", "cloudgroup"])
-        await cli.remember("CloudGroup云平台采用Kubernetes编排", memory_type="observation", tags=["infra", "cloudgroup"])
-        await cli.remember("王芳负责TechNova的技术架构决策", memory_type="observation", tags=["person", "technova"])
+        await cli.remember("TechNova使用微服务架构", memory_type="observation", tags={"tag": "arch", "tag_2": "technova"})
+        await cli.remember("TechNova的微服务部署在CloudGroup云平台", memory_type="observation", tags={"tag": "arch", "tag_2": "cloudgroup"})
+        await cli.remember("CloudGroup云平台采用Kubernetes编排", memory_type="observation", tags={"tag": "infra", "tag_2": "cloudgroup"})
+        await cli.remember("王芳负责TechNova的技术架构决策", memory_type="observation", tags={"tag": "person", "tag_2": "technova"})
 
         recall = await cli.recall("王芳的技术架构使用了什么云平台和编排方案", max_results=10)
         results = recall.get("results", [])
@@ -90,11 +90,11 @@ async def run_t3_temporal_reasoning(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("2024年Q1：TechNova API限流策略为1000次/分钟", memory_type="observation",
-                           tags=["policy", "technova"], confidence=0.9)
+                           tags={"tag": "policy", "tag_2": "technova"}, confidence=0.9)
         await cli.remember("2025年Q1：TechNova API限流策略调整为5000次/分钟", memory_type="observation",
-                           tags=["policy", "technova"], confidence=0.95)
+                           tags={"tag": "policy", "tag_2": "technova"}, confidence=0.95)
         await cli.remember("2025年Q3：TechNova API限流策略调整为10000次/分钟", memory_type="observation",
-                           tags=["policy", "technova"], confidence=0.95)
+                           tags={"tag": "policy", "tag_2": "technova"}, confidence=0.95)
 
         recall = await cli.recall("TechNova最新的API限流策略", max_results=5)
         results = recall.get("results", [])
@@ -110,8 +110,8 @@ async def run_t3_temporal_reasoning(cli: CLIRunner, report: EvalReport):
 async def run_t4_contradiction_detection(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("TechNova使用Redis作为缓存", memory_type="observation", tags=["infra", "technova"])
-        await cli.remember("TechNova使用Memcached作为缓存", memory_type="observation", tags=["infra", "technova"])
+        await cli.remember("TechNova使用Redis作为缓存", memory_type="observation", tags={"tag": "infra", "tag_2": "technova"})
+        await cli.remember("TechNova使用Memcached作为缓存", memory_type="observation", tags={"tag": "infra", "tag_2": "technova"})
 
         reflect = await cli.reflect("TechNova缓存技术选型", max_iterations=3, async_mode=False,
                                     skip_consolidation=True, skip_forgetting=True)
@@ -129,7 +129,7 @@ async def run_t5_consolidation_upgrade(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for text in ["华信科技2025年营收50亿", "华信科技资产负债率75%", "华信科技风险等级C级"]:
-            await cli.remember(text, memory_type="fragment", tags=["financial", "huaxin"])
+            await cli.remember(text, memory_type="fragment", tags={"tag": "financial", "tag_2": "huaxin"})
 
         stats_before = await cli.stats()
         total_before = stats_before.get("total", 0)
@@ -153,11 +153,11 @@ async def run_t6_supersede_belief(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r1 = await cli.remember("恒信集团风险等级C级，资产负债率75%", memory_type="observation",
-                                confidence=0.8, tags=["risk", "hengxin"])
+                                confidence=0.8, tags={"tag": "risk", "tag_2": "hengxin"})
         old_id = r1.get("node_id")
 
         r2 = await cli.remember("恒信集团风险等级调整为B级，资产负债率降至45%", memory_type="observation",
-                                confidence=0.95, tags=["risk", "hengxin"],
+                                confidence=0.95, tags={"tag": "risk", "tag_2": "hengxin"},
                                 supersede_target=old_id, supersede_reason="财务改善")
         new_id = r2.get("node_id")
 
@@ -172,9 +172,9 @@ async def run_t7_forgetting_protection(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("核心风控规则：所有交易必须审核", memory_type="rule",
-                           confidence=0.95, tags=["core_rule"])
+                           confidence=0.95, tags={"tag": "core_rule"})
         await cli.remember("临时观察：今日市场波动较大", memory_type="observation",
-                           confidence=0.4, tags=["temporary"])
+                           confidence=0.4, tags={"tag": "temporary"})
 
         result = await cli.forget(days_elapsed=30)
         ok = result is not None
@@ -188,7 +188,7 @@ async def run_t8_correction_propagation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r = await cli.remember("华信科技2025年营收35亿", memory_type="observation",
-                               confidence=0.8, tags=["financial", "huaxin"])
+                               confidence=0.8, tags={"tag": "financial", "tag_2": "huaxin"})
         node_id = r.get("node_id")
 
         corrected = await cli.correct(
@@ -208,7 +208,7 @@ async def run_t9_dreamcycle(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for i in range(3):
-            await cli.remember(f"梦境测试数据 #{i+1}", memory_type="fragment", tags=["dream_test"])
+            await cli.remember(f"梦境测试数据 #{i+1}", memory_type="fragment", tags={"tag": "dream_test"})
         await cli.consolidate()
 
         result = await cli.dream()

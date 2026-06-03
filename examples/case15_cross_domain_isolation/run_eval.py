@@ -38,11 +38,11 @@ async def run_x01_domain_isolation(cli: CLIRunner, report: AcptReport):
 
         await cli_a.remember(
             "Domain A secret: supplier credit limit is 50M CNY",
-            tags=["confidential", "domain_a"], created_by="domain_a_user"
+            tags={"tag": "confidential", "tag_2": "domain_a"}, created_by="domain_a_user"
         )
         await cli_b.remember(
             "Domain B secret: consumer loan rate is 4.5%",
-            tags=["confidential", "domain_b"], created_by="domain_b_user"
+            tags={"tag": "confidential", "tag_2": "domain_b"}, created_by="domain_b_user"
         )
 
         r_a_in_b = await cli_b.recall("supplier credit limit", max_results=5)
@@ -78,11 +78,11 @@ async def run_x02_cross_domain_query(cli: CLIRunner, report: AcptReport):
 
         await cli_a.remember(
             "Company TechNova is headquartered in Shenzhen",
-            tags=["company", "domain_a"], created_by="domain_a_user"
+            tags={"tag": "company", "tag_2": "domain_a"}, created_by="domain_a_user"
         )
         await cli_b.remember(
             "Company TechNova has 500 employees",
-            tags=["company", "domain_b"], created_by="domain_b_user"
+            tags={"tag": "company", "tag_2": "domain_b"}, created_by="domain_b_user"
         )
 
         r_a = await cli_a.recall("TechNova", max_results=5)
@@ -114,8 +114,8 @@ async def run_x03_physical_isolation(cli: CLIRunner, report: AcptReport):
         cli_a = CLIRunner(cli.api, space_id=domain_a)
         cli_b = CLIRunner(cli.api, space_id=domain_b)
 
-        await cli_a.remember("Physical isolation test data for domain A", tags=["test"], created_by="test_a")
-        await cli_b.remember("Physical isolation test data for domain B", tags=["test"], created_by="test_b")
+        await cli_a.remember("Physical isolation test data for domain A", tags={"tag": "test"}, created_by="test_a")
+        await cli_b.remember("Physical isolation test data for domain B", tags={"tag": "test"}, created_by="test_b")
 
         stats_a = await cli_a.stats()
         stats_b = await cli_b.stats()
@@ -153,11 +153,11 @@ async def run_x04_entity_alignment(cli: CLIRunner, report: AcptReport):
 
         resp_a = await cli_a.remember(
             "华为技术有限公司 (Huawei) is a core enterprise in supply chain",
-            tags=["core_enterprise", "domain_a"], created_by="domain_a_user"
+            tags={"tag": "core_enterprise", "tag_2": "domain_a"}, created_by="domain_a_user"
         )
         resp_b = await cli_b.remember(
             "华为 (Huawei) annual procurement volume is 50B CNY",
-            tags=["core_enterprise", "domain_b"], created_by="domain_b_user"
+            tags={"tag": "core_enterprise", "tag_2": "domain_b"}, created_by="domain_b_user"
         )
 
         r_a = await cli_a.recall("华为", max_results=5)

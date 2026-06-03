@@ -228,6 +228,8 @@ class RememberRequest:
     source_pipeline: str | None = None
     schema_ref: str | None = None
     source_fragment_ids: list[str] | None = None
+    source_trust_tier: str | None = None
+    auto_consolidate: bool = False
 
 
 @dataclass

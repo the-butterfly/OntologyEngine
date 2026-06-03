@@ -41,6 +41,34 @@ class RuleExecutor:
         eval_context.update(context.computed_metrics)
         return eval_context
 
+    def check_applicability(
+        self,
+        rule_decl: RuleDefinitionDecl,
+        context: ExecutionContext,
+    ) -> tuple[bool, str]:
+        if rule_decl.applicability is None:
+            return True, ""
+        eval_ctx = self._get_eval_context(context)
+        if rule_decl.prereq_text:
+            try:
+                if not self.evaluator.evaluate(rule_decl.prereq_text, eval_ctx):
+                    return False, f"prereq not met: {rule_decl.prereq_text}"
+            except Exception:
+                pass
+        if rule_decl.exception_text:
+            try:
+                if self.evaluator.evaluate(rule_decl.exception_text, eval_ctx):
+                    return False, f"exception applies: {rule_decl.exception_text}"
+            except Exception:
+                pass
+        if rule_decl.boundary_text:
+            try:
+                if not self.evaluator.evaluate(rule_decl.boundary_text, eval_ctx):
+                    return False, f"boundary excluded: {rule_decl.boundary_text}"
+            except Exception:
+                pass
+        return True, ""
+
     def get_eval_context(self, context: ExecutionContext) -> dict:
         """Public interface for _get_eval_context.
 

@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260520_014417",
+  "case": "consumer_credit",
+  "total": 6,
+  "mean_score": 0.1071,
+  "min_score": 0.0,
+  "passed_count": 0,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-C01: 优质借款人分期贷",
+      "score": 0.1429,
+      "details": "decision= score=0 grade=",
+      "latency_ms": 1211.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C02: 快贷产品分流",
+      "score": 0.0,
+      "details": "rules=0 scoring=False pricing=False",
+      "latency_ms": 1193.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C03: 中等风险借款人拒绝",
+      "score": 0.5,
+      "details": "decision= eligible=False rejected=False",
+      "latency_ms": 1193.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C04: 大额信贷拒绝",
+      "score": 0.0,
+      "details": "decision= large_rule=False",
+      "latency_ms": 1188.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C05: 关联风险网络检测",
+      "score": 0.0,
+      "details": "co_borrower_risk=0 network_score=0 alerts=0",
+      "latency_ms": 1196.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C06: 黑名单一票否决",
+      "score": 0.0,
+      "details": "veto_rule=False rules=0",
+      "latency_ms": 1200.1,
+      "sub_scores": {}
+    }
+  ]
+}

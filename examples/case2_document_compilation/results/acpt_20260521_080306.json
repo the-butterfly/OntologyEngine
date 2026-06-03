@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260521_080306",
+  "case": "case2_document_compilation",
+  "total": 8,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-201: Multi-source document upload",
+      "score": 1.0,
+      "details": "uploaded=4/4",
+      "latency_ms": 831.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-202: Smart chunking SHA256",
+      "score": 1.0,
+      "details": "hashed=4 recall_ok=True",
+      "latency_ms": 119.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-203: Pass 1 deterministic extraction",
+      "score": 1.0,
+      "details": "margin=True approval=True green=True",
+      "latency_ms": 184.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-204: Pass 2 LLM semantic extraction",
+      "score": 1.0,
+      "details": "concept=True relation=True",
+      "latency_ms": 363.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-205: Contradiction detection",
+      "score": 1.0,
+      "details": "insights=1 contradictions=0 detected=True",
+      "latency_ms": 220.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-206: Wiki page generation",
+      "score": 1.0,
+      "details": "entity_page=True total=87",
+      "latency_ms": 344.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-207: Incremental processing",
+      "score": 1.0,
+      "details": "before=87 after=88 added=True",
+      "latency_ms": 197.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-208: Traceability chain",
+      "score": 1.0,
+      "details": "trace=True audit=True",
+      "latency_ms": 147.3,
+      "sub_scores": {}
+    }
+  ]
+}

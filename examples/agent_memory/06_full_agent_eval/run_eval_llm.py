@@ -51,7 +51,7 @@ async def run_t1_llm_extraction(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r = await cli.remember("华信科技2025年营收50亿元，同比增长15%，净利润8亿元，资产负债率75%",
-                               memory_type="fragment", tags=["financial", "huaxin"])
+                               memory_type="fragment", tags={"tag": "financial", "tag_2": "huaxin"})
         node_id = r.get("node_id")
         extracted = r.get("extracted_entities", [])
         ok = node_id is not None
@@ -66,7 +66,7 @@ async def run_t2_llm_consolidation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for text in ["瑞芯微电发布新一代AI芯片", "瑞芯微电RK3588采用8nm工艺", "瑞芯微电AI芯片性能提升3倍"]:
-            await cli.remember(text, memory_type="fragment", tags=["chip", "ruikexin"])
+            await cli.remember(text, memory_type="fragment", tags={"tag": "chip", "tag_2": "ruikexin"})
         result = await cli.consolidate()
         consolidated = result.get("consolidated_count", 0)
         stats = await cli.stats()
@@ -82,8 +82,8 @@ async def run_t2_llm_consolidation(cli: CLIRunner, report: EvalReport):
 async def run_t3_llm_contradiction(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("华信科技风险等级C级", memory_type="observation", tags=["risk", "huaxin"])
-        await cli.remember("华信科技风险等级A级", memory_type="observation", tags=["risk", "huaxin"])
+        await cli.remember("华信科技风险等级C级", memory_type="observation", tags={"tag": "risk", "tag_2": "huaxin"})
+        await cli.remember("华信科技风险等级A级", memory_type="observation", tags={"tag": "risk", "tag_2": "huaxin"})
         reflect = await cli.reflect("华信科技风险等级矛盾", max_iterations=3, async_mode=False,
                                     skip_consolidation=True, skip_forgetting=True)
         contradictions = reflect.get("contradictions", [])
@@ -100,8 +100,8 @@ async def run_t3_llm_contradiction(cli: CLIRunner, report: EvalReport):
 async def run_t4_llm_reflection(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("恒信集团2025年营收30亿", memory_type="observation", tags=["financial"])
-        await cli.remember("恒信集团2025年获得政府补贴5亿", memory_type="observation", tags=["subsidy"])
+        await cli.remember("恒信集团2025年营收30亿", memory_type="observation", tags={"tag": "financial"})
+        await cli.remember("恒信集团2025年获得政府补贴5亿", memory_type="observation", tags={"tag": "subsidy"})
         reflect = await cli.reflect("恒信集团财务健康度分析", max_iterations=3, async_mode=False,
                                     skip_consolidation=True, skip_forgetting=True)
         insights = reflect.get("insights", [])
@@ -116,9 +116,9 @@ async def run_t4_llm_reflection(cli: CLIRunner, report: EvalReport):
 async def run_t5_llm_compilation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r = await cli.remember("中芯科技：半导体制造企业，总部上海", memory_type="entity", tags=["semiconductor"])
+        r = await cli.remember("中芯科技：半导体制造企业，总部上海", memory_type="entity", tags={"tag": "semiconductor"})
         entity_id = r.get("node_id")
-        await cli.remember("中芯科技2025年营收200亿", memory_type="observation", tags=["semiconductor"])
+        await cli.remember("中芯科技2025年营收200亿", memory_type="observation", tags={"tag": "semiconductor"})
         page = await cli.compile_entity(entity_id) if entity_id else {}
         summary = page.get("summary", "")
         ok = entity_id is not None
@@ -133,7 +133,7 @@ async def run_t6_full_agent_session(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r = await cli.remember("TechNova获得B轮融资2亿元", memory_type="observation",
-                               tags=["funding", "technova"], confidence=0.9)
+                               tags={"tag": "funding", "tag_2": "technova"}, confidence=0.9)
         r.get("node_id")
         await cli.consolidate()
         recall = await cli.recall("TechNova融资", max_results=5)
@@ -153,7 +153,7 @@ async def run_t7_contradiction_resolution(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r1 = await cli.remember("恒信集团资产负债率75%", memory_type="observation",
-                                confidence=0.8, tags=["financial"])
+                                confidence=0.8, tags={"tag": "financial"})
         old_id = r1.get("node_id")
         corrected = await cli.correct(node_id=old_id,
                                       corrected_text="恒信集团资产负债率降至45%（债务重组后）",

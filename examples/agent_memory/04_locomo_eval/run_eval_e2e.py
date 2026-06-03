@@ -40,9 +40,9 @@ TRAJECTORY_DELAY = 3.0
 async def run_t1_multi_session(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("TechNova成立于2018年，总部深圳", memory_type="entity", tags=["technova"])
-        await cli.remember("TechNova 2024年营收10亿元", memory_type="observation", tags=["technova"])
-        await cli.remember("TechNova核心产品：AI数据分析平台", memory_type="observation", tags=["technova"])
+        await cli.remember("TechNova成立于2018年，总部深圳", memory_type="entity", tags={"tag": "technova"})
+        await cli.remember("TechNova 2024年营收10亿元", memory_type="observation", tags={"tag": "technova"})
+        await cli.remember("TechNova核心产品：AI数据分析平台", memory_type="observation", tags={"tag": "technova"})
         recall = await cli.recall("TechNova公司概况", max_results=5)
         results = recall.get("results", [])
         ok = len(results) > 0
@@ -55,9 +55,9 @@ async def run_t1_multi_session(cli: CLIRunner, report: EvalReport):
 async def run_t2_temporal_evolution(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("2024年：TechNova采用单体架构", memory_type="observation", tags=["arch", "technova"])
-        await cli.remember("2025年：TechNova迁移至微服务架构", memory_type="observation", tags=["arch", "technova"])
-        await cli.remember("2026年：TechNova采用云原生Serverless架构", memory_type="observation", tags=["arch", "technova"])
+        await cli.remember("2024年：TechNova采用单体架构", memory_type="observation", tags={"tag": "arch", "tag_2": "technova"})
+        await cli.remember("2025年：TechNova迁移至微服务架构", memory_type="observation", tags={"tag": "arch", "tag_2": "technova"})
+        await cli.remember("2026年：TechNova采用云原生Serverless架构", memory_type="observation", tags={"tag": "arch", "tag_2": "technova"})
         recall = await cli.recall("TechNova架构演进历程", max_results=5)
         results = recall.get("results", [])
         has_latest = any("Serverless" in r.get("content", "") or "2026" in r.get("content", "") for r in results)
@@ -72,9 +72,9 @@ async def run_t2_temporal_evolution(cli: CLIRunner, report: EvalReport):
 async def run_t3_contradiction_correction(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("TechNova使用Redis缓存", memory_type="observation", tags=["infra", "technova"])
+        r1 = await cli.remember("TechNova使用Redis缓存", memory_type="observation", tags={"tag": "infra", "tag_2": "technova"})
         old_id = r1.get("node_id")
-        await cli.remember("TechNova使用Memcached缓存", memory_type="observation", tags=["infra", "technova"])
+        await cli.remember("TechNova使用Memcached缓存", memory_type="observation", tags={"tag": "infra", "tag_2": "technova"})
 
         reflect = await cli.reflect("TechNova缓存方案", max_iterations=2, async_mode=False,
                                     skip_consolidation=True, skip_forgetting=True)
@@ -95,7 +95,7 @@ async def run_t4_governance_pipeline(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for i in range(3):
-            await cli.remember(f"治理管线测试碎片 #{i+1}", memory_type="fragment", tags=["governance_test"])
+            await cli.remember(f"治理管线测试碎片 #{i+1}", memory_type="fragment", tags={"tag": "governance_test"})
         consolidation = await cli.consolidate()
         forgetting = await cli.forget(days_elapsed=30)
         ok = consolidation is not None and forgetting is not None
@@ -109,9 +109,9 @@ async def run_t4_governance_pipeline(cli: CLIRunner, report: EvalReport):
 async def run_t5_multi_hop_reasoning(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("王芳是TechNova的CTO", memory_type="entity", tags=["person", "technova"])
-        await cli.remember("TechNova部署在CloudGroup云平台", memory_type="observation", tags=["infra", "cloudgroup"])
-        await cli.remember("CloudGroup使用Kubernetes编排", memory_type="observation", tags=["infra", "cloudgroup"])
+        await cli.remember("王芳是TechNova的CTO", memory_type="entity", tags={"tag": "person", "tag_2": "technova"})
+        await cli.remember("TechNova部署在CloudGroup云平台", memory_type="observation", tags={"tag": "infra", "tag_2": "cloudgroup"})
+        await cli.remember("CloudGroup使用Kubernetes编排", memory_type="observation", tags={"tag": "infra", "tag_2": "cloudgroup"})
         recall = await cli.recall("王芳的技术团队使用什么云平台和编排工具", max_results=10)
         results = recall.get("results", [])
         ok = len(results) > 0

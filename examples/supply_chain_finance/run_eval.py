@@ -38,18 +38,18 @@ async def run_tc01_schema_loading(cli: CLIRunner, report: AcptReport):
         resp1 = await cli.remember(
             "Supplier SUP_A: 深圳智造科技有限公司, registered_capital 50M CNY, "
             "established 2018-03-15, industry MANUFACTURING, status ACTIVE",
-            tags=["supplier", "SUP_A", "manufacturing"],
+            tags={"tag": "supplier", "tag_2": "SUP_A", "tag_3": "manufacturing"},
             created_by="schema_test"
         )
         resp2 = await cli.remember(
             "CoreEnterprise CE_HW: 华为技术有限公司, credit_rating AAA, "
             "annual_procurement 50B CNY",
-            tags=["core_enterprise", "CE_HW"],
+            tags={"tag": "core_enterprise", "tag_2": "CE_HW"},
             created_by="schema_test"
         )
         resp3 = await cli.remember(
             "Relation: SUP_A supplies_to CE_HW",
-            tags=["relation", "supply_chain"],
+            tags={"tag": "relation", "tag_2": "supply_chain"},
             created_by="schema_test"
         )
 
@@ -86,7 +86,7 @@ async def run_tc02_multi_entity_ingestion(cli: CLIRunner, report: AcptReport):
             resp = await cli.remember(
                 f"Supplier {sid}: {name}, industry {industry}, "
                 f"registered_capital {capital} CNY, status {status}",
-                tags=["supplier", sid, industry.lower()],
+                tags={"tag": "supplier", "tag_2": sid, "tag_3": industry.lower()},
                 created_by="ingestion_test"
             )
             responses.append(resp)
@@ -113,7 +113,7 @@ async def run_tc03_credit_assessment(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "Supplier SUP_A credit profile: credit_score 89, credit_grade AA, "
             "eligible=True, guarantee_chain_depth 0",
-            tags=["credit_assessment", "SUP_A"],
+            tags={"tag": "credit_assessment", "tag_2": "SUP_A"},
             memory_type="observation",
             created_by="assessment_test"
         )
@@ -141,12 +141,12 @@ async def run_tc04_risk_dimension(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "Risk alert: Supplier SUP_B has negative_news_count_90d=4, "
             "tax_compliance_score=42, overdue_invoice_ratio high",
-            tags=["risk_alert", "SUP_B", "risk_early_warning"],
+            tags={"tag": "risk_alert", "tag_2": "SUP_B", "tag_3": "risk_early_warning"},
             created_by="risk_test"
         )
         await cli.remember(
             "Risk rule: negative_news_count >= 3 triggers warning",
-            tags=["risk_rule", "threshold"],
+            tags={"tag": "risk_rule", "tag_2": "threshold"},
             memory_type="observation",
             created_by="risk_test"
         )
@@ -173,12 +173,12 @@ async def run_tc05_cross_entity_retrieval(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "SUP_A supplies to CE_HW (华为) and CE_BYD (比亚迪)",
-            tags=["supply_relation", "SUP_A"],
+            tags={"tag": "supply_relation", "tag_2": "SUP_A"},
             created_by="retrieval_test"
         )
         await cli.remember(
             "CE_HW annual procurement volume 50B CNY, credit rating AAA",
-            tags=["core_enterprise", "CE_HW"],
+            tags={"tag": "core_enterprise", "tag_2": "CE_HW"},
             created_by="retrieval_test"
         )
 
@@ -204,12 +204,12 @@ async def run_tc06_data_consistency(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "SUP_A: manufacturing industry, credit_score 89, eligible=True",
-            tags=["SUP_A", "credit"],
+            tags={"tag": "SUP_A", "tag_2": "credit"},
             created_by="consistency_test"
         )
         await cli.remember(
             "SUP_B: retail industry, credit_score 45, eligible=False",
-            tags=["SUP_B", "credit"],
+            tags={"tag": "SUP_B", "tag_2": "credit"},
             created_by="consistency_test"
         )
 

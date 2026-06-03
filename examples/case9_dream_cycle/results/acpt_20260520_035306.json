@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260520_035306",
+  "case": "case9_dream_cycle",
+  "total": 8,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-D01: Lint phase contradiction detection",
+      "score": 1.0,
+      "details": "total=4 both_versions_found=True",
+      "latency_ms": 382.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D02: Consolidate phase",
+      "score": 1.0,
+      "details": "total=13 consolidated=0 results=5",
+      "latency_ms": 414.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D03: Enrich phase three-tier",
+      "score": 1.0,
+      "details": "total=18 insights=0 recall=5",
+      "latency_ms": 155.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D04: Forget phase value-aware decay",
+      "score": 1.0,
+      "details": "before=25 after=25 forgotten=0 high_value_kept=True",
+      "latency_ms": 204.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D05: Reflect phase deep analysis",
+      "score": 1.0,
+      "details": "total=32 insights=2",
+      "latency_ms": 186.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D06: Health Report dream cycle",
+      "score": 1.0,
+      "details": "total=38 has_result=True",
+      "latency_ms": 229.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D07: Independent phase execution",
+      "score": 1.0,
+      "details": "total=40 both_versions_found=True",
+      "latency_ms": 133.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-D08: Post-write hook performance",
+      "score": 1.0,
+      "details": "consolidate_ms=120 fast_enough=True",
+      "latency_ms": 154.1,
+      "sub_scores": {}
+    }
+  ]
+}

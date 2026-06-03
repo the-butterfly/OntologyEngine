@@ -1,0 +1,88 @@
+{
+  "timestamp": "20260521_080238",
+  "case": "acpt_e2e",
+  "total": 8,
+  "mean_score": 0.95,
+  "min_score": 0.8,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-501 Zero-parameter mode",
+      "score": 1.0,
+      "details": "node_id=True decision=True",
+      "latency_ms": 339.2,
+      "sub_scores": {
+        "node_id": 1.0,
+        "decision": 1.0
+      }
+    },
+    {
+      "name": "TC-502 Contradiction detection",
+      "score": 0.8,
+      "details": "has_shenzhen=True has_shanghai=True has_both=True",
+      "latency_ms": 650.2,
+      "sub_scores": {
+        "has_both": 1.0
+      }
+    },
+    {
+      "name": "TC-503 Consolidation and entity compilation",
+      "score": 1.0,
+      "details": "consolidation=True role=True project=True team=True",
+      "latency_ms": 1403.0,
+      "sub_scores": {
+        "consolidation": 1.0
+      }
+    },
+    {
+      "name": "TC-504 DreamCycle maintenance",
+      "score": 0.8,
+      "details": "dream=True count_before=10 count_after=10",
+      "latency_ms": 1229.7,
+      "sub_scores": {
+        "dream": 1.0
+      }
+    },
+    {
+      "name": "TC-505 Reflect deep analysis",
+      "score": 1.0,
+      "details": "has_insights=True has_iterations=True insights_count=4",
+      "latency_ms": 741.0,
+      "sub_scores": {
+        "has_insights": 1.0,
+        "insights_count": 4
+      }
+    },
+    {
+      "name": "TC-506 Lifecycle governance",
+      "score": 1.0,
+      "details": "has_results=True has_revenue=True has_supersede=True",
+      "latency_ms": 634.4,
+      "sub_scores": {
+        "has_results": 1.0,
+        "has_revenue": 1.0
+      }
+    },
+    {
+      "name": "TC-507 Multi-agent isolation",
+      "score": 1.0,
+      "details": "bob_leak=False bob_sees_public=True",
+      "latency_ms": 691.7,
+      "sub_scores": {
+        "bob_leak": 0.0,
+        "bob_sees_public": 1.0
+      }
+    },
+    {
+      "name": "TC-508 End-to-end full flow",
+      "score": 1.0,
+      "details": "initial_recall=5 final_recall=5 financing=True investor=True",
+      "latency_ms": 2076.5,
+      "sub_scores": {
+        "initial_recall": 5,
+        "final_recall": 5
+      }
+    }
+  ]
+}

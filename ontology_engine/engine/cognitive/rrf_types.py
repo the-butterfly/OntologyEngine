@@ -139,6 +139,66 @@ class DecisionConstraint:
     keyword: str = ""
 
 
+@dataclass
+class TaskHistoryConstraint:
+    """Task history constraint extracted from a query.
+
+    Attributes:
+        keyword: The matched keyword indicating historical context.
+        intent: Inferred intent (review, compare, recall).
+    """
+    keyword: str = ""
+    intent: str = "recall"
+
+
+@dataclass
+class EnvironmentalConstraint:
+    """Environmental constraint extracted from a query.
+
+    Attributes:
+        keyword: The matched keyword indicating environmental context.
+        category: Category of environmental factor (platform, resource, policy, technical).
+    """
+    keyword: str = ""
+    category: str = "general"
+
+
+@dataclass
+class SelfReferenceConstraint:
+    """Self-reference constraint extracted from a query.
+
+    Attributes:
+        keyword: The matched self-reference pattern.
+        perspective: Inferred perspective (first_person, team, organizational).
+    """
+    keyword: str = ""
+    perspective: str = "first_person"
+
+
+@dataclass
+class EntityTargetConstraint:
+    """Entity target constraint extracted from a query.
+
+    Attributes:
+        entity_name: The explicitly referenced entity name.
+        source_pattern: How the entity was identified (quoted, book_title, bracketed).
+    """
+    entity_name: str = ""
+    source_pattern: str = "quoted"
+
+
+@dataclass
+class ConfidenceDemandConstraint:
+    """Confidence demand constraint extracted from a query.
+
+    Attributes:
+        min_confidence: Minimum confidence level required (0.0-1.0).
+        keyword: The matched keyword indicating confidence demand.
+    """
+    min_confidence: float = 0.5
+    keyword: str = ""
+
+
 RRF_K = 60
 
 QUERY_TYPE_WEIGHTS = {

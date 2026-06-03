@@ -1,0 +1,81 @@
+{
+  "timestamp": "20260520_025411",
+  "case": "locomo_eval",
+  "total": 10,
+  "mean_score": 0.95,
+  "min_score": 0.5,
+  "passed_count": 9,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Single-hop recall",
+      "score": 1.0,
+      "details": "hits=5, found_shenzhen=True",
+      "latency_ms": 553.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: Multi-hop reasoning",
+      "score": 1.0,
+      "details": "hits=10, cloud=True, k8s=True",
+      "latency_ms": 377.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Temporal reasoning",
+      "score": 1.0,
+      "details": "hits=5, has_latest=True",
+      "latency_ms": 313.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Contradiction detection",
+      "score": 1.0,
+      "details": "contradictions=6, insights=0",
+      "latency_ms": 411.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: Consolidation & upgrade",
+      "score": 0.5,
+      "details": "before=68, after=70, consolidated=0",
+      "latency_ms": 1117.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: Supersede & belief revision",
+      "score": 1.0,
+      "details": "old_id=mem:observation:locomo_eval:5b2999a0a2f2, new_id=mem:observation:locomo_eval:671172a3980c",
+      "latency_ms": 194.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: Forgetting & protection",
+      "score": 1.0,
+      "details": "forget_result=True",
+      "latency_ms": 359.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Correction propagation",
+      "score": 1.0,
+      "details": "original=mem:observation:locomo_eval:9e3d38ffce3f, corrected=mem:observation:default:bea3eba24371",
+      "latency_ms": 165.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T9: DreamCycle maintenance",
+      "score": 1.0,
+      "details": "phases=5, contradictions=0, skipped=False",
+      "latency_ms": 788.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "T10: Full lifecycle",
+      "score": 1.0,
+      "details": "remember=True, recall=True, reflect=True, correct=True, dream=True, forget=True",
+      "latency_ms": 807.5,
+      "sub_scores": {}
+    }
+  ]
+}

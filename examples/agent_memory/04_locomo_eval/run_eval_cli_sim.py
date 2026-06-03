@@ -41,11 +41,11 @@ async def run_t1_onboarding(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("新员工入职：TechNova公司成立于2018年", memory_type="observation",
-                           tags=["onboarding", "technova"], created_by="agent")
+                           tags={"tag": "onboarding", "tag_2": "technova"}, created_by="agent")
         await cli.remember("新员工入职：TechNova核心业务是AI数据分析", memory_type="observation",
-                           tags=["onboarding", "technova"], created_by="agent")
+                           tags={"tag": "onboarding", "tag_2": "technova"}, created_by="agent")
         await cli.remember("新员工入职：TechNova总部位于深圳南山", memory_type="observation",
-                           tags=["onboarding", "technova"], created_by="agent")
+                           tags={"tag": "onboarding", "tag_2": "technova"}, created_by="agent")
         recall = await cli.recall("TechNova基本信息", max_results=5)
         results = recall.get("results", [])
         ok = len(results) > 0
@@ -59,9 +59,9 @@ async def run_t2_policy_update(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("旧策略：API限流1000次/分钟", memory_type="rule",
-                           tags=["policy", "api"], confidence=0.8)
+                           tags={"tag": "policy", "tag_2": "api"}, confidence=0.8)
         await cli.remember("新策略：API限流提升至5000次/分钟（2025年Q2生效）", memory_type="rule",
-                               tags=["policy", "api"], confidence=0.95)
+                               tags={"tag": "policy", "tag_2": "api"}, confidence=0.95)
         recall = await cli.recall("API限流策略", max_results=5)
         results = recall.get("results", [])
         has_new = any("5000" in r.get("text", "") for r in results)
@@ -76,8 +76,8 @@ async def run_t2_policy_update(cli: CLIRunner, report: EvalReport):
 async def run_t3_contradiction(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("TechNova使用Redis作为消息队列", memory_type="observation", tags=["infra", "technova"])
-        await cli.remember("TechNova使用RabbitMQ作为消息队列", memory_type="observation", tags=["infra", "technova"])
+        await cli.remember("TechNova使用Redis作为消息队列", memory_type="observation", tags={"tag": "infra", "tag_2": "technova"})
+        await cli.remember("TechNova使用RabbitMQ作为消息队列", memory_type="observation", tags={"tag": "infra", "tag_2": "technova"})
         reflect = await cli.reflect("TechNova消息队列方案", max_iterations=2, async_mode=False,
                                     skip_consolidation=True, skip_forgetting=True)
         contradictions = reflect.get("contradictions", [])
@@ -95,7 +95,7 @@ async def run_t4_governance(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for i in range(3):
-            await cli.remember(f"治理会话碎片 #{i+1}", memory_type="fragment", tags=["governance"])
+            await cli.remember(f"治理会话碎片 #{i+1}", memory_type="fragment", tags={"tag": "governance"})
         consolidation = await cli.consolidate()
         forgetting = await cli.forget(days_elapsed=30)
         dream = await cli.dream()
@@ -113,9 +113,9 @@ async def run_t4_governance(cli: CLIRunner, report: EvalReport):
 async def run_t5_multi_hop(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("王芳是TechNova的CTO", memory_type="entity", tags=["person", "technova"])
-        await cli.remember("TechNova使用CloudGroup云服务", memory_type="observation", tags=["infra"])
-        await cli.remember("CloudGroup区域：亚太区使用AWS基础设施", memory_type="observation", tags=["infra", "cloudgroup"])
+        await cli.remember("王芳是TechNova的CTO", memory_type="entity", tags={"tag": "person", "tag_2": "technova"})
+        await cli.remember("TechNova使用CloudGroup云服务", memory_type="observation", tags={"tag": "infra"})
+        await cli.remember("CloudGroup区域：亚太区使用AWS基础设施", memory_type="observation", tags={"tag": "infra", "tag_2": "cloudgroup"})
         recall = await cli.recall("王芳团队使用的云基础设施", max_results=10)
         results = recall.get("results", [])
         ok = len(results) > 0
@@ -129,10 +129,10 @@ async def run_t6_belief_revision(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r1 = await cli.remember("TechNova风险等级C级", memory_type="observation",
-                                confidence=0.7, tags=["risk", "technova"])
+                                confidence=0.7, tags={"tag": "risk", "tag_2": "technova"})
         old_id = r1.get("node_id")
         r2 = await cli.remember("TechNova风险等级调整为A级（获得新一轮融资后）", memory_type="observation",
-                                confidence=0.95, tags=["risk", "technova"],
+                                confidence=0.95, tags={"tag": "risk", "tag_2": "technova"},
                                 supersede_target=old_id, supersede_reason="融资改善")
         new_id = r2.get("node_id")
         ok = old_id is not None and new_id is not None

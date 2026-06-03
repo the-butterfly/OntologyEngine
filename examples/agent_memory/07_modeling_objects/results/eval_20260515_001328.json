@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260515_001328",
+  "case": "case15",
+  "total": 8,
+  "passed": 3,
+  "pass_rate": 0.375,
+  "results": [
+    {
+      "name": "T1: User Model",
+      "passed": true,
+      "score": 1.0,
+      "details": "ids=['mem:mental_model:modeling_eval:89992aeb77f1', 'mem:mental_model:modeling_eval:5c501dbaafaa', 'mem:mental_model:modeling_eval:3cd9666d7e91']",
+      "latency_ms": 556.4069747924805
+    },
+    {
+      "name": "T2",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'record_commitment'",
+      "latency_ms": 0.009298324584960938
+    },
+    {
+      "name": "T3: World Model (constraint)",
+      "passed": true,
+      "score": 1.0,
+      "details": "api_limit_id=mem:constraint:modeling_eval:fa4c8a73fcf6, reg_id=mem:constraint:modeling_eval:cabd73c4f30f",
+      "latency_ms": 207.8559398651123
+    },
+    {
+      "name": "T4: Self Model (tool reliability)",
+      "passed": false,
+      "score": 0.0,
+      "details": "recall_hits=0",
+      "latency_ms": 318.76301765441895
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'list_my_memories'",
+      "latency_ms": 77.94308662414551
+    },
+    {
+      "name": "T6: Permission governance",
+      "passed": true,
+      "score": 1.0,
+      "details": "domains_created=4/4",
+      "latency_ms": 265.35797119140625
+    },
+    {
+      "name": "T7",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'record_commitment'",
+      "latency_ms": 97.10216522216797
+    },
+    {
+      "name": "T8",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'record_commitment'",
+      "latency_ms": 0.0209808349609375
+    }
+  ]
+}

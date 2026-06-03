@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260520_025335",
+  "case": "consolidation_compilation",
+  "total": 8,
+  "mean_score": 0.65,
+  "min_score": 0.5,
+  "passed_count": 3,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Fragment→observation consolidation",
+      "score": 0.5,
+      "details": "consolidated=0, total=15",
+      "latency_ms": 758.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: Observation→entity upgrade",
+      "score": 1.0,
+      "details": "types={}",
+      "latency_ms": 569.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Evidence tracking",
+      "score": 0.7,
+      "details": "audit_entries=0, total=40",
+      "latency_ms": 242.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: LLM-powered consolidation",
+      "score": 0.5,
+      "details": "consolidated=0, total=53",
+      "latency_ms": 343.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: EntityPage compilation",
+      "score": 0.5,
+      "details": "entity_id=mem:entity:consolidation_eval:dc82a65005f1, summary_len=0",
+      "latency_ms": 176.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: TopicPage compilation",
+      "score": 0.5,
+      "details": "entities=2, synthesis_len=0",
+      "latency_ms": 188.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: Reasoning trail",
+      "score": 0.5,
+      "details": "audit_entries=0, has_consolidation=False",
+      "latency_ms": 444.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Stats verification",
+      "score": 1.0,
+      "details": "total=81, types={}",
+      "latency_ms": 14.7,
+      "sub_scores": {}
+    }
+  ]
+}

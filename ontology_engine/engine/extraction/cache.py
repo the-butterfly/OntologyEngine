@@ -62,9 +62,31 @@ class IncrementalCache:
         return cached_entities, cached_edges, cached_categories, uncached_files
 
     def save_semantic_cache(
-        self, entities: list[Any], edges: list[Any], categories: list[Any], root: Path,
+        self, fragment_id: str, entities: list[Any], edges: list[Any],
+        categories: list[Any], root: Path,
     ) -> int:
-        return 0
+        self._semantic_dir.mkdir(parents=True, exist_ok=True)
+        h = self.file_hash(Path(fragment_id), root)
+        if not h:
+            return 0
+        entry = self._semantic_dir / f"{h}.json"
+        tmp = entry.with_suffix(".tmp")
+        data = {
+            "entities": entities,
+            "edges": edges,
+            "categories": categories,
+        }
+        try:
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, entry)
+            return len(entities)
+        except OSError:
+            try:
+                shutil.copy2(str(tmp), str(entry))
+                tmp.unlink(missing_ok=True)
+                return len(entities)
+            except OSError:
+                return 0
 
     def _load_cached(self, path: Path, root: Path, cache_subdir: Path) -> dict[str, Any] | None:
         h = self.file_hash(path, root)

@@ -1,14 +1,16 @@
-"""Kuzu-based graph store for production use.
+"""Ladybug-based graph store for production use.
 
 Provides persistent graph storage with native Cypher support.
-Requires ``kuzu`` Python binding (``pip install kuzu``).
+Requires ``ladybug`` Python binding (``pip install ladybug``).
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -51,10 +53,10 @@ class KuzuConnectionPool:
         self._closed = False
 
     async def initialize(self) -> None:
-        import kuzu
+        import ladybug as lb
 
         for _ in range(self._pool_size):
-            conn = kuzu.Connection(self._db)
+            conn = lb.Connection(self._db)
             self._connections.append(conn)
             await self._available.put(conn)
 
@@ -83,6 +85,129 @@ class KuzuConnectionPool:
                 self._available.get_nowait()
             except asyncio.QueueEmpty:
                 break
+
+
+def _first_row(result: Any) -> dict[str, Any] | None:
+    """Get first query result row as dict, or None if empty.
+
+    Avoids ``get_as_df()`` which crashes on JSON columns in ladybug ≤0.17.
+    """
+    result.rows_as_dict()
+    if result.has_next():
+        return result.get_next()
+    return None
+
+
+def _all_rows(result: Any) -> list[dict[str, Any]]:
+    """Get all query result rows as list of dicts.
+
+    Avoids ``get_as_df()`` which crashes on JSON columns in ladybug ≤0.17.
+    """
+    result.rows_as_dict()
+    return result.get_all()
+
+
+def _safe_json_loads(value: Any, default: Any = None) -> Any:
+    """Parse JSON, falling back to ladybug's non-standard JSON format.
+
+    Ladybug ≤0.17 returns JSON-type column values as non-standard strings
+    like ``{key: val, nested: {inner: val}}`` instead of valid JSON.
+    This function handles both standard JSON and the ladybug format.
+    """
+    if value is None:
+        return default
+    if isinstance(value, (dict, list, int, float)):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return default if default is not None else value
+        # Standard JSON first
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        try:
+            return _fix_ladybug_json(value)
+        except Exception:
+            return default if default is not None else value
+    return value
+
+
+def _fix_ladybug_json(s: str) -> Any:
+    """Convert ladybug's non-standard JSON (unquoted keys/values) to Python object.
+
+    Ladybug serializes ``{key: value, nested: {inner: val}}`` where both
+    keys and bare string values lack quotes. This function adds quotes and
+    delegates to ``json.loads``.
+    """
+    result: list[str] = []
+    i = 0
+    expect_key = True  # True after { or , (expect key); False after : (expect value)
+
+    while i < len(s):
+        c = s[i]
+
+        if c in '{}[],:':
+            result.append(c)
+            if c in '{[':
+                expect_key = True
+            elif c == ',':
+                expect_key = True
+            elif c == ':':
+                expect_key = False
+            i += 1
+        elif c in ' \t\n\r':
+            result.append(c)
+            i += 1
+        elif c in '"\'':
+            # Already quoted — copy verbatim (handles standard JSON mixed in)
+            quote = c
+            result.append(c)
+            i += 1
+            while i < len(s) and s[i] != quote:
+                if s[i] == '\\':
+                    result.append(s[i])
+                    i += 1
+                result.append(s[i])
+                i += 1
+            if i < len(s):
+                result.append(s[i])
+                i += 1
+            if expect_key:
+                expect_key = False
+        else:
+            start = i
+            if expect_key:
+                # Key: single word before delimiter
+                while i < len(s) and s[i] not in ': ,}\n\r\t[]':
+                    i += 1
+            else:
+                # Value: may include spaces, extends until , or }/] at depth 0
+                vdepth = 0
+                while i < len(s):
+                    ch = s[i]
+                    if ch in ',}]' and vdepth == 0:
+                        break
+                    if ch in '{[':
+                        vdepth += 1
+                    if ch in '}]':
+                        vdepth -= 1
+                    i += 1
+
+            token = s[start:i]
+            # Keep JSON literals unquoted
+            if token in ('true', 'false', 'null'):
+                result.append(token)
+            elif re.match(r'^-?\d+(\.\d+)?([eE][+-]?\d+)?$', token):
+                result.append(token)
+            else:
+                result.append(f'"{token}"')
+
+            if expect_key:
+                expect_key = False
+
+    return json.loads(''.join(result))
 
 
 class KuzuGraphStore(GraphStoreBackend):
@@ -184,10 +309,10 @@ class KuzuGraphStore(GraphStoreBackend):
             raise GraphQueryError("KuzuGraphStore already initialized")
 
         try:
-            import kuzu
+            import ladybug as lb
         except ImportError as exc:
             raise GraphQueryError(
-                "kuzu is not installed. Install with: pip install ontology-engine[kuzu]"
+                "ladybug is not installed. Install with: pip install ontology-engine[kuzu]"
             ) from exc
 
         path = db_path or self._default_path()
@@ -196,7 +321,7 @@ class KuzuGraphStore(GraphStoreBackend):
         last_error: Exception | None = None
         for attempt in range(1, _LOCK_RETRY_ATTEMPTS + 1):
             try:
-                self._db = kuzu.Database(path)
+                self._db = lb.Database(path)
                 break
             except RuntimeError as exc:
                 last_error = exc
@@ -221,7 +346,7 @@ class KuzuGraphStore(GraphStoreBackend):
             recovered = await self._recover_stale_lock(path, last_error)
             if recovered:
                 try:
-                    self._db = kuzu.Database(path)
+                    self._db = lb.Database(path)
                     logger.info("KuzuDB lock recovered after stale lock cleanup on %s", path)
                 except RuntimeError as exc:
                     raise GraphQueryError(
@@ -329,7 +454,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 entity_id STRING PRIMARY KEY,
                 concept STRING,
                 space_id STRING,
-                properties JSON
+                properties STRING
             )
         """)
 
@@ -344,7 +469,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 offset_end INT,
                 text STRING,
                 vector_id STRING,
-                metadata JSON,
+                metadata STRING,
                 extraction_status STRING,
                 content_hash STRING,
                 created_at STRING,
@@ -361,7 +486,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 status STRING,
                 started_at STRING,
                 finished_at STRING,
-                context_snapshot JSON,
+                context_snapshot STRING,
                 error_message STRING
             )
         """)
@@ -424,7 +549,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 valid_from STRING,
                 valid_to STRING,
                 computed_by STRING,
-                computation_snapshot JSON
+                computation_snapshot STRING
             )
         """)
 
@@ -435,14 +560,14 @@ class KuzuGraphStore(GraphStoreBackend):
                 memory_type STRING,
                 cognitive_layer STRING,
                 content STRING,
-                content_vector JSON,
-                source_fragment_ids JSON,
+                content_vector STRING,
+                source_fragment_ids STRING,
                 belief_status STRING DEFAULT 'accepted',
                 ttl_seconds INT64 DEFAULT 0,
                 occurred_at STRING,
                 created_at STRING,
                 updated_at STRING,
-                history JSON,
+                history STRING,
                 access_count INT64 DEFAULT 0,
                 last_access_at STRING,
                 consolidated_at STRING,
@@ -459,8 +584,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 valid_from STRING,
                 valid_to STRING,
                 recorded_at STRING,
-                tags JSON,
-                attributes JSON,
+                tags STRING,
+                attributes STRING,
                 confirmation_count INT64 DEFAULT 0,
                 strength DOUBLE DEFAULT 1.0,
                 entity_name STRING,
@@ -499,7 +624,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 FROM Entity TO Entity,
                 relation_type STRING,
                 relation_id STRING,
-                properties JSON
+                properties STRING
             )
         """)
 
@@ -893,14 +1018,13 @@ class KuzuGraphStore(GraphStoreBackend):
             "n.concept AS concept, n.space_id AS space_id, n.properties AS properties",
             {"id": node_id},
         )
-        df = result.get_as_df()
-        if not df.empty:
-            row = df.iloc[0]
+        row = _first_row(result)
+        if row is not None:
             return {
                 "id": row["id"],
                 "fact_object": row["concept"],
                 "space_id": row["space_id"],
-                "properties": json.loads(row["properties"]) if row["properties"] else {},
+                "properties": _safe_json_loads(row["properties"]) if row["properties"] else {},
             }
 
         result = await self._execute(
@@ -910,9 +1034,8 @@ class KuzuGraphStore(GraphStoreBackend):
             "n.text AS text, n.extraction_status AS extraction_status",
             {"id": node_id},
         )
-        df = result.get_as_df()
-        if not df.empty:
-            row = df.iloc[0]
+        row = _first_row(result)
+        if row is not None:
             return {
                 "id": row["id"],
                 "type": "KnowledgeFragment",
@@ -966,8 +1089,8 @@ class KuzuGraphStore(GraphStoreBackend):
             "RETURN r.relation_type",
             {"from": from_node_id, "to": to_node_id, "eid": edge_id},
         )
-        df = existing.get_as_df()
-        if not df.empty:
+        row = _first_row(existing)
+        if row is not None:
             await self._execute(
                 "MATCH (a:Entity {entity_id: $from})-[r:Relation {relation_id: $eid}]->(b:Entity {entity_id: $to}) "
                 "SET r.relation_type = $rtype, r.properties = $props",
@@ -1025,8 +1148,8 @@ class KuzuGraphStore(GraphStoreBackend):
                    r.properties AS properties
         """
         result = await self._execute(query, params)
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
         return [
             {
@@ -1034,9 +1157,9 @@ class KuzuGraphStore(GraphStoreBackend):
                 "to_node_id": row["to_node_id"],
                 "edge_type": row["edge_type"],
                 "edge_id": row["edge_id"],
-                "properties": json.loads(row["properties"]) if row["properties"] else {},
+                "properties": _safe_json_loads(row["properties"]) if row["properties"] else {},
             }
-            for _, row in df.iterrows()
+            for row in rows
         ]
 
     async def delete_edge(self, edge_id: str) -> None:
@@ -1132,12 +1255,12 @@ class KuzuGraphStore(GraphStoreBackend):
             LIMIT {limit}
         """
         kuzu_result = await self._execute(cypher, {"src_id": node_id})
-        df = kuzu_result.get_as_df()
-        if not df.empty:
-            for _, row in df.iterrows():
+        rows = _all_rows(kuzu_result)
+        if rows:
+            for row in rows:
                 if as_of and not include_history:
                     props_raw = row.get("properties")
-                    props = json.loads(props_raw) if isinstance(props_raw, str) else (props_raw or {})
+                    props = _safe_json_loads(props_raw) if isinstance(props_raw, str) else (props_raw or {})
                     valid_from = props.get("valid_from")
                     valid_to = props.get("valid_to")
                     if valid_from and valid_from > as_of:
@@ -1145,7 +1268,7 @@ class KuzuGraphStore(GraphStoreBackend):
                     if valid_to and valid_to <= as_of:
                         continue
                 edge_props_raw = row.get("edge_props")
-                edge_props = json.loads(edge_props_raw) if isinstance(edge_props_raw, str) else (edge_props_raw or {})
+                edge_props = _safe_json_loads(edge_props_raw) if isinstance(edge_props_raw, str) else (edge_props_raw or {})
                 result_rows.append({
                     "neighbor_id": row["neighbor_id"],
                     "edge_id": row["edge_id"],
@@ -1169,8 +1292,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 "MATCH (f:KnowledgeFragment {fragment_id: $fid}) RETURN count(*) AS cnt",
                 {"fid": node_id},
             )
-            df = result.get_as_df()
-            is_frag = not df.empty and int(df.iloc[0]["cnt"]) > 0
+            row = _first_row(result)
+            is_frag = row is not None and int(row["cnt"]) > 0
         except Exception:
             is_frag = False
         self._fragment_cache[node_id] = is_frag
@@ -1207,10 +1330,10 @@ class KuzuGraphStore(GraphStoreBackend):
                 LIMIT {limit}
             """
             result = await self._execute(cypher, {"fid": fragment_id})
-            df = result.get_as_df()
-            if df.empty:
+            rows = _all_rows(result)
+            if not rows:
                 return rows
-            for _, row in df.iterrows():
+            for row in rows:
                 rows.append({
                     "neighbor_id": row["neighbor_id"],
                     "edge_id": "",
@@ -1251,12 +1374,12 @@ class KuzuGraphStore(GraphStoreBackend):
             """
             result = await self._execute(cypher, {"src": source_id})
 
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
 
         paths: list[list[dict[str, Any]]] = []
-        for _, row in df.iterrows():
+        for row in rows:
             paths.append([
                 {"node_id": row["source"]},
                 {"node_id": row["target"]},
@@ -1285,10 +1408,10 @@ class KuzuGraphStore(GraphStoreBackend):
             LIMIT 50
         """
         result = await self._execute(cypher, {"cid": center_id})
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
-        return [list(row["cycle"]) for _, row in df.iterrows()]
+        return [list(row["cycle"]) for row in rows]
 
     async def execute_cypher(
         self,
@@ -1311,17 +1434,17 @@ class KuzuGraphStore(GraphStoreBackend):
         import json
 
         result = await self._execute(query, parameters or {})
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
         # Convert JSON columns back to dicts
         records = []
-        for _, row in df.iterrows():
+        for row in rows:
             record = dict(row)
             for k, v in record.items():
                 if isinstance(v, str) and v.startswith("{"):
                     try:
-                        record[k] = json.loads(v)
+                        record[k] = _safe_json_loads(v)
                     except (json.JSONDecodeError, TypeError):
                         pass
             records.append(record)
@@ -1357,12 +1480,12 @@ class KuzuGraphStore(GraphStoreBackend):
                     ORDER BY degree DESC
                     LIMIT 100
                 """
-                result = await self._execute(cypher)
-                df = result.get_as_df()
-                if node_id:
-                    row = df[df["node"] == node_id]
-                    return {"algorithm": "centrality", "metric": "degree", "node_id": node_id, "value": int(row["degree"].iloc[0]) if not row.empty else 0}
-                return {"algorithm": "centrality", "metric": "degree", "values": {r["node"]: int(r["degree"]) for _, r in df.iterrows()}}
+            result = await self._execute(cypher)
+            rows = _all_rows(result)
+            if node_id:
+                match = [r for r in rows if r["node"] == node_id]
+                return {"algorithm": "centrality", "metric": "degree", "node_id": node_id, "value": int(match[0]["degree"]) if match else 0}
+            return {"algorithm": "centrality", "metric": "degree", "values": {r["node"]: int(r["degree"]) for r in rows}}
 
         elif algorithm == "component":
             # Weakly connected components via label propagation
@@ -1377,8 +1500,9 @@ class KuzuGraphStore(GraphStoreBackend):
                 RETURN a AS node, size(reachable) AS component_size
             """
             result = await self._execute(cypher)
-            df = result.get_as_df()
-            return {"algorithm": "component", "component_count": int(df["component_size"].max()) if not df.empty else 0}
+            rows = _all_rows(result)
+            max_size = max(r["component_size"] for r in rows) if rows else 0
+            return {"algorithm": "component", "component_count": int(max_size)}
 
         elif algorithm == "community":
             # Simple community detection via connected components
@@ -1391,8 +1515,8 @@ class KuzuGraphStore(GraphStoreBackend):
                 LIMIT 100
             """
             result = await self._execute(cypher)
-            df = result.get_as_df()
-            return {"algorithm": "community", "community_count": len(df)}
+            rows = _all_rows(result)
+            return {"algorithm": "community", "community_count": len(rows)}
 
         else:
             raise GraphQueryError(f"Unknown graph algorithm: {algorithm}")
@@ -1473,8 +1597,8 @@ class KuzuGraphStore(GraphStoreBackend):
             LIMIT {limit}
         """
         result = await self._execute(cypher, {"id": node_id})
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return {"nodes": [], "edges": []}
 
         nodes: list[dict[str, Any]] = []
@@ -1482,22 +1606,20 @@ class KuzuGraphStore(GraphStoreBackend):
         seen_nodes: set[str] = {node_id}
         seen_edges: set[str] = set()
 
-        center_result = await self._execute(
+        center_row = _first_row(await self._execute(
             "MATCH (c:Entity {entity_id: $id}) RETURN c.entity_id AS id, "
             "c.concept AS concept, c.space_id AS space_id, c.properties AS properties",
             {"id": node_id},
-        )
-        center_df = center_result.get_as_df()
-        if not center_df.empty:
-            row = center_df.iloc[0]
+        ))
+        if center_row is not None:
             nodes.append({
-                "id": row["id"],
-                "fact_object": row["concept"],
-                "space_id": row["space_id"],
-                "properties": json.loads(row["properties"]) if row["properties"] else {},
+                "id": center_row["id"],
+                "fact_object": center_row["concept"],
+                "space_id": center_row["space_id"],
+                "properties": _safe_json_loads(center_row["properties"]) if center_row["properties"] else {},
             })
 
-        for _, row in df.iterrows():
+        for row in rows:
             nid = row["id"]
             if nid not in seen_nodes:
                 seen_nodes.add(nid)
@@ -1505,7 +1627,7 @@ class KuzuGraphStore(GraphStoreBackend):
                     "id": nid,
                     "fact_object": row["concept"],
                     "space_id": row["space_id"],
-                    "properties": json.loads(row["properties"]) if row["properties"] else {},
+                    "properties": _safe_json_loads(row["properties"]) if row["properties"] else {},
                 })
             for edge_info in row.get("edges", []):
                 edge_key = f"{edge_info.get('from_id')}:{edge_info.get('to_id')}:{edge_info.get('type')}"
@@ -1514,7 +1636,7 @@ class KuzuGraphStore(GraphStoreBackend):
                     props = edge_info.get("props")
                     if isinstance(props, str):
                         try:
-                            props = json.loads(props)
+                            props = _safe_json_loads(props)
                         except (json.JSONDecodeError, TypeError):
                             props = {}
                     confidence = (props or {}).get("confidence", 1.0)
@@ -1562,13 +1684,13 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.space_id AS space_id, n.properties AS properties
         """
         result = await self._execute(cypher, params)
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
 
         records = []
-        for _, row in df.iterrows():
-            props = json.loads(row["properties"]) if row["properties"] else {}
+        for row in rows:
+            props = _safe_json_loads(row["properties"]) if row["properties"] else {}
             valid_from = props.get("valid_from")
             valid_to = props.get("valid_to")
             if valid_from and valid_from > as_of:
@@ -1609,13 +1731,13 @@ class KuzuGraphStore(GraphStoreBackend):
                    r.properties AS properties
         """
         result = await self._execute(cypher, {"rtype": relation_name})
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
 
         records = []
-        for _, row in df.iterrows():
-            props = json.loads(row["properties"]) if row["properties"] else {}
+        for row in rows:
+            props = _safe_json_loads(row["properties"]) if row["properties"] else {}
             valid_from = props.get("valid_from")
             valid_to = props.get("valid_to")
             if valid_from and valid_from > as_of:
@@ -1666,13 +1788,13 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.space_id AS space_id, n.properties AS properties
         """
         result = await self._execute(cypher, params)
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
 
         records = []
-        for _, row in df.iterrows():
-            props = json.loads(row["properties"]) if row["properties"] else {}
+        for row in rows:
+            props = _safe_json_loads(row["properties"]) if row["properties"] else {}
             if props.get("source_pipeline") != source_pipeline:
                 continue
             records.append({
@@ -1948,12 +2070,12 @@ class KuzuGraphStore(GraphStoreBackend):
                     """
                     try:
                         result = await self._execute(cypher, {"id": node_id})
-                        df = result.get_as_df()
-                        for _, row in df.iterrows():
+                        rows = _all_rows(result)
+                        for row in rows:
                             props = row.get("props", {})
                             if isinstance(props, str):
                                 try:
-                                    props = json.loads(props)
+                                    props = _safe_json_loads(props)
                                 except (json.JSONDecodeError, TypeError):
                                     props = {}
                             results.append({
@@ -1974,12 +2096,12 @@ class KuzuGraphStore(GraphStoreBackend):
                     """
                     try:
                         result = await self._execute(cypher, {"id": node_id})
-                        df = result.get_as_df()
-                        for _, row in df.iterrows():
+                        rows = _all_rows(result)
+                        for row in rows:
                             props = row.get("props", {})
                             if isinstance(props, str):
                                 try:
-                                    props = json.loads(props)
+                                    props = _safe_json_loads(props)
                                 except (json.JSONDecodeError, TypeError):
                                     props = {}
                             results.append({
@@ -2018,12 +2140,12 @@ class KuzuGraphStore(GraphStoreBackend):
             RETURN n.properties AS props
         """
         result = await self._execute(cypher, {"id": entity_id})
-        df = result.get_as_df()
-        if df.empty:
+        row = _first_row(result)
+        if row is None:
             return
 
-        props_str = df.iloc[0]["props"]
-        props = json.loads(props_str) if props_str else {}
+        props_str = row["props"]
+        props = _safe_json_loads(props_str) if props_str else {}
         old_weight = props.get("feedback_weight", 0.5)
         new_weight = (1 - learning_rate) * old_weight + learning_rate * feedback
         props["feedback_weight"] = new_weight
@@ -2224,11 +2346,9 @@ class KuzuGraphStore(GraphStoreBackend):
                    n.source_content_hash AS source_content_hash
         """, {"id": node_id})
 
-        df = result.get_as_df()
-        if df.empty:
+        row = _first_row(result)
+        if row is None:
             return None
-
-        row = df.iloc[0]
 
         def parse_json_field(value):
             if value is None:
@@ -2242,7 +2362,7 @@ class KuzuGraphStore(GraphStoreBackend):
             if isinstance(value, (int, float)):
                 return value
             try:
-                return json.loads(value)
+                return _safe_json_loads(value)
             except (json.JSONDecodeError, TypeError):
                 return value
 
@@ -2284,7 +2404,7 @@ class KuzuGraphStore(GraphStoreBackend):
             "valid_from": safe_val(row["valid_from"]),
             "valid_to": safe_val(row["valid_to"]),
             "recorded_at": safe_val(row["recorded_at"]),
-            "tags": json.loads(safe_val(row["tags"], "[]")),
+            "tags": _safe_json_loads(safe_val(row["tags"], "[]")),
             "attributes": parse_json_field(row["attributes"]) or {},
             "confirmation_count": safe_val(row.get("confirmation_count"), 0),
             "strength": safe_val(row.get("strength"), 1.0),
@@ -2402,8 +2522,8 @@ class KuzuGraphStore(GraphStoreBackend):
             LIMIT {limit}
         """
         result = await self._execute(cypher, params)
-        df = result.get_as_df()
-        if df.empty:
+        rows = _all_rows(result)
+        if not rows:
             return []
 
         import json as _json
@@ -2421,7 +2541,7 @@ class KuzuGraphStore(GraphStoreBackend):
             if isinstance(val, (int, float)):
                 return val
             try:
-                return _json.loads(val)
+                return _safe_json_loads(val)
             except (_json.JSONDecodeError, TypeError):
                 return val
 
@@ -2464,7 +2584,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 "valid_from": _safe(row["valid_from"]),
                 "valid_to": _safe(row["valid_to"]),
                 "recorded_at": _safe(row["recorded_at"]),
-                "tags": _json.loads(_safe(row["tags"], "[]")),
+                "tags": _safe_json_loads(_safe(row["tags"], "[]")),
                 "confirmation_count": _safe(row["confirmation_count"], 0),
                 "attributes": _parse(row["attributes"]) or {},
                 "strength": _safe(row["strength"], 1.0),
@@ -2480,7 +2600,7 @@ class KuzuGraphStore(GraphStoreBackend):
                 "source_pipeline": _safe(row["source_pipeline"]),
                 "source_content_hash": _safe(row["source_content_hash"]),
             }
-            for _, row in df.iterrows()
+            for row in rows
         ]
 
     async def update_cognitive_node_history(
@@ -2502,12 +2622,12 @@ class KuzuGraphStore(GraphStoreBackend):
             RETURN n.history AS history
         """, {"id": node_id})
 
-        df = current.get_as_df()
-        if df.empty:
+        row = _first_row(current)
+        if row is None:
             return
 
-        history_str = df.iloc[0]["history"]
-        history = json.loads(history_str) if history_str else []
+        history_str = row["history"]
+        history = _safe_json_loads(history_str) if history_str else []
         history.append(history_entry)
 
         await self._execute("""
@@ -2547,11 +2667,11 @@ class KuzuGraphStore(GraphStoreBackend):
             RETURN n.belief_status AS belief_status, n.history AS history
         """, {"id": node_id})
 
-        df = current.get_as_df()
-        if not df.empty:
-            history_entry["old_belief"] = df.iloc[0]["belief_status"]
-            history_str = df.iloc[0]["history"]
-            history = json.loads(history_str) if history_str else []
+        row = _first_row(current)
+        if row is not None:
+            history_entry["old_belief"] = row["belief_status"]
+            history_str = row["history"]
+            history = _safe_json_loads(history_str) if history_str else []
             history.append(history_entry)
         else:
             history = [history_entry]
@@ -2677,11 +2797,10 @@ class KuzuGraphStore(GraphStoreBackend):
             LIMIT 1
         """
         result = await self._execute(cypher, params)
-        df = result.get_as_df()
-        if df.empty:
+        row = _first_row(result)
+        if row is None:
             return None
 
-        row = df.iloc[0]
         return {
             "id": row["id"],
             "skepticism": row["skepticism"],

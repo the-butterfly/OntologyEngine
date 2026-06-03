@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260521_233001",
+  "case": "case17_knowledge_layering",
+  "total": 8,
+  "mean_score": 0.625,
+  "min_score": 0.0,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-L01: All memory types",
+      "score": 1.0,
+      "details": "created=12/12 has_results=True total_results=20",
+      "latency_ms": 2650.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L02: Analytical layer weights",
+      "score": 1.0,
+      "details": "mental_model=True entity=True observation=True",
+      "latency_ms": 613.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L03",
+      "score": 0.0,
+      "details": "CLIRunner.remember() got an unexpected keyword argument 'metadata'",
+      "latency_ms": 0.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L04: Belief status transition",
+      "score": 1.0,
+      "details": "node_created=True accepted_found=True pending_excluded=True",
+      "latency_ms": 298.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L05: Supersede chain",
+      "score": 1.0,
+      "details": "all_created=True v3_found=True audit_ok=True",
+      "latency_ms": 436.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L06",
+      "score": 0.0,
+      "details": "CLIRunner.remember() got an unexpected keyword argument 'valid_from'",
+      "latency_ms": 0.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L07: Confidence observable",
+      "score": 1.0,
+      "details": "total=129 high_conf=4 low_conf=17 filter_works=True",
+      "latency_ms": 491.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-L08",
+      "score": 0.0,
+      "details": "CognitiveRepository.delete_node() got an unexpected keyword argument 'soft'",
+      "latency_ms": 172.3,
+      "sub_scores": {}
+    }
+  ]
+}

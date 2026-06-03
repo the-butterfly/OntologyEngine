@@ -54,7 +54,7 @@ async def run_m02_mcp_remember(cli: CLIRunner, report: AcptReport):
     try:
         resp = await cli.remember(
             "MCP tool oe_remember successfully stored knowledge about supply chain finance",
-            tags=["mcp_test", "remember"],
+            tags={"tag": "mcp_test", "tag_2": "remember"},
             created_by="mcp_agent"
         )
 
@@ -80,7 +80,7 @@ async def run_m03_mcp_recall(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "MCP recall test: Supplier ABC has credit score 720",
-            tags=["mcp_test", "recall"],
+            tags={"tag": "mcp_test", "tag_2": "recall"},
             created_by="mcp_agent"
         )
 
@@ -106,12 +106,12 @@ async def run_m04_mcp_reflect(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Risk factor 1: guarantee chain depth exceeds 3",
-            tags=["risk", "mcp_reflect"],
+            tags={"tag": "risk", "tag_2": "mcp_reflect"},
             created_by="mcp_agent"
         )
         await cli.remember(
             "Risk factor 2: overdue invoice ratio above 10%",
-            tags=["risk", "mcp_reflect"],
+            tags={"tag": "risk", "tag_2": "mcp_reflect"},
             created_by="mcp_agent"
         )
 
@@ -141,7 +141,7 @@ async def run_m05_mcp_return_format(cli: CLIRunner, report: AcptReport):
     try:
         resp = await cli.remember(
             "MCP format test: conclusion=approved, evidence=credit_score>=700",
-            tags=["mcp_format"],
+            tags={"tag": "mcp_format"},
             created_by="mcp_agent"
         )
 

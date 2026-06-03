@@ -70,13 +70,13 @@ async def run_tc502_contradiction(runner: CLIRunner):
 
     resp1 = await runner.remember(
         "TechNova总部在深圳",
-        memory_type="entity", tags=["company", "location"], confidence=0.9,
+        memory_type="entity", tags={"tag": "company", "tag_2": "location"}, confidence=0.9,
     )
     node_id_1 = resp1.get("node_id") or resp1.get("data", {}).get("node_id")
 
     resp2 = await runner.remember(
         "TechNova总部在上海",
-        memory_type="entity", tags=["company", "location"], confidence=0.9,
+        memory_type="entity", tags={"tag": "company", "tag_2": "location"}, confidence=0.9,
     )
     node_id_2 = resp2.get("node_id") or resp2.get("data", {}).get("node_id")
 
@@ -109,15 +109,15 @@ async def run_tc503_consolidation(runner: CLIRunner):
 
     await runner.remember(
         "王芳是TechNova技术负责人",
-        memory_type="observation", tags=["person", "role"], confidence=0.9,
+        memory_type="observation", tags={"tag": "person", "tag_2": "role"}, confidence=0.9,
     )
     await runner.remember(
         "王芳主导架构迁移到CloudGroup平台",
-        memory_type="observation", tags=["person", "project"], confidence=0.9,
+        memory_type="observation", tags={"tag": "person", "tag_2": "project"}, confidence=0.9,
     )
     await runner.remember(
         "王芳团队有50人",
-        memory_type="observation", tags=["person", "team"], confidence=0.9,
+        memory_type="observation", tags={"tag": "person", "tag_2": "team"}, confidence=0.9,
     )
 
     await asyncio.sleep(0.5)
@@ -160,11 +160,11 @@ async def run_tc504_dream_cycle(runner: CLIRunner):
 
     await runner.remember(
         "2023年Q1 API限流1000次/分钟",
-        memory_type="observation", tags=["api", "old"], confidence=0.3,
+        memory_type="observation", tags={"tag": "api", "tag_2": "old"}, confidence=0.3,
     )
     await runner.remember(
         "TechNova核心架构使用微服务",
-        memory_type="entity", tags=["arch", "core"], confidence=0.95,
+        memory_type="entity", tags={"tag": "arch", "tag_2": "core"}, confidence=0.95,
     )
 
     await asyncio.sleep(0.5)
@@ -199,15 +199,15 @@ async def run_tc505_reflect(runner: CLIRunner):
 
     await runner.remember(
         "TechNova从单体架构迁移到微服务",
-        memory_type="observation", tags=["arch", "migration"], confidence=0.9,
+        memory_type="observation", tags={"tag": "arch", "tag_2": "migration"}, confidence=0.9,
     )
     await runner.remember(
         "迁移后性能提升30%",
-        memory_type="observation", tags=["performance"], confidence=0.85,
+        memory_type="observation", tags={"tag": "performance"}, confidence=0.85,
     )
     await runner.remember(
         "迁移过程中遇到服务间通信问题",
-        memory_type="observation", tags=["challenge"], confidence=0.8,
+        memory_type="observation", tags={"tag": "challenge"}, confidence=0.8,
     )
 
     await asyncio.sleep(0.5)
@@ -237,13 +237,13 @@ async def run_tc506_lifecycle(runner: CLIRunner):
 
     resp1 = await runner.remember(
         "TechNova营收100亿",
-        memory_type="observation", tags=["financial"], confidence=0.9,
+        memory_type="observation", tags={"tag": "financial"}, confidence=0.9,
     )
     node_id_1 = resp1.get("node_id") or resp1.get("data", {}).get("node_id")
 
     resp2 = await runner.remember(
         "TechNova营收120亿",
-        memory_type="observation", tags=["financial"], confidence=0.9,
+        memory_type="observation", tags={"tag": "financial"}, confidence=0.9,
         supersede_target=node_id_1,
         supersede_reason="数据更新",
     )
@@ -284,12 +284,12 @@ async def run_tc507_multi_agent(runner: CLIRunner):
 
     await runner.remember(
         "alice的数据库密钥sk-abc123",
-        memory_type="observation", tags=["secret"], confidence=0.95,
+        memory_type="observation", tags={"tag": "secret"}, confidence=0.95,
         visibility="private", created_by="alice",
     )
     await runner.remember(
         "公开API文档地址/wiki/api",
-        memory_type="observation", tags=["public"], confidence=0.9,
+        memory_type="observation", tags={"tag": "public"}, confidence=0.9,
         visibility="shared", created_by="alice",
     )
 
@@ -335,15 +335,15 @@ async def run_tc508_e2e_flow(runner: CLIRunner):
 
     await runner.remember(
         "TechNova完成B轮融资5亿元",
-        memory_type="entity", tags=["financing", "milestone"], confidence=0.95,
+        memory_type="entity", tags={"tag": "financing", "tag_2": "milestone"}, confidence=0.95,
     )
     await runner.remember(
         "投资方包括红杉资本和高瓴资本",
-        memory_type="observation", tags=["financing", "investor"], confidence=0.9,
+        memory_type="observation", tags={"tag": "financing", "tag_2": "investor"}, confidence=0.9,
     )
     await runner.remember(
         "融资将用于AI产品研发",
-        memory_type="observation", tags=["financing", "use_of_funds"], confidence=0.85,
+        memory_type="observation", tags={"tag": "financing", "tag_2": "use_of_funds"}, confidence=0.85,
     )
 
     await asyncio.sleep(0.5)

@@ -47,7 +47,7 @@ async def run_601_ast_extraction(cli: CLIRunner, report: AcptReport):
 
         resp = await cli.remember(
             f"Code extracted from user_service.py:\n{code_snippet}",
-            tags=["code", "ast_extracted", "user_service"],
+            tags={"tag": "code", "tag_2": "ast_extracted", "tag_3": "user_service"},
             memory_type="observation",
             created_by="ast_extractor"
         )
@@ -79,19 +79,19 @@ async def run_602_sha256_cache(cli: CLIRunner, report: AcptReport):
 
         resp1 = await cli.remember(
             f"File: pricing.py, SHA256: abc123, Content: {content}",
-            tags=["code", "pricing", "sha256:abc123"],
+            tags={"tag": "code", "tag_2": "pricing", "tag_3": "sha256:abc123"},
             created_by="cache_test"
         )
 
         resp2 = await cli.remember(
             f"File: pricing.py, SHA256: abc123, Content: {content} [CACHED - unchanged]",
-            tags=["code", "pricing", "sha256:abc123", "cached"],
+            tags={"tag": "code", "tag_2": "pricing", "tag_3": "sha256:abc123", "tag_4": "cached"},
             created_by="cache_test"
         )
 
         resp3 = await cli.remember(
             f"File: pricing.py, SHA256: def456, Content: def calculate_total(items): return sum(i['price'] * i['qty'] for i in items)",
-            tags=["code", "pricing", "sha256:def456"],
+            tags={"tag": "code", "tag_2": "pricing", "tag_3": "sha256:def456"},
             created_by="cache_test"
         )
 
@@ -118,7 +118,7 @@ async def run_603_llm_semantic(cli: CLIRunner, report: AcptReport):
             "The authentication module implements OAuth2 with JWT tokens. "
             "It validates tokens against the auth server and extracts user claims. "
             "Design intent: centralized auth for all microservices.",
-            tags=["semantic_extracted", "auth", "oauth2"],
+            tags={"tag": "semantic_extracted", "tag_2": "auth", "tag_3": "oauth2"},
             memory_type="observation",
             created_by="llm_extractor"
         )
@@ -145,21 +145,21 @@ async def run_604_confidence_labels(cli: CLIRunner, report: AcptReport):
     try:
         resp_extracted = await cli.remember(
             "Function process_order calls validate_payment and ship_order",
-            tags=["call_graph", "confidence:EXTRACTED"],
+            tags={"tag": "call_graph", "tag_2": "confidence:EXTRACTED"},
             confidence=0.95,
             created_by="confidence_test"
         )
 
         resp_inferred = await cli.remember(
             "process_order likely requires database connection based on pattern",
-            tags=["call_graph", "confidence:INFERRED"],
+            tags={"tag": "call_graph", "tag_2": "confidence:INFERRED"},
             confidence=0.6,
             created_by="confidence_test"
         )
 
         resp_ambiguous = await cli.remember(
             "Unknown function mystery_handler may be related to error processing",
-            tags=["call_graph", "confidence:AMBIGUOUS"],
+            tags={"tag": "call_graph", "tag_2": "confidence:AMBIGUOUS"},
             confidence=0.3,
             created_by="confidence_test"
         )
@@ -185,19 +185,19 @@ async def run_605_kg_construction(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Module A imports Module B and Module C",
-            tags=["import_graph", "module_a"],
+            tags={"tag": "import_graph", "tag_2": "module_a"},
             memory_type="observation",
             created_by="kg_test"
         )
         await cli.remember(
             "Module B defines class DataProcessor",
-            tags=["import_graph", "module_b"],
+            tags={"tag": "import_graph", "tag_2": "module_b"},
             memory_type="observation",
             created_by="kg_test"
         )
         await cli.remember(
             "Module C defines class ConfigManager",
-            tags=["import_graph", "module_c"],
+            tags={"tag": "import_graph", "tag_2": "module_c"},
             memory_type="observation",
             created_by="kg_test"
         )
@@ -225,9 +225,9 @@ async def run_606_graph_traversal(cli: CLIRunner, report: AcptReport):
     """TC-606: Graph traversal query — BFS shortest path."""
     t0 = time.time()
     try:
-        await cli.remember("Handler A calls Service B", tags=["call_chain"], created_by="traversal_test")
-        await cli.remember("Service B calls Repository C", tags=["call_chain"], created_by="traversal_test")
-        await cli.remember("Repository C calls Database D", tags=["call_chain"], created_by="traversal_test")
+        await cli.remember("Handler A calls Service B", tags={"tag": "call_chain"}, created_by="traversal_test")
+        await cli.remember("Service B calls Repository C", tags={"tag": "call_chain"}, created_by="traversal_test")
+        await cli.remember("Repository C calls Database D", tags={"tag": "call_chain"}, created_by="traversal_test")
 
         r_start = await cli.recall("Handler A", max_results=5)
         r_end = await cli.recall("Database D", max_results=5)
@@ -253,11 +253,11 @@ async def run_607_impact_analysis(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         await cli.remember("Function validate_input is called by create_user, update_user, delete_user",
-                          tags=["impact", "validate_input"], created_by="impact_test")
+                          tags={"tag": "impact", "tag_2": "validate_input"}, created_by="impact_test")
         await cli.remember("create_user is called by UserAPI.register",
-                          tags=["impact", "create_user"], created_by="impact_test")
+                          tags={"tag": "impact", "tag_2": "create_user"}, created_by="impact_test")
         await cli.remember("update_user is called by UserAPI.modify",
-                          tags=["impact", "update_user"], created_by="impact_test")
+                          tags={"tag": "impact", "tag_2": "update_user"}, created_by="impact_test")
 
         r_impact = await cli.recall("validate_input impact", max_results=10)
         impact_results = r_impact.get("results", [])
@@ -280,18 +280,18 @@ async def run_608_incremental_processing(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         await cli.remember("File: auth.py, SHA256: hash1, content: def login(): pass",
-                          tags=["code", "auth"], created_by="incremental_test")
+                          tags={"tag": "code", "tag_2": "auth"}, created_by="incremental_test")
         await cli.remember("File: user.py, SHA256: hash2, content: def get_user(): pass",
-                          tags=["code", "user"], created_by="incremental_test")
+                          tags={"tag": "code", "tag_2": "user"}, created_by="incremental_test")
         await cli.remember("File: order.py, SHA256: hash3, content: def create_order(): pass",
-                          tags=["code", "order"], created_by="incremental_test")
+                          tags={"tag": "code", "tag_2": "order"}, created_by="incremental_test")
 
         stats_before = await cli.stats()
         total_before = stats_before.get("total", 0)
 
         resp_updated = await cli.remember(
             "File: auth.py, SHA256: hash4, content: def login(): return authenticate()",
-            tags=["code", "auth", "modified"],
+            tags={"tag": "code", "tag_2": "auth", "tag_3": "modified"},
             created_by="incremental_test"
         )
 

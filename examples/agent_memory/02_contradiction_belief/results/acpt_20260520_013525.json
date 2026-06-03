@@ -1,0 +1,60 @@
+{
+  "timestamp": "20260520_013525",
+  "case": "contradiction_belief",
+  "total": 7,
+  "mean_score": 0.7143,
+  "min_score": 0.3333,
+  "passed_count": 4,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Rule-based contradiction",
+      "score": 0.3333,
+      "details": "contradictions=1, insights=0",
+      "latency_ms": 484.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: LLM semantic contradiction",
+      "score": 0.3333,
+      "details": "contradictions=1, insights=0",
+      "latency_ms": 200.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Belief supersede",
+      "score": 1.0,
+      "details": "old_id=mem:observation:contradiction_eval:18358cae059d, new_id=mem:observation:contradiction_eval:162e4345b2c7",
+      "latency_ms": 154.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Correction propagation",
+      "score": 1.0,
+      "details": "entity_id=mem:entity:contradiction_eval:a6aafcf8acc5, corrected=True",
+      "latency_ms": 249.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: Approve/reject workflow",
+      "score": 1.0,
+      "details": "node_id=mem:observation:contradiction_eval:b62091f3cd43, approved=True",
+      "latency_ms": 143.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: Reflect search sequence",
+      "score": 0.3333,
+      "details": "insights=0, contradictions=1",
+      "latency_ms": 341.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: Hallucination protection",
+      "score": 1.0,
+      "details": "insights=0, valid_evidence=True",
+      "latency_ms": 257.6,
+      "sub_scores": {}
+    }
+  ]
+}

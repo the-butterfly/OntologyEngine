@@ -1,0 +1,46 @@
+{
+  "timestamp": "20260520_030840",
+  "case": "case10_mcp_integration",
+  "total": 5,
+  "mean_score": 0.7933,
+  "min_score": 0.5,
+  "passed_count": 3,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-M01: MCP Server startup",
+      "score": 1.0,
+      "details": "types_available=True stats_available=True",
+      "latency_ms": 247.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-M02: oe_remember MCP call",
+      "score": 1.0,
+      "details": "node_created=True found=True",
+      "latency_ms": 67.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-M03: oe_recall MCP call",
+      "score": 0.5,
+      "details": "results=3 content_found=False",
+      "latency_ms": 99.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-M04: oe_reflect MCP call",
+      "score": 0.6667,
+      "details": "has_result=True insights=0",
+      "latency_ms": 73.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-M05: MCP return format",
+      "score": 0.8,
+      "details": "has_node_id=True has_data=False has_results=True",
+      "latency_ms": 68.0,
+      "sub_scores": {}
+    }
+  ]
+}

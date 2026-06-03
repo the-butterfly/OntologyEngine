@@ -1,0 +1,106 @@
+{
+  "timestamp": "20260519_235446",
+  "case": "case4_bi_query_agent",
+  "total": 10,
+  "mean_score": 0.835,
+  "min_score": 0.5,
+  "passed_count": 7,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-401 Natural language to metric mapping",
+      "score": 1.0,
+      "details": "stores=13 has_region=True",
+      "latency_ms": 46.6,
+      "sub_scores": {
+        "stores": 13.0,
+        "has_region": 1.0
+      }
+    },
+    {
+      "name": "TC-402 Multi-metric query",
+      "score": 1.0,
+      "details": "regions=4 types=2",
+      "latency_ms": 50.3,
+      "sub_scores": {
+        "regions": 4.0,
+        "types": 2.0
+      }
+    },
+    {
+      "name": "TC-403 ESG metric query",
+      "score": 1.0,
+      "details": "stores=13 has_active=True",
+      "latency_ms": 50.0,
+      "sub_scores": {
+        "has_active": 1.0
+      }
+    },
+    {
+      "name": "TC-404 Cross-domain query",
+      "score": 0.5,
+      "details": "stores=13 reports=0",
+      "latency_ms": 49.1,
+      "sub_scores": {
+        "stores": 13.0,
+        "reports": 0.0
+      }
+    },
+    {
+      "name": "TC-405 Compliance check query",
+      "score": 0.5,
+      "details": "alerts=0",
+      "latency_ms": 49.4,
+      "sub_scores": {
+        "alerts": 0.0
+      }
+    },
+    {
+      "name": "TC-406 Unknown metric handling",
+      "score": 0.5,
+      "details": "has_data=True",
+      "latency_ms": 51.4,
+      "sub_scores": {
+        "has_data": 1.0
+      }
+    },
+    {
+      "name": "TC-407 Version diff analysis",
+      "score": 1.0,
+      "details": "schema_version=2.0 stores=13",
+      "latency_ms": 58.9,
+      "sub_scores": {
+        "schema_version": 1.0,
+        "stores": 13.0
+      }
+    },
+    {
+      "name": "TC-408 Rule recall precision",
+      "score": 0.85,
+      "details": "regions=4",
+      "latency_ms": 48.5,
+      "sub_scores": {
+        "regions": 4.0
+      }
+    },
+    {
+      "name": "TC-409 Time filter accuracy",
+      "score": 1.0,
+      "details": "has_time_data=True",
+      "latency_ms": 47.6,
+      "sub_scores": {
+        "has_time_data": 1.0
+      }
+    },
+    {
+      "name": "TC-410 Dashboard query",
+      "score": 1.0,
+      "details": "found=5/5",
+      "latency_ms": 48.5,
+      "sub_scores": {
+        "found_count": 5.0,
+        "expected_count": 5.0
+      }
+    }
+  ]
+}

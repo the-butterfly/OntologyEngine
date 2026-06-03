@@ -1,0 +1,39 @@
+{
+  "timestamp": "20260520_030830",
+  "case": "case15_cross_domain_isolation",
+  "total": 4,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 4,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-X01: Domain logical isolation",
+      "score": 1.0,
+      "details": "a_total=3 b_total=2 isolated=True",
+      "latency_ms": 362.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-X02: Cross-domain query extension",
+      "score": 1.0,
+      "details": "a_results=4 b_results=3 hq_found=True employees_found=True",
+      "latency_ms": 175.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-X03: Physical isolation switch",
+      "score": 1.0,
+      "details": "a_total=2 b_total=2 isolated=True",
+      "latency_ms": 109.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-X04: Cross-domain entity alignment",
+      "score": 1.0,
+      "details": "a_results=2 b_results=3 a_found=True b_found=True",
+      "latency_ms": 147.8,
+      "sub_scores": {}
+    }
+  ]
+}

@@ -575,6 +575,42 @@ class RuleDefinitionDecl:
     overrides: str | None = None
     applicability: dict[str, str | None] | None = None
 
+    @property
+    def when_text(self) -> str | None:
+        if self.applicability:
+            return self.applicability.get("when_text")
+        return None
+
+    @property
+    def why_text(self) -> str | None:
+        if self.applicability:
+            return self.applicability.get("why_text")
+        return None
+
+    @property
+    def boundary_text(self) -> str | None:
+        if self.applicability:
+            return self.applicability.get("boundary_text")
+        return None
+
+    @property
+    def outcome_text(self) -> str | None:
+        if self.applicability:
+            return self.applicability.get("outcome_text")
+        return None
+
+    @property
+    def prereq_text(self) -> str | None:
+        if self.applicability:
+            return self.applicability.get("prereq_text")
+        return None
+
+    @property
+    def exception_text(self) -> str | None:
+        if self.applicability:
+            return self.applicability.get("exception_text")
+        return None
+
     enabled: bool = True
 
     def to_dict(self) -> dict[str, Any]:

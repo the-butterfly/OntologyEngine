@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260520_035252",
+  "case": "consumer_credit",
+  "total": 6,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 6,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-C01: Quality borrower installment loan",
+      "score": 1.0,
+      "details": "created=True found=True",
+      "latency_ms": 352.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C02: Quick loan product routing",
+      "score": 1.0,
+      "details": "product_found=True approval_found=True",
+      "latency_ms": 159.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C03: Medium risk borrower rejection",
+      "score": 1.0,
+      "details": "rejection_found=True",
+      "latency_ms": 78.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C04: Large credit rejection",
+      "score": 1.0,
+      "details": "rule_found=True rejection_found=True",
+      "latency_ms": 147.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C05: Associated risk network detection",
+      "score": 1.0,
+      "details": "relation_found=True risk_found=True",
+      "latency_ms": 141.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-C06: Blacklist veto",
+      "score": 1.0,
+      "details": "veto_found=True borrower_found=True",
+      "latency_ms": 150.0,
+      "sub_scores": {}
+    }
+  ]
+}

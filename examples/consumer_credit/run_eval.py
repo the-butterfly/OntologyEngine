@@ -29,7 +29,7 @@ async def run_c01_quality_borrower(cli: CLIRunner, report: AcptReport):
         resp = await cli.remember(
             "Borrower B001: credit_score 780, income 30000/month, "
             "employment 5 years, no defaults, installment_loan approved",
-            tags=["borrower", "B001", "quality"],
+            tags={"tag": "borrower", "tag_2": "B001", "tag_3": "quality"},
             created_by="credit_test"
         )
         node_created = resp.get("node_id") is not None
@@ -50,13 +50,13 @@ async def run_c02_quick_loan_routing(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "Quick loan product: max_amount 50000, term 12 months, "
             "requires credit_score >= 650, auto_approval enabled",
-            tags=["product", "quick_loan"],
+            tags={"tag": "product", "tag_2": "quick_loan"},
             memory_type="observation",
             created_by="credit_test"
         )
         await cli.remember(
             "Borrower B002: credit_score 700, applied for quick_loan, approved",
-            tags=["borrower", "B002", "quick_loan"],
+            tags={"tag": "borrower", "tag_2": "B002", "tag_3": "quick_loan"},
             created_by="credit_test"
         )
         r1 = await cli.recall("quick loan product", max_results=3)
@@ -78,7 +78,7 @@ async def run_c03_medium_risk_rejection(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "Borrower B003: credit_score 580, income 8000/month, "
             "employment 6 months, 1 default in past year, loan rejected",
-            tags=["borrower", "B003", "rejected"],
+            tags={"tag": "borrower", "tag_2": "B003", "tag_3": "rejected"},
             created_by="credit_test"
         )
         r1 = await cli.recall("B003 rejected", max_results=3)
@@ -98,14 +98,14 @@ async def run_c04_large_credit_rejection(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "Large credit rule: loan_amount > 500000 requires manual review, "
             "credit_score >= 750, income >= 50000/month",
-            tags=["rule", "large_credit"],
+            tags={"tag": "rule", "tag_2": "large_credit"},
             memory_type="observation",
             created_by="credit_test"
         )
         await cli.remember(
             "Borrower B004: applied for 800000 loan, credit_score 720, "
             "income 40000/month, rejected - insufficient income",
-            tags=["borrower", "B004", "rejected"],
+            tags={"tag": "borrower", "tag_2": "B004", "tag_3": "rejected"},
             created_by="credit_test"
         )
         r1 = await cli.recall("large credit rule", max_results=3)
@@ -126,12 +126,12 @@ async def run_c05_risk_network(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Borrower B005 has co-borrower relationship with B006",
-            tags=["co_borrower", "B005", "B006"],
+            tags={"tag": "co_borrower", "tag_2": "B005", "tag_3": "B006"},
             created_by="credit_test"
         )
         await cli.remember(
             "Borrower B006: credit_score 520, high risk, defaults 2",
-            tags=["borrower", "B006", "high_risk"],
+            tags={"tag": "borrower", "tag_2": "B006", "tag_3": "high_risk"},
             created_by="credit_test"
         )
         r1 = await cli.recall("B005 co-borrower", max_results=3)
@@ -153,14 +153,14 @@ async def run_c06_blacklist_veto(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "Blacklist rule: any borrower on fraud blacklist is auto-rejected, "
             "regardless of credit score",
-            tags=["rule", "blacklist", "veto"],
+            tags={"tag": "rule", "tag_2": "blacklist", "tag_3": "veto"},
             memory_type="observation",
             created_by="credit_test"
         )
         await cli.remember(
             "Borrower B007: credit_score 750, but on fraud blacklist, "
             "loan rejected - blacklist veto",
-            tags=["borrower", "B007", "blacklist"],
+            tags={"tag": "borrower", "tag_2": "B007", "tag_3": "blacklist"},
             created_by="credit_test"
         )
         r1 = await cli.recall("blacklist veto", max_results=3)

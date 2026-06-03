@@ -212,15 +212,15 @@ async def run_it2_semantic_disconnect_baseline(cli: CLIRunner, report: EvalRepor
     t0 = time.time()
     try:
         await cli.remember("用户对海鲜过敏", memory_type="observation",
-                           tags=["user", "diet"], confidence=0.9)
+                           tags={"tag": "user", "tag_2": "diet"}, confidence=0.9)
         await cli.remember("API credit_check 限速100次/分钟", memory_type="constraint",
-                           tags=["api", "limit"], confidence=0.95)
+                           tags={"tag": "api", "tag_2": "limit"}, confidence=0.95)
         await cli.remember("明天给用户报告", memory_type="commitment",
-                           tags=["task", "report"], confidence=0.9)
+                           tags={"tag": "task", "tag_2": "report"}, confidence=0.9)
         await cli.remember("用户是保守型投资者", memory_type="opinion",
-                           tags=["user", "invest"], confidence=0.85)
+                           tags={"tag": "user", "tag_2": "invest"}, confidence=0.85)
         await cli.remember("华为风险等级D级", memory_type="entity",
-                           tags=["risk", "huawei"], confidence=0.9)
+                           tags={"tag": "risk", "tag_2": "huawei"}, confidence=0.9)
 
         await asyncio.sleep(1)
 
@@ -269,13 +269,13 @@ async def run_it2_prospective_trigger_coverage(cli: CLIRunner, report: EvalRepor
         skip_count = 0
         for mtype in trigger_types:
             r = await cli.remember(f"测试{mtype}记忆", memory_type=mtype,
-                                   tags=["test", mtype], confidence=0.8)
+                                   tags={"tag": "test", "tag_2": mtype}, confidence=0.8)
             if r.get("node_id"):
                 trigger_count += 1
 
         for mtype in skip_types:
             r = await cli.remember(f"测试{mtype}记忆", memory_type=mtype,
-                                   tags=["test", mtype])
+                                   tags={"tag": "test", "tag_2": mtype})
             if r.get("node_id"):
                 skip_count += 1
 
@@ -333,14 +333,14 @@ async def run_it3_core_belief_protection(cli: CLIRunner, report: EvalReport):
         r1 = await cli.remember(
             "华为风险等级D级，资产负债率75%",
             memory_type="entity", confidence=0.95,
-            tags=["risk", "huawei"],
+            tags={"tag": "risk", "tag_2": "huawei"},
         )
         old_id = r1.get("node_id")
 
         r2 = await cli.remember(
             "华为风险等级调整为B级，资产负债率降至45%",
             memory_type="observation", confidence=0.9,
-            tags=["risk", "huawei"],
+            tags={"tag": "risk", "tag_2": "huawei"},
             supersede_target=old_id, supersede_reason="财务改善",
         )
         new_id = r2.get("node_id")
@@ -504,7 +504,7 @@ async def run_it3_correction_propagation(cli: CLIRunner, report: EvalReport):
         r = await cli.remember(
             "华信科技2025年营收35亿",
             memory_type="observation", confidence=0.8,
-            tags=["financial", "huaxin"],
+            tags={"tag": "financial", "tag_2": "huaxin"},
         )
         node_id = r.get("node_id")
 

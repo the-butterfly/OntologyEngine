@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260521_233229",
+  "case": "case16_mixed_retrieval",
+  "total": 8,
+  "mean_score": 0.7208,
+  "min_score": 0.3333,
+  "passed_count": 3,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-R01: Factual semantic ranking",
+      "score": 0.3333,
+      "details": "top1_correct=False has_relevant=True total_results=4",
+      "latency_ms": 844.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R02: Multi-hop graph retrieval",
+      "score": 1.0,
+      "details": "person=True product=True company=True",
+      "latency_ms": 261.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R03: Temporal query filtering",
+      "score": 0.6667,
+      "details": "has_2025=True has_2024=True temporal_order=False",
+      "latency_ms": 155.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R04: BM25 keyword exact match",
+      "score": 1.0,
+      "details": "top1_exact=True has_exact=True has_related=True",
+      "latency_ms": 268.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R05: Mixed query diverse types",
+      "score": 0.6,
+      "details": "rule=True entity=False observation=True types=2/3",
+      "latency_ms": 439.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R06: Confidence filter",
+      "score": 1.0,
+      "details": "high_only=True no_low_in_high=True both_in_low=True high_count=5 all_count=9",
+      "latency_ms": 292.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R07: Cognitive layer filter",
+      "score": 0.5,
+      "details": "entity_found=True rule_excluded=False entity_count=7",
+      "latency_ms": 218.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-R08: Cross-path dedup scoring",
+      "score": 0.6667,
+      "details": "huawei_found=True multi_signal=False total_results=5",
+      "latency_ms": 248.3,
+      "sub_scores": {}
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "timestamp": "20260519_130252",
+  "case": "case3_tax_simulation",
+  "total": 6,
+  "mean_score": 0.8833,
+  "min_score": 0.3,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-301 Scenario A loading",
+      "score": 1.0,
+      "details": "subsidiaries=3 hk_entities=1 has_revenue=True",
+      "latency_ms": 27.0,
+      "sub_scores": {
+        "subsidiaries": 3,
+        "hk_entities": 1
+      }
+    },
+    {
+      "name": "TC-302 Scenario B loading",
+      "score": 1.0,
+      "details": "subsidiaries=3 sg_entities=1 has_employees=True",
+      "latency_ms": 29.5,
+      "sub_scores": {
+        "subsidiaries": 3,
+        "sg_entities": 1
+      }
+    },
+    {
+      "name": "TC-303 Scenario C loading",
+      "score": 1.0,
+      "details": "subsidiaries=3 jurisdictions=3",
+      "latency_ms": 33.7,
+      "sub_scores": {
+        "subsidiaries": 3,
+        "jurisdictions": 3
+      }
+    },
+    {
+      "name": "TC-304 Scenario comparison",
+      "score": 1.0,
+      "details": "HK=True SG=True CN=True analyzed=3",
+      "latency_ms": 2664.4,
+      "sub_scores": {
+        "hk": 1,
+        "sg": 1,
+        "cn": 1,
+        "analyzed": 3
+      }
+    },
+    {
+      "name": "TC-305 Parameter change impact",
+      "score": 1.0,
+      "details": "transactions=6 treaties=3 analyzed=3",
+      "latency_ms": 2652.3,
+      "sub_scores": {
+        "transactions": 6,
+        "treaties": 3
+      }
+    },
+    {
+      "name": "TC-306 Recommendation report",
+      "score": 0.3,
+      "details": "analyzed=3 rule_results=False metrics=False alerts=False",
+      "latency_ms": 2671.8,
+      "sub_scores": {
+        "analyzed": 3,
+        "has_rule_results": 0,
+        "has_metrics": 0
+      }
+    }
+  ]
+}

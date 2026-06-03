@@ -49,7 +49,7 @@ async def run_tc201_multi_source_upload(cli: CLIRunner, report: AcptReport):
     try:
         uploaded = {}
         for name, content in DOCS.items():
-            resp = await cli.remember(content, tags=["document", name], confidence=0.9)
+            resp = await cli.remember(content, tags={"tag": "document", "tag_2": name}, confidence=0.9)
             if resp.get("node_id"):
                 uploaded[name] = _sha256(content)
 
@@ -69,7 +69,7 @@ async def run_tc202_smart_chunking(cli: CLIRunner, report: AcptReport):
     try:
         hashes = {}
         for name, content in DOCS.items():
-            resp = await cli.remember(content, tags=["chunked", name], confidence=0.9)
+            resp = await cli.remember(content, tags={"tag": "chunked", "tag_2": name}, confidence=0.9)
             node_id = resp.get("node_id")
             if node_id:
                 hashes[name] = _sha256(content)
@@ -94,7 +94,7 @@ async def run_tc203_pass1_deterministic(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         for name, content in DOCS.items():
-            await cli.remember(content, tags=["pass1", "deterministic", name], confidence=0.85)
+            await cli.remember(content, tags={"tag": "pass1", "tag_2": "deterministic", "tag_3": name}, confidence=0.85)
 
         r1 = await cli.recall("毛利率", max_results=5)
         r2 = await cli.recall("审批权限", max_results=5)
@@ -121,13 +121,13 @@ async def run_tc204_pass2_semantic(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "概念：绿色企业分类 — 关系：属于绿色信贷体系 — 置信度：high",
             memory_type="observation",
-            tags=["pass2", "semantic", "concept"],
+            tags={"tag": "pass2", "tag_2": "semantic", "tag_3": "concept"},
             confidence=0.9,
         )
         await cli.remember(
             "概念：担保圈风险传导 — 关系：影响供应链金融 — 置信度：medium",
             memory_type="observation",
-            tags=["pass2", "semantic", "relation"],
+            tags={"tag": "pass2", "tag_2": "semantic", "tag_3": "relation"},
             confidence=0.75,
         )
 
@@ -153,12 +153,12 @@ async def run_tc205_contradiction_detection(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "绿色企业标准A：需满足环保要求且无重大环境违法记录",
-            tags=["green_standard", "v1"],
+            tags={"tag": "green_standard", "tag_2": "v1"},
             confidence=0.9,
         )
         await cli.remember(
             "绿色企业标准B：除环保要求外，还需碳排放强度低于行业均值20%",
-            tags=["green_standard", "v2", "stricter"],
+            tags={"tag": "green_standard", "tag_2": "v2", "tag_3": "stricter"},
             confidence=0.85,
         )
 
@@ -186,13 +186,13 @@ async def run_tc206_wiki_generation(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "实体：绿色融资 — 类型：金融概念 — 属性：分类标准/准入条件/风险权重",
             memory_type="entity",
-            tags=["wiki", "entity_page"],
+            tags={"tag": "wiki", "tag_2": "entity_page"},
             confidence=0.9,
         )
         await cli.remember(
             "概念：供应商信用评级 — 类型：评估方法 — 属性：评级维度/评分规则",
             memory_type="entity",
-            tags=["wiki", "concept_page"],
+            tags={"tag": "wiki", "tag_2": "concept_page"},
             confidence=0.85,
         )
 
@@ -217,7 +217,7 @@ async def run_tc207_incremental_processing(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         for name, content in DOCS.items():
-            await cli.remember(content, tags=["incremental", name], confidence=0.9)
+            await cli.remember(content, tags={"tag": "incremental", "tag_2": name}, confidence=0.9)
 
         stats_before = await cli.stats()
         total_before = stats_before.get("total", 0)
@@ -227,7 +227,7 @@ async def run_tc207_incremental_processing(cli: CLIRunner, report: AcptReport):
         original_q1 = DOCS["q1_report"]
 
         updated_content = DOCS["supply_chain_manual"] + "\n更新：新增跨境电商供应商准入流程。"
-        await cli.remember(updated_content, tags=["incremental", "supply_chain_manual", "v3.3"], confidence=0.9)
+        await cli.remember(updated_content, tags={"tag": "incremental", "tag_2": "supply_chain_manual", "tag_3": "v3.3"}, confidence=0.9)
 
         stats_after = await cli.stats()
         total_after = stats_after.get("total", 0)
@@ -262,7 +262,7 @@ async def run_tc208_traceability(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "规则：单一供应商授信不超过总敞口15%",
             memory_type="rule",
-            tags=["traceability", "extracted_from:risk_minutes", "defined_in:v3.2"],
+            tags={"tag": "traceability", "tag_2": "extracted_from:risk_minutes", "tag_3": "defined_in:v3.2"},
             confidence=0.9,
         )
 

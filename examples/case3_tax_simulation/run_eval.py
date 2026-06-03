@@ -32,7 +32,7 @@ CASE_DIR = Path(__file__).parent
 async def run_tc301(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Scenario A: HK-dominant APAC HQ. Subsidiary HK_01 in Hong Kong, annual_revenue 500M HKD, employee_count 120.", tags=["scenario_A", "HK", "subsidiary"], created_by="tax_test")
+        await cli.remember("Scenario A: HK-dominant APAC HQ. Subsidiary HK_01 in Hong Kong, annual_revenue 500M HKD, employee_count 120.", tags={"tag": "scenario_A", "tag_2": "HK", "tag_3": "subsidiary"}, created_by="tax_test")
         r1 = await cli.recall("Scenario A HK subsidiary", max_results=3)
         found = any("HK" in res.get("text", "") and "500M" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -45,7 +45,7 @@ async def run_tc301(cli: CLIRunner, report: AcptReport):
 async def run_tc302(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Scenario B: SG-dominant APAC HQ. Subsidiary SG_01 in Singapore, annual_revenue 400M SGD, employee_count 200.", tags=["scenario_B", "SG", "subsidiary"], created_by="tax_test")
+        await cli.remember("Scenario B: SG-dominant APAC HQ. Subsidiary SG_01 in Singapore, annual_revenue 400M SGD, employee_count 200.", tags={"tag": "scenario_B", "tag_2": "SG", "tag_3": "subsidiary"}, created_by="tax_test")
         r1 = await cli.recall("Scenario B SG subsidiary", max_results=3)
         found = any("SG" in res.get("text", "") and "400M" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -58,7 +58,7 @@ async def run_tc302(cli: CLIRunner, report: AcptReport):
 async def run_tc303(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Scenario C: Dual-center APAC HQ. HK_01 in Hong Kong, SG_01 in Singapore, CN_01 in Shanghai. Multi-jurisdiction structure.", tags=["scenario_C", "dual_center", "multi_jurisdiction"], created_by="tax_test")
+        await cli.remember("Scenario C: Dual-center APAC HQ. HK_01 in Hong Kong, SG_01 in Singapore, CN_01 in Shanghai. Multi-jurisdiction structure.", tags={"tag": "scenario_C", "tag_2": "dual_center", "tag_3": "multi_jurisdiction"}, created_by="tax_test")
         r1 = await cli.recall("Scenario C dual-center", max_results=5)
         results = r1.get("results", [])
         has_hk = any("HK" in res.get("text", "") for res in results)
@@ -74,7 +74,7 @@ async def run_tc303(cli: CLIRunner, report: AcptReport):
 async def run_tc304(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Scenario comparison analysis: A(HK 16.5% tax) vs B(SG 17% tax) vs C(dual HK+SG+CN). A: lowest single-jurisdiction. B: best trading hub. C: optimal overall but highest setup cost.", tags=["comparison", "scenario_analysis", "tc304"], memory_type="observation", created_by="tax_test")
+        await cli.remember("Scenario comparison analysis: A(HK 16.5% tax) vs B(SG 17% tax) vs C(dual HK+SG+CN). A: lowest single-jurisdiction. B: best trading hub. C: optimal overall but highest setup cost.", tags={"tag": "comparison", "tag_2": "scenario_analysis", "tag_3": "tc304"}, memory_type="observation", created_by="tax_test")
         r1 = await cli.recall("scenario comparison analysis", max_results=3)
         found = any("comparison" in res.get("text", "").lower() for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -87,7 +87,7 @@ async def run_tc304(cli: CLIRunner, report: AcptReport):
 async def run_tc305(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Scenario B v1.1: SG tax incentive reduces effective rate from 17% to 12% for regional HQ. IntercompanyTransaction TXN_001: HK_01→SG_01, amount 100M, treaty_rate 7%.", tags=["parameter_change", "scenario_B", "v1.1", "transaction"], memory_type="observation", created_by="tax_test")
+        await cli.remember("Scenario B v1.1: SG tax incentive reduces effective rate from 17% to 12% for regional HQ. IntercompanyTransaction TXN_001: HK_01→SG_01, amount 100M, treaty_rate 7%.", tags={"tag": "parameter_change", "tag_2": "scenario_B", "tag_3": "v1.1", "tag_4": "transaction"}, memory_type="observation", created_by="tax_test")
         r1 = await cli.recall("Scenario B v1.1 parameter change", max_results=3)
         found = any("v1.1" in res.get("text", "") or "12" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -100,7 +100,7 @@ async def run_tc305(cli: CLIRunner, report: AcptReport):
 async def run_tc306(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Recommendation: Scenario B v1.1 (SG-led) is optimal. Effective tax rate 12%, lower setup cost SGD 3M, strong trading hub infrastructure. Risk: policy change may remove incentive.", tags=["recommendation", "scenario_B", "optimal"], memory_type="observation", created_by="tax_test")
+        await cli.remember("Recommendation: Scenario B v1.1 (SG-led) is optimal. Effective tax rate 12%, lower setup cost SGD 3M, strong trading hub infrastructure. Risk: policy change may remove incentive.", tags={"tag": "recommendation", "tag_2": "scenario_B", "tag_3": "optimal"}, memory_type="observation", created_by="tax_test")
         r1 = await cli.recall("recommendation APAC HQ optimal", max_results=3)
         found = any("recommendation" in res.get("text", "").lower() or "optimal" in res.get("text", "").lower() for res in r1.get("results", []))
         checks = [(found, 1.0)]

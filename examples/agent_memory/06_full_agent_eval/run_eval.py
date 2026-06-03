@@ -43,9 +43,9 @@ async def run_t1_user_model(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("用户bob风险偏好：稳健型", memory_type="mental_model",
-                           model_domain="user", tags=["user_model"], created_by="bob")
+                           model_domain="user", tags={"tag": "user_model"}, created_by="bob")
         await cli.remember("用户bob沟通风格：简洁型", memory_type="mental_model",
-                           model_domain="user", tags=["user_model"], created_by="bob")
+                           model_domain="user", tags={"tag": "user_model"}, created_by="bob")
         recall = await cli.recall("bob的用户画像", max_results=5, user_id="bob")
         results = recall.get("results", [])
         ok = len(results) > 0
@@ -73,9 +73,9 @@ async def run_t3_self_model(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("工具data_api调用成功，延迟200ms", memory_type="self_experience",
-                           model_domain="self", tags=["tool_reliability"])
+                           model_domain="self", tags={"tag": "tool_reliability"})
         await cli.remember("工具data_api调用成功，延迟180ms", memory_type="self_experience",
-                           model_domain="self", tags=["tool_reliability"])
+                           model_domain="self", tags={"tag": "tool_reliability"})
         recall = await cli.recall("data_api工具可靠性", max_results=5)
         results = recall.get("results", [])
         ok = len(results) > 0
@@ -88,9 +88,9 @@ async def run_t3_self_model(cli: CLIRunner, report: EvalReport):
 async def run_t4_compilation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r = await cli.remember("华信科技：综合企业集团", memory_type="entity", tags=["company"])
+        r = await cli.remember("华信科技：综合企业集团", memory_type="entity", tags={"tag": "company"})
         entity_id = r.get("node_id")
-        await cli.remember("华信科技2025年营收50亿", memory_type="observation", tags=["company"])
+        await cli.remember("华信科技2025年营收50亿", memory_type="observation", tags={"tag": "company"})
         page = {}
         compile_error = None
         if entity_id:
@@ -113,9 +113,9 @@ async def run_t5_task_context_recall(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("迁移任务需要先备份数据库", memory_type="observation",
-                           tags=["migration", "task_context"])
+                           tags={"tag": "migration", "tag_2": "task_context"})
         await cli.remember("迁移目标：从MySQL迁移到PostgreSQL", memory_type="observation",
-                           tags=["migration", "task_context"])
+                           tags={"tag": "migration", "tag_2": "task_context"})
         recall = await cli.recall("数据迁移任务", max_results=5)
         results = recall.get("results", [])
         ok = len(results) > 0

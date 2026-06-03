@@ -37,13 +37,13 @@ async def run_r01_factual_semantic(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "TechNova is a cloud infrastructure company based in Shenzhen, founded 2019",
-            tags=["company", "TechNova", "factual"],
+            tags={"tag": "company", "tag_2": "TechNova", "tag_3": "factual"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "CloudGroup is TechNova's main product, a Kubernetes-based platform",
-            tags=["product", "CloudGroup"],
+            tags={"tag": "product", "tag_2": "CloudGroup"},
             memory_type="observation",
             confidence=0.85,
         )
@@ -68,19 +68,19 @@ async def run_r02_multihop_graph(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "王芳 is CTO of TechNova, previously worked at Alibaba Cloud",
-            tags=["person", "王芳", "TechNova"],
+            tags={"tag": "person", "tag_2": "王芳", "tag_3": "TechNova"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "TechNova main product is CloudGroup, Kubernetes-based platform",
-            tags=["product", "CloudGroup", "TechNova"],
+            tags={"tag": "product", "tag_2": "CloudGroup", "tag_3": "TechNova"},
             memory_type="observation",
             confidence=0.85,
         )
         await cli.remember(
             "CloudGroup supports multi-cluster management and auto-scaling",
-            tags=["feature", "CloudGroup"],
+            tags={"tag": "feature", "tag_2": "CloudGroup"},
             memory_type="observation",
             confidence=0.8,
         )
@@ -104,13 +104,13 @@ async def run_r03_temporal_query(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "2025 Q1 revenue reached 50M CNY, growth 30% YoY",
-            tags=["financial", "2025", "Q1"],
+            tags={"tag": "financial", "tag_2": "2025", "tag_3": "Q1"},
             memory_type="observation",
             confidence=0.9,
         )
         await cli.remember(
             "2024 Q1 revenue was 38M CNY",
-            tags=["financial", "2024", "Q1"],
+            tags={"tag": "financial", "tag_2": "2024", "tag_3": "Q1"},
             memory_type="observation",
             confidence=0.85,
         )
@@ -134,13 +134,13 @@ async def run_r04_bm25_keyword(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Metric DSO_DIO: Days Sales Outstanding + Days Inventory Outstanding, formula=DSO+DIO",
-            tags=["metric", "DSO_DIO", "exact"],
+            tags={"tag": "metric", "tag_2": "DSO_DIO", "tag_3": "exact"},
             memory_type="observation",
             confidence=0.95,
         )
         await cli.remember(
             "DSO measures average collection period for receivables",
-            tags=["metric", "DSO", "related"],
+            tags={"tag": "metric", "tag_2": "DSO", "tag_3": "related"},
             memory_type="observation",
             confidence=0.8,
         )
@@ -164,19 +164,19 @@ async def run_r05_mixed_query(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Rule: 供应商授信额度不超过总敞口15%",
-            tags=["rule", "credit_limit"],
+            tags={"tag": "rule", "tag_2": "credit_limit"},
             memory_type="rule",
             confidence=0.95,
         )
         await cli.remember(
             "Entity: 华为技术有限公司, credit_rating AAA, is_whitelist=True",
-            tags=["entity", "华为"],
+            tags={"tag": "entity", "tag_2": "华为"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: 华为2025年供应链融资规模500亿",
-            tags=["observation", "华为", "2025"],
+            tags={"tag": "observation", "tag_2": "华为", "tag_3": "2025"},
             memory_type="observation",
             confidence=0.85,
         )
@@ -201,13 +201,13 @@ async def run_r06_confidence_filter(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "High confidence: Production database is PostgreSQL 15",
-            tags=["infrastructure", "high_conf"],
+            tags={"tag": "infrastructure", "tag_2": "high_conf"},
             memory_type="observation",
             confidence=0.95,
         )
         await cli.remember(
             "Low confidence: Office might use MySQL, not sure",
-            tags=["infrastructure", "low_conf"],
+            tags={"tag": "infrastructure", "tag_2": "low_conf"},
             memory_type="observation",
             confidence=0.3,
         )
@@ -233,13 +233,13 @@ async def run_r07_cognitive_layer_filter(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Entity: 供应商A, registered_capital 50M, credit_rating AA",
-            tags=["entity", "供应商A"],
+            tags={"tag": "entity", "tag_2": "供应商A"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Rule: 供应商需通过核心企业担保",
-            tags=["rule", "担保"],
+            tags={"tag": "rule", "tag_2": "担保"},
             memory_type="rule",
             confidence=0.95,
         )
@@ -262,13 +262,13 @@ async def run_r08_cross_path_dedup(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "CoreEnterprise 华为: credit_rating AAA, whitelist=True, annual_revenue 9000亿",
-            tags=["core_enterprise", "华为", "multi_signal"],
+            tags={"tag": "core_enterprise", "tag_2": "华为", "tag_3": "multi_signal"},
             memory_type="entity",
             confidence=0.95,
         )
         await cli.remember(
             "华为 2025年供应链融资规模500亿, 核心企业担保覆盖300家供应商",
-            tags=["observation", "华为", "2025", "multi_signal"],
+            tags={"tag": "observation", "tag_2": "华为", "tag_3": "2025", "tag_4": "multi_signal"},
             memory_type="observation",
             confidence=0.9,
         )

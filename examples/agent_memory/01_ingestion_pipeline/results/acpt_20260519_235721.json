@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260519_235721",
+  "case": "ingestion_pipeline",
+  "total": 8,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Basic remember→recall",
+      "score": 1.0,
+      "details": "node_id=mem:entity:ingestion_eval:9961d2acd10a, total=6, recall_hits=5",
+      "latency_ms": 451.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: DeduplicationGate",
+      "score": 1.0,
+      "details": "id1=mem:entity:ingestion_eval:9b17c0020eef, id2=mem:entity:ingestion_eval:9b17c0020eef, id3=mem:entity:ingestion_eval:1f4391a7536c, dedup=True",
+      "latency_ms": 187.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Entity Resolution L1",
+      "score": 1.0,
+      "details": "entity_id=mem:entity:ingestion_eval:549edf19e541, observation_id=mem:observation:ingestion_eval:2b63c77ba0b0",
+      "latency_ms": 193.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Entity Resolution L2 (trigram)",
+      "score": 1.0,
+      "details": "id1=mem:entity:ingestion_eval:9ada1860a301, id2=mem:entity:ingestion_eval:63ef929ab9d1",
+      "latency_ms": 194.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: model_domain auto-inference",
+      "score": 1.0,
+      "details": "correct=4/4",
+      "latency_ms": 313.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: cognitive_layer inference",
+      "score": 1.0,
+      "details": "factual_id=mem:observation:ingestion_eval:6feb84c0bf69, subjective_id=mem:observation:ingestion_eval:5e6669debffe",
+      "latency_ms": 195.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: source_trust_tier propagation",
+      "score": 1.0,
+      "details": "created=4/4",
+      "latency_ms": 214.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Multi-source ingestion",
+      "score": 1.0,
+      "details": "total=97, recall_hits=10",
+      "latency_ms": 356.8,
+      "sub_scores": {}
+    }
+  ]
+}

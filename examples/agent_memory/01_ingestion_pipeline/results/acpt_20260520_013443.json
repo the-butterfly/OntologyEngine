@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260520_013443",
+  "case": "ingestion_pipeline",
+  "total": 8,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Basic remember→recall",
+      "score": 1.0,
+      "details": "node_id=mem:entity:ingestion_eval:70fc65eca9a2, total=6, recall_hits=5",
+      "latency_ms": 574.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: DeduplicationGate",
+      "score": 1.0,
+      "details": "id1=mem:entity:ingestion_eval:69f7bf338ef3, id2=mem:entity:ingestion_eval:69f7bf338ef3, id3=mem:entity:ingestion_eval:5a7781953e05, dedup=True",
+      "latency_ms": 208.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Entity Resolution L1",
+      "score": 1.0,
+      "details": "entity_id=mem:entity:ingestion_eval:ad32c30773db, observation_id=mem:observation:ingestion_eval:210ce1a4afff",
+      "latency_ms": 177.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Entity Resolution L2 (trigram)",
+      "score": 1.0,
+      "details": "id1=mem:entity:ingestion_eval:e1c4d1da4e36, id2=mem:entity:ingestion_eval:7741d055da38",
+      "latency_ms": 181.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: model_domain auto-inference",
+      "score": 1.0,
+      "details": "correct=4/4",
+      "latency_ms": 338.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: cognitive_layer inference",
+      "score": 1.0,
+      "details": "factual_id=mem:observation:ingestion_eval:f9f711933f5f, subjective_id=mem:observation:ingestion_eval:89dea6b0923a",
+      "latency_ms": 212.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: source_trust_tier propagation",
+      "score": 1.0,
+      "details": "created=4/4",
+      "latency_ms": 232.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Multi-source ingestion",
+      "score": 1.0,
+      "details": "total=97, recall_hits=10",
+      "latency_ms": 352.9,
+      "sub_scores": {}
+    }
+  ]
+}

@@ -42,7 +42,7 @@ async def run_t1_source_trust_tier(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r = await cli.remember("高可信来源：央行发布的金融数据", memory_type="observation",
-                               confidence=0.95, tags=["official"], source_trust_tier="official")
+                               confidence=0.95, tags={"tag": "official"}, source_trust_tier="official")
         ok = r.get("node_id") is not None
         report.add(_ok("T1: Source trust tier", ok, 1.0 if ok else 0.0,
                        f"node_id={r.get('node_id')}", (time.time() - t0) * 1000))
@@ -68,9 +68,9 @@ async def run_t3_confirmation_forgetting(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("已确认事实：华信科技注册地深圳", memory_type="entity",
-                           confidence=0.95, tags=["confirmed"])
+                           confidence=0.95, tags={"tag": "confirmed"})
         await cli.remember("未确认传闻：华信科技计划海外上市", memory_type="observation",
-                           confidence=0.3, tags=["rumor"])
+                           confidence=0.3, tags={"tag": "rumor"})
         result = await cli.forget(days_elapsed=60)
         ok = result is not None
         report.add(_ok("T3: Confirmation-based forgetting", ok, 1.0 if ok else 0.0,
@@ -99,9 +99,9 @@ async def run_t5_constraint_governance(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("API限流约束：每分钟最多1000次请求", memory_type="constraint",
-                           model_domain="world", tags=["api_limit"])
+                           model_domain="world", tags={"tag": "api_limit"})
         await cli.remember("业务规则：大额交易需双人审核", memory_type="constraint",
-                           model_domain="world", tags=["business_rule"])
+                           model_domain="world", tags={"tag": "business_rule"})
         recall = await cli.recall("系统约束和业务规则", max_results=5)
         results = recall.get("results", [])
         ok = len(results) > 0
@@ -114,10 +114,10 @@ async def run_t5_constraint_governance(cli: CLIRunner, report: EvalReport):
 async def run_t6_entity_merge(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("华信科技风险等级C级", memory_type="observation", tags=["risk"])
+        r1 = await cli.remember("华信科技风险等级C级", memory_type="observation", tags={"tag": "risk"})
         old_id = r1.get("node_id")
         r2 = await cli.remember("华信科技风险等级B级（经核实后更正）", memory_type="observation",
-                                tags=["risk"], supersede_target=old_id, supersede_reason="核实更正")
+                                tags={"tag": "risk"}, supersede_target=old_id, supersede_reason="核实更正")
         new_id = r2.get("node_id")
         ok = old_id is not None and new_id is not None
         report.add(_ok("T6: Entity merge via supersede", ok, 1.0 if ok else 0.0,
@@ -129,7 +129,7 @@ async def run_t6_entity_merge(cli: CLIRunner, report: EvalReport):
 async def run_t7_correction_deletion(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r = await cli.remember("待更正数据：华信科技营收30亿", memory_type="observation", tags=["correction_test"])
+        r = await cli.remember("待更正数据：华信科技营收30亿", memory_type="observation", tags={"tag": "correction_test"})
         node_id = r.get("node_id")
         corrected = await cli.correct(node_id=node_id,
                                       corrected_text="华信科技营收65亿（含海外业务）",

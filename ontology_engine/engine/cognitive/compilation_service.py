@@ -146,10 +146,28 @@ class CompilationService:
                     "tags": n.tags,
                     "attributes": n.attributes,
                 })
+
+            synthesis_sections = []
+            primary = [n for n in topic_nodes if n.memory_type in ("entity", "observation")]
+            if primary:
+                overview_text = primary[0].content or ""
+                if overview_text:
+                    synthesis_sections.append(f"[Overview] {overview_text[:300]}")
+            supporting = [n for n in topic_nodes[:5] if n.content and n not in (primary[:1] if primary else [])]
+            if supporting:
+                facts = "; ".join(n.content[:100] for n in supporting)
+                synthesis_sections.append(f"[Related Facts] {facts}")
+            if not synthesis_sections and topic_nodes:
+                fallback = topic_nodes[0].content or ""
+                if fallback:
+                    synthesis_sections.append(f"[Info] {fallback[:300]}")
+            synthesis = "\n".join(synthesis_sections)
+
             return make_response(
                 data={
                     "topic": topic,
                     "entity_ids": entity_ids,
+                    "synthesis": synthesis,
                     "nodes": node_list,
                     "total_nodes": len(node_list),
                     "space_id": space_id,
@@ -159,6 +177,6 @@ class CompilationService:
         except Exception as e:
             logger.warning("compile_topic_page failed: %s", e)
             return make_response(
-                data={"topic": topic, "entity_ids": entity_ids, "nodes": [], "total_nodes": 0, "space_id": space_id},
+                data={"topic": topic, "entity_ids": entity_ids, "synthesis": "", "nodes": [], "total_nodes": 0, "space_id": space_id},
                 space_id=space_id,
             )

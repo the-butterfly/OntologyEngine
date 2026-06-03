@@ -247,11 +247,11 @@ async def run_b08_schema_extraction(runner: CLIRunner):
     try:
         data1 = await runner.remember(
             "TechNova: 年营收100亿 员工5000人 总部深圳",
-            memory_type="observation", tags=["company_profile"],
+            memory_type="observation", tags={"tag": "company_profile"},
         )
         data2 = await runner.remember(
             "TechNova: 行业半导体 成立2015年 CEO李明",
-            memory_type="observation", tags=["company_profile"],
+            memory_type="observation", tags={"tag": "company_profile"},
         )
 
         recall = await runner.recall("TechNova", max_results=10)

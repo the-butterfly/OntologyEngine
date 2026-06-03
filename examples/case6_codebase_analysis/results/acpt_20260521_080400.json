@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260521_080400",
+  "case": "case6_codebase_analysis",
+  "total": 8,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-601: AST deterministic extraction",
+      "score": 1.0,
+      "details": "node_created=True class_found=True method_found=True",
+      "latency_ms": 370.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-602: SHA256 cache",
+      "score": 1.0,
+      "details": "all_created=True cache_entries=5",
+      "latency_ms": 164.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-603: LLM semantic extraction",
+      "score": 1.0,
+      "details": "concept_found=True intent_found=True",
+      "latency_ms": 158.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-604: Confidence labels",
+      "score": 1.0,
+      "details": "all_created=True high_conf_results=2",
+      "latency_ms": 129.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-605: Knowledge graph construction",
+      "score": 1.0,
+      "details": "total=31 imports_found=True class_found=True",
+      "latency_ms": 276.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-606: Graph traversal query",
+      "score": 1.0,
+      "details": "start_found=True end_found=True path_found=True",
+      "latency_ms": 246.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-607: Impact analysis",
+      "score": 1.0,
+      "details": "impact_results=8 callers_found=True downstream_found=True",
+      "latency_ms": 147.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-608: Incremental processing",
+      "score": 1.0,
+      "details": "before=45 after=46 user_unchanged=True order_unchanged=True",
+      "latency_ms": 188.3,
+      "sub_scores": {}
+    }
+  ]
+}

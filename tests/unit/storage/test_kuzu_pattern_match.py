@@ -1,16 +1,17 @@
-"""Integration tests for graph pattern matching with kuzu.
+"""Integration tests for graph pattern matching with ladybug.
 
-These tests verify the graph_pattern_match method works correctly
-when using kuzu as the graph store.
+Tests the DefaultRetrievalBackend graph_pattern_match method
+when using ladybug as the graph store.
 """
 
 from __future__ import annotations
 
-import pytest
-import pytest_asyncio
+from typing import Any
 
-# Skip if kuzu not installed
-kuzu = pytest.importorskip("kuzu", reason="kuzu not installed - install with: pip install ontology-engine[kuzu]")
+import pytest
+
+# Skip if ladybug not installed
+pytest.importorskip("ladybug", reason="ladybug not installed - install with: pip install ontology-engine[kuzu]")
 
 from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
 from ontology_engine.storage.retrieval import DefaultRetrievalBackend

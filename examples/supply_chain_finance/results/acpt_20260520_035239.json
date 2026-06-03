@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260520_035239",
+  "case": "supply_chain_finance",
+  "total": 6,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 6,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-01: Schema + instance loading",
+      "score": 1.0,
+      "details": "created=3/3 total=20",
+      "latency_ms": 769.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-02: Multi-entity ingestion",
+      "score": 1.0,
+      "details": "created=3/3 found=10",
+      "latency_ms": 256.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-03: Credit assessment rules",
+      "score": 1.0,
+      "details": "score_found=True eligible_found=True",
+      "latency_ms": 129.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-04: Risk dimension analysis",
+      "score": 1.0,
+      "details": "alert_found=True rule_found=True",
+      "latency_ms": 160.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-05: Cross-entity retrieval",
+      "score": 1.0,
+      "details": "relation_found=True ce_data_found=True",
+      "latency_ms": 207.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-06: Data consistency",
+      "score": 1.0,
+      "details": "mfg_found=True retail_found=True",
+      "latency_ms": 143.3,
+      "sub_scores": {}
+    }
+  ]
+}

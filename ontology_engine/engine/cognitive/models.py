@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-VALID_MEMORY_TYPES = {"entity", "observation", "episode", "fragment", "mental_model", "opinion", "procedure", "rule", "commitment", "constraint", "self_experience", "task_state"}
+VALID_MEMORY_TYPES = {"entity", "observation", "episode", "fragment", "mental_model", "opinion", "procedure", "rule", "commitment", "constraint", "self_experience", "task_state", "relation", "metrics"}
 VALID_COGNITIVE_LAYERS = {"opinion", "semantic", "procedure", "perception"}
 VALID_BELIEF_STATUSES = {"accepted", "contradicted", "superseded", "pending_review", "rejected"}
 VALID_VISIBILITIES = {"private", "shared", "public"}

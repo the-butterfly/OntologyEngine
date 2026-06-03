@@ -124,7 +124,7 @@ async def run_t5_dreamcycle(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for i in range(3):
-            await cli.remember(f"梦境循环测试记忆 #{i+1}", memory_type="fragment", tags=["dream_test"])
+            await cli.remember(f"梦境循环测试记忆 #{i+1}", memory_type="fragment", tags={"tag": "dream_test"})
         await cli.consolidate()
         result = await cli.dream()
         skipped = result.get("skipped", False)
@@ -139,8 +139,8 @@ async def run_t5_dreamcycle(cli: CLIRunner, report: EvalReport):
 async def run_t6_ebbinghaus_decay(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("核心业务规则：所有交易必须经过风控审核", memory_type="rule", confidence=0.95, tags=["core_rule"])
-        await cli.remember("临时观察：今日市场波动较大", memory_type="observation", confidence=0.4, tags=["temporary"])
+        await cli.remember("核心业务规则：所有交易必须经过风控审核", memory_type="rule", confidence=0.95, tags={"tag": "core_rule"})
+        await cli.remember("临时观察：今日市场波动较大", memory_type="observation", confidence=0.4, tags={"tag": "temporary"})
         stats = await cli.stats()
         total = stats.get("total", 0)
         ok = total > 0
@@ -168,8 +168,8 @@ async def run_t7_strategic_forgetting(cli: CLIRunner, report: EvalReport):
 async def run_t8_e2e_cross_verification(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("端到端验证：华信科技获得政府补贴10亿元", memory_type="fragment", tags=["e2e_test"])
-        await cli.remember("端到端验证：华信科技政府补贴用于债务重组", memory_type="fragment", tags=["e2e_test"])
+        await cli.remember("端到端验证：华信科技获得政府补贴10亿元", memory_type="fragment", tags={"tag": "e2e_test"})
+        await cli.remember("端到端验证：华信科技政府补贴用于债务重组", memory_type="fragment", tags={"tag": "e2e_test"})
         await cli.consolidate()
         recall = await cli.recall("华信科技政府补贴", max_results=5)
         ok_recall = len(recall.get("results", [])) > 0

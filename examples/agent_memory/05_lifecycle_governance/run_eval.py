@@ -76,8 +76,8 @@ async def run_t2_model_domain_inference(cli: CLIRunner, report: EvalReport):
 async def run_t3_cognitive_layer_dynamic(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("华信科技股价今日上涨5%", memory_type="observation", tags=["market"])
-        await cli.remember("恒信集团获得AAA信用评级", memory_type="observation", tags=["credit"])
+        await cli.remember("华信科技股价今日上涨5%", memory_type="observation", tags={"tag": "market"})
+        await cli.remember("恒信集团获得AAA信用评级", memory_type="observation", tags={"tag": "credit"})
         stats = await cli.stats()
         ok = stats.get("total", 0) > 0
         report.add(_ok("T3: Cognitive layer dynamic", ok, 1.0 if ok else 0.0,
@@ -101,8 +101,8 @@ async def run_t4_space_isolation(cli: CLIRunner, report: EvalReport):
 async def run_t5_dedup_gate(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("重复测试：华信科技营收50亿", memory_type="fragment", tags=["dedup"])
-        r2 = await cli.remember("重复测试：华信科技营收50亿", memory_type="fragment", tags=["dedup"])
+        r1 = await cli.remember("重复测试：华信科技营收50亿", memory_type="fragment", tags={"tag": "dedup"})
+        r2 = await cli.remember("重复测试：华信科技营收50亿", memory_type="fragment", tags={"tag": "dedup"})
         ok = r1 is not None and r2 is not None
         report.add(_ok("T5: DeduplicationGate", ok, 1.0 if ok else 0.0,
                        f"id1={r1.get('node_id')}, id2={r2.get('node_id')}", (time.time() - t0) * 1000))
@@ -114,7 +114,7 @@ async def run_t6_dreamcycle(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for i in range(3):
-            await cli.remember(f"梦境测试 #{i+1}", memory_type="fragment", tags=["dream"])
+            await cli.remember(f"梦境测试 #{i+1}", memory_type="fragment", tags={"tag": "dream"})
         await cli.consolidate()
         result = await cli.dream()
         ok = result is not None
@@ -128,7 +128,7 @@ async def run_t7_consolidation_upgrade(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for text in ["中芯科技是半导体企业", "中芯科技2025年营收200亿", "中芯科技风险等级A级"]:
-            await cli.remember(text, memory_type="fragment", tags=["semiconductor"])
+            await cli.remember(text, memory_type="fragment", tags={"tag": "semiconductor"})
         await cli.consolidate()
         stats = await cli.stats()
         ok = stats.get("total", 0) > 0

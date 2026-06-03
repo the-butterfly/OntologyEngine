@@ -34,8 +34,8 @@ CASE_DIR = Path(__file__).parent
 async def run_d01_lint_phase(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Server API endpoint is /v1/users", tags=["api"], created_by="lint_test")
-        await cli.remember("Server API endpoint is /v2/users", tags=["api"], created_by="lint_test")
+        await cli.remember("Server API endpoint is /v1/users", tags={"tag": "api"}, created_by="lint_test")
+        await cli.remember("Server API endpoint is /v2/users", tags={"tag": "api"}, created_by="lint_test")
 
         stats = await cli.stats()
         total = stats.get("total", 0)
@@ -58,9 +58,9 @@ async def run_d02_consolidate_phase(cli: CLIRunner, report: AcptReport):
     """TC-D02: Consolidate phase — unconsolidated fragments auto-classified."""
     t0 = time.time()
     try:
-        await cli.remember("Kubernetes pod restart policy is Always", tags=["k8s"], created_by="consolidate_test")
-        await cli.remember("Kubernetes pod restart policy is OnFailure", tags=["k8s"], created_by="consolidate_test")
-        await cli.remember("Kubernetes pod restart policy is Never", tags=["k8s"], created_by="consolidate_test")
+        await cli.remember("Kubernetes pod restart policy is Always", tags={"tag": "k8s"}, created_by="consolidate_test")
+        await cli.remember("Kubernetes pod restart policy is OnFailure", tags={"tag": "k8s"}, created_by="consolidate_test")
+        await cli.remember("Kubernetes pod restart policy is Never", tags={"tag": "k8s"}, created_by="consolidate_test")
 
         result = await cli.consolidate()
         consolidated = result.get("consolidated", result.get("new_observations", 0))
@@ -90,7 +90,7 @@ async def run_d03_enrich_phase(cli: CLIRunner, report: AcptReport):
             "Service A communicates with Service B via gRPC. "
             "Service B connects to PostgreSQL database. "
             "Service C handles authentication with JWT tokens.",
-            tags=["architecture", "project_alpha"],
+            tags={"tag": "architecture", "tag_2": "project_alpha"},
             memory_type="fragment",
             created_by="enrich_test"
         )
@@ -127,13 +127,13 @@ async def run_d04_forget_phase(cli: CLIRunner, report: AcptReport):
     try:
         resp1 = await cli.remember(
             "High-value: Production database connection string is postgres://prod:5432",
-            tags=["critical", "infrastructure"],
+            tags={"tag": "critical", "tag_2": "infrastructure"},
             confidence=0.95,
             created_by="forget_test"
         )
         resp2 = await cli.remember(
             "Low-value: Office temperature was 22C on Monday",
-            tags=["trivial"],
+            tags={"tag": "trivial"},
             confidence=0.3,
             created_by="forget_test"
         )
@@ -165,15 +165,15 @@ async def run_d05_reflect_phase(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Team A's sprint velocity dropped from 40 to 25 story points",
-            tags=["team_metrics"], created_by="reflect_test"
+            tags={"tag": "team_metrics"}, created_by="reflect_test"
         )
         await cli.remember(
             "Team A had 3 key members leave in Q2",
-            tags=["team_metrics", "personnel"], created_by="reflect_test"
+            tags={"tag": "team_metrics", "tag_2": "personnel"}, created_by="reflect_test"
         )
         await cli.remember(
             "New onboarding process takes 4 weeks instead of 2",
-            tags=["process", "onboarding"], created_by="reflect_test"
+            tags={"tag": "process", "tag_2": "onboarding"}, created_by="reflect_test"
         )
 
         result = await cli.reflect(
@@ -202,9 +202,9 @@ async def run_d05_reflect_phase(cli: CLIRunner, report: AcptReport):
 async def run_d06_health_report(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Service uptime SLA is 99.9%", tags=["sla"], created_by="health_test")
-        await cli.remember("Current uptime is 99.95%", tags=["sla", "current"], created_by="health_test")
-        await cli.remember("Last incident was 45 days ago", tags=["incident"], created_by="health_test")
+        await cli.remember("Service uptime SLA is 99.9%", tags={"tag": "sla"}, created_by="health_test")
+        await cli.remember("Current uptime is 99.95%", tags={"tag": "sla", "tag_2": "current"}, created_by="health_test")
+        await cli.remember("Last incident was 45 days ago", tags={"tag": "incident"}, created_by="health_test")
 
         result = await cli.dream()
 
@@ -227,8 +227,8 @@ async def run_d06_health_report(cli: CLIRunner, report: AcptReport):
 async def run_d07_independent_phase(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("API version is v2", tags=["api"], created_by="independent_test")
-        await cli.remember("API version is v3", tags=["api"], created_by="independent_test")
+        await cli.remember("API version is v2", tags={"tag": "api"}, created_by="independent_test")
+        await cli.remember("API version is v3", tags={"tag": "api"}, created_by="independent_test")
 
         result = await cli.reflect(
             query="lint only check",
@@ -257,7 +257,7 @@ async def run_d08_post_write_hook(cli: CLIRunner, report: AcptReport):
     """TC-D08: Post-write hook performance — consolidate ≤500ms trigger."""
     t0 = time.time()
     try:
-        await cli.remember("Feature flag X is enabled for 50% of users", tags=["feature_flag"], created_by="hook_test")
+        await cli.remember("Feature flag X is enabled for 50% of users", tags={"tag": "feature_flag"}, created_by="hook_test")
 
         t1 = time.time()
         result = await cli.consolidate()

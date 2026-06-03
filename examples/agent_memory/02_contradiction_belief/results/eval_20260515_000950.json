@@ -1,0 +1,58 @@
+{
+  "timestamp": "20260515_000950",
+  "case": "case6",
+  "total": 7,
+  "passed": 6,
+  "pass_rate": 0.8571428571428571,
+  "results": [
+    {
+      "name": "T1: Rule-based contradiction",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=2, insights=1",
+      "latency_ms": 34575.00195503235
+    },
+    {
+      "name": "T2: LLM semantic contradiction",
+      "passed": true,
+      "score": 1.0,
+      "details": "contradictions=3, insights=1",
+      "latency_ms": 19954.24175262451
+    },
+    {
+      "name": "T3: Belief supersede",
+      "passed": true,
+      "score": 1.0,
+      "details": "old_id=mem:observation:contradiction_eval:150c3d591da6, new_id=mem:observation:contradiction_eval:c95948c72330",
+      "latency_ms": 173.76995086669922
+    },
+    {
+      "name": "T4: Correction propagation",
+      "passed": true,
+      "score": 1.0,
+      "details": "entity_id=mem:entity:contradiction_eval:06084d1e810b, corrected=True",
+      "latency_ms": 445.44219970703125
+    },
+    {
+      "name": "T5",
+      "passed": false,
+      "score": 0.0,
+      "details": "Node 'mem:observation:contradiction_eval:ccf1aac4665b' is in 'accepted' state, not 'pending_review'. Only pending_review nodes can be approved.",
+      "latency_ms": 111.66501045227051
+    },
+    {
+      "name": "T6: Reflect search sequence",
+      "passed": true,
+      "score": 1.0,
+      "details": "insights=2, contradictions=3",
+      "latency_ms": 27440.29998779297
+    },
+    {
+      "name": "T7: Hallucination protection",
+      "passed": true,
+      "score": 1.0,
+      "details": "insights=2, valid_evidence=True",
+      "latency_ms": 41022.1951007843
+    }
+  ]
+}

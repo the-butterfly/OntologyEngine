@@ -1,0 +1,81 @@
+{
+  "timestamp": "20260522_075013",
+  "case": "case4_bi_query_agent",
+  "total": 10,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 10,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-401: Natural language to metric mapping",
+      "score": 1.0,
+      "details": "metric_found=True",
+      "latency_ms": 460.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-402: Multi-metric query",
+      "score": 1.0,
+      "details": "margin=True financing=True",
+      "latency_ms": 220.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-403: ESG metric query",
+      "score": 1.0,
+      "details": "esg_found=True",
+      "latency_ms": 143.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-404: Cross-domain query",
+      "score": 1.0,
+      "details": "supplier=True AR=True",
+      "latency_ms": 226.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-405: Compliance check query",
+      "score": 1.0,
+      "details": "compliance_found=True",
+      "latency_ms": 148.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-406: Unknown metric handling",
+      "score": 1.0,
+      "details": "no_false_positive=True no_exact_match=True",
+      "latency_ms": 96.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-407: Version diff analysis",
+      "score": 1.0,
+      "details": "version_diff_found=True",
+      "latency_ms": 247.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-408: Rule recall precision",
+      "score": 1.0,
+      "details": "top1_is_revenue=True",
+      "latency_ms": 122.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-409: Time filter accuracy",
+      "score": 1.0,
+      "details": "time_filter_found=True",
+      "latency_ms": 164.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-410: Dashboard query",
+      "score": 1.0,
+      "details": "found=5/5",
+      "latency_ms": 414.4,
+      "sub_scores": {}
+    }
+  ]
+}

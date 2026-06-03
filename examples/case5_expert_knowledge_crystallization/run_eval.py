@@ -36,7 +36,7 @@ async def run_tc501_interaction_experience(cli: CLIRunner, report: AcptReport):
         for i in range(25):
             await cli.remember(
                 "供应商发票金额波动超过15%需重点关注",
-                tags=["invoice", "risk_alert"],
+                tags={"tag": "invoice", "tag_2": "risk_alert"},
                 confidence=0.8 + (i * 0.005),
             )
 
@@ -64,7 +64,7 @@ async def run_tc502_candidate_trigger(cli: CLIRunner, report: AcptReport):
         for i in range(22):
             await cli.remember(
                 "华东区Q3毛利率低于35%的门店需要审查",
-                tags=["margin", "review", "candidate"],
+                tags={"tag": "margin", "tag_2": "review", "tag_3": "candidate"},
                 confidence=0.85,
             )
 
@@ -92,7 +92,7 @@ async def run_tc503_expert_review(cli: CLIRunner, report: AcptReport):
         resp = await cli.remember(
             "担保圈风险传导路径：A→B→C→D，需深度审查担保链",
             memory_type="rule",
-            tags=["guarantee", "expert_review"],
+            tags={"tag": "guarantee", "tag_2": "expert_review"},
             confidence=0.9,
         )
         node_id = resp.get("node_id")
@@ -121,7 +121,7 @@ async def run_tc504_org_rule_publish(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "rule.invoice_fluctuation_review@v1.0: 发票波动超15%触发审查",
             memory_type="rule",
-            tags=["organization", "published", "v1.0"],
+            tags={"tag": "organization", "tag_2": "published", "tag_3": "v1.0"},
             confidence=0.95,
             visibility="shared",
         )
@@ -150,7 +150,7 @@ async def run_tc505_cross_user_sharing(cli: CLIRunner, report: AcptReport):
         await cli.remember(
             "组织规则：所有供应商需季度审查",
             memory_type="rule",
-            tags=["organization", "shared"],
+            tags={"tag": "organization", "tag_2": "shared"},
             visibility="shared",
             created_by="admin",
         )
@@ -179,7 +179,7 @@ async def run_tc506_version_iteration(cli: CLIRunner, report: AcptReport):
         resp1 = await cli.remember(
             "rule.margin_review@v1.0: 毛利率低于40%需审查",
             memory_type="rule",
-            tags=["margin", "v1.0"],
+            tags={"tag": "margin", "tag_2": "v1.0"},
             confidence=0.8,
         )
         v1_id = resp1.get("node_id")
@@ -187,7 +187,7 @@ async def run_tc506_version_iteration(cli: CLIRunner, report: AcptReport):
         resp2 = await cli.remember(
             "rule.margin_review@v2.0: 毛利率低于35%需审查（基于反馈优化）",
             memory_type="rule",
-            tags=["margin", "v2.0"],
+            tags={"tag": "margin", "tag_2": "v2.0"},
             confidence=0.9,
             supersede_target=v1_id,
             supersede_reason="阈值优化：基于Q3数据反馈",

@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260521_074424",
+  "case": "case14_storage_adapter",
+  "total": 6,
+  "mean_score": 0.9,
+  "min_score": 0.6,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-S01: StorageInterface unified interface",
+      "score": 1.0,
+      "details": "save=True get=True search=True batch=True total=6",
+      "latency_ms": 719.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-S02: SQLiteAdapter CRUD",
+      "score": 1.0,
+      "details": "created=True entity=True relation=True rule=True",
+      "latency_ms": 338.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-S03: ChromaDBAdapter vector storage",
+      "score": 0.8,
+      "details": "results=3 autoscaler=True hpa=False",
+      "latency_ms": 122.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-S04: RRF multi-path retrieval",
+      "score": 0.6,
+      "details": "results=5 rate_limit=False algorithm=True",
+      "latency_ms": 101.1,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-S05: Citation mode consolidation",
+      "score": 1.0,
+      "details": "fragment=True observation=True total=39",
+      "latency_ms": 134.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-S06: Single-engine mode",
+      "score": 1.0,
+      "details": "created=True found=True total=41",
+      "latency_ms": 69.7,
+      "sub_scores": {}
+    }
+  ]
+}

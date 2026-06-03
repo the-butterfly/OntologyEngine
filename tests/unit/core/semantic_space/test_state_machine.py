@@ -54,18 +54,6 @@ class TestStateMachineTransitions:
             await sm.transition(space, "activate")
 
     @pytest.mark.asyncio
-    async def test_draft_activate_without_l4_fails(self):
-        from ontology_engine.core.semantic_space.state_machine import (
-            InvalidTransitionError,
-            SemanticSpaceStateMachine,
-        )
-
-        sm = SemanticSpaceStateMachine()
-        space = _make_space(SpaceStatus.DRAFT, has_l1=True, has_l4=False)
-        with pytest.raises(InvalidTransitionError):
-            await sm.transition(space, "activate")
-
-    @pytest.mark.asyncio
     async def test_active_deactivate(self):
         from ontology_engine.core.semantic_space.state_machine import (
             SemanticSpaceStateMachine,

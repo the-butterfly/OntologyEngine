@@ -77,17 +77,21 @@ class CLIRunner:
         self._space = space_id
 
     async def remember(self, content: str, *, memory_type: str = "fragment",
-                       tags: list[str] | None = None, confidence: float = 1.0,
+                       tags: dict[str, str] | None = None, confidence: float = 1.0,
                        visibility: str = "shared", created_by: str | None = None,
                        source_pipeline: str | None = None, model_domain: str | None = None,
                        source_trust_tier: str | None = None, belief_status: str = "accepted",
                        auto_consolidate: bool = False, supersede_target: str | None = None,
                        supersede_reason: str | None = None, scope: dict | None = None) -> dict:
+        merged_tags = dict(tags) if tags else {}
+        if model_domain and "model" not in merged_tags:
+            merged_tags["model"] = model_domain
         r = await self._api.remember(
             content=content, space_id=self._space, memory_type=memory_type,
-            tags=tags or [], confidence=confidence, visibility=visibility,
+            tags=merged_tags, confidence=confidence, visibility=visibility,
             created_by=created_by, source_pipeline=source_pipeline,
-            belief_status=belief_status, auto_consolidate=auto_consolidate,
+            source_trust_tier=source_trust_tier, auto_consolidate=auto_consolidate,
+            belief_status=belief_status,
             supersede_target=supersede_target, supersede_reason=supersede_reason)
         data = r.get("data", r)
         if "memory_id" in data and "node_id" not in data:

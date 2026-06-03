@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260515_001334",
+  "case": "case13",
+  "total": 8,
+  "passed": 3,
+  "pass_rate": 0.375,
+  "results": [
+    {
+      "name": "T1: User Model",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=5",
+      "latency_ms": 547.2240447998047
+    },
+    {
+      "name": "T2",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'record_commitment'",
+      "latency_ms": 0.008344650268554688
+    },
+    {
+      "name": "T3: Self Model experience",
+      "passed": false,
+      "score": 0.0,
+      "details": "hits=0",
+      "latency_ms": 232.47814178466797
+    },
+    {
+      "name": "T4: Compilation layer",
+      "passed": false,
+      "score": 0.5,
+      "details": "entity_id=mem:entity:full_agent_eval:dce04a865959, summary_len=0, BUG='MemoryAPI' object has no attribute 'compile_entity_page'",
+      "latency_ms": 142.55881309509277
+    },
+    {
+      "name": "T5: Task context recall",
+      "passed": true,
+      "score": 1.0,
+      "details": "hits=3",
+      "latency_ms": 208.73022079467773
+    },
+    {
+      "name": "T6",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'list_my_memories'",
+      "latency_ms": 102.62203216552734
+    },
+    {
+      "name": "T7",
+      "passed": false,
+      "score": 0.0,
+      "details": "'MemoryAPI' object has no attribute 'record_commitment'",
+      "latency_ms": 101.96399688720703
+    },
+    {
+      "name": "T8: Full lifecycle",
+      "passed": true,
+      "score": 1.0,
+      "details": "remember=True, correct=True, dream=True, forget=True",
+      "latency_ms": 811.1269474029541
+    }
+  ]
+}

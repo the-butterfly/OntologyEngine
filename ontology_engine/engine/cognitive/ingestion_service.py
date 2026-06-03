@@ -113,6 +113,118 @@ class CognitiveIngestionService:
         initial_tags = self._infer_tags(memory_type)
         merged_tags = {**initial_tags, **(tags or {})}
 
+        from ontology_engine.engine.extraction.chunker import chunk_text
+        chunk_result = chunk_text(content)
+        if len(chunk_result.chunks) <= 1:
+            fragment_ids = [await self._ingest_single_chunk(
+                content, space_id, merged_tags, source_content_hash,
+                source_trust_tier, source_pipeline, user_id, visibility, confidence, belief_status,
+            )]
+        else:
+            fragment_ids = []
+            for ci, chunk in enumerate(chunk_result.chunks):
+                chunk_tags = {**merged_tags, "chunk_index": str(ci)}
+                fid = await self._ingest_single_chunk(
+                    chunk.content, space_id, chunk_tags, source_content_hash,
+                    source_trust_tier, source_pipeline, user_id, visibility, confidence, belief_status,
+                )
+                fragment_ids.append(fid)
+
+        entities, relations = await self._pipeline.extract(content)
+
+        created_entity_ids: list[str] = []
+        for entity in entities[:10]:
+            try:
+                entity_id = await self._resolve_or_create_entity(
+                    entity, space_id, source_pipeline, user_id, visibility, confidence,
+                )
+                if entity_id:
+                    created_entity_ids.append(entity_id)
+            except Exception as e:
+                logger.debug("Entity creation skipped for '%s': %s", entity.text, e)
+
+        for relation in relations[:5]:
+            try:
+                from ontology_engine.engine.cognitive.models import CognitiveEdge as _CE
+                await self._repo.create_cognitive_edge(_CE(
+                    edge_type="COGNITIVE_RELATES_TO",
+                    from_id=relation.subject,
+                    to_id=relation.object_,
+                ))
+            except Exception as e:
+                logger.debug("Relation edge creation skipped: %s", e)
+
+        if memory_type != "fragment":
+            node_id = f"mem:{memory_type}:{space_id}:{uuid.uuid4().hex[:12]}"
+            node = _make_cognitive_node(
+                id=node_id,
+                content=content,
+                space_id=space_id,
+                domain_id=space_id,
+                memory_type=memory_type,
+                source_fragment_ids=fragment_ids,
+                source_content_hash=source_content_hash,
+                source_trust_tier=source_trust_tier,
+                scope=scope,
+                source_pipeline=source_pipeline,
+                tags=merged_tags,
+                created_by=user_id,
+                visibility=visibility,
+                confidence=confidence,
+                belief_status=belief_status,
+            )
+            await self._repo.create_node(node)
+
+            from ontology_engine.engine.cognitive.models import CognitiveEdge
+            for fid in fragment_ids:
+                await self._repo.create_cognitive_edge(CognitiveEdge(
+                    edge_type="COG_SUPPORTED_BY",
+                    from_id=fid,
+                    to_id=node_id,
+                ))
+
+            if self._fts5:
+                try:
+                    await self._fts5.on_node_created(node)
+                except Exception as e:
+                    logger.warning("FTS5 sync failed for node %s: %s", node_id, e)
+
+            if self._vector:
+                try:
+                    await self._vector.index_node(
+                        node_id=node.id,
+                        content=node.content,
+                        memory_type=node.memory_type,
+                        tags=node.tags,
+                        space_id=node.space_id,
+                    )
+                except Exception as e:
+                    logger.warning("Vector indexing failed for %s: %s", node_id, e)
+                    attrs = dict(node.attributes or {})
+                    attrs["_index_status"] = "pending"
+                    node.attributes = attrs
+                    try:
+                        await self._repo.update_node(node)
+                    except Exception:
+                        logger.warning("Failed to mark node %s as pending for vector indexing", node_id)
+
+            return {"node_id": node_id, "fragment_ids": fragment_ids, "entities": len(entities), "relations": len(relations), "created_entity_ids": created_entity_ids}
+
+        return {"fragment_ids": fragment_ids, "entities": len(entities), "relations": len(relations), "created_entity_ids": created_entity_ids}
+
+    async def _ingest_single_chunk(
+        self,
+        content: str,
+        space_id: str,
+        merged_tags: dict[str, str | list[str]],
+        source_content_hash: str,
+        source_trust_tier: str,
+        source_pipeline: str,
+        user_id: str,
+        visibility: str,
+        confidence: float,
+        belief_status: str,
+    ) -> str:
         fragment_id = f"frag:{space_id}:{uuid.uuid4().hex[:12]}"
         fragment = _make_fragment_node(
             id=fragment_id,
@@ -155,86 +267,7 @@ class CognitiveIngestionService:
                 except Exception:
                     pass
 
-        entities, relations = await self._pipeline.extract(content)
-
-        created_entity_ids: list[str] = []
-        for entity in entities[:10]:
-            try:
-                entity_id = await self._resolve_or_create_entity(
-                    entity, space_id, source_pipeline, user_id, visibility, confidence,
-                )
-                if entity_id:
-                    created_entity_ids.append(entity_id)
-            except Exception as e:
-                logger.debug("Entity creation skipped for '%s': %s", entity.text, e)
-
-        for relation in relations[:5]:
-            try:
-                from ontology_engine.engine.cognitive.models import CognitiveEdge as _CE
-                await self._repo.create_cognitive_edge(_CE(
-                    edge_type="COGNITIVE_RELATES_TO",
-                    from_id=relation.subject,
-                    to_id=relation.object_,
-                ))
-            except Exception as e:
-                logger.debug("Relation edge creation skipped: %s", e)
-
-        if memory_type != "fragment":
-            node_id = f"mem:{memory_type}:{space_id}:{uuid.uuid4().hex[:12]}"
-            node = _make_cognitive_node(
-                id=node_id,
-                content=content,
-                space_id=space_id,
-                domain_id=space_id,
-                memory_type=memory_type,
-                source_fragment_ids=[fragment_id],
-                source_content_hash=source_content_hash,
-                source_trust_tier=source_trust_tier,
-                scope=scope,
-                source_pipeline=source_pipeline,
-                tags=merged_tags,
-                created_by=user_id,
-                visibility=visibility,
-                confidence=confidence,
-                belief_status=belief_status,
-            )
-            await self._repo.create_node(node)
-
-            from ontology_engine.engine.cognitive.models import CognitiveEdge
-            await self._repo.create_cognitive_edge(CognitiveEdge(
-                edge_type="COG_SUPPORTED_BY",
-                from_id=fragment_id,
-                to_id=node_id,
-            ))
-
-            if self._fts5:
-                try:
-                    await self._fts5.on_node_created(node)
-                except Exception as e:
-                    logger.warning("FTS5 sync failed for node %s: %s", node_id, e)
-
-            if self._vector:
-                try:
-                    await self._vector.index_node(
-                        node_id=node.id,
-                        content=node.content,
-                        memory_type=node.memory_type,
-                        tags=node.tags,
-                        space_id=node.space_id,
-                    )
-                except Exception as e:
-                    logger.warning("Vector indexing failed for %s: %s", node_id, e)
-                    attrs = dict(node.attributes or {})
-                    attrs["_index_status"] = "pending"
-                    node.attributes = attrs
-                    try:
-                        await self._repo.update_node(node)
-                    except Exception:
-                        logger.warning("Failed to mark node %s as pending for vector indexing", node_id)
-
-            return {"node_id": node_id, "fragment_id": fragment_id, "entities": len(entities), "relations": len(relations), "created_entity_ids": created_entity_ids}
-
-        return {"fragment_id": fragment_id, "entities": len(entities), "relations": len(relations), "created_entity_ids": created_entity_ids}
+        return fragment_id
 
     async def retry_pending_indexes(self, space_id: str = "default", batch_size: int = 50) -> int:
         """Retry vector indexing for nodes marked as _index_status=pending.

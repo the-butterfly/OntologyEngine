@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260520_012509",
+  "case": "case5_expert_knowledge_crystallization",
+  "total": 6,
+  "mean_score": 0.9444,
+  "min_score": 0.6667,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-501: Agent interaction experience",
+      "score": 1.0,
+      "details": "total=5 recall_hits=5",
+      "latency_ms": 921.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-502: Candidate trigger",
+      "score": 1.0,
+      "details": "total=10 results=5",
+      "latency_ms": 458.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-503: Expert review evidence",
+      "score": 0.6667,
+      "details": "node_id=mem:rule:expert_knowledge:a06e7ce701e5 audit_trail=False",
+      "latency_ms": 103.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-504: Organization rule publish",
+      "score": 1.0,
+      "details": "published=True total=20",
+      "latency_ms": 129.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-505: Cross-user sharing",
+      "score": 1.0,
+      "details": "shared=True my_memories=0",
+      "latency_ms": 152.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-506: Version iteration",
+      "score": 1.0,
+      "details": "v1=mem:rule:expert_knowledge:1dc0ccd7860c v2=mem:rule:expert_knowledge:139ff64bc7a6 history=True",
+      "latency_ms": 170.1,
+      "sub_scores": {}
+    }
+  ]
+}

@@ -1,13 +1,17 @@
 """Tests for KuzuGraphStore.
 
-These tests require kuzu to be installed. They will be skipped if kuzu
-is not available: pip install kuzu
+These tests require ladybug to be installed. They will be skipped if ladybug
+is not available: pip install ladybug
 """
 
 from __future__ import annotations
 
+from typing import Any
+from unittest.mock import AsyncMock, patch
+
 import pytest
-pytest.importorskip("kuzu", reason="kuzu not installed - install with: pip install ontology-engine[kuzu]")
+
+pytest.importorskip("ladybug", reason="ladybug not installed - install with: pip install ontology-engine[kuzu]")
 import pytest_asyncio
 
 from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore

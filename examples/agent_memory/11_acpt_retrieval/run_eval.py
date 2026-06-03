@@ -48,15 +48,15 @@ async def run_a01_single_hop(runner: CLIRunner):
 
     await runner.remember(
         "TechNova公司总部位于深圳南山区",
-        memory_type="entity", tags=["company", "location"], confidence=0.9,
+        memory_type="entity", tags={"tag": "company", "tag_2": "location"}, confidence=0.9,
     )
     await runner.remember(
         "TechNova成立于2020年",
-        memory_type="observation", tags=["company", "founding"], confidence=0.9,
+        memory_type="observation", tags={"tag": "company", "tag_2": "founding"}, confidence=0.9,
     )
     await runner.remember(
         "竞争对手是云帆科技",
-        memory_type="observation", tags=["competition"], confidence=0.8,
+        memory_type="observation", tags={"tag": "competition"}, confidence=0.8,
     )
 
     await asyncio.sleep(0.5)
@@ -90,19 +90,19 @@ async def run_a02_semantic_gap(runner: CLIRunner):
 
     await runner.remember(
         "TechNova微服务部署在CloudGroup云平台上",
-        memory_type="observation", tags=["infra", "cloud"], confidence=0.9,
+        memory_type="observation", tags={"tag": "infra", "tag_2": "cloud"}, confidence=0.9,
     )
     await runner.remember(
         "使用Kubernetes作为容器编排方案",
-        memory_type="observation", tags=["infra", "k8s"], confidence=0.9,
+        memory_type="observation", tags={"tag": "infra", "tag_2": "k8s"}, confidence=0.9,
     )
     await runner.remember(
         "后端服务用Go语言开发",
-        memory_type="observation", tags=["backend", "go"], confidence=0.9,
+        memory_type="observation", tags={"tag": "backend", "tag_2": "go"}, confidence=0.9,
     )
     await runner.remember(
         "前端用React框架",
-        memory_type="observation", tags=["frontend", "react"], confidence=0.9,
+        memory_type="observation", tags={"tag": "frontend", "tag_2": "react"}, confidence=0.9,
     )
 
     await asyncio.sleep(0.5)
@@ -137,15 +137,15 @@ async def run_a03_multi_hop(runner: CLIRunner):
 
     await runner.remember(
         "王芳是TechNova技术负责人",
-        memory_type="entity", tags=["person", "leadership"], confidence=0.9,
+        memory_type="entity", tags={"tag": "person", "tag_2": "leadership"}, confidence=0.9,
     )
     await runner.remember(
         "王芳主导架构迁移到CloudGroup平台",
-        memory_type="observation", tags=["arch", "migration"], confidence=0.9,
+        memory_type="observation", tags={"tag": "arch", "tag_2": "migration"}, confidence=0.9,
     )
     await runner.remember(
         "CloudGroup平台底层使用Kubernetes编排",
-        memory_type="observation", tags=["infra", "k8s"], confidence=0.9,
+        memory_type="observation", tags={"tag": "infra", "tag_2": "k8s"}, confidence=0.9,
     )
 
     await asyncio.sleep(0.5)
@@ -181,15 +181,15 @@ async def run_a04_temporal_ordering(runner: CLIRunner):
 
     await runner.remember(
         "2023年Q1: TechNova API限流策略为1000次/分钟",
-        memory_type="constraint", tags=["api", "policy"], confidence=0.85,
+        memory_type="constraint", tags={"tag": "api", "tag_2": "policy"}, confidence=0.85,
     )
     await runner.remember(
         "2024年Q3: TechNova API限流策略调整为5000次/分钟",
-        memory_type="constraint", tags=["api", "policy"], confidence=0.85,
+        memory_type="constraint", tags={"tag": "api", "tag_2": "policy"}, confidence=0.85,
     )
     await runner.remember(
         "2025年Q2: TechNova API限流策略提高至10000次/分钟",
-        memory_type="constraint", tags=["api", "policy"], confidence=0.85,
+        memory_type="constraint", tags={"tag": "api", "tag_2": "policy"}, confidence=0.85,
     )
 
     await asyncio.sleep(0.5)
@@ -230,15 +230,15 @@ async def run_a05_cross_type(runner: CLIRunner):
 
     await runner.remember(
         "TechNova战略转向AI领域",
-        memory_type="observation", tags=["strategy", "ai"], confidence=0.9,
+        memory_type="observation", tags={"tag": "strategy", "tag_2": "ai"}, confidence=0.9,
     )
     await runner.remember(
         "TechNova架构变更须经安全委员会审批",
-        memory_type="rule", tags=["governance", "security"], confidence=0.95,
+        memory_type="rule", tags={"tag": "governance", "tag_2": "security"}, confidence=0.95,
     )
     await runner.remember(
         "TechNova_核心架构",
-        memory_type="entity", tags=["arch", "core"], confidence=0.9,
+        memory_type="entity", tags={"tag": "arch", "tag_2": "core"}, confidence=0.9,
     )
 
     await asyncio.sleep(0.5)
@@ -273,15 +273,15 @@ async def run_a06_confidence_filtering(runner: CLIRunner):
 
     await runner.remember(
         "SQL注入防护已全面启用",
-        memory_type="observation", tags=["security", "sql"], confidence=1.0,
+        memory_type="observation", tags={"tag": "security", "tag_2": "sql"}, confidence=1.0,
     )
     await runner.remember(
         "可能存在CSRF风险",
-        memory_type="observation", tags=["security", "csrf"], confidence=0.3,
+        memory_type="observation", tags={"tag": "security", "tag_2": "csrf"}, confidence=0.3,
     )
     await runner.remember(
         "登录页面配置了速率限制",
-        memory_type="observation", tags=["security", "ratelimit"], confidence=0.5,
+        memory_type="observation", tags={"tag": "security", "tag_2": "ratelimit"}, confidence=0.5,
     )
 
     await asyncio.sleep(0.5)
@@ -318,15 +318,15 @@ async def run_a07_evidence_chain(runner: CLIRunner):
 
     await runner.remember(
         "Q3延迟降低15%",
-        memory_type="fragment", tags=["performance"], confidence=0.85,
+        memory_type="fragment", tags={"tag": "performance"}, confidence=0.85,
     )
     await runner.remember(
         "Q3吞吐量提升20%",
-        memory_type="fragment", tags=["performance"], confidence=0.85,
+        memory_type="fragment", tags={"tag": "performance"}, confidence=0.85,
     )
     await runner.remember(
         "Q3错误率下降至0.1%",
-        memory_type="fragment", tags=["performance"], confidence=0.85,
+        memory_type="fragment", tags={"tag": "performance"}, confidence=0.85,
     )
 
     await asyncio.sleep(0.5)
@@ -378,12 +378,12 @@ async def run_a08_private_isolation(runner: CLIRunner):
 
     await runner.remember(
         "bob的数据库密钥是sk-abc123",
-        memory_type="observation", tags=["secret", "db"],
+        memory_type="observation", tags={"tag": "secret", "tag_2": "db"},
         confidence=0.95, visibility="private", created_by="bob",
     )
     await runner.remember(
         "公开API文档地址/wiki/api",
-        memory_type="observation", tags=["public", "api"],
+        memory_type="observation", tags={"tag": "public", "tag_2": "api"},
         confidence=0.9, visibility="shared", created_by="alice",
     )
 
@@ -433,7 +433,7 @@ async def run_a09_token_budget(runner: CLIRunner):
         )
         await runner.remember(
             content,
-            memory_type="observation", tags=["performance", "monitoring"], confidence=0.85,
+            memory_type="observation", tags={"tag": "performance", "tag_2": "monitoring"}, confidence=0.85,
         )
 
     await asyncio.sleep(0.5)

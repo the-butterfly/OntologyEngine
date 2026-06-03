@@ -1,0 +1,46 @@
+{
+  "timestamp": "20260521_080323",
+  "case": "case_zero_schema_memory",
+  "total": 5,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 5,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-Z01: Zero-parameter remember",
+      "score": 1.0,
+      "details": "created=3/3 ids=['mem:fragment:zero_sc', 'mem:fragment:zero_sc', 'mem:fragment:zero_sc']",
+      "latency_ms": 446.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-Z02: Natural language recall",
+      "score": 1.0,
+      "details": "alice_work=True k8s_project=True hq_location=True",
+      "latency_ms": 164.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-Z03: Auto entity extraction",
+      "score": 1.0,
+      "details": "total=19 Technova=True WangLei=True CloudGroup=True",
+      "latency_ms": 270.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-Z04: Multi-tag filtering",
+      "score": 1.0,
+      "details": "finance_results=5 total=26",
+      "latency_ms": 175.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-Z05: Schema Light comparison",
+      "score": 1.0,
+      "details": "results=5 total=29",
+      "latency_ms": 117.8,
+      "sub_scores": {}
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260520_013941",
+  "case": "lifecycle_governance_gap",
+  "total": 8,
+  "mean_score": 1.0,
+  "min_score": 1.0,
+  "passed_count": 8,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Source trust tier",
+      "score": 1.0,
+      "details": "node_id=mem:observation:gap19_25_eval:f10d5b258199",
+      "latency_ms": 325.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: Scope field",
+      "score": 1.0,
+      "details": "total=15",
+      "latency_ms": 169.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Confirmation-based forgetting",
+      "score": 1.0,
+      "details": "forget_ok=True",
+      "latency_ms": 238.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Commitment lifecycle",
+      "score": 1.0,
+      "details": "commitment_id=mem:commitment:gap19_25_eval:bf5c591b7f83, pending=0",
+      "latency_ms": 21.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: Constraint governance",
+      "score": 1.0,
+      "details": "hits=5",
+      "latency_ms": 248.9,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: Entity merge via supersede",
+      "score": 1.0,
+      "details": "old=mem:observation:gap19_25_eval:b140da6b7d29, new=mem:observation:gap19_25_eval:45747301e67a",
+      "latency_ms": 148.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: Correction workflow",
+      "score": 1.0,
+      "details": "original=mem:observation:gap19_25_eval:8178c4da5ab1, corrected=mem:observation:default:5f82d33c87f9",
+      "latency_ms": 187.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Permission isolation",
+      "score": 1.0,
+      "details": "my_memories=0",
+      "latency_ms": 198.8,
+      "sub_scores": {}
+    }
+  ]
+}

@@ -34,8 +34,8 @@ async def run_s01_unified_interface(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         cli.set_space(f"{SPACE}_s01")
-        resp1 = await cli.remember("Entity: Supplier XYZ, industry: manufacturing", tags=["entity"], created_by="storage_test")
-        resp2 = await cli.remember("Entity: Supplier ABC, industry: technology", tags=["entity"], created_by="storage_test")
+        resp1 = await cli.remember("Entity: Supplier XYZ, industry: manufacturing", tags={"tag": "entity"}, created_by="storage_test")
+        resp2 = await cli.remember("Entity: Supplier ABC, industry: technology", tags={"tag": "entity"}, created_by="storage_test")
 
         save_ok = resp1.get("node_id") is not None and resp2.get("node_id") is not None
 
@@ -66,21 +66,21 @@ async def run_s02_sqlite_crud(cli: CLIRunner, report: AcptReport):
         cli.set_space(f"{SPACE}_s02")
         resp_entity = await cli.remember(
             "Entity: CoreEnterprise HW, credit_rating: AAA",
-            tags=["entity", "sqlite_test"],
+            tags={"tag": "entity", "tag_2": "sqlite_test"},
             memory_type="observation",
             created_by="storage_test"
         )
 
         resp_relation = await cli.remember(
             "Relation: Supplier A supplies_to CoreEnterprise HW",
-            tags=["relation", "sqlite_test"],
+            tags={"tag": "relation", "tag_2": "sqlite_test"},
             memory_type="observation",
             created_by="storage_test"
         )
 
         resp_rule = await cli.remember(
             "Rule: credit_score >= 700 → APPROVE",
-            tags=["rule", "sqlite_test"],
+            tags={"tag": "rule", "tag_2": "sqlite_test"},
             memory_type="observation",
             created_by="storage_test"
         )
@@ -112,12 +112,12 @@ async def run_s03_chromadb_vector(cli: CLIRunner, report: AcptReport):
         cli.set_space(f"{SPACE}_s03")
         await cli.remember(
             "The Kubernetes cluster autoscaler scales nodes based on pending pod resource requests",
-            tags=["k8s", "vector_test"],
+            tags={"tag": "k8s", "tag_2": "vector_test"},
             created_by="storage_test"
         )
         await cli.remember(
             "Horizontal Pod Autoscaler adjusts replica count based on CPU and memory metrics",
-            tags=["k8s", "vector_test"],
+            tags={"tag": "k8s", "tag_2": "vector_test"},
             created_by="storage_test"
         )
 
@@ -144,13 +144,13 @@ async def run_s04_rrf_retrieval(cli: CLIRunner, report: AcptReport):
         cli.set_space(f"{SPACE}_s04")
         await cli.remember(
             "API gateway rate limiting: 1000 requests per minute per API key",
-            tags=["api", "rate_limiting"],
+            tags={"tag": "api", "tag_2": "rate_limiting"},
             confidence=0.9,
             created_by="storage_test"
         )
         await cli.remember(
             "Rate limiting algorithm: sliding window counter with Redis backend",
-            tags=["api", "algorithm"],
+            tags={"tag": "api", "tag_2": "algorithm"},
             confidence=0.8,
             created_by="storage_test"
         )
@@ -178,14 +178,14 @@ async def run_s05_citation_consolidation(cli: CLIRunner, report: AcptReport):
         cli.set_space(f"{SPACE}_s05")
         resp_fragment = await cli.remember(
             "Fragment: PostgreSQL connection pool size should be 20",
-            tags=["fragment", "citation_test"],
+            tags={"tag": "fragment", "tag_2": "citation_test"},
             memory_type="fragment",
             created_by="storage_test"
         )
 
         resp_observation = await cli.remember(
             "Observation: Database configuration recommends pool_size=20 for production",
-            tags=["observation", "citation_test"],
+            tags={"tag": "observation", "tag_2": "citation_test"},
             memory_type="observation",
             created_by="storage_test"
         )
@@ -216,7 +216,7 @@ async def run_s06_single_engine(cli: CLIRunner, report: AcptReport):
         cli.set_space(f"{SPACE}_s06")
         resp = await cli.remember(
             "Single engine test: this memory should work with minimal storage backend",
-            tags=["single_engine"],
+            tags={"tag": "single_engine"},
             created_by="storage_test"
         )
 

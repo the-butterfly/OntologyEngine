@@ -25,7 +25,7 @@ class StorageConfig:
 
     Attributes:
         mode: "local" or "cloud".
-        graph_backend: Graph engine name ("kuzu" or "networkx").
+        graph_backend: Graph engine name ("kuzu"/"ladybug" or "networkx").
         vector_backend: Vector engine name ("chroma" or "local").
         meta_backend: Meta engine name ("sqlite").
         data_dir: Base data directory.
@@ -133,7 +133,7 @@ def create_graph_store(config: StorageConfig | None = None) -> GraphStoreBackend
     from ontology_engine.storage.graph.networkx_store import NetworkXGraphStore
 
     cfg = config or StorageConfig()
-    if cfg.graph_backend == "kuzu":
+    if cfg.graph_backend in ("kuzu", "ladybug"):
         from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
 
         return KuzuGraphStore()

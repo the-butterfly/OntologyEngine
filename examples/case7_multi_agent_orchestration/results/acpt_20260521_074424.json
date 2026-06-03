@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260521_074424",
+  "case": "case7_multi_agent_orchestration",
+  "total": 6,
+  "mean_score": 0.9667,
+  "min_score": 0.8,
+  "passed_count": 6,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-701: Ingest Agent update knowledge",
+      "score": 1.0,
+      "details": "created=3/3 ids=['mem:fragment:mul', 'mem:fragment:mul', 'mem:fragment:mul']",
+      "latency_ms": 724.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-702: Analysis Agent query shared knowledge",
+      "score": 1.0,
+      "details": "revenue_found=True risk_found=True",
+      "latency_ms": 195.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-703: Execution Agent generate report",
+      "score": 1.0,
+      "details": "report_created=True report_found=True",
+      "latency_ms": 137.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-704: Shared memory verification",
+      "score": 1.0,
+      "details": "analysis_sees=True exec_sees=True total=3",
+      "latency_ms": 91.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-705: trace_to chain",
+      "score": 0.8,
+      "details": "node1=True node2=True audit_entries=0",
+      "latency_ms": 138.0,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-706: E2E risk identification",
+      "score": 1.0,
+      "details": "analysis_results=5 decision_found=True total=14",
+      "latency_ms": 247.7,
+      "sub_scores": {}
+    }
+  ]
+}

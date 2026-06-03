@@ -1,0 +1,71 @@
+{
+  "timestamp": "20260519_235417",
+  "case": "case1_regulatory_compliance",
+  "total": 6,
+  "mean_score": 0.8333,
+  "min_score": 0.5,
+  "passed_count": 4,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-101 Schema + instance loading",
+      "score": 1.0,
+      "details": "suppliers=5 core_enterprises=3",
+      "latency_ms": 47.3,
+      "sub_scores": {
+        "suppliers": 5,
+        "core_enterprises": 3
+      }
+    },
+    {
+      "name": "TC-102 Baseline compliance analysis",
+      "score": 0.5,
+      "details": "suppliers_analyzed=5 has_rule_results=False",
+      "latency_ms": 1612.1,
+      "sub_scores": {
+        "suppliers_analyzed": 5.0,
+        "has_rule_results": 0.0
+      }
+    },
+    {
+      "name": "TC-103 Whitelist update + re-analysis",
+      "score": 1.0,
+      "details": "has_whitelist_field=True compliance_checks=5",
+      "latency_ms": 1532.2,
+      "sub_scores": {
+        "has_whitelist_field": 1.0,
+        "compliance_checks": 5.0
+      }
+    },
+    {
+      "name": "TC-104 Version rollback",
+      "score": 1.0,
+      "details": "schema_version=2.0 suppliers=5",
+      "latency_ms": 53.7,
+      "sub_scores": {
+        "schema_version": 1.0,
+        "suppliers": 5.0
+      }
+    },
+    {
+      "name": "TC-105 Recall evidence fragments",
+      "score": 1.0,
+      "details": "core_enterprises=3 invoices=19 has_whitelist=True",
+      "latency_ms": 45.3,
+      "sub_scores": {
+        "core_enterprises": 3.0,
+        "invoices": 19.0
+      }
+    },
+    {
+      "name": "TC-106 Reflect analysis summary",
+      "score": 0.5,
+      "details": "credit_analysis=False compliance_analysis=False metrics=False",
+      "latency_ms": 632.9,
+      "sub_scores": {
+        "has_credit_analysis": 0.0,
+        "has_compliance_analysis": 0.0
+      }
+    }
+  ]
+}

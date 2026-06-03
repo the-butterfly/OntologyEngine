@@ -117,9 +117,9 @@ async def run_z04_multi_tag_filtering(cli: CLIRunner, report: AcptReport):
     """TC-Z04: Multi-tag filtering."""
     t0 = time.time()
     try:
-        await cli.remember("The Q3 revenue target is 500M", tags=["finance", "high_trust"])
-        await cli.remember("Revenue might be impacted by supply chain issues", tags=["finance", "opinion"])
-        await cli.remember("API latency increased to 200ms after deployment", tags=["engineering", "high_trust"])
+        await cli.remember("The Q3 revenue target is 500M", tags={"tag": "finance", "tag_2": "high_trust"})
+        await cli.remember("Revenue might be impacted by supply chain issues", tags={"tag": "finance", "tag_2": "opinion"})
+        await cli.remember("API latency increased to 200ms after deployment", tags={"tag": "engineering", "tag_2": "high_trust"})
 
         r_finance = await cli.recall("revenue", max_results=5)
         finance_results = r_finance.get("results", [])
@@ -146,7 +146,7 @@ async def run_z05_schema_light_comparison(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         await cli.remember("Counterparty DEF has a credit score of 680 and risk level of medium",
-                          tags=["credit", "counterparty"])
+                          tags={"tag": "credit", "tag_2": "counterparty"})
 
         r1 = await cli.recall("credit score", max_results=5)
         results = r1.get("results", [])

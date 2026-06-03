@@ -40,7 +40,7 @@ async def run_t1_fragment_consolidation(cli: CLIRunner, report: EvalReport):
     try:
         for i in range(5):
             await cli.remember(f"华信科技2025年Q{i+1}营收数据：营收{i*10+5}亿元",
-                               memory_type="fragment", tags=["financial", "huaxin"])
+                               memory_type="fragment", tags={"tag": "financial", "tag_2": "huaxin"})
         result = await cli.consolidate()
         consolidated = result.get("consolidated_count", 0)
         stats = await cli.stats()
@@ -56,9 +56,9 @@ async def run_t1_fragment_consolidation(cli: CLIRunner, report: EvalReport):
 async def run_t2_observation_entity_upgrade(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("中芯科技是半导体制造企业，总部位于上海", memory_type="observation", tags=["entity_candidate", "semiconductor"])
-        await cli.remember("中芯科技2025年营收200亿元，净利润30亿元", memory_type="observation", tags=["entity_candidate", "semiconductor"])
-        await cli.remember("中芯科技风险等级A级，财务稳健", memory_type="observation", tags=["entity_candidate", "semiconductor"])
+        await cli.remember("中芯科技是半导体制造企业，总部位于上海", memory_type="observation", tags={"tag": "entity_candidate", "tag_2": "semiconductor"})
+        await cli.remember("中芯科技2025年营收200亿元，净利润30亿元", memory_type="observation", tags={"tag": "entity_candidate", "tag_2": "semiconductor"})
+        await cli.remember("中芯科技风险等级A级，财务稳健", memory_type="observation", tags={"tag": "entity_candidate", "tag_2": "semiconductor"})
         await cli.consolidate()
         stats = await cli.stats()
         type_dist = stats.get("type_distribution", {})
@@ -72,8 +72,8 @@ async def run_t2_observation_entity_upgrade(cli: CLIRunner, report: EvalReport):
 async def run_t3_evidence_tracking(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("恒信集团担保链深度3级", memory_type="fragment", tags=["guarantee"])
-        await cli.remember("恒信集团涉及3家互保企业", memory_type="fragment", tags=["guarantee"])
+        await cli.remember("恒信集团担保链深度3级", memory_type="fragment", tags={"tag": "guarantee"})
+        await cli.remember("恒信集团涉及3家互保企业", memory_type="fragment", tags={"tag": "guarantee"})
         await cli.consolidate()
         stats = await cli.stats()
         total = stats.get("total", 0)
@@ -90,7 +90,7 @@ async def run_t4_llm_consolidation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         for text in ["瑞芯微电发布新一代AI芯片RK3588", "瑞芯微电RK3588采用8nm工艺", "瑞芯微电AI芯片性能提升3倍"]:
-            await cli.remember(text, memory_type="fragment", tags=["chip", "ruikexin"])
+            await cli.remember(text, memory_type="fragment", tags={"tag": "chip", "tag_2": "ruikexin"})
         result = await cli.consolidate()
         consolidated = result.get("consolidated_count", 0)
         stats = await cli.stats()
@@ -106,9 +106,9 @@ async def run_t4_llm_consolidation(cli: CLIRunner, report: EvalReport):
 async def run_t5_entity_page_compilation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r = await cli.remember("华信科技：综合企业集团，风险等级C级", memory_type="entity", tags=["company"])
+        r = await cli.remember("华信科技：综合企业集团，风险等级C级", memory_type="entity", tags={"tag": "company"})
         entity_id = r.get("node_id")
-        await cli.remember("华信科技2026年Q1营收回升12%", memory_type="observation", tags=["company"])
+        await cli.remember("华信科技2026年Q1营收回升12%", memory_type="observation", tags={"tag": "company"})
         summary_len = 0
         if entity_id:
             try:
@@ -130,8 +130,8 @@ async def run_t5_entity_page_compilation(cli: CLIRunner, report: EvalReport):
 async def run_t6_topic_page_compilation(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("恒信集团：多元化集团，风险等级B级", memory_type="entity", tags=["company"])
-        r2 = await cli.remember("中芯科技：半导体企业，风险等级A级", memory_type="entity", tags=["company"])
+        r1 = await cli.remember("恒信集团：多元化集团，风险等级B级", memory_type="entity", tags={"tag": "company"})
+        r2 = await cli.remember("中芯科技：半导体企业，风险等级A级", memory_type="entity", tags={"tag": "company"})
         entity_ids = [r1.get("node_id"), r2.get("node_id")]
         entity_ids = [eid for eid in entity_ids if eid]
         synthesis_len = 0
@@ -155,8 +155,8 @@ async def run_t6_topic_page_compilation(cli: CLIRunner, report: EvalReport):
 async def run_t7_reasoning_trail(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("测试推理轨迹：华信科技获得战略投资", memory_type="fragment", tags=["reasoning_test"])
-        await cli.remember("测试推理轨迹：华信科技引入国资背景投资者", memory_type="fragment", tags=["reasoning_test"])
+        await cli.remember("测试推理轨迹：华信科技获得战略投资", memory_type="fragment", tags={"tag": "reasoning_test"})
+        await cli.remember("测试推理轨迹：华信科技引入国资背景投资者", memory_type="fragment", tags={"tag": "reasoning_test"})
         await cli.consolidate()
         audit = await cli.audit(limit=10)
         entries = audit.get("entries", []) if isinstance(audit, dict) else []

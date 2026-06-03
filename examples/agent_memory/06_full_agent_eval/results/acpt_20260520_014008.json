@@ -1,0 +1,67 @@
+{
+  "timestamp": "20260520_014008",
+  "case": "full_agent_eval",
+  "total": 8,
+  "mean_score": 0.8125,
+  "min_score": 0.0,
+  "passed_count": 6,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: User Model",
+      "score": 1.0,
+      "details": "hits=5",
+      "latency_ms": 488.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: Task Model commitment",
+      "score": 1.0,
+      "details": "commitment_id=mem:commitment:full_agent_eval:44b2433b90e6",
+      "latency_ms": 22.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Self Model experience",
+      "score": 0.0,
+      "details": "hits=0",
+      "latency_ms": 204.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Compilation layer",
+      "score": 0.5,
+      "details": "entity_id=mem:entity:full_agent_eval:b38cd0881aba, summary_len=0",
+      "latency_ms": 155.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: Task context recall",
+      "score": 1.0,
+      "details": "hits=5",
+      "latency_ms": 217.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: Permission governance",
+      "score": 1.0,
+      "details": "list_my_ok=True",
+      "latency_ms": 121.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: Cross-model reference",
+      "score": 1.0,
+      "details": "hits=10",
+      "latency_ms": 265.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Full lifecycle",
+      "score": 1.0,
+      "details": "remember=True, correct=True, dream=True, forget=True",
+      "latency_ms": 1096.0,
+      "sub_scores": {}
+    }
+  ]
+}

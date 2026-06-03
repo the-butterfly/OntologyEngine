@@ -36,8 +36,8 @@ CASE_DIR = Path(__file__).parent
 async def run_tc401(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Metric M_REVENUE: 营业收入, formula=sum(gross_sales), unit=CNY, category=financial", tags=["metric", "revenue", "financial"], memory_type="observation", created_by="bi_test")
-        await cli.remember("Store ST_001: 华东旗舰店, region=华东, store_type=flagship, annual_revenue 50M CNY", tags=["store", "ST_001", "华东"], created_by="bi_test")
+        await cli.remember("Metric M_REVENUE: 营业收入, formula=sum(gross_sales), unit=CNY, category=financial", tags={"tag": "metric", "tag_2": "revenue", "tag_3": "financial"}, memory_type="observation", created_by="bi_test")
+        await cli.remember("Store ST_001: 华东旗舰店, region=华东, store_type=flagship, annual_revenue 50M CNY", tags={"tag": "store", "tag_2": "ST_001", "tag_3": "华东"}, created_by="bi_test")
         r1 = await cli.recall("去年营业收入趋势", max_results=3)
         found = any("revenue" in res.get("text", "").lower() or "营业收入" in res.get("text", "") or "50M" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -50,8 +50,8 @@ async def run_tc401(cli: CLIRunner, report: AcptReport):
 async def run_tc402(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Metric M_GROSS_MARGIN: 毛利率, formula=(Revenue-COGS)/Revenue, unit=percent, category=financial", tags=["metric", "margin", "financial", "tc402"], memory_type="observation", created_by="bi_test")
-        await cli.remember("Metric M_FINANCING_COST: 融资成本率, formula=interest_expense/total_debt, unit=percent, category=financial", tags=["metric", "financing_cost", "financial", "tc402"], memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric M_GROSS_MARGIN: 毛利率, formula=(Revenue-COGS)/Revenue, unit=percent, category=financial", tags={"tag": "metric", "tag_2": "margin", "tag_3": "financial", "tag_4": "tc402"}, memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric M_FINANCING_COST: 融资成本率, formula=interest_expense/total_debt, unit=percent, category=financial", tags={"tag": "metric", "tag_2": "financing_cost", "tag_3": "financial", "tag_4": "tc402"}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("毛利率 融资成本", max_results=5)
         results = r1.get("results", [])
         has_margin = any("margin" in res.get("text", "").lower() or "毛利率" in res.get("text", "") for res in results)
@@ -66,7 +66,7 @@ async def run_tc402(cli: CLIRunner, report: AcptReport):
 async def run_tc403(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Metric M_CARBON_INTENSITY: 碳排放强度, formula=CO2_emissions/revenue, unit=tCO2e/M CNY, category=ESG", tags=["metric", "ESG", "carbon"], memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric M_CARBON_INTENSITY: 碳排放强度, formula=CO2_emissions/revenue, unit=tCO2e/M CNY, category=ESG", tags={"tag": "metric", "tag_2": "ESG", "tag_3": "carbon"}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("今年碳排放强度", max_results=3)
         found = any("carbon" in res.get("text", "").lower() or "碳排放" in res.get("text", "") or "ESG" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -79,8 +79,8 @@ async def run_tc403(cli: CLIRunner, report: AcptReport):
 async def run_tc404(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Metric M_SUPPLIER_CONCENTRATION: 供应商集中度, formula=top5_spend/total_spend, unit=percent, category=supply_chain", tags=["metric", "supplier", "supply_chain"], memory_type="observation", created_by="bi_test")
-        await cli.remember("Metric M_AR_TURNOVER: 应收账款周转率, formula=net_credit_sales/avg_AR, unit=times, category=financial", tags=["metric", "AR", "financial"], memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric M_SUPPLIER_CONCENTRATION: 供应商集中度, formula=top5_spend/total_spend, unit=percent, category=supply_chain", tags={"tag": "metric", "tag_2": "supplier", "tag_3": "supply_chain"}, memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric M_AR_TURNOVER: 应收账款周转率, formula=net_credit_sales/avg_AR, unit=times, category=financial", tags={"tag": "metric", "tag_2": "AR", "tag_3": "financial"}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("供应商集中度和应收账款周转率", max_results=5)
         results = r1.get("results", [])
         has_supplier = any("supplier" in res.get("text", "").lower() or "供应商" in res.get("text", "") for res in results)
@@ -95,7 +95,7 @@ async def run_tc404(cli: CLIRunner, report: AcptReport):
 async def run_tc405(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Green financing compliance: 绿色融资监管要求. Projects must meet ESG criteria, carbon emission < threshold, green bond certification required.", tags=["compliance", "green_financing", "ESG"], memory_type="observation", created_by="bi_test")
+        await cli.remember("Green financing compliance: 绿色融资监管要求. Projects must meet ESG criteria, carbon emission < threshold, green bond certification required.", tags={"tag": "compliance", "tag_2": "green_financing", "tag_3": "ESG"}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("绿色融资监管要求", max_results=3)
         found = any("green" in res.get("text", "").lower() or "绿色" in res.get("text", "") or "compliance" in res.get("text", "").lower() for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -109,7 +109,7 @@ async def run_tc406(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
         # First store a known metric so recall is non-empty (tests false positive, not empty result)
-        await cli.remember("Metric M_REVENUE: 营业收入, formula=sum(gross_sales)", tags=["metric", "revenue", "tc406_control"], created_by="bi_test")
+        await cli.remember("Metric M_REVENUE: 营业收入, formula=sum(gross_sales)", tags={"tag": "metric", "tag_2": "revenue", "tag_3": "tc406_control"}, created_by="bi_test")
         r1 = await cli.recall("未知指标xyz123", max_results=5)
         results = r1.get("results", [])
         # Should NOT return the control metric for an unrelated query
@@ -126,8 +126,8 @@ async def run_tc406(cli: CLIRunner, report: AcptReport):
 async def run_tc407(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Metric cards v1.4: M_REVENUE, M_GROSS_MARGIN, M_DSO, M_DIO, M_FINANCING_COST (5 metrics)", tags=["metrics", "v1.4"], memory_type="observation", created_by="bi_test")
-        await cli.remember("Metric cards v1.5: added M_CARBON_INTENSITY, M_ESG_SCORE (7 metrics total, ESG expansion)", tags=["metrics", "v1.5"], memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric cards v1.4: M_REVENUE, M_GROSS_MARGIN, M_DSO, M_DIO, M_FINANCING_COST (5 metrics)", tags={"tag": "metrics", "tag_2": "v1.4"}, memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric cards v1.5: added M_CARBON_INTENSITY, M_ESG_SCORE (7 metrics total, ESG expansion)", tags={"tag": "metrics", "tag_2": "v1.5"}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("metric cards v1.4 v1.5 difference", max_results=5)
         found = any("v1.5" in res.get("text", "") or "v1.4" in res.get("text", "") or "ESG" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -140,7 +140,7 @@ async def run_tc407(cli: CLIRunner, report: AcptReport):
 async def run_tc408(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Metric M_REVENUE: 营业收入, formula=sum(gross_sales), unit=CNY", tags=["metric", "revenue"], memory_type="observation", created_by="bi_test")
+        await cli.remember("Metric M_REVENUE: 营业收入, formula=sum(gross_sales), unit=CNY", tags={"tag": "metric", "tag_2": "revenue"}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("营收", max_results=5)
         results = r1.get("results", [])
         top1_is_revenue = len(results) > 0 and ("revenue" in results[0].get("text", "").lower() or "营业收入" in results[0].get("text", ""))
@@ -154,8 +154,8 @@ async def run_tc408(cli: CLIRunner, report: AcptReport):
 async def run_tc409(cli: CLIRunner, report: AcptReport):
     t0 = time.time()
     try:
-        await cli.remember("Store ST_001: open_date=2025-03-15, region=华东, annual_revenue 50M CNY", tags=["store", "ST_001"], created_by="bi_test")
-        await cli.remember("Store ST_002: open_date=2025-07-01, region=华南, annual_revenue 30M CNY", tags=["store", "ST_002"], created_by="bi_test")
+        await cli.remember("Store ST_001: open_date=2025-03-15, region=华东, annual_revenue 50M CNY", tags={"tag": "store", "tag_2": "ST_001"}, created_by="bi_test")
+        await cli.remember("Store ST_002: open_date=2025-07-01, region=华南, annual_revenue 30M CNY", tags={"tag": "store", "tag_2": "ST_002"}, created_by="bi_test")
         r1 = await cli.recall("2025年Q3和Q4", max_results=5)
         found = any("2025" in res.get("text", "") for res in r1.get("results", []))
         checks = [(found, 1.0)]
@@ -176,7 +176,7 @@ async def run_tc410(cli: CLIRunner, report: AcptReport):
             ("M_FINANCING_COST", "融资成本率", "tc410"),
         ]
         for mid, mname, tag in metrics:
-            await cli.remember(f"Core metric {mid}: {mname}", tags=["metric", "core", mid, tag], memory_type="observation", created_by="bi_test")
+            await cli.remember(f"Core metric {mid}: {mname}", tags={"tag": "metric", "tag_2": "core", "tag_3": mid, "tag_4": tag}, memory_type="observation", created_by="bi_test")
         r1 = await cli.recall("core metric tc410", max_results=10)
         results = r1.get("results", [])
         found_count = sum(1 for mid, _, _ in metrics if any(mid in res.get("text", "") for res in results))

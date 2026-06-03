@@ -32,8 +32,8 @@ SPACE = "contra_fix_eval"
 async def test_negation_conflict(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("华为使用Java语言", memory_type="observation", tags=["lang"])
-        await cli.remember("华为不是使用Java语言", memory_type="observation", tags=["lang"])
+        await cli.remember("华为使用Java语言", memory_type="observation", tags={"tag": "lang"})
+        await cli.remember("华为不是使用Java语言", memory_type="observation", tags={"tag": "lang"})
         result = await cli.reflect("华为语言", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         negation_cons = [c for c in contradictions if c.get("contradiction_type") == "negation_conflict"]
@@ -49,8 +49,8 @@ async def test_negation_conflict(cli: CLIRunner, report: EvalReport):
 async def test_value_conflict(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("华信科技员工数5000人", memory_type="observation", tags=["scale"])
-        await cli.remember("华信科技员工数200人", memory_type="observation", tags=["scale"])
+        await cli.remember("华信科技员工数5000人", memory_type="observation", tags={"tag": "scale"})
+        await cli.remember("华信科技员工数200人", memory_type="observation", tags={"tag": "scale"})
         result = await cli.reflect("华信科技规模", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         value_cons = [c for c in contradictions if c.get("contradiction_type") == "value_conflict"]
@@ -66,10 +66,10 @@ async def test_value_conflict(cli: CLIRunner, report: EvalReport):
 async def test_belief_conflict(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("华为风险等级D级", memory_type="entity", tags=["risk"], confidence=0.9)
+        r1 = await cli.remember("华为风险等级D级", memory_type="entity", tags={"tag": "risk"}, confidence=0.9)
         old_id = r1.get("node_id")
         if old_id:
-            await cli.remember("华为风险等级B级", memory_type="observation", tags=["risk"],
+            await cli.remember("华为风险等级B级", memory_type="observation", tags={"tag": "risk"},
                                supersede_target=old_id, supersede_reason="风险改善")
         result = await cli.reflect("华为风险", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
@@ -86,9 +86,9 @@ async def test_entity_name_grouping(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("华为营收8600亿元", memory_type="observation",
-                           entity_name="华为", tags=["financial"])
+                           entity_name="华为", tags={"tag": "financial"})
         await cli.remember("华为营收6500亿元", memory_type="observation",
-                           entity_name="华为", tags=["financial"])
+                           entity_name="华为", tags={"tag": "financial"})
         result = await cli.reflect("华为营收", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         ok = len(contradictions) >= 1
@@ -103,8 +103,8 @@ async def test_entity_name_grouping(cli: CLIRunner, report: EvalReport):
 async def test_constraint_conflict(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("API限速100次/分钟", memory_type="constraint", tags=["api"])
-        await cli.remember("API限速5000次/分钟", memory_type="constraint", tags=["api"])
+        await cli.remember("API限速100次/分钟", memory_type="constraint", tags={"tag": "api"})
+        await cli.remember("API限速5000次/分钟", memory_type="constraint", tags={"tag": "api"})
         result = await cli.reflect("API限速", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         ok = len(contradictions) >= 1
@@ -137,7 +137,7 @@ async def test_empty_space(cli: CLIRunner, report: EvalReport):
 async def test_single_node(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("唯一一条记忆", memory_type="observation", tags=["solo"])
+        await cli.remember("唯一一条记忆", memory_type="observation", tags={"tag": "solo"})
         result = await cli.reflect("唯一记忆", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         ok = len(contradictions) == 0
@@ -152,8 +152,8 @@ async def test_single_node(cli: CLIRunner, report: EvalReport):
 async def test_same_content(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("华为风险等级D级", memory_type="observation", tags=["risk"])
-        await cli.remember("华为风险等级D级", memory_type="observation", tags=["risk"])
+        await cli.remember("华为风险等级D级", memory_type="observation", tags={"tag": "risk"})
+        await cli.remember("华为风险等级D级", memory_type="observation", tags={"tag": "risk"})
         result = await cli.reflect("华为风险", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         ok = True
@@ -184,10 +184,10 @@ async def test_no_tag_nodes(cli: CLIRunner, report: EvalReport):
 async def test_superseded_excluded(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("旧策略：限速100次/分钟", memory_type="constraint", tags=["policy"])
+        r1 = await cli.remember("旧策略：限速100次/分钟", memory_type="constraint", tags={"tag": "policy"})
         old_id = r1.get("node_id")
         if old_id:
-            await cli.remember("新策略：限速5000次/分钟", memory_type="constraint", tags=["policy"],
+            await cli.remember("新策略：限速5000次/分钟", memory_type="constraint", tags={"tag": "policy"},
                                supersede_target=old_id, supersede_reason="策略更新")
         result = await cli.reflect("限速策略", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
@@ -209,8 +209,8 @@ async def test_superseded_excluded(cli: CLIRunner, report: EvalReport):
 async def test_special_characters(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("API端点: /v1/users/{id}/profile", memory_type="observation", tags=["api"])
-        await cli.remember("API端点: /v2/users/{id}/profile", memory_type="observation", tags=["api"])
+        await cli.remember("API端点: /v1/users/{id}/profile", memory_type="observation", tags={"tag": "api"})
+        await cli.remember("API端点: /v2/users/{id}/profile", memory_type="observation", tags={"tag": "api"})
         result = await cli.reflect("API端点", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         ok = True
         score = 0.8
@@ -224,8 +224,8 @@ async def test_special_characters(cli: CLIRunner, report: EvalReport):
 async def test_mixed_language(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("Huawei uses Kubernetes for orchestration", memory_type="observation", tags=["infra"])
-        await cli.remember("Huawei采用Docker Swarm编排", memory_type="observation", tags=["infra"])
+        await cli.remember("Huawei uses Kubernetes for orchestration", memory_type="observation", tags={"tag": "infra"})
+        await cli.remember("Huawei采用Docker Swarm编排", memory_type="observation", tags={"tag": "infra"})
         result = await cli.reflect("Huawei编排方案", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         ok = True
@@ -242,8 +242,8 @@ async def test_very_long_content(cli: CLIRunner, report: EvalReport):
     try:
         long_text_a = "华为" + "技术" * 200 + "采用微服务架构"
         long_text_b = "华为" + "技术" * 200 + "采用单体架构"
-        await cli.remember(long_text_a, memory_type="observation", tags=["arch"])
-        await cli.remember(long_text_b, memory_type="observation", tags=["arch"])
+        await cli.remember(long_text_a, memory_type="observation", tags={"tag": "arch"})
+        await cli.remember(long_text_b, memory_type="observation", tags={"tag": "arch"})
         result = await cli.reflect("华为架构", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
         contradictions = result.get("contradictions", [])
         ok = True
@@ -264,9 +264,9 @@ async def test_large_node_count(cli: CLIRunner, report: EvalReport):
     try:
         for i in range(50):
             await cli.remember(f"测试记忆{i}：数值{i * 10}",
-                               memory_type="observation", tags=["stress"])
+                               memory_type="observation", tags={"tag": "stress"})
 
-        await cli.remember("测试记忆0：数值999", memory_type="observation", tags=["stress"])
+        await cli.remember("测试记忆0：数值999", memory_type="observation", tags={"tag": "stress"})
 
         start = time.time()
         result = await cli.reflect("测试记忆数值", max_iterations=5, skip_consolidation=True, skip_forgetting=True)
@@ -294,7 +294,7 @@ async def test_reflect_with_consolidation(cli: CLIRunner, report: EvalReport):
     try:
         for i in range(6):
             await cli.remember(f"华为风险观察{i}：风险指标偏高",
-                               memory_type="fragment", tags=["risk", "huawei"])
+                               memory_type="fragment", tags={"tag": "risk", "tag_2": "huawei"})
         result = await cli.reflect("华为风险", max_iterations=5, skip_consolidation=False, skip_forgetting=True)
         ok = True
         score = 0.8
@@ -309,7 +309,7 @@ async def test_reflect_with_consolidation(cli: CLIRunner, report: EvalReport):
 async def test_reflect_with_forgetting(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        await cli.remember("临时观察：市场波动", memory_type="fragment", tags=["temp"], confidence=0.2)
+        await cli.remember("临时观察：市场波动", memory_type="fragment", tags={"tag": "temp"}, confidence=0.2)
         result = await cli.reflect("市场观察", max_iterations=5, skip_consolidation=True, skip_forgetting=False)
         ok = True
         score = 0.8

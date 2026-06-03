@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ontology_engine.engine.extraction.ast_extractor import ASTExtractor, ASTExtractionResult
-from ontology_engine.engine.extraction.llm_extractor import LLMExtractor
+from ontology_engine.engine.extraction.llm_extractor import LLMExtractor, LLMExtractionResult
 from ontology_engine.engine.extraction.llm_protocol import LLMClientProtocol
 from ontology_engine.engine.extraction.cache import IncrementalCache
 from ontology_engine.engine.extraction.dedup import DedupStrategy, DedupResult
@@ -51,16 +51,6 @@ class ExtractionPipeline:
         self._schema_loader = schema_loader
 
     def ingest(self, source_files: list[str], root: str = ".") -> DedupResult:
-        """Ingest a list of source files through the three-pass pipeline.
-
-        Args:
-            source_files: Absolute or relative paths to source files.
-            root: Project root used for relative-path hashing in the cache.
-
-        Returns:
-            DedupResult containing deduplicated entities, edges and
-            mutual-index edges.
-        """
         root_path = Path(root)
         all_ast_results: list[ASTExtractionResult] = []
         uncached_fragments: list[dict[str, Any]] = []
@@ -96,10 +86,6 @@ class ExtractionPipeline:
                         pass
                 uncached_fragments.append({"id": source_file, "text": text})
 
-        # Resolve schema context from optional SchemaLoader injection.
-        # get_fact_object_descriptions() is expected to return a dict mapping
-        # fact_object name → description string (or None).  If the method is
-        # unavailable or raises, we degrade gracefully to no schema context.
         schema_context: dict[str, Any] | None = None
         if self._schema_loader is not None:
             try:
@@ -107,12 +93,49 @@ class ExtractionPipeline:
             except Exception:
                 schema_context = None
 
+        sem_cached = self._cache.check_semantic_cache(
+            [f["id"] for f in uncached_fragments], root_path,
+        )
+        sem_entities, sem_edges, sem_categories, uncached_ids = sem_cached
+        truly_uncached = [
+            f for f in uncached_fragments if f["id"] in uncached_ids
+        ]
+
         llm_result = self._llm_extractor.extract(
-            uncached_fragments,
+            truly_uncached,
             schema_context=schema_context,
         )
+
+        for frag in truly_uncached:
+            frag_entities = [
+                e for e in llm_result.entities
+                if any(
+                    s.get("fragment_id") == frag["id"]
+                    for s in llm_result.supported_by_edges
+                    if s.get("entity_name") == e.get("name")
+                )
+            ]
+            frag_edges = [
+                e for e in llm_result.edges
+                if e.get("source") == frag["id"] or e.get("target") == frag["id"]
+            ]
+            frag_categories = [
+                c for c in llm_result.categories
+                if c.get("fragment_id") == frag["id"]
+            ]
+            self._cache.save_semantic_cache(
+                frag["id"], frag_entities, frag_edges, frag_categories, root_path,
+            )
+
+        merged_llm = LLMExtractionResult(
+            entities=sem_entities + llm_result.entities,
+            edges=sem_edges + llm_result.edges,
+            categories=sem_categories + llm_result.categories,
+            supported_by_edges=llm_result.supported_by_edges,
+        )
+
         merged_ast = self._merge_ast_results(all_ast_results)
-        return self._dedup.dedup_and_index(merged_ast, llm_result, uncached_fragments)
+        return self._dedup.dedup_and_index(merged_ast, merged_llm, uncached_fragments)
 
     def _merge_ast_results(self, results: list[ASTExtractionResult]) -> ASTExtractionResult:
         merged = ASTExtractionResult()

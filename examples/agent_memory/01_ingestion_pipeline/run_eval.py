@@ -50,7 +50,7 @@ async def run_t1_basic_remember_recall(cli: CLIRunner, report: EvalReport):
     try:
         r = await cli.remember(
             "华信科技2025年营收50亿，资产负债率75%",
-            memory_type="entity", tags=["company", "risk"],
+            memory_type="entity", tags={"tag": "company", "tag_2": "risk"},
             confidence=0.9, created_by="analyst_A",
         )
         node_id = r.get("node_id")
@@ -70,9 +70,9 @@ async def run_t1_basic_remember_recall(cli: CLIRunner, report: EvalReport):
 async def run_t2_deduplication_gate(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("中芯科技是半导体制造企业，风险等级A级", memory_type="entity", tags=["semiconductor"])
-        r2 = await cli.remember("中芯科技是半导体制造企业，风险等级A级", memory_type="entity", tags=["semiconductor"])
-        r3 = await cli.remember("中芯科技是芯片制造领先企业，财务状况稳健", memory_type="entity", tags=["semiconductor"])
+        r1 = await cli.remember("中芯科技是半导体制造企业，风险等级A级", memory_type="entity", tags={"tag": "semiconductor"})
+        r2 = await cli.remember("中芯科技是半导体制造企业，风险等级A级", memory_type="entity", tags={"tag": "semiconductor"})
+        r3 = await cli.remember("中芯科技是芯片制造领先企业，财务状况稳健", memory_type="entity", tags={"tag": "semiconductor"})
         id1, id2, id3 = r1.get("node_id"), r2.get("node_id"), r3.get("node_id")
         dedup = id1 == id2
         different = id3 != id1
@@ -88,8 +88,8 @@ async def run_t2_deduplication_gate(cli: CLIRunner, report: EvalReport):
 async def run_t3_entity_resolution_l1(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("恒信集团：多元化企业，风险等级C级", memory_type="entity", tags=["conglomerate"])
-        r2 = await cli.remember("恒信集团2025年净利润8亿元", memory_type="observation", tags=["conglomerate"])
+        r1 = await cli.remember("恒信集团：多元化企业，风险等级C级", memory_type="entity", tags={"tag": "conglomerate"})
+        r2 = await cli.remember("恒信集团2025年净利润8亿元", memory_type="observation", tags={"tag": "conglomerate"})
         id1, id2 = r1.get("node_id"), r2.get("node_id")
         ok = id1 is not None and id2 is not None and id1 != id2
         report.add(_ok("T3: Entity Resolution L1", ok, 1.0 if ok else 0.0,
@@ -101,8 +101,8 @@ async def run_t3_entity_resolution_l1(cli: CLIRunner, report: EvalReport):
 async def run_t4_entity_resolution_l2(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("瑞芯微电：芯片设计企业，风险等级B级", memory_type="entity", tags=["semiconductor", "design"])
-        r2 = await cli.remember("瑞芯微电子：IC设计公司，财务稳健", memory_type="entity", tags=["semiconductor", "design"])
+        r1 = await cli.remember("瑞芯微电：芯片设计企业，风险等级B级", memory_type="entity", tags={"tag": "semiconductor", "tag_2": "design"})
+        r2 = await cli.remember("瑞芯微电子：IC设计公司，财务稳健", memory_type="entity", tags={"tag": "semiconductor", "tag_2": "design"})
         id1, id2 = r1.get("node_id"), r2.get("node_id")
         ok = id1 is not None and id2 is not None
         report.add(_ok("T4: Entity Resolution L2 (trigram)", ok, 1.0 if ok else 0.0,
@@ -118,16 +118,25 @@ async def run_t5_model_domain_inference(cli: CLIRunner, report: EvalReport):
             ("承诺在Q3前完成系统迁移", "commitment", "task"),
             ("API调用频率限制100次/分钟", "constraint", "world"),
             ("工具X调用失败3次，可靠性低", "self_experience", "self"),
-            ("用户偏好保守型投资策略", "observation", "user"),
         ]
         correct = 0
+        domain_correct = 0
         for content, mtype, expected_domain in cases:
-            r = await cli.remember(content, memory_type=mtype, model_domain=expected_domain)
-            if r.get("node_id"):
+            r = await cli.remember(content, memory_type=mtype)
+            node_id = r.get("node_id")
+            if node_id:
                 correct += 1
-        ok = correct >= 3
-        report.add(_ok("T5: model_domain auto-inference", ok, correct / len(cases),
-                       f"correct={correct}/{len(cases)}", (time.time() - t0) * 1000))
+                recall = await cli.recall(content, max_results=1)
+                results = recall.get("results", [])
+                if results:
+                    actual_tags = results[0].get("tags", {})
+                    actual_domain = actual_tags.get("model", "") if isinstance(actual_tags, dict) else ""
+                    if actual_domain == expected_domain:
+                        domain_correct += 1
+        ok = correct >= 2 and domain_correct >= 1
+        score = (0.5 * correct / max(len(cases), 1)) + (0.5 * domain_correct / max(len(cases), 1))
+        report.add(_ok("T5: model_domain auto-inference", ok, score,
+                       f"created={correct}/{len(cases)}, domain_match={domain_correct}/{len(cases)}", (time.time() - t0) * 1000))
     except Exception as e:
         report.add(_ok("T5", False, 0.0, str(e), (time.time() - t0) * 1000))
 
@@ -138,9 +147,23 @@ async def run_t6_cognitive_layer_inference(cli: CLIRunner, report: EvalReport):
         r1 = await cli.remember("华信科技2025年Q4营收12.5亿元", memory_type="observation")
         r2 = await cli.remember("华信科技风险等级应该调整为B级，因为重组效果显著", memory_type="observation")
         id1, id2 = r1.get("node_id"), r2.get("node_id")
+        layer_match = 0
+        if id1:
+            recall1 = await cli.recall("华信科技Q4营收", max_results=1)
+            results1 = recall1.get("results", [])
+            if results1 and results1[0].get("cognitive_layer") == "opinion":
+                layer_match += 1
+        if id2:
+            recall2 = await cli.recall("华信科技风险等级调整", max_results=1)
+            results2 = recall2.get("results", [])
+            if results2 and results2[0].get("cognitive_layer") == "opinion":
+                layer_match += 1
         ok = id1 is not None and id2 is not None
-        report.add(_ok("T6: cognitive_layer inference", ok, 1.0 if ok else 0.0,
-                       f"factual_id={id1}, subjective_id={id2}", (time.time() - t0) * 1000))
+        score = 0.5 if ok else 0.0
+        if ok and layer_match > 0:
+            score = 1.0
+        report.add(_ok("T6: cognitive_layer inference", ok, score,
+                       f"factual_id={id1}, subjective_id={id2}, layer_match={layer_match}/2", (time.time() - t0) * 1000))
     except Exception as e:
         report.add(_ok("T6", False, 0.0, str(e), (time.time() - t0) * 1000))
 
@@ -148,15 +171,24 @@ async def run_t6_cognitive_layer_inference(cli: CLIRunner, report: EvalReport):
 async def run_t7_source_trust_tier(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        tiers = ["user_declared", "behavior_inferred", "environment_observed", "agent_generated"]
+        tiers = ["high", "normal", "low"]
         created = 0
+        tier_match = 0
         for tier in tiers:
             r = await cli.remember(f"测试来源可信层级: {tier}", memory_type="observation", source_trust_tier=tier)
-            if r.get("node_id"):
+            node_id = r.get("node_id")
+            if node_id:
                 created += 1
-        ok = created >= 3
-        report.add(_ok("T7: source_trust_tier propagation", ok, created / len(tiers),
-                       f"created={created}/{len(tiers)}", (time.time() - t0) * 1000))
+                recall = await cli.recall(f"测试来源可信层级: {tier}", max_results=1)
+                results = recall.get("results", [])
+                if results:
+                    actual_tier = results[0].get("source_trust_tier", "")
+                    if actual_tier == tier:
+                        tier_match += 1
+        ok = created >= 2 and tier_match >= 1
+        score = (0.5 * created / len(tiers)) + (0.5 * tier_match / len(tiers))
+        report.add(_ok("T7: source_trust_tier propagation", ok, score,
+                       f"created={created}/{len(tiers)}, tier_match={tier_match}/{len(tiers)}", (time.time() - t0) * 1000))
     except Exception as e:
         report.add(_ok("T7", False, 0.0, str(e), (time.time() - t0) * 1000))
 
@@ -165,11 +197,11 @@ async def run_t8_multi_source_ingestion(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("华信科技担保链深度3级，负面舆情预警", memory_type="observation",
-                           source_pipeline="user_input", tags=["risk", "guarantee_chain"])
+                           source_pipeline="user_input", tags={"tag": "risk", "tag_2": "guarantee_chain"})
         await cli.remember("系统检测到华信科技资产负债率异常波动", memory_type="observation",
-                           source_pipeline="behavior_analysis", tags=["risk", "anomaly"])
+                           source_pipeline="behavior_analysis", tags={"tag": "risk", "tag_2": "anomaly"})
         await cli.remember("根据历史数据分析，华信科技违约概率15%", memory_type="rule",
-                           source_pipeline="agent_generated", tags=["risk", "probability"])
+                           source_pipeline="agent_generated", tags={"tag": "risk", "tag_2": "probability"})
         stats = await cli.stats()
         total = stats.get("total", 0)
         recall = await cli.recall("华信科技风险", max_results=10)

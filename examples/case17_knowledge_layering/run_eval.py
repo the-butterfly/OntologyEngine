@@ -51,7 +51,7 @@ async def run_l01_all_memory_types(cli: CLIRunner, report: AcptReport):
         ]
         created = 0
         for mtype, content in types_to_test:
-            resp = await cli.remember(content, tags=["type_test", mtype], memory_type=mtype, confidence=0.9)
+            resp = await cli.remember(content, tags={"tag": "type_test", "tag_2": mtype}, memory_type=mtype, confidence=0.9)
             if resp.get("node_id"):
                 created += 1
         r1 = await cli.recall("供应商A", max_results=20)
@@ -72,25 +72,25 @@ async def run_l02_analytical_layer_weights(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Mental model: 华为供应链风险低，技术实力强，是核心战略合作伙伴",
-            tags=["analytic", "华为", "mental_model"],
+            tags={"tag": "analytic", "tag_2": "华为", "tag_3": "mental_model"},
             memory_type="mental_model",
             confidence=0.95,
         )
         await cli.remember(
             "Entity: 华为技术有限公司, credit_rating AAA, revenue 9000亿",
-            tags=["analytic", "华为", "entity"],
+            tags={"tag": "analytic", "tag_2": "华为", "tag_3": "entity"},
             memory_type="entity",
             confidence=0.9,
         )
         await cli.remember(
             "Observation: 华为2025年供应链融资规模500亿",
-            tags=["analytic", "华为", "observation"],
+            tags={"tag": "analytic", "tag_2": "华为", "tag_3": "observation"},
             memory_type="observation",
             confidence=0.85,
         )
         await cli.remember(
             "Fragment: 听说华为在扩展供应链",
-            tags=["analytic", "华为", "fragment"],
+            tags={"tag": "analytic", "tag_2": "华为", "tag_3": "fragment"},
             memory_type="fragment",
             confidence=0.5,
         )
@@ -114,7 +114,7 @@ async def run_l03_structured_plus_text(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "供应商 深圳智造科技有限公司 注册资本5000万人民币 成立于2019年 主营业务为智能硬件研发 metadata:registered_capital=50M founded=2019 industry=smart_hardware",
-            tags=["supplier", "深圳智造", "structured"],
+            tags={"tag": "supplier", "tag_2": "深圳智造", "tag_3": "structured"},
             memory_type="entity",
             confidence=0.9,
         )
@@ -137,7 +137,7 @@ async def run_l04_belief_status_transition(cli: CLIRunner, report: AcptReport):
     try:
         resp1 = await cli.remember(
             "Rule: 供应商需通过核心企业担保",
-            tags=["rule", "belief_test"],
+            tags={"tag": "rule", "tag_2": "belief_test"},
             memory_type="rule",
             confidence=0.9,
             belief_status="accepted",
@@ -148,7 +148,7 @@ async def run_l04_belief_status_transition(cli: CLIRunner, report: AcptReport):
         accepted_found = any("担保" in res.get("text", "") for res in r1.get("results", []))
         resp2 = await cli.remember(
             "Rule: 供应商需通过核心企业担保（待审核）",
-            tags=["rule", "belief_test", "pending"],
+            tags={"tag": "rule", "tag_2": "belief_test", "tag_3": "pending"},
             memory_type="rule",
             confidence=0.6,
             belief_status="pending_review",
@@ -170,14 +170,14 @@ async def run_l05_supersede_chain(cli: CLIRunner, report: AcptReport):
     try:
         resp1 = await cli.remember(
             "Rule v1.0: 供应商授信额度不超过总敞口10%",
-            tags=["rule", "credit_limit", "v1"],
+            tags={"tag": "rule", "tag_2": "credit_limit", "tag_3": "v1"},
             memory_type="rule",
             confidence=0.8,
         )
         v1_id = resp1.get("node_id")
         resp2 = await cli.remember(
             "Rule v2.0: 供应商授信额度不超过总敞口15%（基于Q2数据调整）",
-            tags=["rule", "credit_limit", "v2"],
+            tags={"tag": "rule", "tag_2": "credit_limit", "tag_3": "v2"},
             memory_type="rule",
             confidence=0.9,
             supersede_target=v1_id,
@@ -186,7 +186,7 @@ async def run_l05_supersede_chain(cli: CLIRunner, report: AcptReport):
         v2_id = resp2.get("node_id")
         resp3 = await cli.remember(
             "Rule v3.0: 供应商授信额度不超过总敞口20%（基于Q3数据调整）",
-            tags=["rule", "credit_limit", "v3"],
+            tags={"tag": "rule", "tag_2": "credit_limit", "tag_3": "v3"},
             memory_type="rule",
             confidence=0.95,
             supersede_target=v2_id,
@@ -214,13 +214,13 @@ async def run_l06_temporal_validity(cli: CLIRunner, report: AcptReport):
     try:
         await cli.remember(
             "Rule: 2025年供应商准入标准A类 valid_from=2025-01-01 valid_to=2025-12-31",
-            tags=["rule", "2025", "valid"],
+            tags={"tag": "rule", "tag_2": "2025", "tag_3": "valid"},
             memory_type="rule",
             confidence=0.9,
         )
         await cli.remember(
             "Rule: 2024年供应商准入标准B类（已过期）valid_from=2024-01-01 valid_to=2024-12-31",
-            tags=["rule", "2024", "expired"],
+            tags={"tag": "rule", "tag_2": "2024", "tag_3": "expired"},
             memory_type="rule",
             confidence=0.85,
         )
@@ -244,7 +244,7 @@ async def run_l07_confidence_observable(cli: CLIRunner, report: AcptReport):
         for conf in [0.95, 0.9, 0.8, 0.7, 0.5, 0.3]:
             await cli.remember(
                 f"Test item with confidence {conf}",
-                tags=["confidence_test", f"conf_{int(conf*100)}"],
+                tags={"tag": "confidence_test", "tag_2": f"conf_{int(conf*100)}"},
                 memory_type="observation",
                 confidence=conf,
             )
@@ -271,14 +271,14 @@ async def run_l08_audit_trail_events(cli: CLIRunner, report: AcptReport):
     try:
         resp1 = await cli.remember(
             "Rule: 供应商审查流程v1",
-            tags=["audit_test", "v1"],
+            tags={"tag": "audit_test", "tag_2": "v1"},
             memory_type="rule",
             confidence=0.9,
         )
         v1_id = resp1.get("node_id")
         resp2 = await cli.remember(
             "Rule: 供应商审查流程v2（更新）",
-            tags=["audit_test", "v2"],
+            tags={"tag": "audit_test", "tag_2": "v2"},
             memory_type="rule",
             confidence=0.95,
             supersede_target=v1_id,

@@ -1,0 +1,81 @@
+{
+  "timestamp": "20260521_075248",
+  "case": "locomo_eval",
+  "total": 10,
+  "mean_score": 0.9,
+  "min_score": 0.0,
+  "passed_count": 9,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "T1: Single-hop recall",
+      "score": 1.0,
+      "details": "hits=5, found_shenzhen=True",
+      "latency_ms": 552.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T2: Multi-hop reasoning",
+      "score": 1.0,
+      "details": "hits=10, cloud=True, k8s=True",
+      "latency_ms": 386.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "T3: Temporal reasoning",
+      "score": 1.0,
+      "details": "hits=5, has_latest=True",
+      "latency_ms": 279.4,
+      "sub_scores": {}
+    },
+    {
+      "name": "T4: Contradiction detection",
+      "score": 1.0,
+      "details": "contradictions=6, insights=2",
+      "latency_ms": 582.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T5: Consolidation & upgrade",
+      "score": 1.0,
+      "details": "before=68, after=70, consolidated=12",
+      "latency_ms": 1629.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "T6: Supersede & belief revision",
+      "score": 1.0,
+      "details": "old_id=mem:observation:locomo_eval:fd53c3a89480, new_id=mem:observation:locomo_eval:f95664e538c8",
+      "latency_ms": 249.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "T7: Forgetting & protection",
+      "score": 1.0,
+      "details": "forget_result=True",
+      "latency_ms": 424.3,
+      "sub_scores": {}
+    },
+    {
+      "name": "T8: Correction propagation",
+      "score": 1.0,
+      "details": "original=mem:observation:locomo_eval:bf1db0c97e39, corrected=mem:observation:default:026520b294a0",
+      "latency_ms": 187.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "T9: DreamCycle maintenance",
+      "score": 1.0,
+      "details": "phases=5, contradictions=0, skipped=False",
+      "latency_ms": 1256.2,
+      "sub_scores": {}
+    },
+    {
+      "name": "T10",
+      "score": 0.0,
+      "details": "Invalid memory_type: 'archived', must be one of {'commitment', 'rule', 'task_state', 'fragment', 'mental_model', 'constraint', 'episode', 'opinion', 'procedure', 'self_experience', 'metrics', 'observation', 'relation', 'entity'}",
+      "latency_ms": 727.1,
+      "sub_scores": {}
+    }
+  ]
+}

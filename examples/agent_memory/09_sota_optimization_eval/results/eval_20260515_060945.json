@@ -1,0 +1,93 @@
+{
+  "timestamp": "20260515_060945",
+  "case": "case9",
+  "total": 12,
+  "passed": 12,
+  "pass_rate": 1.0,
+  "results": [
+    {
+      "name": "IT-1-01: Token budget baseline",
+      "passed": true,
+      "score": 0.9,
+      "details": "full_tokens=2439, no_ev_tokens=2439, saving=0.0%, completeness=0.0%, utilization=61.0%, hits=10",
+      "latency_ms": 772.7458477020264
+    },
+    {
+      "name": "IT-1-02: Compression mode baseline",
+      "passed": true,
+      "score": 0.5,
+      "details": "results=5, avg_fields=15.0, core_fields_present=False",
+      "latency_ms": 53.02095413208008
+    },
+    {
+      "name": "IT-1-03: Short-circuit baseline",
+      "passed": true,
+      "score": 0.5,
+      "details": "total=10, mental_model=0, opinion=0, short_circuit_possible=False, potential_saving=0.0%",
+      "latency_ms": 79.45132255554199
+    },
+    {
+      "name": "IT-1-04: Additive scoring baseline",
+      "passed": true,
+      "score": 0.9,
+      "details": "results=10, has_ranking=True, type_diversity=3, scores=[0.027, 0.025, 0.019, 0.05, 0.048]",
+      "latency_ms": 55.00006675720215
+    },
+    {
+      "name": "IT-2-01: Semantic disconnect baseline",
+      "passed": true,
+      "score": 0.0,
+      "details": "recall_rate=0.0%, hits=0/5, details=推荐什么晚餐？→MISS, 批量查征信可行吗？→MISS, 今天有什么待办？→MISS, 推荐高风险基金？→MISS, 能给华为放贷吗？→MISS",
+      "latency_ms": 1305.3960800170898
+    },
+    {
+      "name": "IT-2-02: Prospective trigger coverage",
+      "passed": true,
+      "score": 0.9,
+      "details": "trigger_types=4/4, skip_types=2/2",
+      "latency_ms": 244.41909790039062
+    },
+    {
+      "name": "IT-2-02: Retrieval latency baseline",
+      "passed": true,
+      "score": 0.8,
+      "details": "avg=27ms, p95=39ms, samples=[39.31427001953125, 26.382923126220703, 24.13797378540039, 22.234201431274414, 22.099018096923828]",
+      "latency_ms": 134.18078422546387
+    },
+    {
+      "name": "IT-3-01: Core belief protection baseline",
+      "passed": true,
+      "score": 0.7,
+      "details": "supersede_works=True, contradictions=1, insights=2, has_detection=True",
+      "latency_ms": 6107.473134994507
+    },
+    {
+      "name": "IT-3-02: Discardability scoring baseline",
+      "passed": true,
+      "score": 0.8,
+      "details": "nodes_created=5, type_order_correct=True",
+      "latency_ms": 207.55982398986816
+    },
+    {
+      "name": "IT-3-03: Consistency check baseline",
+      "passed": true,
+      "score": 0.9,
+      "details": "rules=7, conflicts=0, has_conflicts=False, duplicate_priorities=False, rule_ids=['BR_R001', 'BR_R002', 'BR_R003', 'BR_R004', 'BR_R005', 'BR_R006', 'BR_R007'], priorities=[100, 90, 80, 70, 60, 50, 40]",
+      "latency_ms": 0.0171661376953125
+    },
+    {
+      "name": "IT-3-04: AGM postulate baseline",
+      "passed": true,
+      "score": 0.2,
+      "details": "postulates={'K*2_Success': True, 'K*3_Consistency': False, 'K*5_Preservation': False, 'Relevance': False, 'Core_Retainment': False}, has_contracted_status=False, has_recovery_path=False, supported=1/5",
+      "latency_ms": 0.07009506225585938
+    },
+    {
+      "name": "IT-3-05: Correction propagation baseline",
+      "passed": true,
+      "score": 1.0,
+      "details": "original=mem:observation:sota_eval:03571ed9cd55, corrected=mem:observation:sota_eval:2827f12af2a7",
+      "latency_ms": 5026.660203933716
+    }
+  ]
+}

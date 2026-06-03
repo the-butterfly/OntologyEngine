@@ -37,19 +37,19 @@ async def run_701_ingest_agent_update(cli: CLIRunner, report: AcptReport):
 
         resp1 = await ingest_cli.remember(
             "Q3 2026 revenue: 5.2B CNY, up 15% YoY. Gross margin 32%.",
-            tags=["financial_report", "Q3_2026"],
+            tags={"tag": "financial_report", "tag_2": "Q3_2026"},
             source_pipeline="ingest_agent",
             created_by="agent_ingest"
         )
         resp2 = await ingest_cli.remember(
             "Supply chain risk: 3 suppliers in guarantee cycle A-B-C-A detected.",
-            tags=["risk_alert", "guarantee_cycle"],
+            tags={"tag": "risk_alert", "tag_2": "guarantee_cycle"},
             source_pipeline="ingest_agent",
             created_by="agent_ingest"
         )
         resp3 = await ingest_cli.remember(
             "Counterparty DEF credit score dropped from 720 to 650.",
-            tags=["credit_risk", "counterparty"],
+            tags={"tag": "credit_risk", "tag_2": "counterparty"},
             source_pipeline="ingest_agent",
             created_by="agent_ingest"
         )
@@ -76,11 +76,11 @@ async def run_702_analysis_agent_query(cli: CLIRunner, report: AcptReport):
 
         await ingest_cli.remember(
             "Q3 2026 revenue: 5.2B CNY, up 15% YoY. Gross margin 32%.",
-            tags=["financial_report"], created_by="agent_ingest", visibility="shared"
+            tags={"tag": "financial_report"}, created_by="agent_ingest", visibility="shared"
         )
         await ingest_cli.remember(
             "Supply chain risk: 3 suppliers in guarantee cycle detected.",
-            tags=["risk_alert"], created_by="agent_ingest", visibility="shared"
+            tags={"tag": "risk_alert"}, created_by="agent_ingest", visibility="shared"
         )
 
         r1 = await analysis_cli.recall("Q3 revenue", max_results=3)
@@ -112,7 +112,7 @@ async def run_703_execution_agent_report(cli: CLIRunner, report: AcptReport):
             "Risk Report 2026-Q3: 3 high-risk suppliers identified. "
             "Recommendation: reduce exposure to guarantee cycle participants. "
             "Credit limit for Counterparty DEF reduced by 20%.",
-            tags=["risk_report", "Q3_2026"],
+            tags={"tag": "risk_report", "tag_2": "Q3_2026"},
             memory_type="observation",
             created_by="agent_execution"
         )
@@ -143,7 +143,7 @@ async def run_704_shared_memory_verification(cli: CLIRunner, report: AcptReport)
 
         await ingest_cli.remember(
             "Supplier XYZ has been flagged for potential fraud investigation.",
-            tags=["fraud_alert"], created_by="agent_ingest", visibility="shared"
+            tags={"tag": "fraud_alert"}, created_by="agent_ingest", visibility="shared"
         )
 
         r_analysis = await analysis_cli.recall("fraud investigation", max_results=3)
@@ -173,14 +173,14 @@ async def run_705_trace_to_chain(cli: CLIRunner, report: AcptReport):
 
         resp1 = await trace_cli.remember(
             "Initial risk assessment: Counterparty ABC score 720",
-            tags=["risk_assessment"], created_by="agent_ingest",
+            tags={"tag": "risk_assessment"}, created_by="agent_ingest",
             source_pipeline="ingest"
         )
         node_id_1 = resp1.get("node_id")
 
         resp2 = await trace_cli.remember(
             "Updated risk assessment: Counterparty ABC score dropped to 650",
-            tags=["risk_assessment"], created_by="agent_analysis",
+            tags={"tag": "risk_assessment"}, created_by="agent_analysis",
             source_pipeline="analysis",
             supersede_target=node_id_1,
             supersede_reason="score updated based on new data"
@@ -213,11 +213,11 @@ async def run_706_e2e_risk_identification(cli: CLIRunner, report: AcptReport):
         # Step 1: Ingest Agent ingests raw data
         await ingest_cli.remember(
             "Supplier A: revenue 50M, credit score 680, guarantee chain depth 3",
-            tags=["supplier_data"], created_by="agent_ingest", visibility="shared"
+            tags={"tag": "supplier_data"}, created_by="agent_ingest", visibility="shared"
         )
         await ingest_cli.remember(
             "Supplier B: revenue 30M, credit score 620, guarantee chain depth 4",
-            tags=["supplier_data"], created_by="agent_ingest", visibility="shared"
+            tags={"tag": "supplier_data"}, created_by="agent_ingest", visibility="shared"
         )
 
         # Step 2: Analysis Agent queries and analyzes
@@ -227,14 +227,14 @@ async def run_706_e2e_risk_identification(cli: CLIRunner, report: AcptReport):
         await analysis_cli.remember(
             "Analysis: Supplier A and B both in high-risk guarantee cycle. "
             "Recommendation: reject both applications.",
-            tags=["analysis_result"], created_by="agent_analysis", visibility="shared"
+            tags={"tag": "analysis_result"}, created_by="agent_analysis", visibility="shared"
         )
 
         # Step 3: Execution Agent generates final report
         await exec_cli.remember(
             "Final Decision: Supplier A - REJECT, Supplier B - REJECT. "
             "Reason: guarantee chain risk exceeds threshold.",
-            tags=["final_decision"], created_by="agent_execution", visibility="shared"
+            tags={"tag": "final_decision"}, created_by="agent_execution", visibility="shared"
         )
 
         r_decision = await exec_cli.recall("final decision reject", max_results=3)

@@ -73,6 +73,40 @@ CONSTRAINT_TO_RETRIEVAL_STRATEGY = {
 }
 
 
+def constraint_to_typed(constraint: QueryConstraint) -> Any:
+    from ontology_engine.engine.cognitive.rrf_types import (
+        TemporalConstraint,
+        UserPreferenceConstraint,
+        DecisionConstraint,
+        TaskHistoryConstraint,
+        EnvironmentalConstraint,
+        SelfReferenceConstraint,
+        EntityTargetConstraint,
+        ConfidenceDemandConstraint,
+    )
+    ct = constraint.constraint_type
+    val = constraint.value
+    raw = constraint.raw_match
+    if ct == "temporal_scope":
+        return TemporalConstraint(kind=str(val), groups=(raw,))
+    if ct == "user_preference":
+        return UserPreferenceConstraint(preference_type=str(val), keyword=raw)
+    if ct == "decision_type":
+        return DecisionConstraint(decision_type=str(val), keyword=raw)
+    if ct == "task_history":
+        return TaskHistoryConstraint(keyword=raw, intent=str(val) if isinstance(val, str) else "recall")
+    if ct == "environmental":
+        return EnvironmentalConstraint(keyword=raw, category=str(val) if isinstance(val, str) else "general")
+    if ct == "self_reference":
+        return SelfReferenceConstraint(keyword=raw, perspective=str(val) if isinstance(val, str) else "first_person")
+    if ct == "entity_targets":
+        return EntityTargetConstraint(entity_name=str(val), source_pattern="quoted")
+    if ct == "confidence_demand":
+        conf = float(val) if isinstance(val, (int, float)) else 0.5
+        return ConfidenceDemandConstraint(min_confidence=conf, keyword=raw)
+    return constraint
+
+
 TEMPORAL_PATTERNS = [
     (r"最近|今天|昨天|前天|本周|上周|本月|上月|刚刚|刚才", "recent"),
     (r"以前|过去|之前|曾经|历史上|往期", "past"),

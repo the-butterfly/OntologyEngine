@@ -34,6 +34,8 @@ class GateResult:
     contradiction_with: list[str] = field(default_factory=list)
     marginal_value: float = 1.0
     metadata: dict[str, Any] = field(default_factory=dict)
+    existing_node: Any | None = None
+    similarity: float | None = None
 
 
 class DeduplicationGate:
@@ -63,12 +65,14 @@ class DeduplicationGate:
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
         marginal_value_threshold: float = DEFAULT_MARGINAL_VALUE_THRESHOLD,
         contradiction_threshold: float = DEFAULT_CONTRADICTION_CANDIDATE_THRESHOLD,
+        orbit_router: Any | None = None,
     ):
         self._repo = repository
         self._vector_index = vector_index
         self._similarity_threshold = similarity_threshold
         self._marginal_value_threshold = marginal_value_threshold
         self._contradiction_threshold = contradiction_threshold
+        self._orbit_router = orbit_router
 
     async def check(
         self,
@@ -77,18 +81,35 @@ class DeduplicationGate:
         memory_type: str = "fragment",
         tags: dict[str, str | list[str]] | None = None,
         confidence: float = 1.0,
+        source_pipeline: str = "",
+        source_trust_tier: str = "",
     ) -> GateResult:
-        """Run all gate checks on incoming content.
-
-        Checks are ordered by cost: dedup (cheapest) → contradiction → marginal value.
-        Returns on first non-ACCEPT decision.
-        """
         dedup_result = await self._check_duplicate(content, space_id, memory_type, tags)
         if dedup_result.decision != WriteDecision.ACCEPT:
+            if dedup_result.decision == WriteDecision.CONTRADICTION_CANDIDATE and self._orbit_router:
+                orbit_result = self._orbit_router.route_ingest_contradiction(
+                    new_source_pipeline=source_pipeline,
+                    new_source_trust_tier=source_trust_tier,
+                    existing_node=dedup_result.existing_node,
+                    similarity=dedup_result.similarity or 0.0,
+                )
+                dedup_result.metadata["orbit"] = orbit_result.orbit.value
+                dedup_result.metadata["orbit_action"] = orbit_result.action
+                if orbit_result.orbit.value == "A":
+                    dedup_result.metadata["requires_human_review"] = True
             return dedup_result
 
         contradiction_result = await self._check_contradiction(content, space_id, memory_type, tags)
         if contradiction_result.decision != WriteDecision.ACCEPT:
+            if self._orbit_router:
+                orbit_result = self._orbit_router.route_ingest_contradiction(
+                    new_source_pipeline=source_pipeline,
+                    new_source_trust_tier=source_trust_tier,
+                    existing_node=contradiction_result.existing_node,
+                    similarity=contradiction_result.similarity or 0.0,
+                )
+                contradiction_result.metadata["orbit"] = orbit_result.orbit.value
+                contradiction_result.metadata["orbit_action"] = orbit_result.action
             return contradiction_result
 
         marginal_result = await self._check_marginal_value(
@@ -144,6 +165,8 @@ class DeduplicationGate:
                                 decision=WriteDecision.CONTRADICTION_CANDIDATE,
                                 reason=f"value_conflict_in_duplicate: {conflict or 'negation'}",
                                 contradiction_with=[r.doc_id],
+                                existing_node=node,
+                                similarity=r.score,
                             )
 
                     logger.info(
@@ -237,10 +260,19 @@ class DeduplicationGate:
                     "Contradiction candidate: %d conflicts for content='%s'",
                     len(contradiction_ids), content[:50],
                 )
+                first_node = None
+                first_sim = None
+                for candidate in candidates:
+                    if candidate.doc_id in contradiction_ids:
+                        first_node = await self._repo.get_node(candidate.doc_id)
+                        first_sim = candidate.score
+                        break
                 return GateResult(
                     decision=WriteDecision.CONTRADICTION_CANDIDATE,
                     reason=f"conflicts_with_{len(contradiction_ids)}_nodes",
                     contradiction_with=contradiction_ids,
+                    existing_node=first_node,
+                    similarity=first_sim,
                 )
         except Exception as e:
             logger.warning("Contradiction check failed: %s", e)

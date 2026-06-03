@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260520_024759",
+  "case": "supply_chain_finance",
+  "total": 6,
+  "mean_score": 0.3571,
+  "min_score": 0.0,
+  "passed_count": 2,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-01",
+      "score": 0.0,
+      "details": "'>=' not supported between instances of 'str' and 'int'",
+      "latency_ms": 348.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-02: 高风险供应商准入失败",
+      "score": 0.0,
+      "details": "decision= eligible=True rejected=False",
+      "latency_ms": 348.7,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-03: 担保圈供应商图算法检测",
+      "score": 0.1429,
+      "details": "decision= depth=0 cycle=False alerts=0",
+      "latency_ms": 344.5,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-04: 担保圈全员检测",
+      "score": 0.0,
+      "details": "cycle=False depth=0",
+      "latency_ms": 339.8,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-05: 多维风险预警触发",
+      "score": 1.0,
+      "details": "alerts=0 rules=2",
+      "latency_ms": 343.6,
+      "sub_scores": {}
+    },
+    {
+      "name": "TC-06: 批发零售行业无制造业加成",
+      "score": 1.0,
+      "details": "score=27.500000000000004 rules=6",
+      "latency_ms": 347.6,
+      "sub_scores": {}
+    }
+  ]
+}

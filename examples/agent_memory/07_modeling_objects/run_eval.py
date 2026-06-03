@@ -41,13 +41,13 @@ async def run_t1_user_model(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         r1 = await cli.remember("用户alice风险偏好：保守型", memory_type="mental_model",
-                                model_domain="user", tags=["user_model", "risk_appetite"],
+                                model_domain="user", tags={"tag": "user_model", "tag_2": "risk_appetite"},
                                 created_by="alice", confidence=0.9)
         r2 = await cli.remember("用户alice沟通风格：详细型", memory_type="mental_model",
-                                model_domain="user", tags=["user_model", "communication_style"],
+                                model_domain="user", tags={"tag": "user_model", "tag_2": "communication_style"},
                                 created_by="alice", confidence=0.8)
         r3 = await cli.remember("用户alice领域专长：金融风控", memory_type="mental_model",
-                                model_domain="user", tags=["user_model", "domain_expertise"],
+                                model_domain="user", tags={"tag": "user_model", "tag_2": "domain_expertise"},
                                 created_by="alice", confidence=0.85)
         ids = [r1.get("node_id"), r2.get("node_id"), r3.get("node_id")]
         ok = all(ids)
@@ -75,8 +75,8 @@ async def run_t2_task_model(cli: CLIRunner, report: EvalReport):
 async def run_t3_world_model(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
-        r1 = await cli.remember("API调用频率限制100次/分钟", memory_type="constraint", model_domain="world", tags=["api_limit"])
-        r2 = await cli.remember("监管要求：客户风险评级必须每季度更新", memory_type="constraint", model_domain="world", tags=["business_rule"])
+        r1 = await cli.remember("API调用频率限制100次/分钟", memory_type="constraint", model_domain="world", tags={"tag": "api_limit"})
+        r2 = await cli.remember("监管要求：客户风险评级必须每季度更新", memory_type="constraint", model_domain="world", tags={"tag": "business_rule"})
         ok = r1.get("node_id") is not None and r2.get("node_id") is not None
         report.add(_ok("T3: World Model (constraint)", ok, 1.0 if ok else 0.0,
                        f"api_limit_id={r1.get('node_id')}, reg_id={r2.get('node_id')}", (time.time() - t0) * 1000))
@@ -88,13 +88,13 @@ async def run_t4_self_model(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("工具risk_api调用成功，延迟1500ms", memory_type="self_experience",
-                           model_domain="self", tags=["tool_reliability", "risk_api"],
+                           model_domain="self", tags={"tag": "tool_reliability", "tag_2": "risk_api"},
                            confidence=0.9)
         await cli.remember("工具risk_api调用成功，延迟1200ms", memory_type="self_experience",
-                           model_domain="self", tags=["tool_reliability", "risk_api"],
+                           model_domain="self", tags={"tag": "tool_reliability", "tag_2": "risk_api"},
                            confidence=0.9)
         await cli.remember("工具risk_api调用失败，超时3000ms", memory_type="self_experience",
-                                model_domain="self", tags=["tool_reliability", "risk_api"],
+                                model_domain="self", tags={"tag": "tool_reliability", "tag_2": "risk_api"},
                                 confidence=0.7)
         recall = await cli.recall("risk_api工具可靠性", max_results=5)
         results = recall.get("results", [])
@@ -138,11 +138,11 @@ async def run_t7_cross_model_reference(cli: CLIRunner, report: EvalReport):
     t0 = time.time()
     try:
         await cli.remember("用户cross_user风险偏好：稳健型", memory_type="mental_model",
-                           model_domain="user", tags=["user_model"], created_by="cross_user")
+                           model_domain="user", tags={"tag": "user_model"}, created_by="cross_user")
         await cli.record_commitment("完成跨模型引用验证", task_id="cross_task", created_by="cross_user")
         await cli.remember("跨模型测试约束：所有操作需审计", memory_type="constraint", model_domain="world")
         await cli.remember("工具cross_tool调用成功，延迟500ms", memory_type="self_experience",
-                           model_domain="self", tags=["tool_reliability"])
+                           model_domain="self", tags={"tag": "tool_reliability"})
         recall = await cli.recall("跨模型", max_results=10)
         results = recall.get("results", [])
         ok = len(results) > 0

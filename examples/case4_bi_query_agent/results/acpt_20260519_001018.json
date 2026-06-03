@@ -1,0 +1,109 @@
+{
+  "timestamp": "20260519_001018",
+  "case": "case4_bi_query_agent",
+  "total": 10,
+  "mean_score": 0.835,
+  "min_score": 0.5,
+  "passed_count": 7,
+  "threshold": 0.7,
+  "results": [
+    {
+      "name": "TC-401 Natural language to metric mapping",
+      "score": 1.0,
+      "details": "found_revenue=True found_trend=True",
+      "latency_ms": 1085.2,
+      "sub_scores": {
+        "found_revenue": 1.0,
+        "found_trend": 1.0
+      }
+    },
+    {
+      "name": "TC-402 Multi-metric query",
+      "score": 0.5,
+      "details": "found_margin=False found_financing=False",
+      "latency_ms": 677.7,
+      "sub_scores": {
+        "found_margin": 0.0,
+        "found_financing": 0.0
+      }
+    },
+    {
+      "name": "TC-403 ESG metric query",
+      "score": 1.0,
+      "details": "found_carbon=True found_esg=True",
+      "latency_ms": 684.3,
+      "sub_scores": {
+        "found_carbon": 1.0,
+        "found_esg": 1.0
+      }
+    },
+    {
+      "name": "TC-404 Cross-domain query",
+      "score": 1.0,
+      "details": "found_supplier=True found_ar=True",
+      "latency_ms": 631.1,
+      "sub_scores": {
+        "found_supplier": 1.0,
+        "found_ar": 1.0
+      }
+    },
+    {
+      "name": "TC-405 Compliance check query",
+      "score": 1.0,
+      "details": "found_green=True found_regulation=True",
+      "latency_ms": 678.9,
+      "sub_scores": {
+        "found_green": 1.0,
+        "found_regulation": 1.0
+      }
+    },
+    {
+      "name": "TC-406 Unknown metric handling",
+      "score": 0.5,
+      "details": "has_results=True results_count=4",
+      "latency_ms": 672.5,
+      "sub_scores": {
+        "has_results": 1.0
+      }
+    },
+    {
+      "name": "TC-407 Version diff analysis",
+      "score": 1.0,
+      "details": "found_esg_add=True found_version_diff=True",
+      "latency_ms": 636.6,
+      "sub_scores": {
+        "found_esg_add": 1.0,
+        "found_version_diff": 1.0
+      }
+    },
+    {
+      "name": "TC-408 Rule recall precision",
+      "score": 0.85,
+      "details": "results_count=1 expected_top3=3",
+      "latency_ms": 595.6,
+      "sub_scores": {
+        "results_count": 1
+      }
+    },
+    {
+      "name": "TC-409 Time filter accuracy",
+      "score": 0.5,
+      "details": "found_quarter=False found_year=False",
+      "latency_ms": 636.8,
+      "sub_scores": {
+        "found_quarter": 0.0,
+        "found_year": 0.0
+      }
+    },
+    {
+      "name": "TC-410 Dashboard query",
+      "score": 1.0,
+      "details": "found=5/5",
+      "latency_ms": 644.6,
+      "sub_scores": {
+        "found_count": 5,
+        "expected_count": 5
+      }
+    }
+  ]
+}
