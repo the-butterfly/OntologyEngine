@@ -41,8 +41,8 @@ _ERROR_CODE_TO_HTTP_STATUS: dict[str, int] = {
     "INGESTION_ERROR": 500,
     # Cognitive memory errors
     "DB_LOCK_ERROR": 503,
-    "STATS_ERROR": 503,
-    "TYPES_ERROR": 503,
+    "STATS_ERROR": 500,
+    "TYPES_ERROR": 500,
     "REMEMBER_ERROR": 500,
     "RECALL_ERROR": 500,
     "REFLECT_ERROR": 500,
@@ -55,8 +55,11 @@ _ERROR_CODE_TO_HTTP_STATUS: dict[str, int] = {
     "DREAM_ERROR": 500,
     "AUDIT_ERROR": 500,
     "LIST_NODES_ERROR": 500,
+    "LIST_EDGES_ERROR": 500,
+    "MEMORY_GRAPH_ERROR": 500,
     "EVIDENCE_ERROR": 500,
     "CORRECT_ERROR": 500,
+    "MEMORY_SERVICE_ERROR": 503,
 }
 
 

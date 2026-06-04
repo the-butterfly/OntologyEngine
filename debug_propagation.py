@@ -6,14 +6,14 @@ from pathlib import Path
 
 from ontology_engine.engine.cognitive.models import CognitiveEdge
 from ontology_engine.engine.cognitive.repository import CognitiveRepository
-from ontology_engine.storage.graph.kuzu_store import KuzuGraphStore
+from ontology_engine.storage.graph.ladybug_store import LadybugGraphStore
 
 
 async def debug():
     tmpdir = tempfile.mkdtemp(prefix="debug_")
     db_path = str(Path(tmpdir) / "cognitive")
     try:
-        store = KuzuGraphStore()
+        store = LadybugGraphStore()
         await store.initialize(db_path)
         repo = CognitiveRepository(store)
 

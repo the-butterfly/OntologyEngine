@@ -330,7 +330,7 @@ def _topological_sort(nodes: list[dict], edges: list[dict]) -> list[str]:
 # Space CRUD
 # ============================================================================
 
-@router.post("/", response_model=dict, summary="Create semantic space", description="Create a new semantic space in DRAFT status. After creation, load schema via /schema/load-yaml and activate via /{space_id}/activate before running analysis.")
+@router.post("", response_model=dict, summary="Create semantic space", description="Create a new semantic space in DRAFT status. After creation, load schema via /schema/load-yaml and activate via /{space_id}/activate before running analysis.")
 async def create_space(request: CreateSpaceRequest):
     """Create a new semantic space."""
     service = get_space_service()
@@ -358,7 +358,7 @@ async def create_space(request: CreateSpaceRequest):
     return success_response(data=_space_to_response(space))
 
 
-@router.get("/", response_model=dict, summary="List semantic spaces", description="List all semantic spaces with their IDs, names, statuses, and entity counts.")
+@router.get("", response_model=dict, summary="List semantic spaces", description="List all semantic spaces with their IDs, names, statuses, and entity counts.")
 async def list_spaces():
     """List all semantic spaces."""
     service = get_space_service()

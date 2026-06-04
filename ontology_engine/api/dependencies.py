@@ -141,7 +141,7 @@ def get_consumption_service() -> ConsumptionService:
 
 def get_memory_service() -> MemoryService:
     if _services is None or "memory" not in _services:
-        raise HTTPException(status_code=500, detail="Memory service not initialized")
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
     return _services["memory"]
 
 

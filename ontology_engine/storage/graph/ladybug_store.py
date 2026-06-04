@@ -321,12 +321,22 @@ class LadybugGraphStore(GraphStoreBackend, CognitiveStorageBackend):
         last_error: Exception | None = None
         for attempt in range(1, _LOCK_RETRY_ATTEMPTS + 1):
             try:
-                self._db = lb.Database(path)
+                self._db = self._open_database(path)
                 break
             except RuntimeError as exc:
                 last_error = exc
                 msg = str(exc).lower()
                 if "lock" not in msg and "could not set" not in msg:
+                    # Detect incompatible database format (e.g. old KuzuDB file)
+                    if "not a valid" in msg or "invalid" in msg:
+                        self._backup_and_recreate(path, exc)
+                        try:
+                            self._db = self._open_database(path)
+                            break
+                        except RuntimeError as retry_exc:
+                            raise GraphQueryError(
+                                f"Failed to open Ladybug at {path} after recreating: {retry_exc}"
+                            ) from retry_exc
                     raise GraphQueryError(
                         f"Failed to open Ladybug at {path}: {exc}"
                     ) from exc
@@ -369,6 +379,58 @@ class LadybugGraphStore(GraphStoreBackend, CognitiveStorageBackend):
         self._initialized = True
         await self._ensure_schema()
         logger.info("Ladybug graph store initialized at %s (pool_size=%d)", path, self._pool_size)
+
+    def _backup_and_recreate(self, path: str, original_error: Exception) -> None:
+        """Backup an incompatible database directory and remove it so Ladybug can recreate.
+
+        When upgrading from KuzuDB to Ladybug, the on-disk format is incompatible.
+        This method renames the old database directory with a ``.bak`` suffix and
+        logs a warning so the user can recover data if needed.
+        """
+        import shutil
+        import time
+
+        if not os.path.exists(path):
+            return
+
+        backup = f"{path}.bak.{int(time.time())}"
+        logger.warning(
+            "Incompatible database at %s (%s). "
+            "Backing up to %s and recreating. "
+            "Old data will need to be re-ingested.",
+            path, original_error, backup,
+        )
+        try:
+            shutil.move(path, backup)
+        except OSError as move_exc:
+            # If move fails (e.g. cross-device), try copy+remove
+            try:
+                shutil.copytree(path, backup)
+                shutil.rmtree(path)
+            except OSError as copy_exc:
+                raise GraphQueryError(
+                    f"Cannot backup incompatible database at {path}: "
+                    f"move failed ({move_exc}), copy+remove also failed ({copy_exc})"
+                ) from copy_exc
+
+    @staticmethod
+    def _open_database(path: str) -> Any:
+        """Open a Ladybug database, falling back to pybind backend if CAPI is unavailable.
+
+        Ladybug 0.17+ supports two backends: ``capi`` (requires shared library) and
+        ``pybind`` (bundled in the Python package).  The default ``auto`` tries CAPI
+        first, which fails when the native shared library is not installed.  This
+        method catches that failure and retries with the pybind backend.
+        """
+        import ladybug as lb
+
+        try:
+            return lb.Database(path)
+        except RuntimeError as exc:
+            if "c api" in str(exc).lower() or "shared library" in str(exc).lower():
+                logger.info("CAPI backend unavailable, falling back to pybind for %s", path)
+                return lb.Database(path, backend="pybind")
+            raise
 
     async def _recover_stale_lock(self, path: str, last_error: Exception | None) -> bool:
         """Attempt to detect and remove a stale Ladybug lock file.

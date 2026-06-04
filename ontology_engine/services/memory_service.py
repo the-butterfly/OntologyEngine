@@ -21,7 +21,7 @@ class MemoryService:
         self,
         space_id: str,
         content: str = "",
-        tags: list[str] | None = None,
+        tags: dict[str, str | list[str]] | list[str] | None = None,
         memory_type: str = "fragment",
         visibility: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -40,10 +40,16 @@ class MemoryService:
         source_trust_tier: str | None = None,
     ) -> dict[str, Any]:
         api = await self.get_api()
+        # Normalize list[str] tags to dict[str, str] for MemoryAPI
+        normalized_tags: dict[str, str | list[str]] | None = None
+        if isinstance(tags, list):
+            normalized_tags = {t: t for t in tags}
+        elif isinstance(tags, dict):
+            normalized_tags = tags
         result = await api.remember(
             content=content,
             space_id=space_id,
-            tags=tags,
+            tags=normalized_tags,
             memory_type=memory_type,
             visibility=visibility,
             metadata=metadata,

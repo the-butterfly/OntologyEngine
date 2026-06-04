@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ontology_engine.api.dependencies import get_memory_service
@@ -19,6 +19,8 @@ def _is_lock_error(exc: Exception) -> bool:
 
 
 def _handle_error(exc: Exception, code: str) -> Any:
+    if isinstance(exc, HTTPException):
+        raise exc
     if _is_lock_error(exc):
         return error_response(
             code="DB_LOCK_ERROR",
@@ -36,7 +38,7 @@ class CorrectNodeRequest(BaseModel):
 
 class RememberRequest(BaseModel):
     content: str = ""
-    tags: Any = None
+    tags: list[str] | dict[str, str | list[str]] | None = None
     memory_type: str = "fragment"
     visibility: Any = None
     auto_consolidate: bool = False
@@ -104,10 +106,14 @@ async def remember(
 ) -> dict[str, Any] | Any:
     try:
         service = get_memory_service()
+        # Convert list[str] tags to dict[str, str] format expected by MemoryAPI
+        tags = request.tags
+        if isinstance(tags, list):
+            tags = {t: t for t in tags}
         result = await service.remember(
             content=request.content,
             space_id=space_id,
-            tags=request.tags,
+            tags=tags,
             memory_type=request.memory_type,
             visibility=request.visibility,
             auto_consolidate=request.auto_consolidate,
